@@ -806,7 +806,7 @@ export default {
       return Response.json({
         ok:true,
         app:"تواصل العطا",
-        version:"V9.2-Video-Ring-Fix"
+        version:"V9.3-Caller-Photo"
       });
     }
 

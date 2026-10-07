@@ -84,6 +84,7 @@ function connect(){
       incomingFrom=msg.from;
       currentCallType=msg.callType||"video";
       $("incomingText").textContent=`${incomingFrom} يتصل بك`;
+      setCallPeerIdentity(incomingFrom);
       $("incomingModal").classList.remove("hidden");
       playIncomingRing();
       notify("مكالمة واردة",`${incomingFrom} يتصل بك`);
@@ -320,7 +321,7 @@ async function ensurePeer(){
     }
 
     const empty=document.querySelector(".remote-empty-state");
-    if(empty)empty.style.display="none";
+    if(empty && e.track?.kind==="video")empty.style.display="none";
 
     $("callPeerState").textContent="متصل";
     $("callStatusText").textContent="مكالمة جارية";
@@ -356,6 +357,10 @@ async function ensurePeer(){
 async function requestCall(type){
   if(!selectedUser)return alert("اختر مستخدمًا أولًا");
   currentCallType=type;
+
+  const empty=document.querySelector(".remote-empty-state");
+  if(empty)empty.style.display="grid";
+
   showCallOverlay(selectedUser,"جاري الاتصال...");
   playOutgoingRing();
   send({type:"call-request",to:selectedUser,callType:type});
@@ -535,14 +540,49 @@ let storyMediaData="", pendingChatMedia=null, typingTimer=null, mediaRecorder=nu
 
 let callOverlayOpen=false;
 
+
+async function setCallPeerIdentity(username){
+  const name=String(username||"").trim();
+  if(!name)return;
+
+  let peer=users.find(u=>u.username===name)||null;
+
+  if(!peer && token){
+    try{
+      const d=await api(`/api/profile-public?token=${encodeURIComponent(token)}&username=${encodeURIComponent(name)}`);
+      peer=d.user||null;
+    }catch{}
+  }
+
+  const display=peer?.fullName||peer?.displayName||peer?.username||name;
+  const avatar=peer?.avatar||avatarFallback(display);
+
+  if($("callPeerName"))$("callPeerName").textContent=display;
+  if($("remoteEmptyName"))$("remoteEmptyName").textContent=display;
+
+  if($("callPeerAvatar")){
+    $("callPeerAvatar").src=avatar;
+    $("callPeerAvatar").alt=display;
+  }
+
+  if($("remoteEmptyAvatar")){
+    $("remoteEmptyAvatar").src=avatar;
+    $("remoteEmptyAvatar").alt=display;
+  }
+}
+
 function showCallOverlay(peerName,stateText="مكالمة جارية"){
   callOverlayOpen=true;
   $("callOverlay").classList.remove("hidden");
   $("callStatusBar").classList.remove("hidden");
-  $("callPeerName").textContent=peerName||selectedUser||incomingFrom||"مكالمة";
-  $("remoteEmptyName").textContent=peerName||selectedUser||incomingFrom||"الطرف الآخر";
+
+  const peer=peerName||selectedUser||incomingFrom||"";
+  $("callPeerName").textContent=peer||"مكالمة";
+  $("remoteEmptyName").textContent=peer||"الطرف الآخر";
   $("callPeerState").textContent=stateText;
   $("callStatusText").textContent=stateText;
+
+  setCallPeerIdentity(peer);
 }
 
 function hideCallOverlay(keepBar=false){
