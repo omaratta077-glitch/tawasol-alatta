@@ -69,6 +69,9 @@
     </section>
 
     <section id="searchPage" class="page">
+      <div class="page-title"><h2>استكشاف</h2><button id="refreshExploreBtn">تحديث</button></div>
+      <div id="exploreFeed" class="explore-grid"></div>
+      <h3 class="section-heading">البحث عن مستخدم</h3>
       <div class="search-box">
         <input id="userSearchInput" placeholder="ابحث عن مستخدم...">
         <button id="userSearchBtn">بحث</button>
@@ -120,7 +123,15 @@
     <section id="notificationsPage" class="page">
       <div class="page-title"><h2>الإشعارات</h2><button id="markNotificationsRead">تحديد الكل كمقروء</button></div>
       <div id="notificationsList"></div>
-    </section>
+    
+      <div class="saved-section">
+        <div class="page-title">
+          <h3>المنشورات المحفوظة</h3>
+          <button id="loadSavedBtn">عرض المحفوظات</button>
+        </div>
+        <div id="savedPostsList"></div>
+      </div>
+</section>
 
     <section id="profilePage" class="page">
       <div class="profile-card-large pro-profile-card">
@@ -136,7 +147,7 @@
 
   <nav class="bottom-nav">
     <button class="nav-btn active" data-page="homePage">🏠<span>الرئيسية</span></button>
-    <button class="nav-btn" data-page="searchPage">🔎<span>بحث</span></button>
+    <button class="nav-btn" data-page="searchPage">🧭<span>استكشاف</span></button>
     <button class="nav-btn" data-page="messagesPage">💬<span>الرسائل</span></button>
     <button class="nav-btn" data-page="notificationsPage">🔔<span>الإشعارات</span></button>
     <button class="nav-btn" data-page="profilePage">👤<span>حسابي</span></button>

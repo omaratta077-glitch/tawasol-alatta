@@ -257,12 +257,36 @@ export class SignalingRoom extends DurableObject {
       for(const id of [...ids].reverse()){
         const p=await this.ctx.storage.get(`post:${id}`);
         if(!p)continue;
+        const saved=await this.ctx.storage.get(`saved:${s.username}`)||[];
+        const reactionCounts={};
+        const reactions=p.reactions||{};
+        for(const key of ["like","love","haha","wow","sad"]){
+          reactionCounts[key]=Array.isArray(reactions[key])?reactions[key].length:0;
+        }
+
+        let myReaction="";
+        for(const key of Object.keys(reactionCounts)){
+          if((reactions[key]||[]).includes(s.username)){myReaction=key;break;}
+        }
+
+        let sharedPost=null;
+        if(p.sharedPostId){
+          const original=await this.ctx.storage.get(`post:${p.sharedPostId}`);
+          if(original){
+            sharedPost={...original,authorInfo:await this.publicUser(original.author)};
+          }
+        }
+
         posts.push({
           ...p,
           authorInfo:await this.publicUser(p.author),
           likeCount:(p.likes||[]).length,
           commentCount:(p.comments||[]).length,
-          likedByMe:(p.likes||[]).includes(s.username)
+          likedByMe:(p.likes||[]).includes(s.username),
+          reactionCounts,
+          myReaction,
+          savedByMe:saved.includes(p.id),
+          sharedPost
         });
       }
 
@@ -431,6 +455,213 @@ export class SignalingRoom extends DurableObject {
       return j({ok:true,messages:(await this.ctx.storage.get(`messages:${key}`)||[]).slice(-200)});
     }
 
+    
+    if(url.pathname==="/api/post-react" && request.method==="POST"){
+      const s=await this.session(String(body.token||""));
+      if(!s)return j({ok:false,error:"الجلسة منتهية"},401);
+
+      const post=await this.ctx.storage.get(`post:${body.postId}`);
+      if(!post)return j({ok:false,error:"المنشور غير موجود"},404);
+
+      const allowed=["like","love","haha","wow","sad"];
+      const reaction=String(body.reaction||"like");
+      if(!allowed.includes(reaction))return j({ok:false,error:"تفاعل غير صالح"},400);
+
+      post.reactions=post.reactions||{};
+      for(const key of allowed){
+        post.reactions[key]=Array.isArray(post.reactions[key])?post.reactions[key]:[];
+        post.reactions[key]=post.reactions[key].filter(x=>x!==s.username);
+      }
+
+      if(body.remove!==true){
+        post.reactions[reaction].push(s.username);
+      }
+
+      await this.ctx.storage.put(`post:${post.id}`,post);
+
+      if(post.author!==s.username && body.remove!==true){
+        const list=await this.ctx.storage.get(`notifications:${post.author}`)||[];
+        list.push({
+          id:crypto.randomUUID(),
+          type:"reaction",
+          reaction,
+          from:s.username,
+          postId:post.id,
+          createdAt:Date.now(),
+          read:false
+        });
+        await this.ctx.storage.put(`notifications:${post.author}`,list.slice(-200));
+      }
+
+      const counts={};
+      for(const key of allowed)counts[key]=post.reactions[key].length;
+      return j({ok:true,counts});
+    }
+
+    if(url.pathname==="/api/post-save" && request.method==="POST"){
+      const s=await this.session(String(body.token||""));
+      if(!s)return j({ok:false,error:"الجلسة منتهية"},401);
+
+      const post=await this.ctx.storage.get(`post:${body.postId}`);
+      if(!post)return j({ok:false,error:"المنشور غير موجود"},404);
+
+      let saved=await this.ctx.storage.get(`saved:${s.username}`)||[];
+      const exists=saved.includes(post.id);
+
+      if(exists)saved=saved.filter(x=>x!==post.id);
+      else saved.push(post.id);
+
+      await this.ctx.storage.put(`saved:${s.username}`,saved.slice(-300));
+      return j({ok:true,saved:!exists});
+    }
+
+    if(url.pathname==="/api/saved-posts" && request.method==="GET"){
+      const s=await this.session(url.searchParams.get("token")||"");
+      if(!s)return j({ok:false,error:"الجلسة منتهية"},401);
+
+      const ids=await this.ctx.storage.get(`saved:${s.username}`)||[];
+      const posts=[];
+
+      for(const id of [...ids].reverse()){
+        const p=await this.ctx.storage.get(`post:${id}`);
+        if(!p)continue;
+        posts.push({...p,authorInfo:await this.publicUser(p.author),savedByMe:true});
+      }
+
+      return j({ok:true,posts});
+    }
+
+    if(url.pathname==="/api/post-share" && request.method==="POST"){
+      const s=await this.session(String(body.token||""));
+      if(!s)return j({ok:false,error:"الجلسة منتهية"},401);
+
+      const source=await this.ctx.storage.get(`post:${body.postId}`);
+      if(!source)return j({ok:false,error:"المنشور غير موجود"},404);
+
+      const id=crypto.randomUUID();
+      const post={
+        id,
+        author:s.username,
+        text:String(body.text||"").trim().slice(0,1000),
+        image:"",
+        createdAt:Date.now(),
+        likes:[],
+        comments:[],
+        reactions:{},
+        sharedPostId:source.id,
+        sharedFrom:source.author
+      };
+
+      await this.ctx.storage.put(`post:${id}`,post);
+      const ids=await this.ctx.storage.get("postIds")||[];
+      ids.push(id);
+      await this.ctx.storage.put("postIds",ids.slice(-500));
+
+      if(source.author!==s.username){
+        const list=await this.ctx.storage.get(`notifications:${source.author}`)||[];
+        list.push({
+          id:crypto.randomUUID(),
+          type:"share",
+          from:s.username,
+          postId:source.id,
+          createdAt:Date.now(),
+          read:false
+        });
+        await this.ctx.storage.put(`notifications:${source.author}`,list.slice(-200));
+      }
+
+      return j({ok:true,post});
+    }
+
+    if(url.pathname==="/api/comment-reply" && request.method==="POST"){
+      const s=await this.session(String(body.token||""));
+      if(!s)return j({ok:false,error:"الجلسة منتهية"},401);
+
+      const post=await this.ctx.storage.get(`post:${body.postId}`);
+      if(!post)return j({ok:false,error:"المنشور غير موجود"},404);
+
+      const text=String(body.text||"").trim().slice(0,1000);
+      if(!text)return j({ok:false,error:"اكتب ردًا"},400);
+
+      const comment=(post.comments||[]).find(c=>c.id===body.commentId);
+      if(!comment)return j({ok:false,error:"التعليق غير موجود"},404);
+
+      comment.replies=comment.replies||[];
+      comment.replies.push({
+        id:crypto.randomUUID(),
+        author:s.username,
+        text,
+        createdAt:Date.now()
+      });
+
+      await this.ctx.storage.put(`post:${post.id}`,post);
+      return j({ok:true});
+    }
+
+    if(url.pathname==="/api/explore" && request.method==="GET"){
+      const s=await this.session(url.searchParams.get("token")||"");
+      if(!s)return j({ok:false,error:"الجلسة منتهية"},401);
+
+      const blocked=await this.ctx.storage.get(`blocked:${s.username}`)||[];
+      const ids=await this.ctx.storage.get("postIds")||[];
+      const posts=[];
+
+      for(const id of ids){
+        const p=await this.ctx.storage.get(`post:${id}`);
+        if(!p || blocked.includes(p.author))continue;
+
+        const reactions=p.reactions||{};
+        const reactionCount=Object.values(reactions).reduce((n,a)=>n+(Array.isArray(a)?a.length:0),0);
+        const score=reactionCount+(p.comments||[]).length*2+(p.likes||[]).length;
+
+        posts.push({
+          ...p,
+          authorInfo:await this.publicUser(p.author),
+          score
+        });
+      }
+
+      posts.sort((a,b)=>b.score-a.score || b.createdAt-a.createdAt);
+      return j({ok:true,posts:posts.slice(0,60)});
+    }
+
+    if(url.pathname==="/api/block-user" && request.method==="POST"){
+      const s=await this.session(String(body.token||""));
+      if(!s)return j({ok:false,error:"الجلسة منتهية"},401);
+
+      const target=String(body.username||"").trim().toLowerCase();
+      if(!target || target===s.username)return j({ok:false,error:"مستخدم غير صالح"},400);
+
+      let blocked=await this.ctx.storage.get(`blocked:${s.username}`)||[];
+      const exists=blocked.includes(target);
+
+      if(exists)blocked=blocked.filter(x=>x!==target);
+      else blocked.push(target);
+
+      await this.ctx.storage.put(`blocked:${s.username}`,blocked);
+      return j({ok:true,blocked:!exists});
+    }
+
+    if(url.pathname==="/api/report" && request.method==="POST"){
+      const s=await this.session(String(body.token||""));
+      if(!s)return j({ok:false,error:"الجلسة منتهية"},401);
+
+      const report={
+        id:crypto.randomUUID(),
+        reporter:s.username,
+        targetType:String(body.targetType||"post"),
+        targetId:String(body.targetId||""),
+        reason:String(body.reason||"").slice(0,500),
+        createdAt:Date.now()
+      };
+
+      const reports=await this.ctx.storage.get("reports")||[];
+      reports.push(report);
+      await this.ctx.storage.put("reports",reports.slice(-1000));
+      return j({ok:true});
+    }
+
+
     return j({ok:false,error:"Not found"},404);
   }
 
@@ -575,7 +806,7 @@ export default {
       return Response.json({
         ok:true,
         app:"تواصل العطا",
-        version:"V7-Social-Pro"
+        version:"V8-Social-Plus"
       });
     }
 

@@ -286,6 +286,9 @@ async function shareScreen(){
 
 
 let postImageData="";
+
+const reactionEmoji={like:"👍",love:"❤️",haha:"😂",wow:"😮",sad:"😢"};
+
 let storyMediaData="", pendingChatMedia=null, typingTimer=null, mediaRecorder=null, voiceChunks=[], profileCoverData="";
 
 let callOverlayOpen=false;
@@ -319,6 +322,7 @@ function showPage(pageId){
   if(pageId==="homePage")loadPosts();
   if(pageId==="notificationsPage")loadNotifications();
   if(pageId==="profilePage")renderProfilePage();
+  if(pageId==="searchPage")loadExplore();
 }
 
 document.querySelectorAll(".nav-btn").forEach(btn=>{
@@ -342,9 +346,21 @@ async function loadPosts(){
     $("postsFeed").innerHTML=posts.length?posts.map(post=>{
       const a=post.authorInfo||{username:post.author,displayName:post.author};
       const avatar=a.avatar||avatarFallback(a.fullName||a.displayName||a.username);
-      const comments=(post.comments||[]).slice(-5).map(c=>`
-        <div class="comment-row"><strong>@${esc(c.author)}</strong> ${esc(c.text)}</div>
-      `).join("");
+      const comments=(post.comments||[]).slice(-5).map(c=>{
+        const replies=(c.replies||[]).map(r=>`
+          <div class="comment-reply"><strong>@${esc(r.author)}</strong> ${esc(r.text)}</div>
+        `).join("");
+
+        return `<div class="comment-row">
+          <div><strong>@${esc(c.author)}</strong> ${esc(c.text)}</div>
+          <button class="reply-open-btn" data-reply-open="${c.id}" data-post-id="${post.id}">رد</button>
+          ${replies}
+          <div class="reply-compose hidden" data-reply-box="${c.id}">
+            <input data-reply-input="${c.id}" placeholder="اكتب ردًا...">
+            <button data-reply-send="${c.id}" data-post-id="${post.id}">إرسال</button>
+          </div>
+        </div>`;
+      }).join("");
 
       return `
       <article class="post-card" data-post="${post.id}">
@@ -357,9 +373,28 @@ async function loadPosts(){
         </div>
         ${post.text?`<div class="post-text">${esc(post.text)}</div>`:""}
         ${post.image?`<img class="post-image" src="${post.image}" alt="">`:""}
-        <div class="post-actions">
-          <button class="like-btn ${post.likedByMe?"liked":""}" data-like="${post.id}">❤️ ${post.likeCount||0}</button>
+        ${post.sharedPost?`
+        <div class="shared-post-box">
+          <div class="shared-post-head">@${esc(post.sharedPost.authorInfo?.username||post.sharedPost.author)}</div>
+          ${post.sharedPost.text?`<div>${esc(post.sharedPost.text)}</div>`:""}
+          ${post.sharedPost.image?`<img src="${post.sharedPost.image}" class="shared-post-image" alt="">`:""}
+        </div>`:""}
+        <div class="reaction-summary">
+          ${Object.entries(post.reactionCounts||{}).filter(([k,v])=>v>0).map(([k,v])=>`${reactionEmoji[k]||"👍"} ${v}`).join(" · ")}
+        </div>
+        <div class="post-actions post-actions-v8">
+          <div class="reaction-wrap">
+            <button class="reaction-main-btn" data-react-main="${post.id}">
+              ${post.myReaction?reactionEmoji[post.myReaction]:"👍"} تفاعل
+            </button>
+            <div class="reaction-picker hidden" data-reaction-picker="${post.id}">
+              ${Object.entries(reactionEmoji).map(([k,e])=>`<button data-react="${post.id}" data-reaction="${k}">${e}</button>`).join("")}
+            </div>
+          </div>
           <button class="comment-focus-btn" data-comment-focus="${post.id}">💬 ${post.commentCount||0}</button>
+          <button data-save-post="${post.id}">${post.savedByMe?"🔖 محفوظ":"🔖 حفظ"}</button>
+          <button data-share-post="${post.id}">↗ مشاركة</button>
+          <button data-report-post="${post.id}">⚠️</button>
         </div>
         <div class="comments-box">
           <div class="comments-list">${comments}</div>
@@ -396,6 +431,81 @@ async function loadPosts(){
     document.querySelectorAll("[data-comment-focus]").forEach(btn=>{
       btn.onclick=()=>document.querySelector(`[data-comment-input="${btn.dataset.commentFocus}"]`)?.focus();
     });
+
+    document.querySelectorAll("[data-react-main]").forEach(btn=>{
+      btn.onclick=()=>{
+        document.querySelector(`[data-reaction-picker="${btn.dataset.reactMain}"]`)?.classList.toggle("hidden");
+      };
+    });
+
+    document.querySelectorAll("[data-react]").forEach(btn=>{
+      btn.onclick=async()=>{
+        try{
+          await api("/api/post-react",{method:"POST",body:JSON.stringify({
+            token,
+            postId:btn.dataset.react,
+            reaction:btn.dataset.reaction
+          })});
+          await loadPosts();
+        }catch(e){alert(e.message)}
+      };
+    });
+
+    document.querySelectorAll("[data-save-post]").forEach(btn=>{
+      btn.onclick=async()=>{
+        try{
+          const d=await api("/api/post-save",{method:"POST",body:JSON.stringify({token,postId:btn.dataset.savePost})});
+          btn.textContent=d.saved?"🔖 محفوظ":"🔖 حفظ";
+        }catch(e){alert(e.message)}
+      };
+    });
+
+    document.querySelectorAll("[data-share-post]").forEach(btn=>{
+      btn.onclick=async()=>{
+        const text=prompt("اكتب تعليقًا على المشاركة (اختياري)","")||"";
+        try{
+          await api("/api/post-share",{method:"POST",body:JSON.stringify({token,postId:btn.dataset.sharePost,text})});
+          await loadPosts();
+        }catch(e){alert(e.message)}
+      };
+    });
+
+    document.querySelectorAll("[data-report-post]").forEach(btn=>{
+      btn.onclick=async()=>{
+        const reason=prompt("سبب الإبلاغ عن المنشور:");
+        if(!reason)return;
+        try{
+          await api("/api/report",{method:"POST",body:JSON.stringify({
+            token,targetType:"post",targetId:btn.dataset.reportPost,reason
+          })});
+          alert("تم إرسال البلاغ");
+        }catch(e){alert(e.message)}
+      };
+    });
+
+    document.querySelectorAll("[data-reply-open]").forEach(btn=>{
+      btn.onclick=()=>{
+        document.querySelector(`[data-reply-box="${btn.dataset.replyOpen}"]`)?.classList.toggle("hidden");
+      };
+    });
+
+    document.querySelectorAll("[data-reply-send]").forEach(btn=>{
+      btn.onclick=async()=>{
+        const input=document.querySelector(`[data-reply-input="${btn.dataset.replySend}"]`);
+        const text=input?.value.trim();
+        if(!text)return;
+        try{
+          await api("/api/comment-reply",{method:"POST",body:JSON.stringify({
+            token,
+            postId:btn.dataset.postId,
+            commentId:btn.dataset.replySend,
+            text
+          })});
+          await loadPosts();
+        }catch(e){alert(e.message)}
+      };
+    });
+
   }catch(e){
     $("postsFeed").innerHTML=`<div class="empty-card">${esc(e.message)}</div>`;
   }
@@ -488,6 +598,45 @@ $("saveProfileBtn").onclick=async()=>{try{const body={token,bio:$("bioInput").va
 $("chatFileInput").onchange=e=>{const f=e.target.files?.[0];if(!f)return;const r=new FileReader();r.onload=()=>{pendingChatMedia={data:String(r.result||""),type:f.type.startsWith('image/')?'image':f.type.startsWith('audio/')?'audio':'file'};$("messageInput").placeholder=`مرفق جاهز: ${f.name}`};r.readAsDataURL(f)};
 $("recordVoiceBtn").onclick=async()=>{if(mediaRecorder?.state==='recording'){mediaRecorder.stop();$("recordVoiceBtn").textContent='🎤';return}try{const s=await navigator.mediaDevices.getUserMedia({audio:true});mediaRecorder=new MediaRecorder(s);voiceChunks=[];mediaRecorder.ondataavailable=e=>{if(e.data.size)voiceChunks.push(e.data)};mediaRecorder.onstop=()=>{const b=new Blob(voiceChunks,{type:'audio/webm'});const r=new FileReader();r.onload=()=>{pendingChatMedia={data:String(r.result||''),type:'audio'};$("messageInput").placeholder='رسالة صوتية جاهزة'};r.readAsDataURL(b);s.getTracks().forEach(t=>t.stop())};mediaRecorder.start();$("recordVoiceBtn").textContent='⏹️'}catch(e){alert('تعذر تشغيل الميكروفون')}};
 $("messageInput").addEventListener('input',()=>{if(!selectedUser)return;send({type:'typing',to:selectedUser,active:true});clearTimeout(typingTimer);typingTimer=setTimeout(()=>send({type:'typing',to:selectedUser,active:false}),900)});
+
+
+async function loadExplore(){
+  try{
+    const d=await api(`/api/explore?token=${encodeURIComponent(token)}`);
+    const posts=d.posts||[];
+
+    $("exploreFeed").innerHTML=posts.length?posts.map(p=>`
+      <article class="explore-card">
+        ${p.image?`<img src="${p.image}" alt="">`:`<div class="explore-text">${esc(p.text||"منشور")}</div>`}
+        <div class="explore-overlay">
+          <strong>@${esc(p.authorInfo?.username||p.author)}</strong>
+          <span>⭐ ${p.score||0}</span>
+        </div>
+      </article>
+    `).join(""):`<div class="empty-card">لا توجد منشورات للاستكشاف</div>`;
+  }catch(e){
+    $("exploreFeed").innerHTML=`<div class="empty-card">${esc(e.message)}</div>`;
+  }
+}
+
+async function loadSavedPosts(){
+  try{
+    const d=await api(`/api/saved-posts?token=${encodeURIComponent(token)}`);
+    const posts=d.posts||[];
+
+    $("savedPostsList").innerHTML=posts.length?posts.map(p=>`
+      <div class="saved-post-card">
+        <strong>@${esc(p.authorInfo?.username||p.author)}</strong>
+        ${p.text?`<p>${esc(p.text)}</p>`:""}
+        ${p.image?`<img src="${p.image}" alt="">`:""}
+      </div>
+    `).join(""):`<div class="empty-card">لا توجد منشورات محفوظة</div>`;
+  }catch(e){alert(e.message)}
+}
+
+$("refreshExploreBtn").onclick=loadExplore;
+$("loadSavedBtn").onclick=loadSavedPosts;
+
 
 let authMode="login";
 
