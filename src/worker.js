@@ -1,19 +1,23 @@
-export class SignalingRoom {
-  constructor(state, env) {
-    this.state = state;
+import { DurableObject } from "cloudflare:workers";
+
+export class SignalingRoom extends DurableObject {
+  constructor(ctx, env) {
+    super(ctx, env);
+    this.ctx = ctx;
     this.env = env;
   }
 
   async fetch(request) {
-    if (request.headers.get("Upgrade") !== "websocket") {
+    const upgrade = request.headers.get("Upgrade");
+
+    if (!upgrade || upgrade.toLowerCase() !== "websocket") {
       return new Response("WebSocket only", { status: 426 });
     }
 
     const pair = new WebSocketPair();
-    const client = pair[0];
-    const server = pair[1];
+    const [client, server] = Object.values(pair);
 
-    this.state.acceptWebSocket(server);
+    this.ctx.acceptWebSocket(server);
 
     return new Response(null, {
       status: 101,
@@ -24,7 +28,7 @@ export class SignalingRoom {
   getUser(ws) {
     try {
       const data = ws.deserializeAttachment();
-      return data && data.user ? String(data.user) : "";
+      return data?.user ? String(data.user) : "";
     } catch {
       return "";
     }
@@ -32,13 +36,13 @@ export class SignalingRoom {
 
   setUser(ws, user) {
     try {
-      ws.serializeAttachment({ user });
+      ws.serializeAttachment({ user: String(user || "").trim() });
     } catch {}
   }
 
   sockets() {
     try {
-      return this.state.getWebSockets();
+      return this.ctx.getWebSockets();
     } catch {
       return [];
     }
@@ -55,11 +59,17 @@ export class SignalingRoom {
 
   findByUser(username) {
     const wanted = String(username || "").trim();
-    return this.sockets().find(ws => this.getUser(ws) === wanted) || null;
+    if (!wanted) return null;
+
+    for (const ws of this.sockets()) {
+      if (this.getUser(ws) === wanted) return ws;
+    }
+    return null;
   }
 
   broadcastUsers() {
     const users = [];
+
     for (const ws of this.sockets()) {
       const user = this.getUser(ws);
       if (user && !users.includes(user)) users.push(user);
@@ -72,82 +82,105 @@ export class SignalingRoom {
     }
   }
 
-  webSocketMessage(ws, message) {
+  async webSocketMessage(ws, message) {
+    let msg;
+
     try {
-      const msg = JSON.parse(String(message));
-
-      if (msg.type === "join") {
-        const user = String(msg.user || "").trim();
-        if (!user) {
-          this.send(ws, { type: "error", message: "اسم المستخدم مطلوب" });
-          return;
-        }
-
-        const existing = this.findByUser(user);
-        if (existing && existing !== ws) {
-          try { existing.close(4001, "replaced"); } catch {}
-        }
-
-        this.setUser(ws, user);
-        this.send(ws, { type: "joined", user });
-        this.broadcastUsers();
-        return;
-      }
-
-      const from = this.getUser(ws);
-      if (!from) {
-        this.send(ws, { type: "error", message: "لم يتم تسجيل المستخدم في الاتصال" });
-        return;
-      }
-
-      if (msg.type === "chat") {
-        const payload = {
-          type: "chat",
-          from,
-          to: String(msg.to || ""),
-          text: String(msg.text || ""),
-          ts: Date.now()
-        };
-
-        if (payload.to) {
-          const target = this.findByUser(payload.to);
-          if (target) this.send(target, payload);
-          this.send(ws, payload);
-        } else {
-          for (const target of this.sockets()) this.send(target, payload);
-        }
-        return;
-      }
-
-      if ([
-        "offer",
-        "answer",
-        "ice",
-        "call-request",
-        "call-accept",
-        "call-reject",
-        "hangup"
-      ].includes(msg.type)) {
-        const to = String(msg.to || "").trim();
-        if (!to) return;
-
-        const target = this.findByUser(to);
-        if (target) {
-          this.send(target, { ...msg, from });
-        } else {
-          this.send(ws, { type: "user-offline", user: to });
-        }
-      }
+      msg = JSON.parse(
+        typeof message === "string"
+          ? message
+          : new TextDecoder().decode(message)
+      );
     } catch {
-      this.send(ws, { type: "error", message: "تعذر معالجة الرسالة" });
+      this.send(ws, { type: "error", message: "رسالة غير صالحة" });
+      return;
+    }
+
+    if (msg.type === "join") {
+      const user = String(msg.user || "").trim();
+
+      if (!user) {
+        this.send(ws, { type: "error", message: "اسم المستخدم مطلوب" });
+        return;
+      }
+
+      const old = this.findByUser(user);
+      if (old && old !== ws) {
+        try { old.close(4001, "replaced"); } catch {}
+      }
+
+      this.setUser(ws, user);
+      this.send(ws, { type: "joined", user });
+      this.broadcastUsers();
+      return;
+    }
+
+    const from = this.getUser(ws);
+
+    if (!from) {
+      this.send(ws, {
+        type: "error",
+        message: "الاتصال غير مسجل. أعد الدخول."
+      });
+      return;
+    }
+
+    if (msg.type === "chat") {
+      const payload = {
+        type: "chat",
+        from,
+        to: String(msg.to || "").trim(),
+        text: String(msg.text || ""),
+        ts: Date.now()
+      };
+
+      if (payload.to) {
+        const target = this.findByUser(payload.to);
+
+        if (target) {
+          this.send(target, payload);
+        } else {
+          this.send(ws, { type: "user-offline", user: payload.to });
+        }
+
+        this.send(ws, payload);
+      } else {
+        for (const target of this.sockets()) {
+          this.send(target, payload);
+        }
+      }
+      return;
+    }
+
+    if ([
+      "offer",
+      "answer",
+      "ice",
+      "call-request",
+      "call-accept",
+      "call-reject",
+      "hangup"
+    ].includes(msg.type)) {
+      const to = String(msg.to || "").trim();
+
+      if (!to) return;
+
+      const target = this.findByUser(to);
+
+      if (!target) {
+        this.send(ws, { type: "user-offline", user: to });
+        return;
+      }
+
+      this.send(target, { ...msg, from });
     }
   }
 
-  webSocketClose() {
+  async webSocketClose() {
     this.broadcastUsers();
   }
 
-  webSocketError(ws) {
+  async webSocketError(ws) {
     try { ws.close(1011, "websocket error"); } catch {}
     this.broadcastUsers();
   }
@@ -157,18 +190,19 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
 
-    if (url.pathname === "/ws") {
-      const id = env.SIGNALING.idFromName("global-room");
-      const stub = env.SIGNALING.get(id);
-      return stub.fetch(request);
-    }
-
     if (url.pathname === "/health") {
       return Response.json({
         ok: true,
         app: "تواصل العطا",
-        version: "V2"
+        version: "V3",
+        websocket: "durable-object-hibernation"
       });
+    }
+
+    if (url.pathname === "/ws") {
+      const id = env.SIGNALING.idFromName("global-room");
+      const room = env.SIGNALING.get(id);
+      return room.fetch(request);
     }
 
     return env.ASSETS.fetch(request);
