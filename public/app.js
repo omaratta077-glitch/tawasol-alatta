@@ -19,18 +19,48 @@
     return `${proto}://${location.host}/ws`;
   }
 
+  let reconnectTimer=null;
+
   function connect(){
+    clearTimeout(reconnectTimer);
+
     ws=new WebSocket(wsUrl());
+    $("connectionState").textContent="جاري الاتصال بالخادم...";
 
     ws.addEventListener("open",()=>{
+      $("connectionState").textContent="متصل — اختر مستخدمًا";
       ws.send(JSON.stringify({type:"join",user:me}));
+    });
+
+    ws.addEventListener("close",()=>{
+      $("connectionState").textContent="انقطع الاتصال — إعادة المحاولة...";
+      if(me) reconnectTimer=setTimeout(connect,1500);
+    });
+
+    ws.addEventListener("error",()=>{
+      $("connectionState").textContent="مشكلة في الاتصال";
     });
 
     ws.addEventListener("message",async e=>{
       const msg=JSON.parse(e.data);
 
+      if(msg.type==="joined"){
+        $("connectionState").textContent="متصل — اختر مستخدمًا";
+        return;
+      }
+
       if(msg.type==="users"){
         renderUsers(msg.users||[]);
+        return;
+      }
+
+      if(msg.type==="error"){
+        console.error(msg.message||"WebSocket error");
+        return;
+      }
+
+      if(msg.type==="user-offline"){
+        $("connectionState").textContent="المستخدم غير متصل";
         return;
       }
 
@@ -60,6 +90,8 @@
       }
 
       if(msg.type==="offer"){
+        selectedUser=msg.from;
+        $("selectedUserLabel").textContent=selectedUser;
         pendingOffer=msg;
         await ensurePeer();
         await pc.setRemoteDescription(msg.sdp);
@@ -99,6 +131,12 @@
   function renderUsers(users){
     const list=$("usersList");
     const others=users.filter(u=>u!==me);
+
+    if(!others.length){
+      list.innerHTML=`<div style="padding:10px;font-size:12px;opacity:.75">لا يوجد مستخدمون آخرون متصلون الآن</div>`;
+      return;
+    }
+
     list.innerHTML=others.map(u=>`
       <button class="user-item ${u===selectedUser?"active":""}" data-user="${escapeHtml(u)}">
         <span>${escapeHtml(u)}</span>
