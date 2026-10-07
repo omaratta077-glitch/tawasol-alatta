@@ -1,0 +1,13 @@
+{
+  "name": "tawasol-alatta",
+  "version": "1.0.0",
+  "private": true,
+  "description": "تواصل العطا - دردشة ومكالمات صوت وفيديو عبر WebRTC وCloudflare Workers",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "wrangler": "^4.0.0"
+  }
+}

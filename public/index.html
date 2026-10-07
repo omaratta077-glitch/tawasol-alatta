@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>تواصل العطا</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="loginView" class="login-view">
+    <div class="login-card">
+      <div class="logo">A</div>
+      <h1>تواصل العطا</h1>
+      <p>مكالمات ومحادثات</p>
+      <input id="loginName" placeholder="اكتب اسمك">
+      <button id="loginBtn">دخول</button>
+    </div>
+  </div>
+
+  <div id="appView" class="app hidden">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="logo small">A</div>
+        <div>
+          <strong>تواصل العطا</strong>
+          <span id="meLabel"></span>
+        </div>
+      </div>
+
+      <div class="section-title">المستخدمون المتصلون</div>
+      <div id="usersList" class="users-list"></div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div>
+          <strong id="selectedUserLabel">اختر مستخدمًا</strong>
+          <span id="connectionState">غير متصل بمكالمة</span>
+        </div>
+        <div class="call-actions">
+          <button id="audioCallBtn" title="مكالمة صوتية">📞</button>
+          <button id="videoCallBtn" title="مكالمة فيديو">📹</button>
+        </div>
+      </header>
+
+      <section class="video-area">
+        <div class="video-card">
+          <video id="remoteVideo" autoplay playsinline></video>
+          <div class="video-label">الطرف الآخر</div>
+        </div>
+        <div class="video-card local">
+          <video id="localVideo" autoplay playsinline muted></video>
+          <div class="video-label">أنت</div>
+        </div>
+      </section>
+
+      <section class="controls">
+        <button id="muteBtn">🎙️ كتم المايك</button>
+        <button id="cameraBtn">📷 إيقاف الكاميرا</button>
+        <button id="screenBtn">🖥️ مشاركة الشاشة</button>
+        <button id="hangupBtn" class="danger">⛔ إنهاء المكالمة</button>
+      </section>
+
+      <section class="chat">
+        <div id="messages" class="messages"></div>
+        <div class="message-box">
+          <input id="messageInput" placeholder="اكتب رسالة..." autocomplete="off">
+          <button id="sendBtn">إرسال</button>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div id="incomingModal" class="modal hidden">
+    <div class="modal-card">
+      <h3>مكالمة واردة</h3>
+      <p id="incomingText"></p>
+      <div class="modal-actions">
+        <button id="acceptCallBtn">قبول</button>
+        <button id="rejectCallBtn" class="danger">رفض</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

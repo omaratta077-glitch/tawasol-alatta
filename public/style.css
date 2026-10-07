@@ -1,0 +1,123 @@
+
+*{box-sizing:border-box}
+:root{
+  --blue:#1e4d76;
+  --blue2:#2d658f;
+  --bg:#edf1f4;
+  --gold:#c8a24a;
+}
+body{
+  margin:0;
+  font-family:Tahoma,Arial,sans-serif;
+  background:var(--bg);
+  color:#1c2730;
+}
+.hidden{display:none!important}
+button,input{font:inherit}
+
+.login-view{
+  min-height:100vh;
+  display:grid;
+  place-items:center;
+  background:linear-gradient(135deg,#163b5d,#2c668f);
+}
+.login-card{
+  width:min(390px,92vw);
+  background:#fff;
+  border-radius:18px;
+  padding:34px;
+  text-align:center;
+  box-shadow:0 20px 60px rgba(0,0,0,.25);
+}
+.logo{
+  width:84px;height:84px;border-radius:50%;
+  margin:0 auto 12px;
+  display:grid;place-items:center;
+  background:#111;color:var(--gold);
+  font-size:48px;font-weight:bold;
+}
+.logo.small{width:48px;height:48px;font-size:28px;margin:0}
+.login-card h1{margin:8px 0 2px;color:var(--blue)}
+.login-card p{margin:0 0 22px;color:#6b7882}
+.login-card input{
+  width:100%;height:46px;border:1px solid #c9d3da;
+  border-radius:8px;padding:0 12px;margin-bottom:10px;
+}
+.login-card button{
+  width:100%;height:46px;border:0;border-radius:8px;
+  background:var(--blue);color:#fff;font-weight:bold;cursor:pointer;
+}
+
+.app{display:grid;grid-template-columns:270px 1fr;min-height:100vh}
+.sidebar{
+  background:var(--blue);color:#fff;padding:14px;
+}
+.brand{display:flex;align-items:center;gap:10px;padding-bottom:14px;border-bottom:1px solid rgba(255,255,255,.15)}
+.brand strong{display:block;font-size:20px}
+.brand span{display:block;font-size:12px;opacity:.8;margin-top:3px}
+.section-title{font-size:12px;font-weight:bold;margin:18px 4px 8px;opacity:.8}
+.users-list{display:flex;flex-direction:column;gap:6px}
+.user-item{
+  border:0;background:transparent;color:#fff;padding:10px;border-radius:8px;
+  display:flex;justify-content:space-between;align-items:center;cursor:pointer;text-align:right;
+}
+.user-item:hover,.user-item.active{background:rgba(255,255,255,.13)}
+.online-dot{width:8px;height:8px;border-radius:50%;background:#49d17d}
+
+.main{display:grid;grid-template-rows:auto minmax(260px,44vh) auto 1fr;min-width:0}
+.topbar{
+  background:#fff;border-bottom:1px solid #d9e0e5;
+  padding:12px 16px;display:flex;align-items:center;justify-content:space-between;
+}
+.topbar strong{display:block;color:var(--blue)}
+.topbar span{font-size:12px;color:#75818a}
+.call-actions{display:flex;gap:8px}
+.call-actions button,.controls button{
+  border:1px solid #ccd6dd;background:#fff;border-radius:8px;padding:9px 12px;cursor:pointer;
+}
+.call-actions button:hover,.controls button:hover{background:#f2f6f8}
+.danger{background:#a92b2b!important;color:#fff!important;border-color:#a92b2b!important}
+
+.video-area{
+  padding:12px;display:grid;grid-template-columns:1fr 280px;gap:12px;background:#20262c;
+}
+.video-card{
+  position:relative;background:#000;border-radius:12px;overflow:hidden;min-height:230px;
+}
+.video-card video{width:100%;height:100%;object-fit:cover;display:block}
+.video-label{
+  position:absolute;right:10px;bottom:8px;background:rgba(0,0,0,.5);color:#fff;
+  padding:4px 8px;border-radius:6px;font-size:11px;
+}
+.controls{
+  background:#fff;padding:10px;display:flex;justify-content:center;gap:8px;border-bottom:1px solid #d9e0e5;
+}
+.chat{display:grid;grid-template-rows:1fr auto;min-height:0}
+.messages{padding:14px;overflow:auto;display:flex;flex-direction:column;gap:8px}
+.msg{
+  max-width:70%;padding:8px 10px;border-radius:10px;background:#fff;border:1px solid #dbe2e6;
+}
+.msg.mine{align-self:flex-start;background:#e7f1f8}
+.msg .meta{font-size:10px;color:#7b858c;margin-bottom:4px}
+.message-box{
+  display:grid;grid-template-columns:1fr auto;gap:8px;padding:12px;background:#fff;border-top:1px solid #d9e0e5;
+}
+.message-box input{height:44px;border:1px solid #c7d1d8;border-radius:8px;padding:0 12px}
+.message-box button{border:0;background:var(--blue);color:#fff;border-radius:8px;padding:0 20px;font-weight:bold;cursor:pointer}
+
+.modal{
+  position:fixed;inset:0;background:rgba(0,0,0,.45);
+  display:grid;place-items:center;z-index:50;
+}
+.modal-card{
+  width:min(360px,90vw);background:#fff;border-radius:14px;padding:24px;text-align:center;
+}
+.modal-actions{display:flex;gap:10px;justify-content:center}
+.modal-actions button{border:0;border-radius:8px;padding:10px 20px;background:var(--blue);color:#fff;cursor:pointer}
+
+@media(max-width:850px){
+  .app{grid-template-columns:1fr}
+  .sidebar{position:static}
+  .video-area{grid-template-columns:1fr}
+  .video-card.local{max-height:180px}
+}
