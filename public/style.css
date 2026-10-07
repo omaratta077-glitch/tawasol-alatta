@@ -59,3 +59,60 @@ button,input{font:inherit}
 }
 #registerFields{display:block}
 #registerFields.hidden{display:none!important}
+
+.app-shell{min-height:100vh;background:#eef2f5;padding-bottom:72px}
+.mobile-header{height:58px;background:#245b84;color:#fff;display:flex;align-items:center;justify-content:space-between;padding:0 18px;position:sticky;top:0;z-index:30}
+.brand-mini{font-weight:bold;font-size:20px}
+.icon-btn{border:0;background:#ffffff18;color:#fff;border-radius:10px;padding:8px 12px}
+.social-main{max-width:1120px;margin:0 auto;padding:18px}
+.page{display:none}
+.page.active-page{display:block}
+.bottom-nav{position:fixed;bottom:0;left:0;right:0;height:66px;background:#fff;border-top:1px solid #d9e0e4;display:grid;grid-template-columns:repeat(5,1fr);z-index:50}
+.nav-btn{border:0;background:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;color:#66757f}
+.nav-btn.active{color:#245b84;font-weight:bold}
+.nav-btn span{font-size:11px}
+.composer-card,.post-card,.empty-card,.notification-card,.profile-card-large,.user-search-card{background:#fff;border:1px solid #dde4e8;border-radius:14px;padding:14px;margin-bottom:12px;box-shadow:0 2px 7px #00000008}
+.composer-head{display:flex;gap:10px}
+.composer-head textarea{flex:1;min-height:78px;border:1px solid #d6dee3;border-radius:12px;padding:10px;resize:vertical}
+.composer-actions{display:flex;justify-content:space-between;align-items:center;margin-top:10px}
+.upload-label{cursor:pointer;padding:8px 10px;background:#f1f5f7;border-radius:8px}
+.action-btn{padding:9px 22px;border-radius:8px}
+.preview-wrap{margin-top:10px}
+.preview-wrap img{max-width:100%;max-height:360px;border-radius:12px}
+.post-head{display:flex;gap:10px;align-items:center}
+.post-head strong,.post-head small{display:block}
+.post-head small{color:#7b8790;font-size:11px}
+.post-text{padding:12px 0;white-space:pre-wrap;line-height:1.7}
+.post-image{width:100%;max-height:520px;object-fit:cover;border-radius:12px}
+.post-actions{display:flex;gap:8px;padding-top:10px}
+.post-actions button{border:1px solid #d5dde2;background:#fff;border-radius:8px;padding:8px 12px;cursor:pointer}
+.post-actions .liked{background:#fff0f3;border-color:#efb6c1}
+.comments-box{margin-top:10px;border-top:1px solid #edf1f3;padding-top:10px}
+.comment-row{padding:7px 9px;background:#f6f8f9;border-radius:8px;margin-bottom:6px;font-size:13px}
+.comment-compose{display:grid;grid-template-columns:1fr auto;gap:7px}
+.comment-compose input{height:38px;border:1px solid #d3dce1;border-radius:8px;padding:0 10px}
+.comment-compose button{border:0;background:#245b84;color:#fff;border-radius:8px;padding:0 14px}
+.search-box{display:grid;grid-template-columns:1fr auto;gap:8px;margin-bottom:12px}
+.search-box input{height:44px;border:1px solid #cfd9df;border-radius:10px;padding:0 12px}
+.search-box button{border:0;background:#245b84;color:#fff;border-radius:10px;padding:0 18px}
+.user-search-card{display:flex;align-items:center;gap:10px}
+.user-search-card div{flex:1}
+.user-search-card strong,.user-search-card small{display:block}
+.user-search-card button{border:0;background:#245b84;color:#fff;border-radius:8px;padding:8px 12px}
+.messages-layout{display:grid;grid-template-columns:300px 1fr;min-height:72vh;background:#fff;border-radius:14px;overflow:hidden;border:1px solid #dde4e8}
+.chat-sidebar{background:#245b84;color:#fff;padding:12px;overflow:auto}
+.chat-main{display:grid;grid-template-rows:auto minmax(220px,38vh) auto 1fr;min-width:0}
+.page-title{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.page-title button{border:1px solid #cfd9df;background:#fff;border-radius:8px;padding:8px 10px}
+.notification-card{display:flex;flex-direction:column;gap:4px}
+.notification-card.read{opacity:.65}
+.notification-card small{color:#7c878f}
+.profile-card-large{text-align:center;padding:28px}
+.profile-large-avatar{width:112px;height:112px;border-radius:50%;object-fit:cover;background:#fff;border:3px solid #e4eaee}
+.profile-meta{margin-top:14px;display:grid;gap:7px;color:#52616b}
+@media(max-width:850px){
+  .social-main{padding:10px}
+  .messages-layout{grid-template-columns:1fr}
+  .chat-sidebar{max-height:280px}
+  .chat-main{grid-template-rows:auto minmax(200px,34vh) auto 1fr}
+}

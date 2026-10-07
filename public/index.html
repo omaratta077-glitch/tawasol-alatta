@@ -40,78 +40,112 @@
   </div>
 </div>
 
-<div id="appView" class="app hidden">
-  <aside class="sidebar">
-    <div class="profile">
-      <img id="avatarImg" class="avatar" alt="">
-      <div>
-        <strong id="meDisplay"></strong>
-        <small id="meUsername"></small>
+
+<div id="appView" class="app-shell hidden">
+  <header class="mobile-header">
+    <div class="brand-mini">تواصل العطا</div>
+    <button id="openProfileBtn" class="icon-btn">👤</button>
+  </header>
+
+  <main class="social-main">
+    <section id="homePage" class="page active-page">
+      <div class="composer-card">
+        <div class="composer-head">
+          <img id="homeAvatar" class="avatar" alt="">
+          <textarea id="postText" placeholder="بم تفكر؟"></textarea>
+        </div>
+        <div id="postImagePreviewWrap" class="hidden preview-wrap">
+          <img id="postImagePreview" alt="">
+        </div>
+        <div class="composer-actions">
+          <label class="upload-label">🖼️ صورة
+            <input id="postImageInput" type="file" accept="image/*" hidden>
+          </label>
+          <button id="publishPostBtn" class="primary action-btn">نشر</button>
+        </div>
       </div>
-      <label class="photo-btn">📷
-        <input id="avatarInput" type="file" accept="image/*" hidden>
-      </label>
-    </div>
-
-    <div class="side-tabs">
-      <button class="side-tab active" data-tab="users">المستخدمون</button>
-      <button class="side-tab" data-tab="groups">المجموعات</button>
-      <button class="side-tab" data-tab="calls">المكالمات</button>
-    </div>
-
-    <section id="usersPanel">
-      <h4>المتصلون الآن</h4>
-      <div id="usersList"></div>
+      <div id="postsFeed"></div>
     </section>
 
-    <section id="groupsPanel" class="hidden">
-      <button id="newGroupBtn" class="small-btn">+ مجموعة جديدة</button>
-      <div id="groupsList"></div>
+    <section id="searchPage" class="page">
+      <div class="search-box">
+        <input id="userSearchInput" placeholder="ابحث عن مستخدم...">
+        <button id="userSearchBtn">بحث</button>
+      </div>
+      <div id="searchResults"></div>
     </section>
 
-    <section id="callsPanel" class="hidden">
-      <div id="callsList"></div>
+    <section id="messagesPage" class="page">
+      <div class="messages-layout">
+        <aside class="chat-sidebar">
+          <div class="profile">
+            <img id="avatarImg" class="avatar" alt="">
+            <div><strong id="meDisplay"></strong><small id="meUsername"></small></div>
+            <label class="photo-btn">📷<input id="avatarInput" type="file" accept="image/*" hidden></label>
+          </div>
+
+          <div class="side-tabs">
+            <button class="side-tab active" data-tab="users">المستخدمون</button>
+            <button class="side-tab" data-tab="groups">المجموعات</button>
+            <button class="side-tab" data-tab="calls">المكالمات</button>
+          </div>
+
+          <section id="usersPanel"><h4>المتصلون الآن</h4><div id="usersList"></div></section>
+          <section id="groupsPanel" class="hidden"><button id="newGroupBtn" class="small-btn">+ مجموعة جديدة</button><div id="groupsList"></div></section>
+          <section id="callsPanel" class="hidden"><div id="callsList"></div></section>
+        </aside>
+
+        <section class="chat-main">
+          <header class="topbar">
+            <div><strong id="selectedLabel">اختر مستخدمًا أو مجموعة</strong><small id="connectionState">متصل</small></div>
+            <div><button id="audioCallBtn">📞</button><button id="videoCallBtn">📹</button></div>
+          </header>
+
+          <section class="video-area">
+            <div class="video-card"><video id="remoteVideo" autoplay playsinline></video><span>الطرف الآخر</span></div>
+            <div class="video-card local"><video id="localVideo" autoplay playsinline muted></video><span>أنت</span></div>
+          </section>
+
+          <section class="controls">
+            <button id="muteBtn">🎙️ كتم المايك</button>
+            <button id="cameraBtn">📷 إيقاف الكاميرا</button>
+            <button id="screenBtn">🖥️ مشاركة الشاشة</button>
+            <button id="hangupBtn" class="danger">⛔ إنهاء المكالمة</button>
+          </section>
+
+          <section class="chat">
+            <div id="messages" class="messages"></div>
+            <div class="composer">
+              <input id="messageInput" placeholder="اكتب رسالة...">
+              <button id="sendBtn">إرسال</button>
+            </div>
+          </section>
+        </section>
+      </div>
     </section>
-  </aside>
 
-  <main class="main">
-    <header class="topbar">
-      <div>
-        <strong id="selectedLabel">اختر مستخدمًا أو مجموعة</strong>
-        <small id="connectionState">متصل</small>
-      </div>
-      <div>
-        <button id="audioCallBtn">📞</button>
-        <button id="videoCallBtn">📹</button>
-      </div>
-    </header>
-
-    <section class="video-area">
-      <div class="video-card">
-        <video id="remoteVideo" autoplay playsinline></video>
-        <span>الطرف الآخر</span>
-      </div>
-      <div class="video-card local">
-        <video id="localVideo" autoplay playsinline muted></video>
-        <span>أنت</span>
-      </div>
+    <section id="notificationsPage" class="page">
+      <div class="page-title"><h2>الإشعارات</h2><button id="markNotificationsRead">تحديد الكل كمقروء</button></div>
+      <div id="notificationsList"></div>
     </section>
 
-    <section class="controls">
-      <button id="muteBtn">🎙️ كتم المايك</button>
-      <button id="cameraBtn">📷 إيقاف الكاميرا</button>
-      <button id="screenBtn">🖥️ مشاركة الشاشة</button>
-      <button id="hangupBtn" class="danger">⛔ إنهاء المكالمة</button>
-    </section>
-
-    <section class="chat">
-      <div id="messages" class="messages"></div>
-      <div class="composer">
-        <input id="messageInput" placeholder="اكتب رسالة...">
-        <button id="sendBtn">إرسال</button>
+    <section id="profilePage" class="page">
+      <div class="profile-card-large">
+        <img id="profileAvatarLarge" class="profile-large-avatar" alt="">
+        <h2 id="profileName"></h2>
+        <div id="profileUsername"></div>
+        <div id="profileMeta" class="profile-meta"></div>
       </div>
     </section>
   </main>
+
+  <nav class="bottom-nav">
+    <button class="nav-btn active" data-page="homePage">🏠<span>الرئيسية</span></button>
+    <button class="nav-btn" data-page="searchPage">🔎<span>بحث</span></button>
+    <button class="nav-btn" data-page="messagesPage">💬<span>الرسائل</span></button>
+    <button class="nav-btn" data-page="notificationsPage">🔔<span>الإشعارات</span></button>
+    <button class="nav-btn" data-page="profilePage">👤<span>حسابي</span></button>
+  </nav>
 </div>
 
 <div id="incomingModal" class="modal hidden">

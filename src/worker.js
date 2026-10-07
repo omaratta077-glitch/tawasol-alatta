@@ -194,6 +194,169 @@ export class SignalingRoom extends DurableObject {
       return j({ok:true,calls:calls.slice(-100).reverse()});
     }
 
+    
+    if(url.pathname==="/api/users" && request.method==="GET"){
+      const s=await this.session(url.searchParams.get("token")||"");
+      if(!s)return j({ok:false,error:"الجلسة منتهية"},401);
+
+      const q=String(url.searchParams.get("q")||"").trim().toLowerCase();
+      const names=await this.ctx.storage.get("usernames")||[];
+      const users=[];
+
+      for(const name of names){
+        const u=await this.publicUser(name);
+        if(!u)continue;
+        if(!q || u.username.includes(q) || String(u.fullName||u.displayName||"").toLowerCase().includes(q)){
+          users.push(u);
+        }
+      }
+
+      return j({ok:true,users:users.slice(0,100)});
+    }
+
+    if(url.pathname==="/api/posts" && request.method==="POST"){
+      const s=await this.session(String(body.token||""));
+      if(!s)return j({ok:false,error:"الجلسة منتهية"},401);
+
+      const text=String(body.text||"").trim().slice(0,5000);
+      const image=String(body.image||"").slice(0,500000);
+
+      if(!text && !image)return j({ok:false,error:"اكتب منشورًا أو أضف صورة"},400);
+
+      const id=crypto.randomUUID();
+      const post={
+        id,
+        author:s.username,
+        text,
+        image,
+        createdAt:Date.now(),
+        likes:[],
+        comments:[]
+      };
+
+      await this.ctx.storage.put(`post:${id}`,post);
+
+      const ids=await this.ctx.storage.get("postIds")||[];
+      ids.push(id);
+      await this.ctx.storage.put("postIds",ids.slice(-500));
+
+      return j({ok:true,post});
+    }
+
+    if(url.pathname==="/api/posts" && request.method==="GET"){
+      const s=await this.session(url.searchParams.get("token")||"");
+      if(!s)return j({ok:false,error:"الجلسة منتهية"},401);
+
+      const ids=await this.ctx.storage.get("postIds")||[];
+      const posts=[];
+
+      for(const id of [...ids].reverse()){
+        const p=await this.ctx.storage.get(`post:${id}`);
+        if(!p)continue;
+        posts.push({
+          ...p,
+          authorInfo:await this.publicUser(p.author),
+          likeCount:(p.likes||[]).length,
+          commentCount:(p.comments||[]).length,
+          likedByMe:(p.likes||[]).includes(s.username)
+        });
+      }
+
+      return j({ok:true,posts});
+    }
+
+    if(url.pathname==="/api/post-like" && request.method==="POST"){
+      const s=await this.session(String(body.token||""));
+      if(!s)return j({ok:false,error:"الجلسة منتهية"},401);
+
+      const post=await this.ctx.storage.get(`post:${body.postId}`);
+      if(!post)return j({ok:false,error:"المنشور غير موجود"},404);
+
+      post.likes=post.likes||[];
+      const idx=post.likes.indexOf(s.username);
+      let liked=false;
+
+      if(idx>=0){
+        post.likes.splice(idx,1);
+      }else{
+        post.likes.push(s.username);
+        liked=true;
+
+        if(post.author!==s.username){
+          const list=await this.ctx.storage.get(`notifications:${post.author}`)||[];
+          list.push({
+            id:crypto.randomUUID(),
+            type:"like",
+            from:s.username,
+            postId:post.id,
+            createdAt:Date.now(),
+            read:false
+          });
+          await this.ctx.storage.put(`notifications:${post.author}`,list.slice(-200));
+        }
+      }
+
+      await this.ctx.storage.put(`post:${post.id}`,post);
+      return j({ok:true,liked,likeCount:post.likes.length});
+    }
+
+    if(url.pathname==="/api/post-comment" && request.method==="POST"){
+      const s=await this.session(String(body.token||""));
+      if(!s)return j({ok:false,error:"الجلسة منتهية"},401);
+
+      const post=await this.ctx.storage.get(`post:${body.postId}`);
+      if(!post)return j({ok:false,error:"المنشور غير موجود"},404);
+
+      const text=String(body.text||"").trim().slice(0,1000);
+      if(!text)return j({ok:false,error:"اكتب تعليقًا"},400);
+
+      const comment={
+        id:crypto.randomUUID(),
+        author:s.username,
+        text,
+        createdAt:Date.now()
+      };
+
+      post.comments=post.comments||[];
+      post.comments.push(comment);
+      await this.ctx.storage.put(`post:${post.id}`,post);
+
+      if(post.author!==s.username){
+        const list=await this.ctx.storage.get(`notifications:${post.author}`)||[];
+        list.push({
+          id:crypto.randomUUID(),
+          type:"comment",
+          from:s.username,
+          postId:post.id,
+          text,
+          createdAt:Date.now(),
+          read:false
+        });
+        await this.ctx.storage.put(`notifications:${post.author}`,list.slice(-200));
+      }
+
+      return j({ok:true,comment});
+    }
+
+    if(url.pathname==="/api/notifications" && request.method==="GET"){
+      const s=await this.session(url.searchParams.get("token")||"");
+      if(!s)return j({ok:false,error:"الجلسة منتهية"},401);
+
+      const list=await this.ctx.storage.get(`notifications:${s.username}`)||[];
+      return j({ok:true,notifications:[...list].reverse().slice(0,100)});
+    }
+
+    if(url.pathname==="/api/notifications/read" && request.method==="POST"){
+      const s=await this.session(String(body.token||""));
+      if(!s)return j({ok:false,error:"الجلسة منتهية"},401);
+
+      const list=await this.ctx.storage.get(`notifications:${s.username}`)||[];
+      for(const n of list)n.read=true;
+      await this.ctx.storage.put(`notifications:${s.username}`,list);
+      return j({ok:true});
+    }
+
+
     return j({ok:false,error:"Not found"},404);
   }
 
@@ -327,7 +490,7 @@ export default {
       return Response.json({
         ok:true,
         app:"تواصل العطا",
-        version:"V5"
+        version:"V6-Social"
       });
     }
 

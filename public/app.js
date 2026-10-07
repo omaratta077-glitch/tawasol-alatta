@@ -284,6 +284,185 @@ async function shareScreen(){
   };
 }
 
+
+let postImageData="";
+
+function showPage(pageId){
+  document.querySelectorAll(".page").forEach(p=>p.classList.remove("active-page"));
+  $(pageId).classList.add("active-page");
+  document.querySelectorAll(".nav-btn").forEach(b=>b.classList.toggle("active",b.dataset.page===pageId));
+
+  if(pageId==="homePage")loadPosts();
+  if(pageId==="notificationsPage")loadNotifications();
+  if(pageId==="profilePage")renderProfilePage();
+}
+
+document.querySelectorAll(".nav-btn").forEach(btn=>{
+  btn.onclick=()=>showPage(btn.dataset.page);
+});
+
+$("openProfileBtn").onclick=()=>showPage("profilePage");
+
+function renderProfilePage(){
+  if(!me)return;
+  $("profileAvatarLarge").src=me.avatar||avatarFallback(me.fullName||me.displayName||me.username);
+  $("profileName").textContent=me.fullName||me.displayName||me.username;
+  $("profileUsername").textContent="@"+me.username;
+
+  const parts=[];
+  if(me.age)parts.push(`العمر: ${me.age}`);
+  if(me.phone)parts.push(`الهاتف: ${me.phone}`);
+  if(me.email)parts.push(`البريد: ${me.email}`);
+  if(me.country)parts.push(`الدولة: ${me.country}`);
+  $("profileMeta").innerHTML=parts.map(x=>`<div>${esc(x)}</div>`).join("");
+}
+
+async function loadPosts(){
+  if(!token)return;
+  try{
+    const d=await api(`/api/posts?token=${encodeURIComponent(token)}`);
+    const posts=d.posts||[];
+
+    $("postsFeed").innerHTML=posts.length?posts.map(post=>{
+      const a=post.authorInfo||{username:post.author,displayName:post.author};
+      const avatar=a.avatar||avatarFallback(a.fullName||a.displayName||a.username);
+      const comments=(post.comments||[]).slice(-5).map(c=>`
+        <div class="comment-row"><strong>@${esc(c.author)}</strong> ${esc(c.text)}</div>
+      `).join("");
+
+      return `
+      <article class="post-card" data-post="${post.id}">
+        <div class="post-head">
+          <img src="${avatar}" class="avatar" alt="">
+          <div>
+            <strong>${esc(a.fullName||a.displayName||a.username)}</strong>
+            <small>@${esc(a.username)} · ${new Date(post.createdAt).toLocaleString("ar-SA")}</small>
+          </div>
+        </div>
+        ${post.text?`<div class="post-text">${esc(post.text)}</div>`:""}
+        ${post.image?`<img class="post-image" src="${post.image}" alt="">`:""}
+        <div class="post-actions">
+          <button class="like-btn ${post.likedByMe?"liked":""}" data-like="${post.id}">❤️ ${post.likeCount||0}</button>
+          <button class="comment-focus-btn" data-comment-focus="${post.id}">💬 ${post.commentCount||0}</button>
+        </div>
+        <div class="comments-box">
+          <div class="comments-list">${comments}</div>
+          <div class="comment-compose">
+            <input data-comment-input="${post.id}" placeholder="اكتب تعليقًا...">
+            <button data-comment-send="${post.id}">إرسال</button>
+          </div>
+        </div>
+      </article>`;
+    }).join(""):`<div class="empty-card">لا توجد منشورات بعد.</div>`;
+
+    document.querySelectorAll("[data-like]").forEach(btn=>{
+      btn.onclick=async()=>{
+        try{
+          await api("/api/post-like",{method:"POST",body:JSON.stringify({token,postId:btn.dataset.like})});
+          await loadPosts();
+        }catch(e){alert(e.message)}
+      };
+    });
+
+    document.querySelectorAll("[data-comment-send]").forEach(btn=>{
+      btn.onclick=async()=>{
+        const id=btn.dataset.commentSend;
+        const input=document.querySelector(`[data-comment-input="${id}"]`);
+        const text=input.value.trim();
+        if(!text)return;
+        try{
+          await api("/api/post-comment",{method:"POST",body:JSON.stringify({token,postId:id,text})});
+          await loadPosts();
+        }catch(e){alert(e.message)}
+      };
+    });
+
+    document.querySelectorAll("[data-comment-focus]").forEach(btn=>{
+      btn.onclick=()=>document.querySelector(`[data-comment-input="${btn.dataset.commentFocus}"]`)?.focus();
+    });
+  }catch(e){
+    $("postsFeed").innerHTML=`<div class="empty-card">${esc(e.message)}</div>`;
+  }
+}
+
+$("postImageInput").onchange=e=>{
+  const f=e.target.files?.[0];
+  if(!f)return;
+  const r=new FileReader();
+  r.onload=()=>{
+    postImageData=String(r.result||"");
+    $("postImagePreview").src=postImageData;
+    $("postImagePreviewWrap").classList.remove("hidden");
+  };
+  r.readAsDataURL(f);
+};
+
+$("publishPostBtn").onclick=async()=>{
+  const text=$("postText").value.trim();
+  if(!text && !postImageData)return alert("اكتب منشورًا أو أضف صورة");
+  try{
+    await api("/api/posts",{method:"POST",body:JSON.stringify({token,text,image:postImageData})});
+    $("postText").value="";
+    $("postImageInput").value="";
+    postImageData="";
+    $("postImagePreviewWrap").classList.add("hidden");
+    await loadPosts();
+  }catch(e){alert(e.message)}
+};
+
+async function searchUsers(){
+  const q=$("userSearchInput").value.trim();
+  try{
+    const d=await api(`/api/users?token=${encodeURIComponent(token)}&q=${encodeURIComponent(q)}`);
+    const found=(d.users||[]).filter(u=>u.username!==me?.username);
+
+    $("searchResults").innerHTML=found.length?found.map(u=>`
+      <div class="user-search-card">
+        <img src="${u.avatar||avatarFallback(u.fullName||u.displayName||u.username)}" class="avatar" alt="">
+        <div>
+          <strong>${esc(u.fullName||u.displayName||u.username)}</strong>
+          <small>@${esc(u.username)}</small>
+        </div>
+        <button data-message-user="${esc(u.username)}">مراسلة</button>
+      </div>
+    `).join(""):`<div class="empty-card">لا توجد نتائج</div>`;
+
+    document.querySelectorAll("[data-message-user]").forEach(btn=>{
+      btn.onclick=()=>{
+        selectedUser=btn.dataset.messageUser;
+        selectedGroup=null;
+        $("selectedLabel").textContent=selectedUser;
+        showPage("messagesPage");
+      };
+    });
+  }catch(e){alert(e.message)}
+}
+
+$("userSearchBtn").onclick=searchUsers;
+$("userSearchInput").onkeydown=e=>{if(e.key==="Enter")searchUsers()};
+
+async function loadNotifications(){
+  try{
+    const d=await api(`/api/notifications?token=${encodeURIComponent(token)}`);
+    const list=d.notifications||[];
+
+    $("notificationsList").innerHTML=list.length?list.map(n=>{
+      const label=n.type==="like"
+        ? `أعجب @${esc(n.from)} بمنشورك`
+        : `علّق @${esc(n.from)} على منشورك${n.text?`: ${esc(n.text)}`:""}`;
+      return `<div class="notification-card ${n.read?"read":""}">${label}<small>${new Date(n.createdAt).toLocaleString("ar-SA")}</small></div>`;
+    }).join(""):`<div class="empty-card">لا توجد إشعارات</div>`;
+  }catch(e){alert(e.message)}
+}
+
+$("markNotificationsRead").onclick=async()=>{
+  try{
+    await api("/api/notifications/read",{method:"POST",body:JSON.stringify({token})});
+    await loadNotifications();
+  }catch(e){alert(e.message)}
+};
+
+
 let authMode="login";
 
 $("loginTab").onclick=()=>{
@@ -335,8 +514,11 @@ $("authBtn").onclick=async()=>{
     $("appView").classList.remove("hidden");
 
     renderProfile();
+    $("homeAvatar").src=me.avatar||avatarFallback(me.fullName||me.displayName||me.username);
+    renderProfilePage();
     connect();
     loadGroups();
+    loadPosts();
     askNotifications();
   }catch(e){
     $("authMsg").textContent=e.message;
@@ -357,6 +539,8 @@ $("avatarInput").onchange=async e=>{
       });
       me=d.user;
       renderProfile();
+      $("homeAvatar").src=me.avatar||avatarFallback(me.fullName||me.displayName||me.username);
+      renderProfilePage();
     }catch(err){
       alert(err.message);
     }
