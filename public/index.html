@@ -19,9 +19,22 @@
       <button id="registerTab">حساب جديد</button>
     </div>
 
-    <input id="displayNameInput" class="hidden" placeholder="الاسم الظاهر">
+    <div id="registerFields" class="hidden">
+      <input id="fullNameInput" placeholder="الاسم الكامل">
+      <input id="ageInput" type="number" min="13" max="120" placeholder="العمر">
+      <input id="phoneInput" type="tel" placeholder="رقم الهاتف مثال: +9665XXXXXXXX">
+      <input id="emailInput" type="email" placeholder="البريد الإلكتروني">
+      <select id="genderInput">
+        <option value="">الجنس (اختياري)</option>
+        <option value="male">ذكر</option>
+        <option value="female">أنثى</option>
+        <option value="other">أخرى</option>
+      </select>
+      <input id="countryInput" placeholder="الدولة (اختياري)">
+    </div>
     <input id="usernameInput" placeholder="اسم المستخدم">
     <input id="passwordInput" type="password" placeholder="كلمة المرور">
+    <input id="confirmPasswordInput" class="hidden" type="password" placeholder="تأكيد كلمة المرور">
     <button id="authBtn" class="primary">دخول</button>
     <div id="authMsg" class="error"></div>
   </div>

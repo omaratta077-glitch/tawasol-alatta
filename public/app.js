@@ -290,7 +290,8 @@ $("loginTab").onclick=()=>{
   authMode="login";
   $("loginTab").classList.add("active");
   $("registerTab").classList.remove("active");
-  $("displayNameInput").classList.add("hidden");
+  $("registerFields").classList.add("hidden");
+  $("confirmPasswordInput").classList.add("hidden");
   $("authBtn").textContent="دخول";
 };
 
@@ -298,7 +299,8 @@ $("registerTab").onclick=()=>{
   authMode="register";
   $("registerTab").classList.add("active");
   $("loginTab").classList.remove("active");
-  $("displayNameInput").classList.remove("hidden");
+  $("registerFields").classList.remove("hidden");
+  $("confirmPasswordInput").classList.remove("hidden");
   $("authBtn").textContent="إنشاء الحساب";
 };
 
@@ -308,9 +310,18 @@ $("authBtn").onclick=async()=>{
 
     const body={
       username:$("usernameInput").value.trim(),
-      password:$("passwordInput").value,
-      displayName:$("displayNameInput").value.trim()
+      password:$("passwordInput").value
     };
+
+    if(authMode==="register"){
+      body.fullName=$("fullNameInput").value.trim();
+      body.age=$("ageInput").value;
+      body.phone=$("phoneInput").value.trim();
+      body.email=$("emailInput").value.trim();
+      body.gender=$("genderInput").value;
+      body.country=$("countryInput").value.trim();
+      body.confirmPassword=$("confirmPasswordInput").value;
+    }
 
     const d=await api(
       authMode==="register"?"/api/register":"/api/login",

@@ -43,6 +43,12 @@ export class SignalingRoom extends DurableObject {
     return {
       username:u.username,
       displayName:u.displayName||u.username,
+      fullName:u.fullName||u.displayName||u.username,
+      age:u.age??"",
+      phone:u.phone||"",
+      email:u.email||"",
+      gender:u.gender||"",
+      country:u.country||"",
       avatar:u.avatar||""
     };
   }
@@ -65,21 +71,50 @@ export class SignalingRoom extends DurableObject {
     }
 
     if(url.pathname==="/api/register" && request.method==="POST"){
+      const fullName=String(body.fullName||"").trim();
       const username=String(body.username||"").trim().toLowerCase();
-      const displayName=String(body.displayName||username).trim();
+      const age=Number(body.age||0);
+      const phone=String(body.phone||"").trim().replace(/\s+/g,"");
+      const email=String(body.email||"").trim().toLowerCase();
+      const gender=String(body.gender||"").trim();
+      const country=String(body.country||"").trim();
       const password=String(body.password||"");
+      const confirmPassword=String(body.confirmPassword||"");
 
+      if(fullName.length<3)return j({ok:false,error:"اكتب الاسم الكامل"},400);
       if(username.length<3)return j({ok:false,error:"اسم المستخدم 3 أحرف على الأقل"},400);
+      if(!Number.isFinite(age) || age<13 || age>120)return j({ok:false,error:"اكتب عمرًا صحيحًا من 13 إلى 120"},400);
+      if(!phone && !email)return j({ok:false,error:"أدخل رقم الهاتف أو البريد الإلكتروني على الأقل"},400);
+      if(phone && !/^\+?[0-9]{8,15}$/.test(phone))return j({ok:false,error:"رقم الهاتف غير صحيح"},400);
+      if(email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))return j({ok:false,error:"البريد الإلكتروني غير صحيح"},400);
       if(password.length<6)return j({ok:false,error:"كلمة المرور 6 أحرف على الأقل"},400);
+      if(password!==confirmPassword)return j({ok:false,error:"كلمتا المرور غير متطابقتين"},400);
       if(await this.user(username))return j({ok:false,error:"اسم المستخدم موجود بالفعل"},409);
+
+      const existingUsers=await this.ctx.storage.get("usernames")||[];
+      for(const existingName of existingUsers){
+        const existing=await this.user(existingName);
+        if(!existing)continue;
+        if(phone && existing.phone===phone)return j({ok:false,error:"رقم الهاتف مستخدم بالفعل"},409);
+        if(email && existing.email===email)return j({ok:false,error:"البريد الإلكتروني مستخدم بالفعل"},409);
+      }
 
       await this.ctx.storage.put(`user:${username}`,{
         username,
-        displayName,
+        displayName:fullName,
+        fullName,
+        age,
+        phone,
+        email,
+        gender,
+        country,
         passwordHash:await hashPassword(password),
         avatar:"",
         createdAt:Date.now()
       });
+
+      existingUsers.push(username);
+      await this.ctx.storage.put("usernames",[...new Set(existingUsers)]);
 
       const token=await this.createSession(username);
       return j({ok:true,token,user:await this.publicUser(username)});
@@ -292,7 +327,7 @@ export default {
       return Response.json({
         ok:true,
         app:"تواصل العطا",
-        version:"V4"
+        version:"V5"
       });
     }
 
