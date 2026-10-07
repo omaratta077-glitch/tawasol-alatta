@@ -49,6 +49,7 @@
 
   <main class="social-main">
     <section id="homePage" class="page active-page">
+      <div class="stories-section"><div class="stories-head"><strong>الحالات</strong><button id="addStoryBtn">+ إضافة حالة</button></div><div id="storiesStrip" class="stories-strip"></div></div>
       <div class="composer-card">
         <div class="composer-head">
           <img id="homeAvatar" class="avatar" alt="">
@@ -109,10 +110,8 @@
 
           <section class="chat">
             <div id="messages" class="messages"></div>
-            <div class="composer">
-              <input id="messageInput" placeholder="اكتب رسالة...">
-              <button id="sendBtn">إرسال</button>
-            </div>
+            <div id="typingIndicator" class="typing-indicator hidden">يكتب الآن...</div>
+            <div class="composer advanced-composer"><label class="chat-attach-btn">📎<input id="chatFileInput" type="file" accept="image/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx" hidden></label><button id="recordVoiceBtn" class="chat-attach-btn" type="button">🎤</button><input id="messageInput" placeholder="اكتب رسالة..."><button id="sendBtn">إرسال</button></div>
           </section>
         </section>
       </div>
@@ -124,10 +123,12 @@
     </section>
 
     <section id="profilePage" class="page">
-      <div class="profile-card-large">
-        <img id="profileAvatarLarge" class="profile-large-avatar" alt="">
-        <h2 id="profileName"></h2>
-        <div id="profileUsername"></div>
+      <div class="profile-card-large pro-profile-card">
+        <div id="profileCover" class="profile-cover"></div>
+        <img id="profileAvatarLarge" class="profile-large-avatar pro-avatar" alt="">
+        <h2 id="profileName"></h2><div id="profileUsername"></div><p id="profileBio" class="profile-bio"></p>
+        <div class="profile-stats"><div><strong id="followersCount">0</strong><span>متابع</span></div><div><strong id="followingCount">0</strong><span>يتابع</span></div></div>
+        <div class="profile-edit-grid"><textarea id="bioInput" placeholder="نبذة مختصرة"></textarea><label class="upload-label">🖼️ صورة غلاف<input id="coverInput" type="file" accept="image/*" hidden></label><label><input id="privateAccountInput" type="checkbox"> حساب خاص</label><button id="saveProfileBtn" class="primary action-btn">حفظ</button></div>
         <div id="profileMeta" class="profile-meta"></div>
       </div>
     </section>
@@ -194,6 +195,8 @@
   </div>
 </div>
 
+<div id="storyModal" class="modal hidden"><div class="modal-card"><h3>إضافة حالة</h3><textarea id="storyTextInput" placeholder="اكتب حالة..."></textarea><label class="upload-label">🖼️ صورة<input id="storyMediaInput" type="file" accept="image/*" hidden></label><img id="storyPreview" class="story-preview hidden" alt=""><div class="modal-actions"><button id="publishStoryBtn" class="primary">نشر</button><button id="closeStoryModalBtn">إلغاء</button></div></div></div>
+<div id="storyViewer" class="story-viewer hidden"><button id="closeStoryViewer" class="story-close">×</button><div class="story-view-content"><div id="storyViewerAuthor" class="story-view-author"></div><img id="storyViewerImage" class="story-view-image hidden" alt=""><div id="storyViewerText" class="story-view-text"></div></div></div>
 <div id="incomingModal" class="modal hidden">
   <div class="modal-card">
     <h3>مكالمة واردة</h3>

@@ -49,6 +49,9 @@ export class SignalingRoom extends DurableObject {
       email:u.email||"",
       gender:u.gender||"",
       country:u.country||"",
+      bio:u.bio||"",
+      cover:u.cover||"",
+      accountPrivate:!!u.accountPrivate,
       avatar:u.avatar||""
     };
   }
@@ -143,9 +146,10 @@ export class SignalingRoom extends DurableObject {
       if(typeof body.displayName==="string" && body.displayName.trim()){
         u.displayName=body.displayName.trim().slice(0,60);
       }
-      if(typeof body.avatar==="string"){
-        u.avatar=body.avatar.slice(0,250000);
-      }
+      if(typeof body.avatar==="string")u.avatar=body.avatar.slice(0,250000);
+      if(typeof body.cover==="string")u.cover=body.cover.slice(0,500000);
+      if(typeof body.bio==="string")u.bio=body.bio.slice(0,300);
+      if(typeof body.accountPrivate==="boolean")u.accountPrivate=body.accountPrivate;
 
       await this.ctx.storage.put(`user:${u.username}`,u);
       return j({ok:true,user:await this.publicUser(u.username)});
@@ -357,6 +361,76 @@ export class SignalingRoom extends DurableObject {
     }
 
 
+
+    if(url.pathname==="/api/follow" && request.method==="POST"){
+      const s=await this.session(String(body.token||""));
+      if(!s)return j({ok:false,error:"الجلسة منتهية"},401);
+      const target=String(body.username||"").trim().toLowerCase();
+      if(!target || target===s.username)return j({ok:false,error:"مستخدم غير صالح"},400);
+      if(!await this.user(target))return j({ok:false,error:"المستخدم غير موجود"},404);
+      const following=await this.ctx.storage.get(`following:${s.username}`)||[];
+      const followers=await this.ctx.storage.get(`followers:${target}`)||[];
+      const exists=following.includes(target);
+      if(exists){
+        await this.ctx.storage.put(`following:${s.username}`,following.filter(x=>x!==target));
+        await this.ctx.storage.put(`followers:${target}`,followers.filter(x=>x!==s.username));
+        return j({ok:true,following:false});
+      }
+      following.push(target);followers.push(s.username);
+      await this.ctx.storage.put(`following:${s.username}`,[...new Set(following)]);
+      await this.ctx.storage.put(`followers:${target}`,[...new Set(followers)]);
+      const ns=await this.ctx.storage.get(`notifications:${target}`)||[];
+      ns.push({id:crypto.randomUUID(),type:"follow",from:s.username,createdAt:Date.now(),read:false});
+      await this.ctx.storage.put(`notifications:${target}`,ns.slice(-200));
+      return j({ok:true,following:true});
+    }
+
+    if(url.pathname==="/api/profile-public" && request.method==="GET"){
+      const s=await this.session(url.searchParams.get("token")||"");
+      if(!s)return j({ok:false,error:"الجلسة منتهية"},401);
+      const username=String(url.searchParams.get("username")||s.username).trim().toLowerCase();
+      const u=await this.publicUser(username);
+      if(!u)return j({ok:false,error:"المستخدم غير موجود"},404);
+      const followers=await this.ctx.storage.get(`followers:${username}`)||[];
+      const following=await this.ctx.storage.get(`following:${username}`)||[];
+      const myFollowing=await this.ctx.storage.get(`following:${s.username}`)||[];
+      return j({ok:true,user:u,followerCount:followers.length,followingCount:following.length,following:myFollowing.includes(username)});
+    }
+
+    if(url.pathname==="/api/stories" && request.method==="POST"){
+      const s=await this.session(String(body.token||""));
+      if(!s)return j({ok:false,error:"الجلسة منتهية"},401);
+      const text=String(body.text||"").trim().slice(0,500);
+      const media=String(body.media||"").slice(0,700000);
+      if(!text && !media)return j({ok:false,error:"أضف نصًا أو صورة للحالة"},400);
+      const id=crypto.randomUUID();
+      const story={id,author:s.username,text,media,createdAt:Date.now(),expiresAt:Date.now()+86400000};
+      await this.ctx.storage.put(`story:${id}`,story);
+      const ids=await this.ctx.storage.get("storyIds")||[];ids.push(id);
+      await this.ctx.storage.put("storyIds",ids.slice(-500));
+      return j({ok:true,story});
+    }
+
+    if(url.pathname==="/api/stories" && request.method==="GET"){
+      const s=await this.session(url.searchParams.get("token")||"");
+      if(!s)return j({ok:false,error:"الجلسة منتهية"},401);
+      const ids=await this.ctx.storage.get("storyIds")||[];const now=Date.now();const stories=[];
+      for(const id of ids){
+        const st=await this.ctx.storage.get(`story:${id}`);if(!st)continue;
+        if(st.expiresAt<=now){await this.ctx.storage.delete(`story:${id}`);continue;}
+        stories.push({...st,authorInfo:await this.publicUser(st.author)});
+      }
+      return j({ok:true,stories});
+    }
+
+    if(url.pathname==="/api/conversation" && request.method==="GET"){
+      const s=await this.session(url.searchParams.get("token")||"");
+      if(!s)return j({ok:false,error:"الجلسة منتهية"},401);
+      const other=String(url.searchParams.get("with")||"").trim().toLowerCase();
+      const key=[s.username,other].sort().join(":");
+      return j({ok:true,messages:(await this.ctx.storage.get(`messages:${key}`)||[]).slice(-200)});
+    }
+
     return j({ok:false,error:"Not found"},404);
   }
 
@@ -432,14 +506,25 @@ export class SignalingRoom extends DurableObject {
 
     if(msg.type==="chat"){
       const to=String(msg.to||"").trim().toLowerCase();
-      const payload={type:"chat",from,to,text:String(msg.text||""),ts:Date.now()};
+      const payload={type:"chat",id:crypto.randomUUID(),from,to,text:String(msg.text||""),media:String(msg.media||"").slice(0,700000),mediaType:String(msg.mediaType||"text"),ts:Date.now(),read:false};
+      const key=[from,to].sort().join(":");
+      const list=await this.ctx.storage.get(`messages:${key}`)||[];list.push(payload);
+      await this.ctx.storage.put(`messages:${key}`,list.slice(-300));
+      const target=this.findUser(to);if(target)this.send(target,payload);else this.send(ws,{type:"user-offline",user:to});
+      this.send(ws,payload);return;
+    }
 
-      const target=this.findUser(to);
-      if(target)this.send(target,payload);
-      else this.send(ws,{type:"user-offline",user:to});
+    if(msg.type==="typing"){
+      const target=this.findUser(String(msg.to||"").trim().toLowerCase());
+      if(target)this.send(target,{type:"typing",from,active:!!msg.active});return;
+    }
 
-      this.send(ws,payload);
-      return;
+    if(msg.type==="read"){
+      const other=String(msg.with||"").trim().toLowerCase();const key=[from,other].sort().join(":");
+      const list=await this.ctx.storage.get(`messages:${key}`)||[];
+      for(const m of list)if(m.to===from)m.read=true;
+      await this.ctx.storage.put(`messages:${key}`,list);
+      const target=this.findUser(other);if(target)this.send(target,{type:"read",from});return;
     }
 
     if(msg.type==="group-chat"){
@@ -490,7 +575,7 @@ export default {
       return Response.json({
         ok:true,
         app:"تواصل العطا",
-        version:"V6-Social"
+        version:"V7-Social-Pro"
       });
     }
 

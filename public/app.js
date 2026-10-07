@@ -65,11 +65,9 @@ function connect(){
       return;
     }
 
-    if(msg.type==="chat"){
-      if(msg.from!==me.username)notify("رسالة جديدة",`${msg.from}: ${msg.text}`);
-      addMessage(msg.from,msg.text,msg.from===me.username);
-      return;
-    }
+    if(msg.type==="chat"){if(msg.from!==me.username)notify("رسالة جديدة",`${msg.from}: ${msg.text||"مرفق"}`);addRichMessage(msg);if(msg.from===selectedUser&&msg.to===me.username)send({type:"read",with:msg.from});return;}
+    if(msg.type==="typing"){if(msg.from===selectedUser)$("typingIndicator").classList.toggle("hidden",!msg.active);return;}
+    if(msg.type==="read"){document.querySelectorAll(".message-read-state").forEach(el=>el.textContent="✓✓ تمت القراءة");return;}
 
     if(msg.type==="group-chat"){
       const g=groups.find(x=>x.id===msg.groupId);
@@ -169,18 +167,14 @@ function renderUsers(){
       selectedGroup=null;
       const u=users.find(x=>x.username===selectedUser);
       $("selectedLabel").textContent=u?.displayName||selectedUser;
-      $("messages").innerHTML="";
+      loadConversation(selectedUser);
     };
   });
 }
 
-function addMessage(from,text,mine){
-  const div=document.createElement("div");
-  div.className="bubble"+(mine?" mine":"");
-  div.innerHTML=`<div class="meta">${esc(from)}</div><div>${esc(text)}</div>`;
-  $("messages").appendChild(div);
-  $("messages").scrollTop=$("messages").scrollHeight;
-}
+function addMessage(from,text,mine){addRichMessage({from,to:mine?selectedUser:me?.username,text,media:"",mediaType:"text",read:false,ts:Date.now()})}
+function addRichMessage(msg){const mine=msg.from===me?.username;const div=document.createElement("div");div.className="bubble"+(mine?" mine":"");let media="";if(msg.media){media=msg.mediaType==="image"?`<img class="chat-media-image" src="${msg.media}">`:msg.mediaType==="audio"?`<audio class="chat-audio" controls src="${msg.media}"></audio>`:`<a class="chat-file-link" href="${msg.media}" target="_blank">📎 فتح المرفق</a>`}div.innerHTML=`<div class="meta">${esc(msg.from)}</div>${msg.text?`<div>${esc(msg.text)}</div>`:""}${media}${mine?`<div class="message-read-state">${msg.read?"✓✓ تمت القراءة":"✓ تم الإرسال"}</div>`:""}`;$("messages").appendChild(div);$("messages").scrollTop=$("messages").scrollHeight}
+async function loadConversation(username){if(!username)return;try{const d=await api(`/api/conversation?token=${encodeURIComponent(token)}&with=${encodeURIComponent(username)}`);$("messages").innerHTML="";(d.messages||[]).forEach(addRichMessage);send({type:"read",with:username})}catch(e){console.error(e)}}
 
 async function loadGroups(){
   const d=await api(`/api/groups?token=${encodeURIComponent(token)}`);
@@ -292,6 +286,7 @@ async function shareScreen(){
 
 
 let postImageData="";
+let storyMediaData="", pendingChatMedia=null, typingTimer=null, mediaRecorder=null, voiceChunks=[], profileCoverData="";
 
 let callOverlayOpen=false;
 
@@ -332,19 +327,11 @@ document.querySelectorAll(".nav-btn").forEach(btn=>{
 
 $("openProfileBtn").onclick=()=>showPage("profilePage");
 
-function renderProfilePage(){
+async function renderProfilePage(){
   if(!me)return;
-  $("profileAvatarLarge").src=me.avatar||avatarFallback(me.fullName||me.displayName||me.username);
-  $("profileName").textContent=me.fullName||me.displayName||me.username;
-  $("profileUsername").textContent="@"+me.username;
-
-  const parts=[];
-  if(me.age)parts.push(`العمر: ${me.age}`);
-  if(me.phone)parts.push(`الهاتف: ${me.phone}`);
-  if(me.email)parts.push(`البريد: ${me.email}`);
-  if(me.country)parts.push(`الدولة: ${me.country}`);
-  $("profileMeta").innerHTML=parts.map(x=>`<div>${esc(x)}</div>`).join("");
-}
+  try{const d=await api(`/api/profile-public?token=${encodeURIComponent(token)}&username=${encodeURIComponent(me.username)}`);me={...me,...d.user};
+  $("profileAvatarLarge").src=me.avatar||avatarFallback(me.fullName||me.displayName||me.username);$("profileName").textContent=me.fullName||me.displayName||me.username;$("profileUsername").textContent="@"+me.username;$("profileBio").textContent=me.bio||"لا توجد نبذة بعد";$("profileCover").style.backgroundImage=me.cover?`url("${me.cover}")`:"";$("bioInput").value=me.bio||"";$("privateAccountInput").checked=!!me.accountPrivate;$("followersCount").textContent=d.followerCount||0;$("followingCount").textContent=d.followingCount||0;
+  const parts=[];if(me.age)parts.push(`العمر: ${me.age}`);if(me.phone)parts.push(`الهاتف: ${me.phone}`);if(me.email)parts.push(`البريد: ${me.email}`);if(me.country)parts.push(`الدولة: ${me.country}`);$("profileMeta").innerHTML=parts.map(x=>`<div>${esc(x)}</div>`).join("");}catch(e){console.error(e)}}
 
 async function loadPosts(){
   if(!token)return;
@@ -452,10 +439,11 @@ async function searchUsers(){
           <strong>${esc(u.fullName||u.displayName||u.username)}</strong>
           <small>@${esc(u.username)}</small>
         </div>
-        <button data-message-user="${esc(u.username)}">مراسلة</button>
+        <div class="user-search-actions"><button data-follow-user="${esc(u.username)}">متابعة</button><button data-message-user="${esc(u.username)}">مراسلة</button></div>
       </div>
     `).join(""):`<div class="empty-card">لا توجد نتائج</div>`;
 
+    document.querySelectorAll("[data-follow-user]").forEach(btn=>{btn.onclick=async()=>{try{const d=await api("/api/follow",{method:"POST",body:JSON.stringify({token,username:btn.dataset.followUser})});btn.textContent=d.following?"إلغاء المتابعة":"متابعة"}catch(e){alert(e.message)}}});
     document.querySelectorAll("[data-message-user]").forEach(btn=>{
       btn.onclick=()=>{
         selectedUser=btn.dataset.messageUser;
@@ -476,9 +464,7 @@ async function loadNotifications(){
     const list=d.notifications||[];
 
     $("notificationsList").innerHTML=list.length?list.map(n=>{
-      const label=n.type==="like"
-        ? `أعجب @${esc(n.from)} بمنشورك`
-        : `علّق @${esc(n.from)} على منشورك${n.text?`: ${esc(n.text)}`:""}`;
+      const label=n.type==="like"?`أعجب @${esc(n.from)} بمنشورك`:n.type==="follow"?`بدأ @${esc(n.from)} بمتابعتك`:`علّق @${esc(n.from)} على منشورك${n.text?`: ${esc(n.text)}`:""}`;
       return `<div class="notification-card ${n.read?"read":""}">${label}<small>${new Date(n.createdAt).toLocaleString("ar-SA")}</small></div>`;
     }).join(""):`<div class="empty-card">لا توجد إشعارات</div>`;
   }catch(e){alert(e.message)}
@@ -491,6 +477,17 @@ $("markNotificationsRead").onclick=async()=>{
   }catch(e){alert(e.message)}
 };
 
+
+
+async function loadStories(){if(!token)return;try{const d=await api(`/api/stories?token=${encodeURIComponent(token)}`);const stories=d.stories||[];$("storiesStrip").innerHTML=stories.length?stories.map(s=>{const u=s.authorInfo||{username:s.author};const av=u.avatar||avatarFallback(u.displayName||u.username);return `<button class="story-item" data-story="${s.id}"><span class="story-ring"><img src="${av}"></span><small>${esc(u.displayName||u.username)}</small></button>`}).join(""):'<div class="story-empty">لا توجد حالات</div>';document.querySelectorAll('[data-story]').forEach(b=>b.onclick=()=>{const s=stories.find(x=>x.id===b.dataset.story);if(!s)return;$("storyViewerAuthor").textContent=s.authorInfo?.displayName||s.author;$("storyViewerText").textContent=s.text||"";if(s.media){$("storyViewerImage").src=s.media;$("storyViewerImage").classList.remove("hidden")}else $("storyViewerImage").classList.add("hidden");$("storyViewer").classList.remove("hidden")})}catch(e){console.error(e)}}
+$("addStoryBtn").onclick=()=>$("storyModal").classList.remove("hidden");$("closeStoryModalBtn").onclick=()=>$("storyModal").classList.add("hidden");$("closeStoryViewer").onclick=()=>$("storyViewer").classList.add("hidden");
+$("storyMediaInput").onchange=e=>{const f=e.target.files?.[0];if(!f)return;const r=new FileReader();r.onload=()=>{storyMediaData=String(r.result||"");$("storyPreview").src=storyMediaData;$("storyPreview").classList.remove("hidden")};r.readAsDataURL(f)};
+$("publishStoryBtn").onclick=async()=>{const text=$("storyTextInput").value.trim();if(!text&&!storyMediaData)return alert("اكتب حالة أو أضف صورة");try{await api('/api/stories',{method:'POST',body:JSON.stringify({token,text,media:storyMediaData})});$("storyTextInput").value="";storyMediaData="";$("storyModal").classList.add("hidden");$("storyPreview").classList.add("hidden");loadStories()}catch(e){alert(e.message)}};
+$("coverInput").onchange=e=>{const f=e.target.files?.[0];if(!f)return;const r=new FileReader();r.onload=()=>{profileCoverData=String(r.result||"");$("profileCover").style.backgroundImage=`url("${profileCoverData}")`};r.readAsDataURL(f)};
+$("saveProfileBtn").onclick=async()=>{try{const body={token,bio:$("bioInput").value.trim(),accountPrivate:$("privateAccountInput").checked};if(profileCoverData)body.cover=profileCoverData;const d=await api('/api/profile',{method:'POST',body:JSON.stringify(body)});me={...me,...d.user};profileCoverData="";renderProfilePage()}catch(e){alert(e.message)}};
+$("chatFileInput").onchange=e=>{const f=e.target.files?.[0];if(!f)return;const r=new FileReader();r.onload=()=>{pendingChatMedia={data:String(r.result||""),type:f.type.startsWith('image/')?'image':f.type.startsWith('audio/')?'audio':'file'};$("messageInput").placeholder=`مرفق جاهز: ${f.name}`};r.readAsDataURL(f)};
+$("recordVoiceBtn").onclick=async()=>{if(mediaRecorder?.state==='recording'){mediaRecorder.stop();$("recordVoiceBtn").textContent='🎤';return}try{const s=await navigator.mediaDevices.getUserMedia({audio:true});mediaRecorder=new MediaRecorder(s);voiceChunks=[];mediaRecorder.ondataavailable=e=>{if(e.data.size)voiceChunks.push(e.data)};mediaRecorder.onstop=()=>{const b=new Blob(voiceChunks,{type:'audio/webm'});const r=new FileReader();r.onload=()=>{pendingChatMedia={data:String(r.result||''),type:'audio'};$("messageInput").placeholder='رسالة صوتية جاهزة'};r.readAsDataURL(b);s.getTracks().forEach(t=>t.stop())};mediaRecorder.start();$("recordVoiceBtn").textContent='⏹️'}catch(e){alert('تعذر تشغيل الميكروفون')}};
+$("messageInput").addEventListener('input',()=>{if(!selectedUser)return;send({type:'typing',to:selectedUser,active:true});clearTimeout(typingTimer);typingTimer=setTimeout(()=>send({type:'typing',to:selectedUser,active:false}),900)});
 
 let authMode="login";
 
@@ -548,6 +545,7 @@ $("authBtn").onclick=async()=>{
     connect();
     loadGroups();
     loadPosts();
+    loadStories();
     askNotifications();
   }catch(e){
     $("authMsg").textContent=e.message;
@@ -612,20 +610,7 @@ document.querySelectorAll(".side-tab").forEach(btn=>{
   };
 });
 
-$("sendBtn").onclick=()=>{
-  const text=$("messageInput").value.trim();
-  if(!text)return;
-
-  if(selectedGroup){
-    send({type:"group-chat",groupId:selectedGroup.id,text});
-  }else if(selectedUser){
-    send({type:"chat",to:selectedUser,text});
-  }else{
-    return alert("اختر مستخدمًا أو مجموعة");
-  }
-
-  $("messageInput").value="";
-};
+$("sendBtn").onclick=()=>{const text=$("messageInput").value.trim();if(!text&&!pendingChatMedia)return;if(selectedGroup)send({type:"group-chat",groupId:selectedGroup.id,text});else if(selectedUser)send({type:"chat",to:selectedUser,text,media:pendingChatMedia?.data||"",mediaType:pendingChatMedia?.type||"text"});else return alert("اختر مستخدمًا أو مجموعة");$("messageInput").value="";$("messageInput").placeholder="اكتب رسالة...";pendingChatMedia=null;};
 
 $("messageInput").onkeydown=e=>{
   if(e.key==="Enter")$("sendBtn").click();
