@@ -5,6 +5,8 @@ const $=id=>document.getElementById(id);
 let token="",me=null,ws=null,reconnectTimer=null;
 let selectedUser="",selectedGroup=null,users=[],groups=[];
 let pc=null,localStream=null,currentCallType="video",incomingFrom="";
+let videoSender=null,audioSender=null;
+
 let pendingIceCandidates=[];
 
 
@@ -111,13 +113,24 @@ function connect(){
       selectedUser=msg.from;
       currentCallType=msg.callType||currentCallType||"video";
       stopCallSounds();
-      showCallOverlay(msg.from,"مكالمة جارية");
+      showCallOverlay(msg.from,msg.renegotiate?"إعادة توصيل الفيديو...":"مكالمة جارية");
       await ensurePeer();
+
+      // في إعادة التفاوض تأكد أن مسار الفيديو المحلي ما زال مربوطًا.
+      if(currentCallType==="video" && videoSender && !videoSender.track && localStream?.getVideoTracks()[0]){
+        await videoSender.replaceTrack(localStream.getVideoTracks()[0]);
+      }
       await pc.setRemoteDescription(msg.sdp);
       await flushPendingIce();
       const answer=await pc.createAnswer();
       await pc.setLocalDescription(answer);
-      send({type:"answer",to:msg.from,sdp:pc.localDescription,callType:currentCallType});
+
+      send({
+        type:"answer",
+        to:msg.from,
+        sdp:pc.localDescription,
+        callType:currentCallType
+      });
       return;
     }
 
@@ -294,7 +307,18 @@ async function ensurePeer(){
   if(pc)return pc;
 
   pendingIceCandidates=[];
+  videoSender=null;
+  audioSender=null;
+
   pc=new RTCPeerConnection(rtcConfig);
+
+  // نعلن من البداية أننا نرسل ونستقبل.
+  const audioTransceiver=pc.addTransceiver("audio",{direction:"sendrecv"});
+  let videoTransceiver=null;
+
+  if(currentCallType==="video"){
+    videoTransceiver=pc.addTransceiver("video",{direction:"sendrecv"});
+  }
 
   pc.onicecandidate=e=>{
     if(e.candidate && selectedUser){
@@ -304,27 +328,37 @@ async function ensurePeer(){
 
   pc.ontrack=async e=>{
     const remoteVideo=$("remoteVideo");
-    const stream=e.streams?.[0];
 
-    if(stream){
-      remoteVideo.srcObject=stream;
-    }else{
-      const fallback=new MediaStream();
-      fallback.addTrack(e.track);
-      remoteVideo.srcObject=fallback;
+    let stream=e.streams?.[0];
+    if(!stream){
+      stream=remoteVideo.srcObject instanceof MediaStream
+        ? remoteVideo.srcObject
+        : new MediaStream();
+
+      if(!stream.getTracks().some(t=>t.id===e.track.id)){
+        stream.addTrack(e.track);
+      }
     }
 
+    remoteVideo.srcObject=stream;
     remoteVideo.playsInline=true;
 
-    try{await remoteVideo.play()}catch(err){
+    try{
+      await remoteVideo.play();
+    }catch(err){
       console.warn("remote video play blocked",err);
     }
 
-    const empty=document.querySelector(".remote-empty-state");
-    if(empty && e.track?.kind==="video")empty.style.display="none";
-
-    $("callPeerState").textContent="متصل";
-    $("callStatusText").textContent="مكالمة جارية";
+    if(e.track.kind==="video"){
+      const empty=document.querySelector(".remote-empty-state");
+      if(empty)empty.style.display="none";
+      $("callPeerState").textContent="الفيديو متصل";
+      $("callStatusText").textContent="مكالمة فيديو جارية";
+    }else if(e.track.kind==="audio"){
+      if($("callPeerState").textContent!=="الفيديو متصل"){
+        $("callPeerState").textContent="الصوت متصل — جاري استقبال الفيديو...";
+      }
+    }
   };
 
   pc.onconnectionstatechange=()=>{
@@ -332,7 +366,7 @@ async function ensurePeer(){
     const labels={
       new:"جاري التجهيز...",
       connecting:"جاري توصيل المكالمة...",
-      connected:"متصل",
+      connected:currentCallType==="video"?"متصل — جاري استقبال الفيديو...":"متصل",
       disconnected:"الاتصال ضعيف...",
       failed:"فشل اتصال الوسائط",
       closed:"انتهت المكالمة"
@@ -347,8 +381,26 @@ async function ensurePeer(){
 
   const stream=await getMedia(currentCallType);
 
-  stream.getTracks().forEach(track=>{
-    pc.addTrack(track,stream);
+  const audioTrack=stream.getAudioTracks()[0]||null;
+  const videoTrack=stream.getVideoTracks()[0]||null;
+
+  if(audioTrack){
+    audioTrack.enabled=true;
+    await audioTransceiver.sender.replaceTrack(audioTrack);
+    audioSender=audioTransceiver.sender;
+  }
+
+  if(currentCallType==="video" && videoTransceiver && videoTrack){
+    videoTrack.enabled=true;
+    await videoTransceiver.sender.replaceTrack(videoTrack);
+    videoSender=videoTransceiver.sender;
+  }
+
+  // تحقق فعلي أن المسارات مضافة.
+  console.log("Local media tracks",{
+    audio:!!audioSender?.track,
+    video:!!videoSender?.track,
+    videoEnabled:videoSender?.track?.enabled
   });
 
   return pc;
@@ -368,9 +420,50 @@ async function requestCall(type){
 
 async function startOffer(){
   await ensurePeer();
-  const offer=await pc.createOffer();
+
+  const offer=await pc.createOffer({
+    offerToReceiveAudio:true,
+    offerToReceiveVideo:currentCallType==="video"
+  });
+
   await pc.setLocalDescription(offer);
-  send({type:"offer",to:selectedUser,sdp:pc.localDescription,callType:currentCallType});
+
+  send({
+    type:"offer",
+    to:selectedUser,
+    sdp:pc.localDescription,
+    callType:currentCallType
+  });
+
+  // لو الفيديو لم يظهر بعد ثوانٍ، نعيد التفاوض مرة واحدة.
+  if(currentCallType==="video"){
+    setTimeout(async()=>{
+      if(!pc || pc.connectionState==="closed")return;
+
+      const remoteHasVideo=$("remoteVideo")?.srcObject instanceof MediaStream
+        && $("remoteVideo").srcObject.getVideoTracks().length>0;
+
+      if(!remoteHasVideo){
+        try{
+          const retryOffer=await pc.createOffer({
+            iceRestart:true,
+            offerToReceiveAudio:true,
+            offerToReceiveVideo:true
+          });
+          await pc.setLocalDescription(retryOffer);
+          send({
+            type:"offer",
+            to:selectedUser,
+            sdp:pc.localDescription,
+            callType:"video",
+            renegotiate:true
+          });
+        }catch(err){
+          console.warn("Video renegotiation failed",err);
+        }
+      }
+    },3500);
+  }
 }
 
 async function hangup(notifyPeer=true){
@@ -380,6 +473,8 @@ async function hangup(notifyPeer=true){
 
   pc?.close();
   pc=null;
+  videoSender=null;
+  audioSender=null;
   pendingIceCandidates=[];
 
   const empty=document.querySelector(".remote-empty-state");
