@@ -91,6 +91,7 @@ function connect(){
 
     if(msg.type==="call-accept"){
       selectedUser=msg.from;
+      showCallOverlay(msg.from,"تم الاتصال");
       await startOffer();
       return;
     }
@@ -103,6 +104,7 @@ function connect(){
 
     if(msg.type==="offer"){
       selectedUser=msg.from;
+      showCallOverlay(msg.from,"مكالمة جارية");
       await ensurePeer();
       await pc.setRemoteDescription(msg.sdp);
       const answer=await pc.createAnswer();
@@ -125,6 +127,7 @@ function connect(){
 
     if(msg.type==="hangup"){
       await hangup(false);
+      hideCallOverlay(false);
       return;
     }
 
@@ -231,7 +234,9 @@ async function ensurePeer(){
   };
 
   pc.ontrack=e=>{
-    $("remoteVideo").srcObject=e.streams[0];
+    document.querySelector("remoteVideo").srcObject=e.streams[0];
+    const empty=document.querySelector(".remote-empty-state");
+    if(empty)empty.style.display="none";
   };
 
   const stream=await getMedia(currentCallType);
@@ -242,6 +247,7 @@ async function ensurePeer(){
 async function requestCall(type){
   if(!selectedUser)return alert("اختر مستخدمًا أولًا");
   currentCallType=type;
+  showCallOverlay(selectedUser,"جاري الاتصال...");
   send({type:"call-request",to:selectedUser,callType:type});
 }
 
@@ -286,6 +292,29 @@ async function shareScreen(){
 
 
 let postImageData="";
+
+let callOverlayOpen=false;
+
+function showCallOverlay(peerName,stateText="مكالمة جارية"){
+  callOverlayOpen=true;
+  $("callOverlay").classList.remove("hidden");
+  $("callStatusBar").classList.remove("hidden");
+  $("callPeerName").textContent=peerName||selectedUser||incomingFrom||"مكالمة";
+  $("remoteEmptyName").textContent=peerName||selectedUser||incomingFrom||"الطرف الآخر";
+  $("callPeerState").textContent=stateText;
+  $("callStatusText").textContent=stateText;
+}
+
+function hideCallOverlay(keepBar=false){
+  callOverlayOpen=false;
+  $("callOverlay").classList.add("hidden");
+  if(!keepBar)$("callStatusBar").classList.add("hidden");
+}
+
+$("minimizeCallBtn").onclick=()=>hideCallOverlay(true);
+$("openCallViewBtn").onclick=()=>showCallOverlay(selectedUser||incomingFrom||"مكالمة","مكالمة جارية");
+
+
 
 function showPage(pageId){
   document.querySelectorAll(".page").forEach(p=>p.classList.remove("active-page"));
@@ -608,6 +637,7 @@ $("videoCallBtn").onclick=()=>requestCall("video");
 $("acceptCallBtn").onclick=async()=>{
   $("incomingModal").classList.add("hidden");
   selectedUser=incomingFrom;
+  showCallOverlay(incomingFrom,"مكالمة جارية");
   await ensurePeer();
   send({type:"call-accept",to:incomingFrom,callType:currentCallType});
 };
@@ -615,9 +645,13 @@ $("acceptCallBtn").onclick=async()=>{
 $("rejectCallBtn").onclick=()=>{
   send({type:"call-reject",to:incomingFrom,callType:currentCallType});
   $("incomingModal").classList.add("hidden");
+  hideCallOverlay(false);
 };
 
-$("hangupBtn").onclick=()=>hangup(true);
+$("hangupBtn").onclick=async()=>{
+  await hangup(true);
+  hideCallOverlay(false);
+};
 
 $("muteBtn").onclick=()=>{
   const tracks=localStream?.getAudioTracks()||[];

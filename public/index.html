@@ -101,17 +101,11 @@
             <div><button id="audioCallBtn">📞</button><button id="videoCallBtn">📹</button></div>
           </header>
 
-          <section class="video-area">
-            <div class="video-card"><video id="remoteVideo" autoplay playsinline></video><span>الطرف الآخر</span></div>
-            <div class="video-card local"><video id="localVideo" autoplay playsinline muted></video><span>أنت</span></div>
-          </section>
-
-          <section class="controls">
-            <button id="muteBtn">🎙️ كتم المايك</button>
-            <button id="cameraBtn">📷 إيقاف الكاميرا</button>
-            <button id="screenBtn">🖥️ مشاركة الشاشة</button>
-            <button id="hangupBtn" class="danger">⛔ إنهاء المكالمة</button>
-          </section>
+          <div id="callStatusBar" class="call-status-bar hidden">
+            <span class="call-pulse"></span>
+            <span id="callStatusText">مكالمة جارية</span>
+            <button id="openCallViewBtn">فتح المكالمة</button>
+          </div>
 
           <section class="chat">
             <div id="messages" class="messages"></div>
@@ -146,6 +140,58 @@
     <button class="nav-btn" data-page="notificationsPage">🔔<span>الإشعارات</span></button>
     <button class="nav-btn" data-page="profilePage">👤<span>حسابي</span></button>
   </nav>
+</div>
+
+
+<div id="callOverlay" class="call-overlay hidden">
+  <div class="call-overlay-header">
+    <div class="call-user-info">
+      <div class="call-avatar-placeholder">👤</div>
+      <div>
+        <strong id="callPeerName">مكالمة</strong>
+        <small id="callPeerState">جاري الاتصال...</small>
+      </div>
+    </div>
+    <button id="minimizeCallBtn" class="call-top-btn">⌄</button>
+  </div>
+
+  <div class="call-stage">
+    <video id="remoteVideo" class="remote-full-video" autoplay playsinline></video>
+
+    <div class="remote-empty-state">
+      <div class="remote-empty-avatar">👤</div>
+      <div id="remoteEmptyName">الطرف الآخر</div>
+    </div>
+
+    <div class="local-pip">
+      <video id="localVideo" autoplay playsinline muted></video>
+      <span>أنت</span>
+    </div>
+  </div>
+
+  <div class="call-bottom-sheet">
+    <div class="call-tools">
+      <button id="muteBtn" class="round-call-btn">
+        <span class="round-icon">🎙️</span>
+        <small>المايك</small>
+      </button>
+
+      <button id="cameraBtn" class="round-call-btn">
+        <span class="round-icon">📷</span>
+        <small>الكاميرا</small>
+      </button>
+
+      <button id="screenBtn" class="round-call-btn">
+        <span class="round-icon">🖥️</span>
+        <small>الشاشة</small>
+      </button>
+
+      <button id="hangupBtn" class="round-call-btn hangup-round">
+        <span class="round-icon">📞</span>
+        <small>إنهاء</small>
+      </button>
+    </div>
+  </div>
 </div>
 
 <div id="incomingModal" class="modal hidden">
