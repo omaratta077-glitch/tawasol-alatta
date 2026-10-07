@@ -806,7 +806,7 @@ export default {
       return Response.json({
         ok:true,
         app:"تواصل العطا",
-        version:"V8-Social-Plus"
+        version:"V9-Ringtone"
       });
     }
 

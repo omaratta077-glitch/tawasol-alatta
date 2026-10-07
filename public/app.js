@@ -83,25 +83,30 @@ function connect(){
       currentCallType=msg.callType||"video";
       $("incomingText").textContent=`${incomingFrom} يتصل بك`;
       $("incomingModal").classList.remove("hidden");
+      playIncomingRing();
       notify("مكالمة واردة",`${incomingFrom} يتصل بك`);
       return;
     }
 
     if(msg.type==="call-accept"){
       selectedUser=msg.from;
+      stopCallSounds();
       showCallOverlay(msg.from,"تم الاتصال");
       await startOffer();
       return;
     }
 
     if(msg.type==="call-reject"){
+      stopCallSounds();
       await hangup(false);
+      hideCallOverlay(false);
       alert("تم رفض المكالمة");
       return;
     }
 
     if(msg.type==="offer"){
       selectedUser=msg.from;
+      stopCallSounds();
       showCallOverlay(msg.from,"مكالمة جارية");
       await ensurePeer();
       await pc.setRemoteDescription(msg.sdp);
@@ -112,6 +117,7 @@ function connect(){
     }
 
     if(msg.type==="answer"){
+      stopCallSounds();
       if(pc)await pc.setRemoteDescription(msg.sdp);
       return;
     }
@@ -124,6 +130,7 @@ function connect(){
     }
 
     if(msg.type==="hangup"){
+      stopCallSounds();
       await hangup(false);
       hideCallOverlay(false);
       return;
@@ -242,6 +249,7 @@ async function requestCall(type){
   if(!selectedUser)return alert("اختر مستخدمًا أولًا");
   currentCallType=type;
   showCallOverlay(selectedUser,"جاري الاتصال...");
+  playOutgoingRing();
   send({type:"call-request",to:selectedUser,callType:type});
 }
 
@@ -288,6 +296,38 @@ async function shareScreen(){
 let postImageData="";
 
 const reactionEmoji={like:"👍",love:"❤️",haha:"😂",wow:"😮",sad:"😢"};
+
+function stopCallSounds(){
+  const incoming=$("incomingRingAudio");
+  const outgoing=$("outgoingRingAudio");
+
+  if(incoming){
+    incoming.pause();
+    incoming.currentTime=0;
+  }
+
+  if(outgoing){
+    outgoing.pause();
+    outgoing.currentTime=0;
+  }
+}
+
+async function playIncomingRing(){
+  stopCallSounds();
+  const audio=$("incomingRingAudio");
+  if(!audio)return;
+  audio.volume=0.8;
+  try{await audio.play()}catch(e){console.warn("Incoming ringtone blocked:",e)}
+}
+
+async function playOutgoingRing(){
+  stopCallSounds();
+  const audio=$("outgoingRingAudio");
+  if(!audio)return;
+  audio.volume=0.65;
+  try{await audio.play()}catch(e){console.warn("Outgoing ringtone blocked:",e)}
+}
+
 
 let storyMediaData="", pendingChatMedia=null, typingTimer=null, mediaRecorder=null, voiceChunks=[], profileCoverData="";
 
@@ -769,6 +809,7 @@ $("audioCallBtn").onclick=()=>requestCall("audio");
 $("videoCallBtn").onclick=()=>requestCall("video");
 
 $("acceptCallBtn").onclick=async()=>{
+  stopCallSounds();
   $("incomingModal").classList.add("hidden");
   selectedUser=incomingFrom;
   showCallOverlay(incomingFrom,"مكالمة جارية");
@@ -777,12 +818,14 @@ $("acceptCallBtn").onclick=async()=>{
 };
 
 $("rejectCallBtn").onclick=()=>{
+  stopCallSounds();
   send({type:"call-reject",to:incomingFrom,callType:currentCallType});
   $("incomingModal").classList.add("hidden");
   hideCallOverlay(false);
 };
 
 $("hangupBtn").onclick=async()=>{
+  stopCallSounds();
   await hangup(true);
   hideCallOverlay(false);
 };
@@ -800,4 +843,5 @@ $("cameraBtn").onclick=()=>{
 };
 
 $("screenBtn").onclick=shareScreen;
+window.addEventListener("beforeunload",stopCallSounds);
 })();
