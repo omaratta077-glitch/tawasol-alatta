@@ -5,6 +5,8 @@ const $=id=>document.getElementById(id);
 let token="",me=null,ws=null,reconnectTimer=null;
 let selectedUser="",selectedGroup=null,users=[],groups=[];
 let pc=null,localStream=null,currentCallType="video",incomingFrom="";
+let pendingIceCandidates=[];
+
 
 const rtcConfig={iceServers:(window.TAWASOL_CONFIG?.iceServers)||[]};
 
@@ -106,10 +108,12 @@ function connect(){
 
     if(msg.type==="offer"){
       selectedUser=msg.from;
+      currentCallType=msg.callType||currentCallType||"video";
       stopCallSounds();
       showCallOverlay(msg.from,"مكالمة جارية");
       await ensurePeer();
       await pc.setRemoteDescription(msg.sdp);
+      await flushPendingIce();
       const answer=await pc.createAnswer();
       await pc.setLocalDescription(answer);
       send({type:"answer",to:msg.from,sdp:pc.localDescription,callType:currentCallType});
@@ -118,13 +122,22 @@ function connect(){
 
     if(msg.type==="answer"){
       stopCallSounds();
-      if(pc)await pc.setRemoteDescription(msg.sdp);
+      if(pc){
+        await pc.setRemoteDescription(msg.sdp);
+        await flushPendingIce();
+      }
       return;
     }
 
     if(msg.type==="ice"){
-      if(pc && msg.candidate){
-        try{await pc.addIceCandidate(msg.candidate)}catch{}
+      if(msg.candidate){
+        if(pc && pc.remoteDescription){
+          try{await pc.addIceCandidate(msg.candidate)}catch(err){
+            console.warn("ICE candidate failed",err);
+          }
+        }else{
+          pendingIceCandidates.push(msg.candidate);
+        }
       }
       return;
     }
@@ -213,19 +226,73 @@ async function loadCalls(){
 async function getMedia(type){
   localStream?.getTracks().forEach(t=>t.stop());
 
-  localStream=await navigator.mediaDevices.getUserMedia(
-    type==="audio"
-      ? {audio:true,video:false}
-      : {audio:true,video:true}
-  );
+  const constraints = type==="audio"
+    ? {
+        audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true},
+        video:false
+      }
+    : {
+        audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true},
+        video:{
+          facingMode:"user",
+          width:{ideal:1280},
+          height:{ideal:720}
+        }
+      };
 
-  $("localVideo").srcObject=localStream;
-  return localStream;
+  try{
+    localStream=await navigator.mediaDevices.getUserMedia(constraints);
+
+    const localVideo=$("localVideo");
+    localVideo.srcObject=localStream;
+    localVideo.muted=true;
+    localVideo.playsInline=true;
+
+    try{await localVideo.play()}catch{}
+
+    const hasVideo=localStream.getVideoTracks().length>0;
+    if(type==="video" && !hasVideo){
+      throw new Error("لم يتم العثور على كاميرا فعالة");
+    }
+
+    return localStream;
+  }catch(err){
+    console.error("getUserMedia error",err);
+
+    let msg="تعذر تشغيل الكاميرا أو المايك.";
+    if(err?.name==="NotAllowedError"){
+      msg="تم رفض صلاحية الكاميرا أو المايك. اسمح للموقع باستخدامهما ثم جرّب مرة أخرى.";
+    }else if(err?.name==="NotFoundError"){
+      msg="لم يتم العثور على كاميرا أو مايك على هذا الجهاز.";
+    }else if(err?.name==="NotReadableError"){
+      msg="الكاميرا أو المايك مستخدمان في برنامج آخر.";
+    }
+
+    $("callPeerState").textContent=msg;
+    alert(msg);
+    throw err;
+  }
+}
+
+async function flushPendingIce(){
+  if(!pc || !pc.remoteDescription)return;
+
+  const queue=[...pendingIceCandidates];
+  pendingIceCandidates=[];
+
+  for(const candidate of queue){
+    try{
+      await pc.addIceCandidate(candidate);
+    }catch(err){
+      console.warn("ICE add failed",err);
+    }
+  }
 }
 
 async function ensurePeer(){
   if(pc)return pc;
 
+  pendingIceCandidates=[];
   pc=new RTCPeerConnection(rtcConfig);
 
   pc.onicecandidate=e=>{
@@ -234,14 +301,55 @@ async function ensurePeer(){
     }
   };
 
-  pc.ontrack=e=>{
-    document.querySelector("remoteVideo").srcObject=e.streams[0];
+  pc.ontrack=async e=>{
+    const remoteVideo=$("remoteVideo");
+    const stream=e.streams?.[0];
+
+    if(stream){
+      remoteVideo.srcObject=stream;
+    }else{
+      const fallback=new MediaStream();
+      fallback.addTrack(e.track);
+      remoteVideo.srcObject=fallback;
+    }
+
+    remoteVideo.playsInline=true;
+
+    try{await remoteVideo.play()}catch(err){
+      console.warn("remote video play blocked",err);
+    }
+
     const empty=document.querySelector(".remote-empty-state");
     if(empty)empty.style.display="none";
+
+    $("callPeerState").textContent="متصل";
+    $("callStatusText").textContent="مكالمة جارية";
+  };
+
+  pc.onconnectionstatechange=()=>{
+    const state=pc?.connectionState||"";
+    const labels={
+      new:"جاري التجهيز...",
+      connecting:"جاري توصيل المكالمة...",
+      connected:"متصل",
+      disconnected:"الاتصال ضعيف...",
+      failed:"فشل اتصال الوسائط",
+      closed:"انتهت المكالمة"
+    };
+
+    if($("callPeerState"))$("callPeerState").textContent=labels[state]||state;
+
+    if(state==="failed"){
+      alert("تعذر توصيل الصوت/الفيديو. قد تحتاج شبكة أخرى أو TURN للاتصال بين بعض الشبكات.");
+    }
   };
 
   const stream=await getMedia(currentCallType);
-  stream.getTracks().forEach(track=>pc.addTrack(track,stream));
+
+  stream.getTracks().forEach(track=>{
+    pc.addTrack(track,stream);
+  });
+
   return pc;
 }
 
@@ -267,6 +375,10 @@ async function hangup(notifyPeer=true){
 
   pc?.close();
   pc=null;
+  pendingIceCandidates=[];
+
+  const empty=document.querySelector(".remote-empty-state");
+  if(empty)empty.style.display="grid";
 
   localStream?.getTracks().forEach(t=>t.stop());
   localStream=null;
@@ -298,6 +410,7 @@ let postImageData="";
 const reactionEmoji={like:"👍",love:"❤️",haha:"😂",wow:"😮",sad:"😢"};
 
 
+
 let callAudioCtx=null;
 let ringtoneTimer=null;
 let activeRingType="";
@@ -312,7 +425,7 @@ function ensureCallAudio(){
   }
 }
 
-function tone(freq=440,duration=0.22,volume=0.09,delay=0){
+function softTone(freq,duration=0.32,volume=0.045,delay=0){
   if(!callAudioCtx)return;
 
   const now=callAudioCtx.currentTime+delay;
@@ -323,8 +436,8 @@ function tone(freq=440,duration=0.22,volume=0.09,delay=0){
   osc.frequency.setValueAtTime(freq,now);
 
   gain.gain.setValueAtTime(0.0001,now);
-  gain.gain.exponentialRampToValueAtTime(volume,now+0.015);
-  gain.gain.setValueAtTime(volume,Math.max(now+0.02,now+duration-0.04));
+  gain.gain.exponentialRampToValueAtTime(volume,now+0.05);
+  gain.gain.setValueAtTime(volume,now+Math.max(0.08,duration-0.10));
   gain.gain.exponentialRampToValueAtTime(0.0001,now+duration);
 
   osc.connect(gain);
@@ -338,20 +451,19 @@ function playIncomingPattern(){
   if(activeRingType!=="incoming")return;
   ensureCallAudio();
 
-  tone(740,0.28,0.10,0);
-  tone(988,0.28,0.08,0);
-  tone(784,0.28,0.10,0.42);
-  tone(1046,0.28,0.08,0.42);
+  // نغمة هادئة: ثلاث نقرات موسيقية قصيرة
+  softTone(659.25,0.34,0.040,0.00);
+  softTone(783.99,0.34,0.038,0.36);
+  softTone(987.77,0.42,0.034,0.72);
 }
 
 function playOutgoingPattern(){
   if(activeRingType!=="outgoing")return;
   ensureCallAudio();
 
-  tone(440,0.38,0.08,0);
-  tone(480,0.38,0.06,0);
-  tone(440,0.38,0.08,0.62);
-  tone(480,0.38,0.06,0.62);
+  // انتظار هادئ ومنخفض
+  softTone(440.00,0.28,0.030,0.00);
+  softTone(554.37,0.28,0.026,0.34);
 }
 
 function stopCallSounds(){
@@ -362,10 +474,10 @@ function stopCallSounds(){
     ringtoneTimer=null;
   }
 
+  // لا نشغّل ملفات WAV بالتوازي مع WebAudio حتى لا تتداخل الأصوات.
   ["incomingRingAudio","outgoingRingAudio"].forEach(id=>{
     const audio=$(id);
     if(!audio)return;
-
     try{
       audio.pause();
       audio.currentTime=0;
@@ -383,16 +495,18 @@ async function playIncomingRing(){
 
   activeRingType="incoming";
   playIncomingPattern();
-  ringtoneTimer=setInterval(playIncomingPattern,1800);
+  ringtoneTimer=setInterval(playIncomingPattern,2450);
 
-  const audio=$("incomingRingAudio");
-  if(audio){
-    audio.volume=0.45;
-    try{await audio.play()}catch{}
+  if(!callAudioCtx){
+    const audio=$("incomingRingAudio");
+    if(audio){
+      audio.volume=0.35;
+      try{await audio.play()}catch{}
+    }
   }
 
   if(navigator.vibrate){
-    try{navigator.vibrate([350,180,350,900])}catch{}
+    try{navigator.vibrate([220,140,220,1000])}catch{}
   }
 }
 
@@ -402,16 +516,17 @@ async function playOutgoingRing(){
 
   activeRingType="outgoing";
   playOutgoingPattern();
-  ringtoneTimer=setInterval(playOutgoingPattern,2600);
+  ringtoneTimer=setInterval(playOutgoingPattern,2800);
 
-  const audio=$("outgoingRingAudio");
-  if(audio){
-    audio.volume=0.30;
-    try{await audio.play()}catch{}
+  if(!callAudioCtx){
+    const audio=$("outgoingRingAudio");
+    if(audio){
+      audio.volume=0.25;
+      try{await audio.play()}catch{}
+    }
   }
 }
 
-/* أول تفاعل من المستخدم يفتح الصوت للمتصفح */
 ["pointerdown","touchstart","keydown"].forEach(evt=>{
   document.addEventListener(evt,ensureCallAudio,{once:true,capture:true});
 });
