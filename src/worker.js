@@ -2,91 +2,154 @@ export class SignalingRoom {
   constructor(state, env) {
     this.state = state;
     this.env = env;
-    this.clients = new Map();
   }
 
   async fetch(request) {
-    const upgrade = request.headers.get("Upgrade");
-    if (upgrade !== "websocket") {
+    if (request.headers.get("Upgrade") !== "websocket") {
       return new Response("WebSocket only", { status: 426 });
     }
 
     const pair = new WebSocketPair();
     const client = pair[0];
     const server = pair[1];
-    server.accept();
 
-    let user = null;
+    this.state.acceptWebSocket(server);
 
-    const broadcastUsers = () => {
-      const users = [...this.clients.keys()];
-      const payload = JSON.stringify({ type: "users", users });
-      for (const ws of this.clients.values()) {
-        try { ws.send(payload); } catch {}
-      }
-    };
+    return new Response(null, {
+      status: 101,
+      webSocket: client
+    });
+  }
 
-    const sendTo = (to, payload) => {
-      const target = this.clients.get(to);
-      if (!target) return false;
-      try {
-        target.send(JSON.stringify(payload));
-        return true;
-      } catch {
-        return false;
-      }
-    };
+  getUser(ws) {
+    try {
+      const data = ws.deserializeAttachment();
+      return data && data.user ? String(data.user) : "";
+    } catch {
+      return "";
+    }
+  }
 
-    server.addEventListener("message", (event) => {
-      try {
-        const msg = JSON.parse(event.data);
+  setUser(ws, user) {
+    try {
+      ws.serializeAttachment({ user });
+    } catch {}
+  }
 
-        if (msg.type === "join") {
-          user = String(msg.user || "").trim();
-          if (!user) return;
-          this.clients.set(user, server);
-          server.send(JSON.stringify({ type: "joined", user }));
-          broadcastUsers();
+  sockets() {
+    try {
+      return this.state.getWebSockets();
+    } catch {
+      return [];
+    }
+  }
+
+  send(ws, payload) {
+    try {
+      ws.send(JSON.stringify(payload));
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  findByUser(username) {
+    const wanted = String(username || "").trim();
+    return this.sockets().find(ws => this.getUser(ws) === wanted) || null;
+  }
+
+  broadcastUsers() {
+    const users = [];
+    for (const ws of this.sockets()) {
+      const user = this.getUser(ws);
+      if (user && !users.includes(user)) users.push(user);
+    }
+
+    const payload = { type: "users", users };
+
+    for (const ws of this.sockets()) {
+      this.send(ws, payload);
+    }
+  }
+
+  webSocketMessage(ws, message) {
+    try {
+      const msg = JSON.parse(String(message));
+
+      if (msg.type === "join") {
+        const user = String(msg.user || "").trim();
+        if (!user) {
+          this.send(ws, { type: "error", message: "اسم المستخدم مطلوب" });
           return;
         }
 
-        if (!user) return;
-
-        if (msg.type === "chat") {
-          const payload = {
-            type: "chat",
-            from: user,
-            to: msg.to || "",
-            text: String(msg.text || ""),
-            ts: Date.now()
-          };
-
-          if (msg.to) {
-            sendTo(msg.to, payload);
-            server.send(JSON.stringify(payload));
-          } else {
-            for (const ws of this.clients.values()) {
-              try { ws.send(JSON.stringify(payload)); } catch {}
-            }
-          }
-          return;
+        const existing = this.findByUser(user);
+        if (existing && existing !== ws) {
+          try { existing.close(4001, "replaced"); } catch {}
         }
 
-        if (["offer","answer","ice","call-request","call-accept","call-reject","hangup"].includes(msg.type)) {
-          if (!msg.to) return;
-          sendTo(msg.to, { ...msg, from: user });
-        }
-      } catch {}
-    });
-
-    server.addEventListener("close", () => {
-      if (user && this.clients.get(user) === server) {
-        this.clients.delete(user);
-        broadcastUsers();
+        this.setUser(ws, user);
+        this.send(ws, { type: "joined", user });
+        this.broadcastUsers();
+        return;
       }
-    });
 
-    return new Response(null, { status: 101, webSocket: client });
+      const from = this.getUser(ws);
+      if (!from) {
+        this.send(ws, { type: "error", message: "لم يتم تسجيل المستخدم في الاتصال" });
+        return;
+      }
+
+      if (msg.type === "chat") {
+        const payload = {
+          type: "chat",
+          from,
+          to: String(msg.to || ""),
+          text: String(msg.text || ""),
+          ts: Date.now()
+        };
+
+        if (payload.to) {
+          const target = this.findByUser(payload.to);
+          if (target) this.send(target, payload);
+          this.send(ws, payload);
+        } else {
+          for (const target of this.sockets()) this.send(target, payload);
+        }
+        return;
+      }
+
+      if ([
+        "offer",
+        "answer",
+        "ice",
+        "call-request",
+        "call-accept",
+        "call-reject",
+        "hangup"
+      ].includes(msg.type)) {
+        const to = String(msg.to || "").trim();
+        if (!to) return;
+
+        const target = this.findByUser(to);
+        if (target) {
+          this.send(target, { ...msg, from });
+        } else {
+          this.send(ws, { type: "user-offline", user: to });
+        }
+      }
+    } catch {
+      this.send(ws, { type: "error", message: "تعذر معالجة الرسالة" });
+    }
+  }
+
+  webSocketClose() {
+    this.broadcastUsers();
+  }
+
+  webSocketError(ws) {
+    try { ws.close(1011, "websocket error"); } catch {}
+    this.broadcastUsers();
   }
 }
 
@@ -98,6 +161,14 @@ export default {
       const id = env.SIGNALING.idFromName("global-room");
       const stub = env.SIGNALING.get(id);
       return stub.fetch(request);
+    }
+
+    if (url.pathname === "/health") {
+      return Response.json({
+        ok: true,
+        app: "تواصل العطا",
+        version: "V2"
+      });
     }
 
     return env.ASSETS.fetch(request);
