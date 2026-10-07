@@ -297,37 +297,124 @@ let postImageData="";
 
 const reactionEmoji={like:"👍",love:"❤️",haha:"😂",wow:"😮",sad:"😢"};
 
-function stopCallSounds(){
-  const incoming=$("incomingRingAudio");
-  const outgoing=$("outgoingRingAudio");
 
-  if(incoming){
-    incoming.pause();
-    incoming.currentTime=0;
+let callAudioCtx=null;
+let ringtoneTimer=null;
+let activeRingType="";
+
+function ensureCallAudio(){
+  if(!callAudioCtx){
+    const AC=window.AudioContext||window.webkitAudioContext;
+    if(AC)callAudioCtx=new AC();
+  }
+  if(callAudioCtx && callAudioCtx.state==="suspended"){
+    callAudioCtx.resume().catch(()=>{});
+  }
+}
+
+function tone(freq=440,duration=0.22,volume=0.09,delay=0){
+  if(!callAudioCtx)return;
+
+  const now=callAudioCtx.currentTime+delay;
+  const osc=callAudioCtx.createOscillator();
+  const gain=callAudioCtx.createGain();
+
+  osc.type="sine";
+  osc.frequency.setValueAtTime(freq,now);
+
+  gain.gain.setValueAtTime(0.0001,now);
+  gain.gain.exponentialRampToValueAtTime(volume,now+0.015);
+  gain.gain.setValueAtTime(volume,Math.max(now+0.02,now+duration-0.04));
+  gain.gain.exponentialRampToValueAtTime(0.0001,now+duration);
+
+  osc.connect(gain);
+  gain.connect(callAudioCtx.destination);
+
+  osc.start(now);
+  osc.stop(now+duration+0.03);
+}
+
+function playIncomingPattern(){
+  if(activeRingType!=="incoming")return;
+  ensureCallAudio();
+
+  tone(740,0.28,0.10,0);
+  tone(988,0.28,0.08,0);
+  tone(784,0.28,0.10,0.42);
+  tone(1046,0.28,0.08,0.42);
+}
+
+function playOutgoingPattern(){
+  if(activeRingType!=="outgoing")return;
+  ensureCallAudio();
+
+  tone(440,0.38,0.08,0);
+  tone(480,0.38,0.06,0);
+  tone(440,0.38,0.08,0.62);
+  tone(480,0.38,0.06,0.62);
+}
+
+function stopCallSounds(){
+  activeRingType="";
+
+  if(ringtoneTimer){
+    clearInterval(ringtoneTimer);
+    ringtoneTimer=null;
   }
 
-  if(outgoing){
-    outgoing.pause();
-    outgoing.currentTime=0;
+  ["incomingRingAudio","outgoingRingAudio"].forEach(id=>{
+    const audio=$(id);
+    if(!audio)return;
+
+    try{
+      audio.pause();
+      audio.currentTime=0;
+    }catch{}
+  });
+
+  if(navigator.vibrate){
+    try{navigator.vibrate(0)}catch{}
   }
 }
 
 async function playIncomingRing(){
   stopCallSounds();
+  ensureCallAudio();
+
+  activeRingType="incoming";
+  playIncomingPattern();
+  ringtoneTimer=setInterval(playIncomingPattern,1800);
+
   const audio=$("incomingRingAudio");
-  if(!audio)return;
-  audio.volume=0.8;
-  try{await audio.play()}catch(e){console.warn("Incoming ringtone blocked:",e)}
+  if(audio){
+    audio.volume=0.45;
+    try{await audio.play()}catch{}
+  }
+
+  if(navigator.vibrate){
+    try{navigator.vibrate([350,180,350,900])}catch{}
+  }
 }
 
 async function playOutgoingRing(){
   stopCallSounds();
+  ensureCallAudio();
+
+  activeRingType="outgoing";
+  playOutgoingPattern();
+  ringtoneTimer=setInterval(playOutgoingPattern,2600);
+
   const audio=$("outgoingRingAudio");
-  if(!audio)return;
-  audio.volume=0.65;
-  try{await audio.play()}catch(e){console.warn("Outgoing ringtone blocked:",e)}
+  if(audio){
+    audio.volume=0.30;
+    try{await audio.play()}catch{}
+  }
 }
 
+/* أول تفاعل من المستخدم يفتح الصوت للمتصفح */
+["pointerdown","touchstart","keydown"].forEach(evt=>{
+  document.addEventListener(evt,ensureCallAudio,{once:true,capture:true});
+});
 
 let storyMediaData="", pendingChatMedia=null, typingTimer=null, mediaRecorder=null, voiceChunks=[], profileCoverData="";
 
@@ -699,6 +786,7 @@ $("registerTab").onclick=()=>{
 };
 
 $("authBtn").onclick=async()=>{
+  ensureCallAudio();
   try{
     $("authMsg").textContent="";
 
@@ -805,8 +893,8 @@ $("messageInput").onkeydown=e=>{
   if(e.key==="Enter")$("sendBtn").click();
 };
 
-$("audioCallBtn").onclick=()=>requestCall("audio");
-$("videoCallBtn").onclick=()=>requestCall("video");
+$("audioCallBtn").onclick=()=>{ensureCallAudio();requestCall("audio")};
+$("videoCallBtn").onclick=()=>{ensureCallAudio();requestCall("video")};
 
 $("acceptCallBtn").onclick=async()=>{
   stopCallSounds();
