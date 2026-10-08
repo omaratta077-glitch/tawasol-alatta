@@ -340,6 +340,7 @@ function renderUsers(){
       const u=allMap.get(selectedUser);
       $("selectedLabel").textContent=u?.fullName||u?.displayName||selectedUser;
 
+      $("messagesLayout")?.classList.add("has-chat");
       lastConversationSignature="";
       loadConversation(selectedUser);
     };
@@ -448,6 +449,7 @@ async function loadGroups(){
       selectedGroup=groups.find(g=>g.id===btn.dataset.group)||null;
       selectedUser="";
       $("selectedLabel").textContent=selectedGroup?.name||"مجموعة";
+      $("messagesLayout")?.classList.add("has-chat");
       $("messages").innerHTML="";
     };
   });
@@ -1485,8 +1487,159 @@ $("storyMediaInput").onchange=e=>{const f=e.target.files?.[0];if(!f)return;const
 $("publishStoryBtn").onclick=async()=>{const text=$("storyTextInput").value.trim();if(!text&&!storyMediaData)return alert("اكتب حالة أو أضف صورة");try{await api('/api/stories',{method:'POST',body:JSON.stringify({token,text,media:storyMediaData})});$("storyTextInput").value="";storyMediaData="";$("storyModal").classList.add("hidden");$("storyPreview").classList.add("hidden");loadStories()}catch(e){alert(e.message)}};
 $("coverInput").onchange=e=>{const f=e.target.files?.[0];if(!f)return;const r=new FileReader();r.onload=()=>{profileCoverData=String(r.result||"");$("profileCover").style.backgroundImage=`url("${profileCoverData}")`};r.readAsDataURL(f)};
 $("saveProfileBtn").onclick=async()=>{try{const body={token,bio:$("bioInput").value.trim(),accountPrivate:$("privateAccountInput").checked};if(profileCoverData)body.cover=profileCoverData;const d=await api('/api/profile',{method:'POST',body:JSON.stringify(body)});me={...me,...d.user};profileCoverData="";renderProfilePage()}catch(e){alert(e.message)}};
-$("chatFileInput").onchange=e=>{const f=e.target.files?.[0];if(!f)return;const r=new FileReader();r.onload=()=>{pendingChatMedia={data:String(r.result||""),type:f.type.startsWith('image/')?'image':f.type.startsWith('audio/')?'audio':'file'};$("messageInput").placeholder=`مرفق جاهز: ${f.name}`};r.readAsDataURL(f)};
-$("recordVoiceBtn").onclick=async()=>{if(mediaRecorder?.state==='recording'){mediaRecorder.stop();$("recordVoiceBtn").textContent='🎤';return}try{const s=await navigator.mediaDevices.getUserMedia({audio:true});mediaRecorder=new MediaRecorder(s);voiceChunks=[];mediaRecorder.ondataavailable=e=>{if(e.data.size)voiceChunks.push(e.data)};mediaRecorder.onstop=()=>{const b=new Blob(voiceChunks,{type:'audio/webm'});const r=new FileReader();r.onload=()=>{pendingChatMedia={data:String(r.result||''),type:'audio'};$("messageInput").placeholder='رسالة صوتية جاهزة'};r.readAsDataURL(b);s.getTracks().forEach(t=>t.stop())};mediaRecorder.start();$("recordVoiceBtn").textContent='⏹️'}catch(e){alert('تعذر تشغيل الميكروفون')}};
+
+function readFileDataUrl(file){
+  return new Promise((resolve,reject)=>{
+    const r=new FileReader();
+    r.onload=()=>resolve(String(r.result||""));
+    r.onerror=()=>reject(new Error("تعذر قراءة الملف"));
+    r.readAsDataURL(file);
+  });
+}
+
+async function compressChatImage(file){
+  const original=await readFileDataUrl(file);
+
+  if(file.size<=420000){
+    return original;
+  }
+
+  const image=await new Promise((resolve,reject)=>{
+    const img=new Image();
+    img.onload=()=>resolve(img);
+    img.onerror=()=>reject(new Error("تعذر فتح الصورة"));
+    img.src=original;
+  });
+
+  const maxSide=1280;
+  let width=image.naturalWidth||image.width;
+  let height=image.naturalHeight||image.height;
+
+  const scale=Math.min(1,maxSide/Math.max(width,height));
+  width=Math.max(1,Math.round(width*scale));
+  height=Math.max(1,Math.round(height*scale));
+
+  const canvas=document.createElement("canvas");
+  canvas.width=width;
+  canvas.height=height;
+
+  const ctx=canvas.getContext("2d");
+  ctx.fillStyle="#fff";
+  ctx.fillRect(0,0,width,height);
+  ctx.drawImage(image,0,0,width,height);
+
+  let quality=.82;
+  let data=canvas.toDataURL("image/jpeg",quality);
+
+  while(data.length>880000 && quality>.52){
+    quality-=.08;
+    data=canvas.toDataURL("image/jpeg",quality);
+  }
+
+  if(data.length>930000){
+    const scale2=.78;
+    const c2=document.createElement("canvas");
+    c2.width=Math.max(1,Math.round(width*scale2));
+    c2.height=Math.max(1,Math.round(height*scale2));
+    const x2=c2.getContext("2d");
+    x2.fillStyle="#fff";
+    x2.fillRect(0,0,c2.width,c2.height);
+    x2.drawImage(canvas,0,0,c2.width,c2.height);
+    data=c2.toDataURL("image/jpeg",.68);
+  }
+
+  return data;
+}
+
+function updateChatMediaPreview(){
+  const box=$("chatMediaPreview");
+  if(!box)return;
+
+  if(!pendingChatMedia){
+    box.classList.add("hidden");
+    $("chatPreviewImage")?.classList.add("hidden");
+    return;
+  }
+
+  box.classList.remove("hidden");
+
+  const img=$("chatPreviewImage");
+  const title=$("chatPreviewTitle");
+  const info=$("chatPreviewInfo");
+
+  if(pendingChatMedia.type==="image"){
+    img.src=pendingChatMedia.data;
+    img.classList.remove("hidden");
+    title.textContent="الصورة جاهزة للإرسال";
+  }else{
+    img.classList.add("hidden");
+    title.textContent=pendingChatMedia.type==="audio"?"الصوت جاهز للإرسال":"الملف جاهز للإرسال";
+  }
+
+  info.textContent=pendingChatMedia.name||"";
+}
+
+function clearPendingChatMedia(){
+  pendingChatMedia=null;
+
+  if($("chatImageInput"))$("chatImageInput").value="";
+  if($("chatFileInput"))$("chatFileInput").value="";
+
+  $("messageInput").placeholder="اكتب رسالة...";
+  updateChatMediaPreview();
+}
+
+$("clearChatMediaBtn").onclick=clearPendingChatMedia;
+
+$("chatImageInput").onchange=async e=>{
+  const f=e.target.files?.[0];
+  if(!f)return;
+
+  try{
+    $("chatPreviewTitle").textContent="جاري تجهيز الصورة...";
+    $("chatMediaPreview").classList.remove("hidden");
+
+    const data=await compressChatImage(f);
+
+    if(data.length>950000){
+      clearPendingChatMedia();
+      return alert("الصورة ما زالت كبيرة جدًا. اختر صورة أصغر.");
+    }
+
+    pendingChatMedia={data,type:"image",name:f.name};
+    $("messageInput").placeholder="يمكنك كتابة تعليق مع الصورة...";
+    updateChatMediaPreview();
+  }catch(err){
+    clearPendingChatMedia();
+    alert(err.message||"تعذر تجهيز الصورة");
+  }
+};
+
+$("chatFileInput").onchange=async e=>{
+  const f=e.target.files?.[0];
+  if(!f)return;
+
+  if(f.size>650000){
+    e.target.value="";
+    return alert("حجم الملف كبير. الحد الحالي حوالي 650 كيلوبايت للملفات.");
+  }
+
+  try{
+    const data=await readFileDataUrl(f);
+    pendingChatMedia={
+      data,
+      type:f.type.startsWith("audio/")?"audio":"file",
+      name:f.name
+    };
+    $("messageInput").placeholder=`مرفق جاهز: ${f.name}`;
+    updateChatMediaPreview();
+  }catch(err){
+    clearPendingChatMedia();
+    alert(err.message||"تعذر قراءة الملف");
+  }
+};
+
+$("recordVoiceBtn").onclick=async()=>{if(mediaRecorder?.state==='recording'){mediaRecorder.stop();$("recordVoiceBtn").textContent='🎤';return}try{const s=await navigator.mediaDevices.getUserMedia({audio:true});mediaRecorder=new MediaRecorder(s);voiceChunks=[];mediaRecorder.ondataavailable=e=>{if(e.data.size)voiceChunks.push(e.data)};mediaRecorder.onstop=()=>{const b=new Blob(voiceChunks,{type:'audio/webm'});const r=new FileReader();r.onload=()=>{pendingChatMedia={data:String(r.result||''),type:'audio',name:'رسالة صوتية'};$("messageInput").placeholder='رسالة صوتية جاهزة';updateChatMediaPreview()};r.readAsDataURL(b);s.getTracks().forEach(t=>t.stop())};mediaRecorder.start();$("recordVoiceBtn").textContent='⏹️'}catch(e){alert('تعذر تشغيل الميكروفون')}};
 $("messageInput").addEventListener('input',()=>{if(!selectedUser)return;send({type:'typing',to:selectedUser,active:true});clearTimeout(typingTimer);typingTimer=setTimeout(()=>send({type:'typing',to:selectedUser,active:false}),900)});
 
 
@@ -1759,13 +1912,19 @@ $("sendBtn").onclick=async()=>{
   }
 
   $("messageInput").value="";
-  $("messageInput").placeholder="اكتب رسالة...";
-  pendingChatMedia=null;
+  clearPendingChatMedia();
 };
 
 $("messageInput").onkeydown=e=>{
   if(e.key==="Enter")$("sendBtn").click();
 };
+
+
+if($("mobileBackContactsBtn")){
+  $("mobileBackContactsBtn").onclick=()=>{
+    $("messagesLayout")?.classList.remove("has-chat");
+  };
+}
 
 $("audioCallBtn").onclick=()=>{ensureCallAudio();requestCall("audio")};
 $("videoCallBtn").onclick=()=>{ensureCallAudio();requestCall("video")};

@@ -239,7 +239,7 @@
     </section>
 
     <section id="messagesPage" class="page">
-      <div class="messages-layout">
+      <div id="messagesLayout" class="messages-layout">
         <aside class="chat-sidebar">
           <div class="profile">
             <img id="avatarImg" class="avatar" alt="">
@@ -259,9 +259,24 @@
         </aside>
 
         <section class="chat-main">
-          <header class="topbar">
-            <div><strong id="selectedLabel">اختر مستخدمًا أو مجموعة</strong><small id="connectionState">متصل</small></div>
-            <div><button id="audioCallBtn">📞</button><button id="videoCallBtn">📹</button></div>
+          <header class="topbar chat-topbar">
+            <button id="mobileBackContactsBtn" class="mobile-chat-back" type="button" aria-label="العودة لقائمة الأصدقاء">
+              <svg viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg>
+            </button>
+
+            <div class="chat-peer-heading">
+              <strong id="selectedLabel">اختر مستخدمًا أو مجموعة</strong>
+              <small id="connectionState">متصل</small>
+            </div>
+
+            <div class="chat-call-actions">
+              <button id="audioCallBtn" class="chat-call-btn" type="button" aria-label="مكالمة صوتية" title="مكالمة صوتية">
+                <svg viewBox="0 0 24 24"><path d="M6.6 2.8 9.4 7 7.7 9.1c1.2 2.6 3.5 4.9 6.2 6.2l2.1-1.7 4.2 2.8c.5.3.7.9.5 1.5l-.8 2.6c-.2.7-.9 1.2-1.7 1.2C9.3 21.2 2.8 14.7 2.3 5.8c0-.8.5-1.5 1.2-1.7l2.6-.8c.6-.2 1.2 0 1.5.5Z"/></svg>
+              </button>
+              <button id="videoCallBtn" class="chat-call-btn" type="button" aria-label="مكالمة فيديو" title="مكالمة فيديو">
+                <svg viewBox="0 0 24 24"><rect x="3" y="6" width="13" height="12" rx="2"/><path d="m16 10 5-3v10l-5-3Z"/></svg>
+              </button>
+            </div>
           </header>
 
           <div id="callStatusBar" class="call-status-bar hidden">
@@ -273,7 +288,41 @@
           <section class="chat">
             <div id="messages" class="messages"></div>
             <div id="typingIndicator" class="typing-indicator hidden">يكتب الآن...</div>
-            <div class="composer advanced-composer"><label class="chat-attach-btn">📎<input id="chatFileInput" type="file" accept="image/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx" hidden></label><button id="recordVoiceBtn" class="chat-attach-btn" type="button">🎤</button><input id="messageInput" placeholder="اكتب رسالة..."><button id="sendBtn">إرسال</button></div>
+
+            <div id="chatMediaPreview" class="chat-media-preview hidden">
+              <div class="chat-preview-content">
+                <img id="chatPreviewImage" class="hidden" alt="معاينة الصورة">
+                <div>
+                  <strong id="chatPreviewTitle">مرفق جاهز</strong>
+                  <small id="chatPreviewInfo"></small>
+                </div>
+              </div>
+              <button id="clearChatMediaBtn" type="button" aria-label="إلغاء المرفق">×</button>
+            </div>
+
+            <div class="composer advanced-composer">
+              <label class="chat-image-btn" title="إرسال صورة">
+                <svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="10" r="2"/><path d="m4 17 5-4 3 3 3-2 5 4"/></svg>
+                <span>صورة</span>
+                <input id="chatImageInput" type="file" accept="image/*" hidden>
+              </label>
+
+              <label class="chat-attach-btn" title="إرسال ملف">
+                <svg viewBox="0 0 24 24"><path d="m8.5 12.5 6.6-6.6a3.2 3.2 0 1 1 4.5 4.5l-8.4 8.4a5.2 5.2 0 0 1-7.4-7.4l8.1-8.1"/></svg>
+                <input id="chatFileInput" type="file" accept="audio/*,.pdf,.doc,.docx,.xls,.xlsx" hidden>
+              </label>
+
+              <button id="recordVoiceBtn" class="chat-attach-btn" type="button" title="رسالة صوتية" aria-label="رسالة صوتية">
+                <svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3M9 21h6"/></svg>
+              </button>
+
+              <input id="messageInput" placeholder="اكتب رسالة...">
+
+              <button id="sendBtn" type="button">
+                <span>إرسال</span>
+                <svg viewBox="0 0 24 24"><path d="m3 11 18-8-7 18-3-7-8-3Z"/><path d="m11 14 4-4"/></svg>
+              </button>
+            </div>
           </section>
         </section>
       </div>

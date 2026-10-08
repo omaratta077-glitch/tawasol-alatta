@@ -478,6 +478,10 @@ export class SignalingRoom extends DurableObject {
       if(!await this.user(to))return j({ok:false,error:"المستخدم غير موجود"},404);
 
       const target=this.findUser(to);
+      const mediaRaw=String(body.media||"");
+      if(mediaRaw.length>950000){
+        return j({ok:false,error:"حجم المرفق كبير جدًا. اختر صورة أصغر أو دع التطبيق يضغطها تلقائيًا."},413);
+      }
 
       const payload={
         type:"chat",
@@ -485,7 +489,7 @@ export class SignalingRoom extends DurableObject {
         from:s.username,
         to,
         text:String(body.text||"").slice(0,6000),
-        media:String(body.media||"").slice(0,700000),
+        media:mediaRaw,
         mediaType:String(body.mediaType||"text"),
         ts:Date.now(),
         read:false,
@@ -1013,13 +1017,18 @@ export class SignalingRoom extends DurableObject {
       if(!to)return;
 
       const target=this.findUser(to);
+      const mediaRaw=String(msg.media||"");
+      if(mediaRaw.length>950000){
+        this.send(ws,{type:"error",message:"حجم المرفق كبير جدًا"});
+        return;
+      }
       const payload={
         type:"chat",
         id:crypto.randomUUID(),
         from,
         to,
         text:String(msg.text||""),
-        media:String(msg.media||"").slice(0,700000),
+        media:mediaRaw,
         mediaType:String(msg.mediaType||"text"),
         ts:Date.now(),
         read:false,
@@ -1105,7 +1114,7 @@ export default {
       return Response.json({
         ok:true,
         app:"تواصل العطا",
-        version:"V12.6-Reliable-Chat-UI"
+        version:"V12.7-Mobile-Chat-Fix"
       });
     }
 
