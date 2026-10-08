@@ -15,7 +15,67 @@ let videoSender=null,audioSender=null;
 let pendingIceCandidates=[];
 
 
-const rtcConfig={iceServers:(window.TAWASOL_CONFIG?.iceServers)||[]};
+let rtcConfig={
+  iceServers:(window.TAWASOL_CONFIG?.iceServers)||[
+    {urls:"stun:stun.cloudflare.com:3478"},
+    {urls:"stun:stun.l.google.com:19302"}
+  ],
+  iceTransportPolicy:"all"
+};
+
+let turnLoadedAt=0;
+let turnCredentialTtlMs=0;
+let turnReady=false;
+
+async function ensureTurnIceServers(force=false){
+  if(!token)return false;
+
+  const now=Date.now();
+  const refreshAt=Math.max(5*60*1000,Math.floor(turnCredentialTtlMs*.60));
+
+  if(
+    !force &&
+    turnReady &&
+    turnLoadedAt &&
+    (now-turnLoadedAt)<refreshAt
+  ){
+    return true;
+  }
+
+  try{
+    const d=await api(`/api/turn-credentials?token=${encodeURIComponent(token)}`);
+
+    if(!Array.isArray(d.iceServers) || !d.iceServers.length){
+      throw new Error("لم يتم استلام خوادم TURN");
+    }
+
+    rtcConfig={
+      iceServers:d.iceServers,
+      iceTransportPolicy:"all"
+    };
+
+    turnLoadedAt=Date.now();
+    turnCredentialTtlMs=Number(d.ttl||86400)*1000;
+    turnReady=true;
+
+    console.log("TURN enabled",d.provider||"cloudflare",rtcConfig.iceServers);
+
+    return true;
+  }catch(err){
+    console.warn("TURN unavailable; using STUN fallback",err?.message||err);
+
+    rtcConfig={
+      iceServers:(window.TAWASOL_CONFIG?.iceServers)||[
+        {urls:"stun:stun.cloudflare.com:3478"},
+        {urls:"stun:stun.l.google.com:19302"}
+      ],
+      iceTransportPolicy:"all"
+    };
+
+    turnReady=false;
+    return false;
+  }
+}
 
 async function api(path,opts={}){
   const r=await fetch(path,{
@@ -825,6 +885,8 @@ async function flushPendingIce(){
 async function ensurePeer(){
   if(pc)return pc;
 
+  await ensureTurnIceServers();
+
   pendingIceCandidates=[];
   videoSender=null;
   audioSender=null;
@@ -894,7 +956,43 @@ async function ensurePeer(){
     if($("callPeerState"))$("callPeerState").textContent=labels[state]||state;
 
     if(state==="failed"){
-      alert("تعذر توصيل الصوت/الفيديو. قد تحتاج شبكة أخرى أو TURN للاتصال بين بعض الشبكات.");
+      $("callPeerState").textContent="إعادة توصيل المكالمة عبر TURN...";
+
+      (async()=>{
+        try{
+          const hadTurn=turnReady;
+          await ensureTurnIceServers(true);
+
+          if(pc){
+            pc.setConfiguration(rtcConfig);
+
+            const restartOffer=await pc.createOffer({
+              iceRestart:true,
+              offerToReceiveAudio:true,
+              offerToReceiveVideo:currentCallType==="video"
+            });
+
+            await pc.setLocalDescription(restartOffer);
+
+            await sendCallSignal({
+              type:"offer",
+              to:selectedUser,
+              sdp:pc.localDescription,
+              callType:currentCallType,
+              renegotiate:true,
+              turnRetry:true
+            });
+
+            $("callPeerState").textContent=turnReady
+              ?"جاري إعادة الاتصال عبر TURN..."
+              :"جاري إعادة الاتصال...";
+          }
+        }catch(err){
+          console.error("TURN ICE restart failed",err);
+          $("callPeerState").textContent="تعذر توصيل المكالمة";
+          alert("تعذر توصيل الصوت/الفيديو. تأكد من تفعيل TURN في Cloudflare.");
+        }
+      })();
     }
   };
 
@@ -2113,6 +2211,10 @@ $("authBtn").onclick=async()=>{
     renderProfile();
     $("homeAvatar").src=me.avatar||avatarFallback(me.fullName||me.displayName||me.username);
     renderProfilePage();
+
+    // Preload TURN credentials after login so calls start faster.
+    ensureTurnIceServers().catch(()=>{});
+
     connect();
     startCallSignalPolling();
     loadGroups();

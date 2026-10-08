@@ -1,1 +1,6 @@
-window.TAWASOL_CONFIG={iceServers:[{urls:"stun:stun.l.google.com:19302"}]};
+window.TAWASOL_CONFIG={
+  iceServers:[
+    {urls:"stun:stun.cloudflare.com:3478"},
+    {urls:"stun:stun.l.google.com:19302"}
+  ]
+};

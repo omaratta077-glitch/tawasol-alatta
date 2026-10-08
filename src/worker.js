@@ -90,6 +90,79 @@ export class SignalingRoom extends DurableObject {
       try{body=await request.json()}catch{}
     }
 
+    if(url.pathname==="/api/turn-credentials" && request.method==="GET"){
+      const s=await this.session(url.searchParams.get("token")||"");
+      if(!s)return j({ok:false,error:"الجلسة منتهية"},401);
+
+      const keyId=String(this.env.TURN_KEY_ID||"").trim();
+      const apiToken=String(this.env.TURN_KEY_API_TOKEN||"").trim();
+
+      if(!keyId || !apiToken){
+        return j({
+          ok:false,
+          error:"TURN غير مفعّل على الخادم",
+          code:"TURN_NOT_CONFIGURED"
+        },503);
+      }
+
+      try{
+        const cf=await fetch(
+          `https://rtc.live.cloudflare.com/v1/turn/keys/${encodeURIComponent(keyId)}/credentials/generate-ice-servers`,
+          {
+            method:"POST",
+            headers:{
+              "Authorization":`Bearer ${apiToken}`,
+              "Content-Type":"application/json"
+            },
+            body:JSON.stringify({
+              ttl:86400
+            })
+          }
+        );
+
+        const text=await cf.text();
+        let data={};
+
+        try{
+          data=JSON.parse(text);
+        }catch{}
+
+        if(!cf.ok){
+          console.error("Cloudflare TURN credential error",cf.status,text.slice(0,500));
+          return j({
+            ok:false,
+            error:"تعذر إنشاء بيانات TURN",
+            code:"TURN_PROVIDER_ERROR",
+            providerStatus:cf.status
+          },502);
+        }
+
+        const iceServers=Array.isArray(data.iceServers)?data.iceServers:[];
+
+        if(!iceServers.length){
+          return j({
+            ok:false,
+            error:"Cloudflare لم يُرجع خوادم ICE",
+            code:"TURN_EMPTY"
+          },502);
+        }
+
+        return j({
+          ok:true,
+          provider:"cloudflare",
+          ttl:86400,
+          iceServers
+        });
+      }catch(err){
+        console.error("TURN endpoint failed",err);
+        return j({
+          ok:false,
+          error:"تعذر الاتصال بخدمة TURN",
+          code:"TURN_FETCH_FAILED"
+        },502);
+      }
+    }
+
     if(url.pathname==="/api/register" && request.method==="POST"){
       const fullName=String(body.fullName||"").trim();
       const username=String(body.username||"").trim().toLowerCase();
@@ -1195,7 +1268,7 @@ export default {
       return Response.json({
         ok:true,
         app:"تواصل العطا",
-        version:"V13-Call-Compat-Gold-Glow"
+        version:"V13.1-Cloudflare-TURN"
       });
     }
 
