@@ -165,8 +165,23 @@ export class SignalingRoom extends DurableObject {
     const text=await response.text();
 
     if(!response.ok){
-      console.error("Verification email provider error",response.status,text.slice(0,500));
-      throw new Error("EMAIL_SEND_FAILED");
+      let providerMessage="";
+      let providerName="";
+      try{
+        const parsed=JSON.parse(text||"{}");
+        providerMessage=String(parsed.message||parsed.error||"").slice(0,300);
+        providerName=String(parsed.name||"").slice(0,100);
+      }catch{
+        providerMessage=String(text||"").slice(0,300);
+      }
+
+      console.error("Verification email provider error",response.status,providerName,providerMessage);
+
+      const err=new Error("EMAIL_SEND_FAILED");
+      err.providerStatus=response.status;
+      err.providerName=providerName;
+      err.providerMessage=providerMessage;
+      throw err;
     }
 
     return true;
@@ -325,7 +340,13 @@ export class SignalingRoom extends DurableObject {
         return j({
           ok:false,
           error:"تعذر إرسال كود التأكيد إلى البريد الإلكتروني",
-          code:"EMAIL_SEND_FAILED"
+          code:"EMAIL_SEND_FAILED",
+          diagnostics:{
+            provider:"Resend",
+            status:Number(err?.providerStatus||0),
+            name:String(err?.providerName||""),
+            message:String(err?.providerMessage||"")
+          }
         },502);
       }
 
@@ -458,7 +479,17 @@ export class SignalingRoom extends DurableObject {
       try{
         await this.sendVerificationEmail(pending.registration.email,code);
       }catch(err){
-        return j({ok:false,error:"تعذر إعادة إرسال كود التأكيد"},502);
+        return j({
+          ok:false,
+          error:"تعذر إعادة إرسال كود التأكيد",
+          code:"EMAIL_RESEND_FAILED",
+          diagnostics:{
+            provider:"Resend",
+            status:Number(err?.providerStatus||0),
+            name:String(err?.providerName||""),
+            message:String(err?.providerMessage||"")
+          }
+        },502);
       }
 
       pending.codeHash=await hashPassword(`verify:${verificationId}:${code}`);
@@ -1541,7 +1572,7 @@ export default {
       return Response.json({
         ok:true,
         app:"تواصل العطا",
-        version:"V13.7.2-Env-Diagnostic"
+        version:"V13.7.3-Resend-Diagnostic"
       });
     }
 
