@@ -1623,7 +1623,7 @@ export default {
       return Response.json({
         ok:true,
         app:"تواصل العطا",
-        version:"V13.9-Privacy-Terms"
+        version:"V13.10-Google-Live"
       });
     }
 
