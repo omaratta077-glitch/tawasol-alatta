@@ -3129,8 +3129,8 @@ queueMicrotask(()=>{
 // Google checks email ownership. No verification code is sent or exposed.
 let googleWidgetStarted=false;
 async function setupGoogleSignIn(){
-  const hint=$("googleSetupHint");
-  const holder=$("googleSignInBtn");
+  const hint=document.getElementById("googleSetupHint");
+  const holder=document.getElementById("googleSignInBtn");
   if(!hint || !holder || googleWidgetStarted)return;
   try{
     const config=await api("/api/google-config");
