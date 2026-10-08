@@ -1195,7 +1195,7 @@ export default {
       return Response.json({
         ok:true,
         app:"تواصل العطا",
-        version:"V12.9-Reliable-Call-Signaling"
+        version:"V13-Call-Compat-Gold-Glow"
       });
     }
 

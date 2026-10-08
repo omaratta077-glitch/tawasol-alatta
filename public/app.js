@@ -4,6 +4,7 @@ const $=id=>document.getElementById(id);
 
 let token="",me=null,ws=null,reconnectTimer=null,syncTimer=null,lastConversationSignature="";
 let callSignalPollTimer=null,callSignalPollBusy=false;
+let callFallbackScanBusy=false;
 const handledCallSignalIds=new Set();
 let viewedProfileUsername="";
 let viewedFriendState="none";
@@ -89,25 +90,56 @@ const CALL_SIGNAL_TYPES=new Set([
 async function sendCallSignal(signal){
   if(!signal?.to)return {ok:false};
 
-  try{
-    return await api("/api/call-signal",{
-      method:"POST",
-      body:JSON.stringify({
-        token,
-        to:signal.to,
-        signal
-      })
-    });
-  }catch(err){
-    // Last fallback if HTTP momentarily fails but WebSocket is alive.
-    if(ws?.readyState===WebSocket.OPEN){
-      ws.send(JSON.stringify(signal));
-      return {ok:true,fallback:"websocket"};
-    }
-    throw err;
-  }
-}
+  const normalized={
+    ...signal,
+    signalId:signal.signalId||crypto.randomUUID(),
+    createdAt:signal.createdAt||Date.now()
+  };
 
+  // WebSocket is the fastest route when it is alive.
+  if(ws?.readyState===WebSocket.OPEN){
+    try{
+      ws.send(JSON.stringify(normalized));
+
+      // Important call-state events are also stored through the existing
+      // message API so they are not lost if the recipient drops offline.
+      if(["call-request","call-accept","call-reject","hangup"].includes(normalized.type)){
+        api("/api/message-send",{
+          method:"POST",
+          body:JSON.stringify({
+            token,
+            to:normalized.to,
+            text:"",
+            media:JSON.stringify(normalized),
+            mediaType:"call-signal"
+          })
+        }).catch(()=>{});
+      }
+
+      return {ok:true,transport:"websocket",online:true};
+    }catch{}
+  }
+
+  // Backward-compatible fallback: /api/message-send already exists in the
+  // previous working releases, so this avoids the /api/call-signal 404 issue.
+  const d=await api("/api/message-send",{
+    method:"POST",
+    body:JSON.stringify({
+      token,
+      to:normalized.to,
+      text:"",
+      media:JSON.stringify(normalized),
+      mediaType:"call-signal"
+    })
+  });
+
+  return {
+    ok:true,
+    transport:"stored-message",
+    online:!!d.delivered,
+    stored:true
+  };
+}
 async function handleCallSignal(msg){
   if(!msg || !CALL_SIGNAL_TYPES.has(msg.type))return false;
 
@@ -234,35 +266,81 @@ async function handleCallSignal(msg){
   return false;
 }
 
+async function pollStoredCallSignals(){
+  if(!token || !me || callFallbackScanBusy)return;
+
+  callFallbackScanBusy=true;
+
+  try{
+    const names=new Set();
+
+    if(selectedUser)names.add(selectedUser);
+    if(incomingFrom)names.add(incomingFrom);
+
+    for(const f of chatFriends||[]){
+      if(f?.username)names.add(f.username);
+    }
+
+    for(const u of users||[]){
+      if(u?.username && u.username!==me.username)names.add(u.username);
+    }
+
+    const targets=[...names].filter(Boolean).slice(0,35);
+
+    for(const username of targets){
+      try{
+        const d=await api(`/api/conversation?token=${encodeURIComponent(token)}&with=${encodeURIComponent(username)}`);
+
+        for(const m of d.messages||[]){
+          if(m.mediaType!=="call-signal" || m.to!==me.username || !m.media)continue;
+
+          let signal;
+          try{
+            signal=JSON.parse(m.media);
+          }catch{
+            continue;
+          }
+
+          if(!signal || !CALL_SIGNAL_TYPES.has(signal.type))continue;
+
+          signal.from=signal.from||m.from;
+          signal.to=signal.to||m.to;
+          signal.signalId=signal.signalId||`stored:${m.id}`;
+
+          const age=Date.now()-Number(signal.createdAt||m.ts||0);
+          if(signal.type==="call-request" && age>45000)continue;
+          if(signal.type!=="call-request" && age>120000)continue;
+
+          await handleCallSignal(signal);
+        }
+      }catch(err){
+        console.warn("stored call signal scan failed",username,err);
+      }
+    }
+  }finally{
+    callFallbackScanBusy=false;
+  }
+}
+
 async function pollCallSignals(){
   if(!token || callSignalPollBusy)return;
 
   callSignalPollBusy=true;
 
   try{
-    const d=await api(`/api/call-signals?token=${encodeURIComponent(token)}`);
-
-    for(const signal of d.signals||[]){
-      try{
-        await handleCallSignal(signal);
-      }catch(err){
-        console.error("call signal handling failed",signal?.type,err);
-      }
-    }
-  }catch(err){
-    // Silent: this is a fallback channel and will retry.
-    console.warn("call signaling poll failed",err);
+    // Always use the compatible stored-message fallback. This works with the
+    // currently deployed backend and does not require /api/call-signals.
+    await pollStoredCallSignals();
   }finally{
     callSignalPollBusy=false;
   }
 }
-
 function startCallSignalPolling(){
   clearInterval(callSignalPollTimer);
 
   // First check immediately, then keep checking quickly enough for ringing.
   pollCallSignals();
-  callSignalPollTimer=setInterval(pollCallSignals,650);
+  callSignalPollTimer=setInterval(pollCallSignals,800);
 }
 
 function connect(){
@@ -272,7 +350,7 @@ function connect(){
 
   ws.onopen=()=>{$("connectionState").textContent="متصل"};
   ws.onclose=()=>{
-    $("connectionState").textContent="الرسائل محفوظة — إعادة الاتصال المباشر...";
+    $("connectionState").textContent="إعادة الاتصال...";
     reconnectTimer=setTimeout(connect,1500);
   };
 
@@ -299,6 +377,19 @@ function connect(){
     }
 
     if(msg.type==="chat"){
+      if(msg.mediaType==="call-signal" && msg.media){
+        try{
+          const signal=JSON.parse(msg.media);
+          signal.from=signal.from||msg.from;
+          signal.to=signal.to||msg.to;
+          signal.signalId=signal.signalId||`live:${msg.id}`;
+          await handleCallSignal(signal);
+        }catch(err){
+          console.warn("hidden call signal parse failed",err);
+        }
+        return;
+      }
+
       const counterpart=msg.from===me.username?msg.to:msg.from;
       const isOpen=selectedUser===counterpart && !selectedGroup;
 
@@ -546,6 +637,7 @@ function renderUsers(){
 
 function addMessage(from,text,mine){addRichMessage({from,to:mine?selectedUser:me?.username,text,media:"",mediaType:"text",read:false,ts:Date.now()})}
 function addRichMessage(msg){
+  if(msg?.mediaType==="call-signal")return;
   const mine=msg.from===me?.username;
   const div=document.createElement("div");
 
@@ -579,7 +671,10 @@ function addRichMessage(msg){
 }
 
 function conversationSignature(messages){
-  return (messages||[]).map(m=>`${m.id||""}:${m.read?1:0}:${m.deliveredAt||0}`).join("|");
+  return (messages||[])
+    .filter(m=>m.mediaType!=="call-signal")
+    .map(m=>`${m.id||""}:${m.read?1:0}:${m.deliveredAt||0}`)
+    .join("|");
 }
 
 function renderConversationMessages(messages,{preserveScroll=false}={}){
@@ -588,7 +683,7 @@ function renderConversationMessages(messages,{preserveScroll=false}={}){
 
   const wasNearBottom=box.scrollHeight-box.scrollTop-box.clientHeight<90;
   box.innerHTML="";
-  (messages||[]).forEach(addRichMessage);
+  (messages||[]).filter(m=>m.mediaType!=="call-signal").forEach(addRichMessage);
 
   if(!preserveScroll || wasNearBottom){
     box.scrollTop=box.scrollHeight;

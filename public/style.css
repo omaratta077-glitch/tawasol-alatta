@@ -3115,3 +3115,266 @@ button:not(.post-menu-btn):not(.stat-btn):not(.text-action-btn):not(.nav-btn):no
     padding:0 9px!important;
   }
 }
+
+/* ===== V13 GOLD GRADIENT + GLOW ===== */
+:root{
+  --g13-black:#030405;
+  --g13-panel:#080C0F;
+  --g13-panel2:#0C1115;
+  --g13-gold-dark:#7C5510;
+  --g13-gold:#D5A52E;
+  --g13-gold-mid:#E9BB4A;
+  --g13-gold-light:#FFE28A;
+  --g13-gold-pale:#FFF0B6;
+  --g13-line:rgba(233,187,74,.42);
+  --g13-glow:rgba(233,187,74,.24);
+}
+
+/* deeper black background with soft gold ambience */
+html,body{
+  background:
+    radial-gradient(circle at 8% 0%,rgba(233,187,74,.08),transparent 19%),
+    radial-gradient(circle at 92% 8%,rgba(213,165,46,.055),transparent 22%),
+    #030405!important;
+}
+.app-shell{
+  background:
+    radial-gradient(circle at 80% 0%,rgba(233,187,74,.045),transparent 22%),
+    linear-gradient(180deg,#040607,#020304)!important;
+}
+
+/* reusable luxury gold */
+@keyframes attaGoldShine{
+  0%{transform:translateX(-180%) skewX(-22deg)}
+  55%,100%{transform:translateX(260%) skewX(-22deg)}
+}
+
+@keyframes attaSoftPulse{
+  0%,100%{box-shadow:0 8px 20px rgba(0,0,0,.35),0 0 0 rgba(233,187,74,0)}
+  50%{box-shadow:0 10px 28px rgba(0,0,0,.42),0 0 18px rgba(233,187,74,.18)}
+}
+
+/* left sidebar */
+.reference-leftbar{
+  background:
+    radial-gradient(circle at 50% 4%,rgba(255,226,138,.065),transparent 18%),
+    linear-gradient(180deg,#070A0D 0%,#030405 100%)!important;
+  border-right:1px solid rgba(233,187,74,.34)!important;
+  box-shadow:inset -12px 0 24px rgba(0,0,0,.14)!important;
+}
+.reference-left-brand img{
+  border:2px solid var(--g13-gold-mid)!important;
+  box-shadow:
+    0 0 0 3px rgba(233,187,74,.07),
+    0 0 24px rgba(233,187,74,.24),
+    0 10px 28px rgba(0,0,0,.42)!important;
+}
+.reference-left-brand strong{
+  background:linear-gradient(180deg,var(--g13-gold-light),var(--g13-gold-mid) 52%,#B77F1C);
+  -webkit-background-clip:text;
+  background-clip:text;
+  color:transparent!important;
+  text-shadow:0 0 18px rgba(233,187,74,.12);
+}
+.reference-left-brand small{color:#8F7740!important}
+
+.reference-leftbar .rail-btn.active,
+.rail-primary-btn,
+.reference-add-story{
+  position:relative;
+  overflow:hidden;
+  background:
+    linear-gradient(135deg,#8C6113 0%,#C99321 24%,#F3C956 55%,#A87215 100%)!important;
+  color:#070707!important;
+  border:1px solid #FFE18A!important;
+  box-shadow:
+    inset 0 1px 0 rgba(255,248,210,.52),
+    inset 0 -1px 0 rgba(111,70,5,.58),
+    0 9px 22px rgba(0,0,0,.42),
+    0 0 18px rgba(233,187,74,.20)!important;
+}
+.reference-leftbar .rail-btn.active::after,
+.rail-primary-btn::after,
+.reference-add-story::after,
+.reference-publish-btn::after,
+#sendBtn::after,
+.gold-action::after,
+.primary::after{
+  content:"";
+  position:absolute;
+  top:-40%;
+  left:-28%;
+  width:24%;
+  height:180%;
+  pointer-events:none;
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,.48),transparent);
+  transform:translateX(-180%) skewX(-22deg);
+  animation:attaGoldShine 4.6s ease-in-out infinite;
+}
+
+/* header */
+.premium-header{
+  background:
+    linear-gradient(180deg,rgba(11,13,15,.99),rgba(4,6,7,.99))!important;
+  border-bottom:1px solid rgba(233,187,74,.50)!important;
+  box-shadow:0 12px 32px rgba(0,0,0,.55),0 2px 13px rgba(233,187,74,.07)!important;
+}
+.reference-mini-logo,
+.brand-logo{
+  border:2px solid var(--g13-gold-mid)!important;
+  box-shadow:
+    0 0 0 3px rgba(233,187,74,.06),
+    0 0 20px rgba(233,187,74,.22)!important;
+}
+.reference-header-brand strong,
+.brand-copy strong{
+  background:linear-gradient(180deg,#FFE898,#EABB48 55%,#A87318);
+  -webkit-background-clip:text;
+  background-clip:text;
+  color:transparent!important;
+}
+.header-icon-btn{
+  color:var(--g13-gold-mid)!important;
+  filter:drop-shadow(0 0 5px rgba(233,187,74,.15));
+}
+.reference-search{
+  background:
+    linear-gradient(180deg,#0B0F12,#06090B)!important;
+  border:1px solid rgba(233,187,74,.24)!important;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.025),
+    0 8px 18px rgba(0,0,0,.24)!important;
+}
+
+/* panels/cards */
+.composer-card,.post-card,.reference-side-card,.stories-section,
+.notification-card,.user-search-card,.profile-card-large,.saved-post-card,
+.messages-layout,.chat-sidebar,.chat-main,.friend-section,.private-info-card{
+  background:
+    linear-gradient(145deg,rgba(13,18,22,.98),rgba(5,8,10,.99))!important;
+  border:1px solid rgba(233,187,74,.30)!important;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.018),
+    0 14px 34px rgba(0,0,0,.34)!important;
+}
+.post-card:hover,.composer-card:hover,.reference-side-card:hover{
+  border-color:rgba(255,220,117,.50)!important;
+  box-shadow:
+    0 16px 36px rgba(0,0,0,.38),
+    0 0 16px rgba(233,187,74,.07)!important;
+}
+
+/* primary gold buttons */
+.primary,.action-btn,.gold-action,.gold-mini,.reference-publish-btn,
+#sendBtn,.comment-compose button,.reply-compose button,.atta-login-button,
+.reference-friend-btn{
+  position:relative;
+  overflow:hidden;
+  background:
+    linear-gradient(135deg,#8C6113 0%,#C9911F 26%,#F4CD62 58%,#AE7718 100%)!important;
+  color:#090909!important;
+  border:1px solid #FFE18A!important;
+  box-shadow:
+    inset 0 1px 0 rgba(255,249,218,.54),
+    inset 0 -1px 0 rgba(101,63,5,.55),
+    0 7px 17px rgba(0,0,0,.32),
+    0 0 13px rgba(233,187,74,.15)!important;
+}
+.primary:hover,.action-btn:hover,.gold-action:hover,.gold-mini:hover,
+.reference-publish-btn:hover,#sendBtn:hover,.comment-compose button:hover{
+  filter:brightness(1.08) saturate(1.05);
+  box-shadow:
+    inset 0 1px 0 rgba(255,249,218,.62),
+    0 9px 22px rgba(0,0,0,.38),
+    0 0 20px rgba(233,187,74,.22)!important;
+}
+
+/* secondary buttons */
+.dark-outline,.dark-mini,.reference-tool-btn,.chat-attach-btn,
+.chat-image-btn,.round-icon,.call-top-btn{
+  background:
+    linear-gradient(180deg,#10161A,#080C0F)!important;
+  color:#F4D674!important;
+  border:1px solid rgba(233,187,74,.48)!important;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.025),
+    0 5px 14px rgba(0,0,0,.24)!important;
+}
+.dark-outline:hover,.dark-mini:hover,.reference-tool-btn:hover,
+.chat-attach-btn:hover,.chat-image-btn:hover{
+  border-color:#F3CB59!important;
+  color:#FFE79A!important;
+  box-shadow:0 0 15px rgba(233,187,74,.12)!important;
+}
+
+/* story rings */
+.story-ring,
+.reference-stories-row .story-ring{
+  background:
+    conic-gradient(from 35deg,#7C5510,#F3CF67,#A16B12,#FFE590,#7C5510)!important;
+  box-shadow:0 0 13px rgba(233,187,74,.16);
+}
+
+/* post actions */
+.text-action-btn svg{
+  stroke:#F3C955!important;
+  filter:drop-shadow(0 0 4px rgba(233,187,74,.13));
+}
+.text-action-btn span{color:#F6D873!important}
+.stat-btn.active svg{
+  stroke:#FFD96B!important;
+  fill:rgba(255,217,107,.14)!important;
+}
+
+/* inputs */
+textarea,input,select{
+  background:
+    linear-gradient(180deg,#091014,#060A0D)!important;
+  border:1px solid rgba(255,255,255,.14)!important;
+  color:#F8FAFB!important;
+  box-shadow:inset 0 1px 4px rgba(0,0,0,.38)!important;
+}
+textarea:focus,input:focus,select:focus{
+  border-color:rgba(243,203,89,.75)!important;
+  box-shadow:
+    inset 0 1px 4px rgba(0,0,0,.38),
+    0 0 0 3px rgba(233,187,74,.07),
+    0 0 13px rgba(233,187,74,.08)!important;
+}
+
+/* chat outgoing bubble gradient */
+.bubble.mine{
+  background:
+    linear-gradient(135deg,#79520F 0%,#A97719 38%,#8A5F12 100%)!important;
+  border:1px solid rgba(242,195,74,.76)!important;
+  box-shadow:
+    inset 0 1px 0 rgba(255,231,151,.18),
+    0 7px 14px rgba(0,0,0,.24)!important;
+}
+
+/* call buttons */
+.chat-call-btn{
+  background:
+    linear-gradient(135deg,#8C6113,#F0C650 58%,#A16B12)!important;
+  color:#080808!important;
+  border:1px solid #FFE18A!important;
+  box-shadow:
+    inset 0 1px 0 rgba(255,248,210,.46),
+    0 6px 15px rgba(0,0,0,.30),
+    0 0 13px rgba(233,187,74,.15)!important;
+}
+
+/* subtle active gold glow */
+.reference-leftbar .rail-btn.active,
+.reference-publish-btn,
+#sendBtn{
+  animation:attaSoftPulse 3.4s ease-in-out infinite;
+}
+
+@media(max-width:850px){
+  .reference-leftbar .rail-btn.active,
+  .reference-publish-btn,
+  #sendBtn{
+    animation:none;
+  }
+}
