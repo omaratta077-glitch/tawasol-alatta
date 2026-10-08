@@ -208,6 +208,87 @@ export class SignalingRoom extends DurableObject {
       return j({ok:true,groups});
     }
 
+
+    if(url.pathname==="/api/call-signal" && request.method==="POST"){
+      const s=await this.session(String(body.token||""));
+      if(!s)return j({ok:false,error:"الجلسة منتهية"},401);
+
+      const to=String(body.to||"").trim().toLowerCase();
+      const signal=body.signal && typeof body.signal==="object" ? body.signal : {};
+      const type=String(signal.type||"");
+
+      const allowed=new Set([
+        "call-request",
+        "call-accept",
+        "call-reject",
+        "offer",
+        "answer",
+        "ice",
+        "hangup"
+      ]);
+
+      if(!to)return j({ok:false,error:"المستخدم المطلوب غير محدد"},400);
+      if(!allowed.has(type))return j({ok:false,error:"إشارة مكالمة غير صالحة"},400);
+      if(!await this.user(to))return j({ok:false,error:"المستخدم غير موجود"},404);
+
+      const now=Date.now();
+      const event={
+        ...signal,
+        type,
+        signalId:crypto.randomUUID(),
+        from:s.username,
+        to,
+        createdAt:now
+      };
+
+      // Keep a short-lived queue for HTTP polling fallback.
+      const key=`callSignals:${to}`;
+      const oldQueue=await this.ctx.storage.get(key)||[];
+      const freshQueue=oldQueue.filter(x=>now-Number(x.createdAt||0)<120000);
+      freshQueue.push(event);
+      await this.ctx.storage.put(key,freshQueue.slice(-500));
+
+      // Fast path: if WebSocket is alive, deliver immediately too.
+      const target=this.findUser(to);
+      if(target)this.send(target,event);
+
+      if(type==="call-request"){
+        await this.addCallLog(s.username,to,signal.callType||"video","outgoing");
+      }else if(type==="call-reject"){
+        await this.addCallLog(s.username,to,signal.callType||"video","rejected");
+      }else if(type==="hangup"){
+        await this.addCallLog(s.username,to,signal.callType||"video","ended");
+      }
+
+      return j({
+        ok:true,
+        signalId:event.signalId,
+        online:!!target,
+        queued:true
+      });
+    }
+
+    if(url.pathname==="/api/call-signals" && request.method==="GET"){
+      const s=await this.session(url.searchParams.get("token")||"");
+      if(!s)return j({ok:false,error:"الجلسة منتهية"},401);
+
+      const key=`callSignals:${s.username}`;
+      const now=Date.now();
+      const queue=await this.ctx.storage.get(key)||[];
+
+      // Drop stale signaling. A call request older than this is no longer useful.
+      const signals=queue.filter(x=>{
+        const age=now-Number(x.createdAt||0);
+        if(x.type==="call-request")return age<45000;
+        return age<120000;
+      });
+
+      // Reading the queue acknowledges it for polling.
+      await this.ctx.storage.put(key,[]);
+
+      return j({ok:true,signals});
+    }
+
     if(url.pathname==="/api/calls" && request.method==="GET"){
       const s=await this.session(url.searchParams.get("token")||"");
       if(!s)return j({ok:false,error:"الجلسة منتهية"},401);
@@ -1114,7 +1195,7 @@ export default {
       return Response.json({
         ok:true,
         app:"تواصل العطا",
-        version:"V12.8-Call-Buttons-Visible"
+        version:"V12.9-Reliable-Call-Signaling"
       });
     }
 

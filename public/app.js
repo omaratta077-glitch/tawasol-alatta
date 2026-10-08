@@ -3,6 +3,8 @@
 const $=id=>document.getElementById(id);
 
 let token="",me=null,ws=null,reconnectTimer=null,syncTimer=null,lastConversationSignature="";
+let callSignalPollTimer=null,callSignalPollBusy=false;
+const handledCallSignalIds=new Set();
 let viewedProfileUsername="";
 let viewedFriendState="none";
 let selectedUser="",selectedGroup=null,users=[],groups=[],chatFriends=[];
@@ -73,6 +75,196 @@ function wsUrl(){
   return `${p}://${location.host}/ws?token=${encodeURIComponent(token)}`;
 }
 
+
+const CALL_SIGNAL_TYPES=new Set([
+  "call-request",
+  "call-accept",
+  "call-reject",
+  "offer",
+  "answer",
+  "ice",
+  "hangup"
+]);
+
+async function sendCallSignal(signal){
+  if(!signal?.to)return {ok:false};
+
+  try{
+    return await api("/api/call-signal",{
+      method:"POST",
+      body:JSON.stringify({
+        token,
+        to:signal.to,
+        signal
+      })
+    });
+  }catch(err){
+    // Last fallback if HTTP momentarily fails but WebSocket is alive.
+    if(ws?.readyState===WebSocket.OPEN){
+      ws.send(JSON.stringify(signal));
+      return {ok:true,fallback:"websocket"};
+    }
+    throw err;
+  }
+}
+
+async function handleCallSignal(msg){
+  if(!msg || !CALL_SIGNAL_TYPES.has(msg.type))return false;
+
+  if(msg.signalId){
+    if(handledCallSignalIds.has(msg.signalId))return true;
+    handledCallSignalIds.add(msg.signalId);
+
+    // Prevent the dedupe set growing forever.
+    if(handledCallSignalIds.size>700){
+      const keep=[...handledCallSignalIds].slice(-350);
+      handledCallSignalIds.clear();
+      keep.forEach(id=>handledCallSignalIds.add(id));
+    }
+  }
+
+  if(msg.type==="call-request"){
+    // If already in another active call, reject the new incoming call.
+    if(pc && selectedUser && selectedUser!==msg.from){
+      await sendCallSignal({
+        type:"call-reject",
+        to:msg.from,
+        callType:msg.callType||"video",
+        reason:"busy"
+      }).catch(()=>{});
+      return true;
+    }
+
+    incomingFrom=msg.from;
+    currentCallType=msg.callType||"video";
+    $("incomingText").textContent=`${incomingFrom} يتصل بك`;
+    setCallPeerIdentity(incomingFrom);
+    $("incomingModal").classList.remove("hidden");
+    playIncomingRing();
+    notify("مكالمة واردة",`${incomingFrom} يتصل بك`);
+    return true;
+  }
+
+  if(msg.type==="call-accept"){
+    selectedUser=msg.from;
+    stopCallSounds();
+    showCallOverlay(msg.from,"تم الرد — جاري توصيل المكالمة...");
+    await startOffer();
+    return true;
+  }
+
+  if(msg.type==="call-reject"){
+    stopCallSounds();
+    await hangup(false);
+    hideCallOverlay(false);
+    alert(msg.reason==="busy" ? "المستخدم مشغول في مكالمة أخرى" : "تم رفض المكالمة");
+    return true;
+  }
+
+  if(msg.type==="offer"){
+    selectedUser=msg.from;
+    currentCallType=msg.callType||currentCallType||"video";
+    stopCallSounds();
+    showCallOverlay(
+      msg.from,
+      msg.renegotiate ? "إعادة توصيل الفيديو..." : "جاري توصيل المكالمة..."
+    );
+
+    await ensurePeer();
+
+    if(
+      currentCallType==="video" &&
+      videoSender &&
+      !videoSender.track &&
+      localStream?.getVideoTracks()[0]
+    ){
+      await videoSender.replaceTrack(localStream.getVideoTracks()[0]);
+    }
+
+    await pc.setRemoteDescription(msg.sdp);
+    await flushPendingIce();
+
+    const answer=await pc.createAnswer();
+    await pc.setLocalDescription(answer);
+
+    await sendCallSignal({
+      type:"answer",
+      to:msg.from,
+      sdp:pc.localDescription,
+      callType:currentCallType
+    });
+
+    return true;
+  }
+
+  if(msg.type==="answer"){
+    stopCallSounds();
+
+    if(pc){
+      await pc.setRemoteDescription(msg.sdp);
+      await flushPendingIce();
+    }
+
+    return true;
+  }
+
+  if(msg.type==="ice"){
+    if(msg.candidate){
+      if(pc && pc.remoteDescription){
+        try{
+          await pc.addIceCandidate(msg.candidate);
+        }catch(err){
+          console.warn("ICE candidate failed",err);
+        }
+      }else{
+        pendingIceCandidates.push(msg.candidate);
+      }
+    }
+
+    return true;
+  }
+
+  if(msg.type==="hangup"){
+    stopCallSounds();
+    await hangup(false);
+    hideCallOverlay(false);
+    return true;
+  }
+
+  return false;
+}
+
+async function pollCallSignals(){
+  if(!token || callSignalPollBusy)return;
+
+  callSignalPollBusy=true;
+
+  try{
+    const d=await api(`/api/call-signals?token=${encodeURIComponent(token)}`);
+
+    for(const signal of d.signals||[]){
+      try{
+        await handleCallSignal(signal);
+      }catch(err){
+        console.error("call signal handling failed",signal?.type,err);
+      }
+    }
+  }catch(err){
+    // Silent: this is a fallback channel and will retry.
+    console.warn("call signaling poll failed",err);
+  }finally{
+    callSignalPollBusy=false;
+  }
+}
+
+function startCallSignalPolling(){
+  clearInterval(callSignalPollTimer);
+
+  // First check immediately, then keep checking quickly enough for ringing.
+  pollCallSignals();
+  callSignalPollTimer=setInterval(pollCallSignals,650);
+}
+
 function connect(){
   clearTimeout(reconnectTimer);
   ws=new WebSocket(wsUrl());
@@ -86,6 +278,11 @@ function connect(){
 
   ws.onmessage=async e=>{
     const msg=JSON.parse(e.data);
+
+    if(CALL_SIGNAL_TYPES.has(msg.type)){
+      await handleCallSignal(msg);
+      return;
+    }
 
     if(msg.type==="joined"){
       me=msg.user;
@@ -549,7 +746,7 @@ async function ensurePeer(){
 
   pc.onicecandidate=e=>{
     if(e.candidate && selectedUser){
-      send({type:"ice",to:selectedUser,candidate:e.candidate});
+      sendCallSignal({type:"ice",to:selectedUser,candidate:e.candidate}).catch(err=>console.warn("ICE signal failed",err));
     }
   };
 
@@ -635,14 +832,30 @@ async function ensurePeer(){
 
 async function requestCall(type){
   if(!selectedUser)return alert("اختر مستخدمًا أولًا");
+
   currentCallType=type;
 
   const empty=document.querySelector(".remote-empty-state");
   if(empty)empty.style.display="grid";
 
-  showCallOverlay(selectedUser,"جاري الاتصال...");
+  showCallOverlay(selectedUser,"جاري إرسال طلب الاتصال...");
   playOutgoingRing();
-  send({type:"call-request",to:selectedUser,callType:type});
+
+  try{
+    const result=await sendCallSignal({
+      type:"call-request",
+      to:selectedUser,
+      callType:type
+    });
+
+    $("callPeerState").textContent=result?.online
+      ? "يرن الآن..."
+      : "تم إرسال الاتصال — في انتظار الطرف الآخر...";
+  }catch(err){
+    stopCallSounds();
+    hideCallOverlay(false);
+    alert("تعذر إرسال الاتصال: "+(err.message||"خطأ في الشبكة"));
+  }
 }
 
 async function startOffer(){
@@ -655,7 +868,7 @@ async function startOffer(){
 
   await pc.setLocalDescription(offer);
 
-  send({
+  await sendCallSignal({
     type:"offer",
     to:selectedUser,
     sdp:pc.localDescription,
@@ -678,7 +891,7 @@ async function startOffer(){
             offerToReceiveVideo:true
           });
           await pc.setLocalDescription(retryOffer);
-          send({
+          await sendCallSignal({
             type:"offer",
             to:selectedUser,
             sdp:pc.localDescription,
@@ -695,7 +908,7 @@ async function startOffer(){
 
 async function hangup(notifyPeer=true){
   if(notifyPeer && selectedUser){
-    send({type:"hangup",to:selectedUser,callType:currentCallType});
+    await sendCallSignal({type:"hangup",to:selectedUser,callType:currentCallType}).catch(()=>{});
   }
 
   pc?.close();
@@ -1806,6 +2019,7 @@ $("authBtn").onclick=async()=>{
     $("homeAvatar").src=me.avatar||avatarFallback(me.fullName||me.displayName||me.username);
     renderProfilePage();
     connect();
+    startCallSignalPolling();
     loadGroups();
     loadChatContacts();
     loadPosts();
@@ -1949,12 +2163,12 @@ $("acceptCallBtn").onclick=async()=>{
   selectedUser=incomingFrom;
   showCallOverlay(incomingFrom,"مكالمة جارية");
   await ensurePeer();
-  send({type:"call-accept",to:incomingFrom,callType:currentCallType});
+  await sendCallSignal({type:"call-accept",to:incomingFrom,callType:currentCallType});
 };
 
-$("rejectCallBtn").onclick=()=>{
+$("rejectCallBtn").onclick=async()=>{
   stopCallSounds();
-  send({type:"call-reject",to:incomingFrom,callType:currentCallType});
+  await sendCallSignal({type:"call-reject",to:incomingFrom,callType:currentCallType}).catch(()=>{});
   $("incomingModal").classList.add("hidden");
   hideCallOverlay(false);
 };
