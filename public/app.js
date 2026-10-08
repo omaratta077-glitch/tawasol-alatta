@@ -10,7 +10,8 @@ let viewedProfileUsername="";
 let viewedFriendState="none";
 let selectedUser="",selectedGroup=null,users=[],groups=[],chatFriends=[];
 let pc=null,localStream=null,currentCallType="video",incomingFrom="";
-let videoSender=null,audioSender=null;
+let videoSender=null,audioSender=null,remoteMediaStream=null;
+let callState="idle",activeCallId="",activeCallPeer="",outgoingCallTimer=null;
 
 let pendingIceCandidates=[];
 
@@ -137,6 +138,7 @@ function wsUrl(){
 }
 
 
+
 const CALL_SIGNAL_TYPES=new Set([
   "call-request",
   "call-accept",
@@ -147,57 +149,120 @@ const CALL_SIGNAL_TYPES=new Set([
   "hangup"
 ]);
 
+function setCallState(state,peer=activeCallPeer,callId=activeCallId){
+  callState=state;
+  if(peer!==undefined)activeCallPeer=peer||"";
+  if(callId!==undefined)activeCallId=callId||"";
+
+  const busy=state!=="idle";
+  [
+    "audioCallBtn",
+    "videoCallBtn",
+    "composerAudioCallBtn",
+    "composerVideoCallBtn"
+  ].forEach(id=>{
+    const el=$(id);
+    if(el)el.disabled=busy;
+  });
+
+  document.body.classList.toggle("call-busy",busy);
+}
+
+function clearOutgoingCallTimer(){
+  if(outgoingCallTimer){
+    clearTimeout(outgoingCallTimer);
+    outgoingCallTimer=null;
+  }
+}
+
+function resetCallState(){
+  clearOutgoingCallTimer();
+  callState="idle";
+  activeCallId="";
+  activeCallPeer="";
+  incomingFrom="";
+  setCallState("idle","","");
+}
+
+function callIdMatches(msg){
+  if(!activeCallId || !msg?.callId)return true;
+  return msg.callId===activeCallId;
+}
+
+function hasUsableLocalStream(type=currentCallType){
+  if(!localStream)return false;
+  const audio=localStream.getAudioTracks().some(t=>t.readyState==="live");
+  const video=localStream.getVideoTracks().some(t=>t.readyState==="live");
+  return audio && (type!=="video" || video);
+}
+
+async function waitForIceGatheringComplete(peer,timeoutMs=9000){
+  if(!peer || peer.iceGatheringState==="complete")return;
+
+  await new Promise(resolve=>{
+    let finished=false;
+
+    const finish=()=>{
+      if(finished)return;
+      finished=true;
+      clearTimeout(timer);
+      peer.removeEventListener("icegatheringstatechange",onChange);
+      resolve();
+    };
+
+    const onChange=()=>{
+      if(peer.iceGatheringState==="complete")finish();
+    };
+
+    const timer=setTimeout(finish,timeoutMs);
+    peer.addEventListener("icegatheringstatechange",onChange);
+  });
+}
+
+
 async function sendCallSignal(signal){
   if(!signal?.to)return {ok:false};
 
   const normalized={
     ...signal,
+    callId:signal.callId||activeCallId||crypto.randomUUID(),
     signalId:signal.signalId||crypto.randomUUID(),
     createdAt:signal.createdAt||Date.now()
   };
 
-  // WebSocket is the fastest route when it is alive.
+  let wsSent=false;
+
   if(ws?.readyState===WebSocket.OPEN){
     try{
       ws.send(JSON.stringify(normalized));
-
-      // Important call-state events are also stored through the existing
-      // message API so they are not lost if the recipient drops offline.
-      if(["call-request","call-accept","call-reject","hangup"].includes(normalized.type)){
-        api("/api/message-send",{
-          method:"POST",
-          body:JSON.stringify({
-            token,
-            to:normalized.to,
-            text:"",
-            media:JSON.stringify(normalized),
-            mediaType:"call-signal"
-          })
-        }).catch(()=>{});
-      }
-
-      return {ok:true,transport:"websocket",online:true};
-    }catch{}
+      wsSent=true;
+    }catch(err){
+      console.warn("call websocket send failed",err);
+    }
   }
 
-  // Backward-compatible fallback: /api/message-send already exists in the
-  // previous working releases, so this avoids the /api/call-signal 404 issue.
-  const d=await api("/api/message-send",{
-    method:"POST",
-    body:JSON.stringify({
-      token,
-      to:normalized.to,
-      text:"",
-      media:JSON.stringify(normalized),
-      mediaType:"call-signal"
-    })
-  });
+  let stored=null;
+
+  try{
+    stored=await api("/api/message-send",{
+      method:"POST",
+      body:JSON.stringify({
+        token,
+        to:normalized.to,
+        text:"",
+        media:JSON.stringify(normalized),
+        mediaType:"call-signal"
+      })
+    });
+  }catch(err){
+    if(!wsSent)throw err;
+    console.warn("stored call signal failed",err);
+  }
 
   return {
-    ok:true,
-    transport:"stored-message",
-    online:!!d.delivered,
-    stored:true
+    ok:wsSent||!!stored?.ok,
+    online:wsSent||!!stored?.delivered,
+    transport:wsSent?"websocket+stored":"stored"
   };
 }
 async function handleCallSignal(msg){
@@ -207,7 +272,6 @@ async function handleCallSignal(msg){
     if(handledCallSignalIds.has(msg.signalId))return true;
     handledCallSignalIds.add(msg.signalId);
 
-    // Prevent the dedupe set growing forever.
     if(handledCallSignalIds.size>700){
       const keep=[...handledCallSignalIds].slice(-350);
       handledCallSignalIds.clear();
@@ -215,20 +279,27 @@ async function handleCallSignal(msg){
     }
   }
 
+  const msgCallId=msg.callId||msg.signalId||`${msg.from||"peer"}:${msg.createdAt||Date.now()}`;
+
   if(msg.type==="call-request"){
-    // If already in another active call, reject the new incoming call.
-    if(pc && selectedUser && selectedUser!==msg.from){
+    if(callState!=="idle"){
+      if(msgCallId===activeCallId)return true;
+
       await sendCallSignal({
         type:"call-reject",
         to:msg.from,
+        callId:msgCallId,
         callType:msg.callType||"video",
         reason:"busy"
       }).catch(()=>{});
+
       return true;
     }
 
     incomingFrom=msg.from;
     currentCallType=msg.callType||"video";
+    setCallState("incoming",msg.from,msgCallId);
+
     $("incomingText").textContent=`${incomingFrom} يتصل بك`;
     setCallPeerIdentity(incomingFrom);
     $("incomingModal").classList.remove("hidden");
@@ -237,40 +308,61 @@ async function handleCallSignal(msg){
     return true;
   }
 
+  if(!callIdMatches({...msg,callId:msgCallId})){
+    return true;
+  }
+
   if(msg.type==="call-accept"){
+    if(callState!=="outgoing" && callState!=="preparing")return true;
+
+    clearOutgoingCallTimer();
     selectedUser=msg.from;
+    activeCallPeer=msg.from;
+    setCallState("connecting",msg.from,msgCallId);
+
     stopCallSounds();
-    showCallOverlay(msg.from,"تم الرد — جاري توصيل المكالمة...");
+    showCallOverlay(msg.from,"تم الرد — جاري توصيل الوسائط...");
     await startOffer();
     return true;
   }
 
   if(msg.type==="call-reject"){
     stopCallSounds();
-    await hangup(false);
+    await teardownPeer(false);
     hideCallOverlay(false);
-    alert(msg.reason==="busy" ? "المستخدم مشغول في مكالمة أخرى" : "تم رفض المكالمة");
+    $("incomingModal").classList.add("hidden");
+    resetCallState();
+
+    alert(
+      msg.reason==="busy"
+        ?"المستخدم مشغول في مكالمة أخرى"
+        :"تم رفض المكالمة"
+    );
+
     return true;
   }
 
   if(msg.type==="offer"){
+    if(callState==="idle"){
+      currentCallType=msg.callType||"video";
+      selectedUser=msg.from;
+      setCallState("connecting",msg.from,msgCallId);
+    }
+
     selectedUser=msg.from;
+    activeCallPeer=msg.from;
     currentCallType=msg.callType||currentCallType||"video";
+
     stopCallSounds();
     showCallOverlay(
       msg.from,
-      msg.renegotiate ? "إعادة توصيل الفيديو..." : "جاري توصيل المكالمة..."
+      msg.renegotiate?"إعادة توصيل الوسائط...":"جاري توصيل المكالمة..."
     );
 
     await ensurePeer();
 
-    if(
-      currentCallType==="video" &&
-      videoSender &&
-      !videoSender.track &&
-      localStream?.getVideoTracks()[0]
-    ){
-      await videoSender.replaceTrack(localStream.getVideoTracks()[0]);
+    if(pc.signalingState!=="stable" && pc.signalingState!=="have-local-offer"){
+      console.warn("offer received in state",pc.signalingState);
     }
 
     await pc.setRemoteDescription(msg.sdp);
@@ -278,21 +370,25 @@ async function handleCallSignal(msg){
 
     const answer=await pc.createAnswer();
     await pc.setLocalDescription(answer);
+    await waitForIceGatheringComplete(pc);
 
     await sendCallSignal({
       type:"answer",
       to:msg.from,
+      callId:msgCallId,
       sdp:pc.localDescription,
-      callType:currentCallType
+      callType:currentCallType,
+      iceComplete:true
     });
 
+    setCallState("connecting",msg.from,msgCallId);
     return true;
   }
 
   if(msg.type==="answer"){
     stopCallSounds();
 
-    if(pc){
+    if(pc && pc.signalingState==="have-local-offer"){
       await pc.setRemoteDescription(msg.sdp);
       await flushPendingIce();
     }
@@ -318,14 +414,15 @@ async function handleCallSignal(msg){
 
   if(msg.type==="hangup"){
     stopCallSounds();
-    await hangup(false);
+    await teardownPeer(false);
     hideCallOverlay(false);
+    $("incomingModal").classList.add("hidden");
+    resetCallState();
     return true;
   }
 
   return false;
 }
-
 async function pollStoredCallSignals(){
   if(!token || !me || callFallbackScanBusy)return;
 
@@ -816,57 +913,93 @@ async function loadCalls(){
     </div>`).join("") || "لا يوجد سجل";
 }
 
-async function getMedia(type){
-  localStream?.getTracks().forEach(t=>t.stop());
+async function getMedia(type,{force=false}={}){
+  if(!force && hasUsableLocalStream(type)){
+    const localVideo=$("localVideo");
+    localVideo.srcObject=localStream;
+    localVideo.muted=true;
+    localVideo.playsInline=true;
+    try{await localVideo.play()}catch{}
+    return localStream;
+  }
 
-  const constraints = type==="audio"
-    ? {
-        audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true},
-        video:false
-      }
+  localStream?.getTracks().forEach(t=>t.stop());
+  localStream=null;
+
+  const audioConstraints={
+    echoCancellation:true,
+    noiseSuppression:true,
+    autoGainControl:true
+  };
+
+  const primaryConstraints=type==="audio"
+    ? {audio:audioConstraints,video:false}
     : {
-        audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true},
+        audio:audioConstraints,
         video:{
-          facingMode:"user",
-          width:{ideal:1280},
-          height:{ideal:720}
+          facingMode:{ideal:"user"},
+          width:{ideal:960},
+          height:{ideal:540},
+          frameRate:{ideal:24,max:30}
         }
       };
 
   try{
-    localStream=await navigator.mediaDevices.getUserMedia(constraints);
+    try{
+      localStream=await navigator.mediaDevices.getUserMedia(primaryConstraints);
+    }catch(firstErr){
+      if(type!=="video")throw firstErr;
+
+      console.warn("Primary video constraints failed; retrying simple video",firstErr);
+      localStream=await navigator.mediaDevices.getUserMedia({
+        audio:audioConstraints,
+        video:true
+      });
+    }
+
+    const audioTrack=localStream.getAudioTracks()[0]||null;
+    const videoTrack=localStream.getVideoTracks()[0]||null;
+
+    if(!audioTrack){
+      throw new Error("لم يتم العثور على مايك فعال");
+    }
+
+    if(type==="video" && !videoTrack){
+      throw new Error("لم يتم العثور على كاميرا فعالة");
+    }
+
+    audioTrack.enabled=true;
+    if(videoTrack)videoTrack.enabled=true;
 
     const localVideo=$("localVideo");
     localVideo.srcObject=localStream;
     localVideo.muted=true;
     localVideo.playsInline=true;
+    localVideo.autoplay=true;
 
     try{await localVideo.play()}catch{}
-
-    const hasVideo=localStream.getVideoTracks().length>0;
-    if(type==="video" && !hasVideo){
-      throw new Error("لم يتم العثور على كاميرا فعالة");
-    }
 
     return localStream;
   }catch(err){
     console.error("getUserMedia error",err);
 
     let msg="تعذر تشغيل الكاميرا أو المايك.";
+
     if(err?.name==="NotAllowedError"){
-      msg="تم رفض صلاحية الكاميرا أو المايك. اسمح للموقع باستخدامهما ثم جرّب مرة أخرى.";
+      msg="اسمح للموقع باستخدام الكاميرا والمايك ثم جرّب مرة أخرى.";
     }else if(err?.name==="NotFoundError"){
       msg="لم يتم العثور على كاميرا أو مايك على هذا الجهاز.";
     }else if(err?.name==="NotReadableError"){
-      msg="الكاميرا أو المايك مستخدمان في برنامج آخر.";
+      msg="الكاميرا أو المايك مستخدمان في تطبيق آخر.";
+    }else if(err?.name==="OverconstrainedError"){
+      msg="إعدادات الكاميرا غير مدعومة على هذا الجهاز.";
     }
 
-    $("callPeerState").textContent=msg;
+    if($("callPeerState"))$("callPeerState").textContent=msg;
     alert(msg);
     throw err;
   }
 }
-
 async function flushPendingIce(){
   if(!pc || !pc.remoteDescription)return;
 
@@ -885,172 +1018,239 @@ async function flushPendingIce(){
 async function ensurePeer(){
   if(pc)return pc;
 
-  await ensureTurnIceServers();
+  const turnOk=await ensureTurnIceServers();
+  const stream=await getMedia(currentCallType);
 
   pendingIceCandidates=[];
   videoSender=null;
   audioSender=null;
+  remoteMediaStream=new MediaStream();
 
-  pc=new RTCPeerConnection(rtcConfig);
+  pc=new RTCPeerConnection({
+    ...rtcConfig,
+    iceCandidatePoolSize:6,
+    bundlePolicy:"max-bundle",
+    rtcpMuxPolicy:"require"
+  });
 
-  // نعلن من البداية أننا نرسل ونستقبل.
-  const audioTransceiver=pc.addTransceiver("audio",{direction:"sendrecv"});
-  let videoTransceiver=null;
+  for(const track of stream.getTracks()){
+    const sender=pc.addTrack(track,stream);
 
-  if(currentCallType==="video"){
-    videoTransceiver=pc.addTransceiver("video",{direction:"sendrecv"});
+    if(track.kind==="audio")audioSender=sender;
+    if(track.kind==="video")videoSender=sender;
   }
 
+  // We wait for complete ICE in offer/answer, so trickle ICE is only a bonus.
   pc.onicecandidate=e=>{
-    if(e.candidate && selectedUser){
-      sendCallSignal({type:"ice",to:selectedUser,candidate:e.candidate}).catch(err=>console.warn("ICE signal failed",err));
-    }
+    if(!e.candidate || !selectedUser || !activeCallId)return;
+
+    sendCallSignal({
+      type:"ice",
+      to:selectedUser,
+      callId:activeCallId,
+      candidate:e.candidate
+    }).catch(err=>console.warn("ICE signal failed",err));
   };
 
   pc.ontrack=async e=>{
-    const remoteVideo=$("remoteVideo");
-
-    let stream=e.streams?.[0];
-    if(!stream){
-      stream=remoteVideo.srcObject instanceof MediaStream
-        ? remoteVideo.srcObject
-        : new MediaStream();
-
-      if(!stream.getTracks().some(t=>t.id===e.track.id)){
-        stream.addTrack(e.track);
-      }
+    if(!remoteMediaStream){
+      remoteMediaStream=new MediaStream();
     }
 
-    remoteVideo.srcObject=stream;
+    if(!remoteMediaStream.getTracks().some(t=>t.id===e.track.id)){
+      remoteMediaStream.addTrack(e.track);
+    }
+
+    const remoteVideo=$("remoteVideo");
+    remoteVideo.srcObject=remoteMediaStream;
     remoteVideo.playsInline=true;
+    remoteVideo.autoplay=true;
+    remoteVideo.muted=false;
+    remoteVideo.volume=1;
+
+    const revealVideo=()=>{
+      if(e.track.kind==="video"){
+        const empty=document.querySelector(".remote-empty-state");
+        if(empty)empty.style.display="none";
+        $("callPeerState").textContent="الفيديو متصل";
+        $("callStatusText").textContent="مكالمة فيديو جارية";
+      }
+    };
+
+    e.track.onunmute=async()=>{
+      revealVideo();
+      try{await remoteVideo.play()}catch{}
+    };
+
+    revealVideo();
 
     try{
       await remoteVideo.play();
+      $("resumeRemoteMediaBtn")?.classList.add("hidden");
     }catch(err){
-      console.warn("remote video play blocked",err);
+      console.warn("remote autoplay blocked",err);
+      $("resumeRemoteMediaBtn")?.classList.remove("hidden");
     }
 
-    if(e.track.kind==="video"){
-      const empty=document.querySelector(".remote-empty-state");
-      if(empty)empty.style.display="none";
-      $("callPeerState").textContent="الفيديو متصل";
-      $("callStatusText").textContent="مكالمة فيديو جارية";
-    }else if(e.track.kind==="audio"){
-      if($("callPeerState").textContent!=="الفيديو متصل"){
-        $("callPeerState").textContent="الصوت متصل — جاري استقبال الفيديو...";
-      }
+    if(e.track.kind==="audio" && currentCallType==="audio"){
+      $("callPeerState").textContent="الصوت متصل";
     }
   };
 
-  pc.onconnectionstatechange=()=>{
-    const state=pc?.connectionState||"";
+  pc.oniceconnectionstatechange=()=>{
+    const state=pc?.iceConnectionState||"";
+
     const labels={
-      new:"جاري التجهيز...",
-      connecting:"جاري توصيل المكالمة...",
-      connected:currentCallType==="video"?"متصل — جاري استقبال الفيديو...":"متصل",
-      disconnected:"الاتصال ضعيف...",
-      failed:"فشل اتصال الوسائط",
+      checking:turnOk?"فحص الاتصال عبر STUN / TURN...":"فحص الاتصال...",
+      connected:"تم ربط الوسائط",
+      completed:"تم توصيل الوسائط",
+      disconnected:"الاتصال ضعيف — إعادة المحاولة...",
+      failed:"فشل مسار الوسائط",
       closed:"انتهت المكالمة"
     };
 
-    if($("callPeerState"))$("callPeerState").textContent=labels[state]||state;
+    if(labels[state] && $("callPeerState")){
+      $("callPeerState").textContent=labels[state];
+    }
+  };
+
+  pc.onconnectionstatechange=async()=>{
+    const state=pc?.connectionState||"";
+
+    if(state==="connected"){
+      setCallState("connected",activeCallPeer,activeCallId);
+
+      if(currentCallType==="video"){
+        const remoteHasVideo=remoteMediaStream?.getVideoTracks().some(t=>t.readyState==="live");
+
+        if(!remoteHasVideo){
+          $("callPeerState").textContent="الصوت متصل — جاري تشغيل الفيديو...";
+        }
+      }else{
+        $("callPeerState").textContent="الصوت متصل";
+      }
+    }
 
     if(state==="failed"){
       $("callPeerState").textContent="إعادة توصيل المكالمة عبر TURN...";
 
-      (async()=>{
-        try{
-          const hadTurn=turnReady;
-          await ensureTurnIceServers(true);
+      try{
+        await ensureTurnIceServers(true);
 
-          if(pc){
-            pc.setConfiguration(rtcConfig);
+        if(pc && selectedUser){
+          pc.setConfiguration({
+            ...rtcConfig,
+            iceCandidatePoolSize:6,
+            bundlePolicy:"max-bundle",
+            rtcpMuxPolicy:"require"
+          });
 
-            const restartOffer=await pc.createOffer({
-              iceRestart:true,
-              offerToReceiveAudio:true,
-              offerToReceiveVideo:currentCallType==="video"
-            });
+          const restartOffer=await pc.createOffer({
+            iceRestart:true,
+            offerToReceiveAudio:true,
+            offerToReceiveVideo:currentCallType==="video"
+          });
 
-            await pc.setLocalDescription(restartOffer);
+          await pc.setLocalDescription(restartOffer);
+          await waitForIceGatheringComplete(pc);
 
-            await sendCallSignal({
-              type:"offer",
-              to:selectedUser,
-              sdp:pc.localDescription,
-              callType:currentCallType,
-              renegotiate:true,
-              turnRetry:true
-            });
-
-            $("callPeerState").textContent=turnReady
-              ?"جاري إعادة الاتصال عبر TURN..."
-              :"جاري إعادة الاتصال...";
-          }
-        }catch(err){
-          console.error("TURN ICE restart failed",err);
-          $("callPeerState").textContent="تعذر توصيل المكالمة";
-          alert("تعذر توصيل الصوت/الفيديو. تأكد من تفعيل TURN في Cloudflare.");
+          await sendCallSignal({
+            type:"offer",
+            to:selectedUser,
+            callId:activeCallId,
+            sdp:pc.localDescription,
+            callType:currentCallType,
+            renegotiate:true,
+            turnRetry:true,
+            iceComplete:true
+          });
         }
-      })();
+      }catch(err){
+        console.error("ICE restart failed",err);
+        $("callPeerState").textContent="تعذر توصيل المكالمة";
+      }
     }
   };
 
-  const stream=await getMedia(currentCallType);
-
-  const audioTrack=stream.getAudioTracks()[0]||null;
-  const videoTrack=stream.getVideoTracks()[0]||null;
-
-  if(audioTrack){
-    audioTrack.enabled=true;
-    await audioTransceiver.sender.replaceTrack(audioTrack);
-    audioSender=audioTransceiver.sender;
-  }
-
-  if(currentCallType==="video" && videoTransceiver && videoTrack){
-    videoTrack.enabled=true;
-    await videoTransceiver.sender.replaceTrack(videoTrack);
-    videoSender=videoTransceiver.sender;
-  }
-
-  // تحقق فعلي أن المسارات مضافة.
-  console.log("Local media tracks",{
+  console.log("Local call media",{
+    turnReady,
     audio:!!audioSender?.track,
     video:!!videoSender?.track,
-    videoEnabled:videoSender?.track?.enabled
+    audioState:audioSender?.track?.readyState,
+    videoState:videoSender?.track?.readyState
   });
 
   return pc;
 }
-
 async function requestCall(type){
   if(!selectedUser)return alert("اختر مستخدمًا أولًا");
 
+  if(callState!=="idle"){
+    return alert("في مكالمة أو اتصال جاري بالفعل.");
+  }
+
   currentCallType=type;
+  const peer=selectedUser;
+  const callId=crypto.randomUUID();
 
-  const empty=document.querySelector(".remote-empty-state");
-  if(empty)empty.style.display="grid";
-
-  showCallOverlay(selectedUser,"جاري إرسال طلب الاتصال...");
-  playOutgoingRing();
+  setCallState("preparing",peer,callId);
 
   try{
+    const turnOk=await ensureTurnIceServers();
+    await getMedia(type);
+
+    const empty=document.querySelector(".remote-empty-state");
+    if(empty)empty.style.display="grid";
+
+    showCallOverlay(
+      peer,
+      turnOk?"TURN جاهز — جاري الاتصال...":"جاري الاتصال..."
+    );
+
+    playOutgoingRing();
+    setCallState("outgoing",peer,callId);
+
     const result=await sendCallSignal({
       type:"call-request",
-      to:selectedUser,
+      to:peer,
+      callId,
       callType:type
     });
 
     $("callPeerState").textContent=result?.online
-      ? "يرن الآن..."
-      : "تم إرسال الاتصال — في انتظار الطرف الآخر...";
+      ?"يرن الآن..."
+      :"تم إرسال الاتصال — في انتظار الطرف الآخر...";
+
+    clearOutgoingCallTimer();
+
+    outgoingCallTimer=setTimeout(async()=>{
+      if(callState==="outgoing" && activeCallId===callId){
+        stopCallSounds();
+
+        await sendCallSignal({
+          type:"hangup",
+          to:peer,
+          callId,
+          callType:type,
+          reason:"timeout"
+        }).catch(()=>{});
+
+        await teardownPeer(false);
+        hideCallOverlay(false);
+        resetCallState();
+      }
+    },45000);
   }catch(err){
     stopCallSounds();
+    await teardownPeer(false).catch(()=>{});
     hideCallOverlay(false);
-    alert("تعذر إرسال الاتصال: "+(err.message||"خطأ في الشبكة"));
+    resetCallState();
+
+    if(err?.message){
+      console.warn("Call start failed",err);
+    }
   }
 }
-
 async function startOffer(){
   await ensurePeer();
 
@@ -1060,66 +1260,53 @@ async function startOffer(){
   });
 
   await pc.setLocalDescription(offer);
+  await waitForIceGatheringComplete(pc);
 
   await sendCallSignal({
     type:"offer",
     to:selectedUser,
+    callId:activeCallId,
     sdp:pc.localDescription,
-    callType:currentCallType
+    callType:currentCallType,
+    iceComplete:true
   });
-
-  // لو الفيديو لم يظهر بعد ثوانٍ، نعيد التفاوض مرة واحدة.
-  if(currentCallType==="video"){
-    setTimeout(async()=>{
-      if(!pc || pc.connectionState==="closed")return;
-
-      const remoteHasVideo=$("remoteVideo")?.srcObject instanceof MediaStream
-        && $("remoteVideo").srcObject.getVideoTracks().length>0;
-
-      if(!remoteHasVideo){
-        try{
-          const retryOffer=await pc.createOffer({
-            iceRestart:true,
-            offerToReceiveAudio:true,
-            offerToReceiveVideo:true
-          });
-          await pc.setLocalDescription(retryOffer);
-          await sendCallSignal({
-            type:"offer",
-            to:selectedUser,
-            sdp:pc.localDescription,
-            callType:"video",
-            renegotiate:true
-          });
-        }catch(err){
-          console.warn("Video renegotiation failed",err);
-        }
-      }
-    },3500);
-  }
 }
-
-async function hangup(notifyPeer=true){
-  if(notifyPeer && selectedUser){
-    await sendCallSignal({type:"hangup",to:selectedUser,callType:currentCallType}).catch(()=>{});
-  }
-
-  pc?.close();
+async function teardownPeer(stopLocal=true){
+  try{pc?.close()}catch{}
   pc=null;
   videoSender=null;
   audioSender=null;
   pendingIceCandidates=[];
+  remoteMediaStream=null;
 
   const empty=document.querySelector(".remote-empty-state");
   if(empty)empty.style.display="grid";
 
-  localStream?.getTracks().forEach(t=>t.stop());
-  localStream=null;
+  if(stopLocal){
+    localStream?.getTracks().forEach(t=>t.stop());
+    localStream=null;
+  }
 
   $("localVideo").srcObject=null;
   $("remoteVideo").srcObject=null;
 }
 
+async function hangup(notifyPeer=true){
+  const peer=activeCallPeer||selectedUser;
+  const callId=activeCallId;
+
+  if(notifyPeer && peer && callId){
+    await sendCallSignal({
+      type:"hangup",
+      to:peer,
+      callId,
+      callType:currentCallType
+    }).catch(()=>{});
+  }
+
+  await teardownPeer(true);
+  resetCallState();
+}
 async function shareScreen(){
   if(!pc)return alert("ابدأ مكالمة أولاً");
 
@@ -2355,19 +2542,64 @@ $("audioCallBtn").onclick=()=>{ensureCallAudio();requestCall("audio")};
 $("videoCallBtn").onclick=()=>{ensureCallAudio();requestCall("video")};
 
 $("acceptCallBtn").onclick=async()=>{
+  if(callState!=="incoming" || !incomingFrom)return;
+
   stopCallSounds();
   $("incomingModal").classList.add("hidden");
-  selectedUser=incomingFrom;
-  showCallOverlay(incomingFrom,"مكالمة جارية");
-  await ensurePeer();
-  await sendCallSignal({type:"call-accept",to:incomingFrom,callType:currentCallType});
+
+  const peer=incomingFrom;
+  const callId=activeCallId;
+  selectedUser=peer;
+
+  setCallState("connecting",peer,callId);
+  showCallOverlay(peer,"جاري تجهيز الكاميرا والمايك...");
+
+  try{
+    await getMedia(currentCallType);
+    await ensurePeer();
+
+    await sendCallSignal({
+      type:"call-accept",
+      to:peer,
+      callId,
+      callType:currentCallType
+    });
+
+    $("callPeerState").textContent="تم الرد — جاري توصيل الوسائط...";
+  }catch(err){
+    await sendCallSignal({
+      type:"call-reject",
+      to:peer,
+      callId,
+      callType:currentCallType,
+      reason:"media-unavailable"
+    }).catch(()=>{});
+
+    await teardownPeer(true);
+    hideCallOverlay(false);
+    resetCallState();
+  }
 };
 
 $("rejectCallBtn").onclick=async()=>{
+  if(callState!=="incoming" || !incomingFrom)return;
+
+  const peer=incomingFrom;
+  const callId=activeCallId;
+
   stopCallSounds();
-  await sendCallSignal({type:"call-reject",to:incomingFrom,callType:currentCallType}).catch(()=>{});
+
+  await sendCallSignal({
+    type:"call-reject",
+    to:peer,
+    callId,
+    callType:currentCallType
+  }).catch(()=>{});
+
   $("incomingModal").classList.add("hidden");
+  await teardownPeer(true);
   hideCallOverlay(false);
+  resetCallState();
 };
 
 $("hangupBtn").onclick=async()=>{
@@ -2387,6 +2619,21 @@ $("cameraBtn").onclick=()=>{
   tracks.forEach(t=>t.enabled=!t.enabled);
   $("cameraBtn").textContent=tracks[0]?.enabled===false?"📷 تشغيل الكاميرا":"📷 إيقاف الكاميرا";
 };
+
+
+if($("resumeRemoteMediaBtn")){
+  $("resumeRemoteMediaBtn").onclick=async()=>{
+    try{
+      const rv=$("remoteVideo");
+      rv.muted=false;
+      rv.volume=1;
+      await rv.play();
+      $("resumeRemoteMediaBtn").classList.add("hidden");
+    }catch(err){
+      console.warn("manual remote playback failed",err);
+    }
+  };
+}
 
 $("screenBtn").onclick=shareScreen;
 window.addEventListener("beforeunload",stopCallSounds);

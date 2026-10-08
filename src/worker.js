@@ -1268,7 +1268,7 @@ export default {
       return Response.json({
         ok:true,
         app:"تواصل العطا",
-        version:"V13.2-WebRTC-Core-Fix"
+        version:"V13.3-Single-Call-Video-Fix"
       });
     }
 
