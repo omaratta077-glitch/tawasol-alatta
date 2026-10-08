@@ -1268,7 +1268,7 @@ export default {
       return Response.json({
         ok:true,
         app:"تواصل العطا",
-        version:"V13.4-Persistent-Login-Ring"
+        version:"V13.5-Premium-Icons-UI"
       });
     }
 

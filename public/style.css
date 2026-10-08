@@ -3431,3 +3431,190 @@ textarea:focus,input:focus,select:focus{
   object-fit:cover!important;
   background:#000!important;
 }
+
+
+/* =========================================================
+   V13.5 — Premium unified outline icons
+   Local SVG set, no external CDN.
+   ========================================================= */
+.atta-icon-slot{
+  display:inline-grid;
+  place-items:center;
+  line-height:0;
+  flex:0 0 auto;
+}
+
+.atta-icon{
+  width:1em;
+  height:1em;
+  display:block;
+  fill:none;
+  stroke:currentColor;
+  stroke-width:1.9;
+  stroke-linecap:round;
+  stroke-linejoin:round;
+  vector-effect:non-scaling-stroke;
+}
+
+.header-icon-btn .atta-icon,
+.reference-search .atta-icon,
+.reference-leftbar .atta-icon,
+.reference-tool-btn .atta-icon,
+.reference-publish-btn .atta-icon,
+.chat-call-btn .atta-icon,
+.composer-call-btn .atta-icon,
+.chat-image-btn .atta-icon,
+.chat-attach-btn .atta-icon,
+#sendBtn .atta-icon,
+.premium-nav .atta-icon{
+  color:currentColor;
+  filter:drop-shadow(0 0 5px rgba(229,178,54,.18));
+  transition:transform .18s ease,filter .18s ease,stroke .18s ease;
+}
+
+.header-icon-btn .atta-icon{width:23px;height:23px}
+.reference-search .atta-icon{width:22px;height:22px}
+.reference-leftbar .rail-btn .atta-icon{width:25px;height:25px}
+.reference-leftbar .rail-primary-btn .atta-icon{width:22px;height:22px}
+.reference-tool-btn .atta-icon{width:22px;height:22px}
+.reference-publish-btn .atta-icon{width:23px;height:23px}
+.chat-call-btn .atta-icon{width:22px;height:22px}
+.composer-call-btn .atta-icon{width:21px;height:21px}
+.chat-image-btn .atta-icon,.chat-attach-btn .atta-icon{width:21px;height:21px}
+#sendBtn .atta-icon{width:20px;height:20px}
+.premium-nav .atta-icon{width:22px;height:22px}
+
+.header-icon-btn:hover .atta-icon,
+.rail-btn:hover .atta-icon,
+.reference-tool-btn:hover .atta-icon,
+.chat-call-btn:hover .atta-icon,
+.composer-call-btn:hover .atta-icon{
+  transform:translateY(-1px) scale(1.055);
+  filter:drop-shadow(0 0 8px rgba(241,195,72,.52));
+}
+
+.rail-btn.active .atta-icon{
+  filter:drop-shadow(0 1px 1px rgba(255,240,175,.25));
+}
+
+.side-title-with-icon{
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  color:var(--atta-gold-2,#F1C75B);
+}
+
+.side-title-with-icon .atta-icon{
+  width:20px;
+  height:20px;
+  stroke-width:2;
+  filter:drop-shadow(0 0 6px rgba(241,199,91,.35));
+}
+
+.photo-btn{
+  display:grid!important;
+  place-items:center;
+}
+.photo-btn .atta-icon{
+  width:20px;
+  height:20px;
+}
+
+.call-top-btn{
+  display:inline-flex!important;
+  align-items:center;
+  justify-content:center;
+  gap:7px;
+}
+.call-top-btn .atta-icon{
+  width:19px;
+  height:19px;
+}
+
+.round-icon{
+  display:grid!important;
+  place-items:center!important;
+  font-size:0!important;
+}
+
+.round-icon .atta-icon,
+.round-icon.atta-icon-slot .atta-icon{
+  width:25px!important;
+  height:25px!important;
+  stroke-width:1.9;
+}
+
+.round-call-btn.is-off .round-icon{
+  border-color:rgba(255,208,92,.75)!important;
+  box-shadow:0 0 0 1px rgba(255,208,92,.12),0 0 20px rgba(255,183,41,.22)!important;
+}
+
+.hangup-round .round-icon .atta-icon{
+  width:26px!important;
+  height:26px!important;
+}
+
+.chat-file-link{
+  display:inline-flex!important;
+  align-items:center;
+  gap:7px;
+}
+.chat-file-link .atta-icon{width:18px;height:18px}
+
+#recordVoiceBtn.is-recording{
+  color:#FF6464!important;
+  border-color:rgba(255,90,90,.6)!important;
+  box-shadow:0 0 14px rgba(255,70,70,.18)!important;
+}
+#recordVoiceBtn.is-recording .atta-icon{
+  fill:currentColor;
+  stroke:currentColor;
+}
+
+.upload-label{
+  display:inline-flex!important;
+  align-items:center;
+  gap:7px;
+}
+.upload-label .atta-icon{width:19px;height:19px}
+
+.call-modal-action{
+  display:inline-flex!important;
+  align-items:center;
+  justify-content:center;
+  gap:8px;
+}
+.call-modal-action .atta-icon{width:20px;height:20px}
+
+.story-plus-icon{
+  width:46px!important;
+  height:46px!important;
+  display:grid!important;
+  place-items:center!important;
+}
+.story-plus-icon .atta-icon{
+  width:24px!important;
+  height:24px!important;
+}
+
+.post-actions .atta-icon,
+.stat-btn .atta-icon,
+.text-action-btn .atta-icon,
+.globe-inline .atta-icon,
+.post-menu-btn .atta-icon{
+  fill:none!important;
+  stroke:currentColor!important;
+  stroke-linecap:round;
+  stroke-linejoin:round;
+}
+.stat-btn .atta-icon,.text-action-btn .atta-icon{width:25px;height:25px}
+.globe-inline .atta-icon{width:16px;height:16px}
+.post-menu-btn .atta-icon{width:22px;height:22px}
+
+@media(max-width:850px){
+  .reference-leftbar .rail-btn .atta-icon{width:23px;height:23px}
+  .premium-nav .atta-icon{width:21px;height:21px}
+  .header-icon-btn .atta-icon{width:21px;height:21px}
+  .round-icon .atta-icon,
+  .round-icon.atta-icon-slot .atta-icon{width:23px!important;height:23px!important}
+}

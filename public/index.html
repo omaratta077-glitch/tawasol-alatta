@@ -81,20 +81,20 @@
 
       <div class="reference-header-actions">
         <button class="header-icon-btn" data-top-page="notificationsPage" aria-label="الإشعارات">
-          <svg viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M10 21h4"/></svg>
+          <span data-atta-icon="bell"></span>
           <span id="headerNotifyBadge" class="header-mini-badge hidden">0</span>
         </button>
         <button class="header-icon-btn" data-top-page="messagesPage" aria-label="الرسائل">
-          <svg viewBox="0 0 24 24"><path d="M4 5h16v11H8l-4 4V5Z"/></svg>
+          <span data-atta-icon="message-circle"></span>
         </button>
         <button class="header-icon-btn" id="headerFriendsBtn" aria-label="طلبات الصداقة">
-          <svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3 20c.7-4 2.8-6 6-6s5.3 2 6 6"/><path d="M18 7v6M15 10h6"/></svg>
+          <span data-atta-icon="user-plus"></span>
           <span id="headerFriendBadge" class="header-mini-badge hidden">0</span>
         </button>
       </div>
 
       <button id="headerSearchBtn" class="reference-search" type="button">
-        <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
+        <span data-atta-icon="search"></span>
         <span>ابحث عن الأشخاص أو المنشورات...</span>
       </button>
     </div>
@@ -109,30 +109,30 @@
     </div>
 
     <button class="rail-btn active" data-page="homePage">
-      <svg viewBox="0 0 24 24"><path d="M3 10.7 12 3l9 7.7V21h-6v-6H9v6H3V10.7Z"/></svg><span>الرئيسية</span>
+      <span data-atta-icon="home"></span><span>الرئيسية</span>
     </button>
     <button class="rail-btn" data-page="searchPage">
-      <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg><span>استكشاف</span>
+      <span data-atta-icon="search"></span><span>استكشاف</span>
     </button>
     <button class="rail-btn" data-page="notificationsPage">
-      <svg viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M10 21h4"/></svg><span>الإشعارات</span>
+      <span data-atta-icon="bell"></span><span>الإشعارات</span>
       <b id="railNotifyBadge" class="rail-badge hidden">0</b>
     </button>
     <button class="rail-btn" data-page="messagesPage">
-      <svg viewBox="0 0 24 24"><path d="M4 5h16v11H8l-4 4V5Z"/></svg><span>الرسائل</span>
+      <span data-atta-icon="message-circle"></span><span>الرسائل</span>
     </button>
     <button class="rail-btn" data-page="profilePage">
-      <svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c1-5 4-7 8-7s7 2 8 7"/></svg><span>الملف الشخصي</span>
+      <span data-atta-icon="user"></span><span>الملف الشخصي</span>
     </button>
     <button class="rail-btn" id="railSavedBtn">
-      <svg viewBox="0 0 24 24"><path d="M6 4h12v17l-6-4-6 4V4Z"/></svg><span>المحفوظات</span>
+      <span data-atta-icon="bookmark"></span><span>المحفوظات</span>
     </button>
     <button class="rail-btn" id="railMoreBtn">
-      <svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="19" cy="12" r="1.3"/></svg><span>المزيد</span>
+      <span data-atta-icon="ellipsis"></span><span>المزيد</span>
     </button>
 
     <button id="railStoryBtn" class="rail-primary-btn reference-add-story" type="button">
-      <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg><span>إضافة حالة</span>
+      <span data-atta-icon="plus"></span><span>إضافة حالة</span>
     </button>
   </aside>
 
@@ -157,7 +157,7 @@
 
     <section class="reference-side-card">
       <div class="reference-card-title">
-        <strong>🔥 المتداول الآن</strong>
+        <strong class="side-title-with-icon"><span data-atta-icon="flame"></span>المتداول الآن</strong>
       </div>
       <div class="reference-trends">
         <div><b>1</b><span><strong>#تواصل_العطا</strong><small>12.4 ألف منشور</small></span><i>•••</i></div>
@@ -170,7 +170,7 @@
 
     <section class="reference-side-card">
       <div class="reference-card-title">
-        <strong>👥 اقتراحات قد تعجبك</strong>
+        <strong class="side-title-with-icon"><span data-atta-icon="users"></span>اقتراحات قد تعجبك</strong>
       </div>
       <div id="suggestionsList" class="reference-suggestions">
         <div class="reference-side-empty">جاري تحميل الاقتراحات...</div>
@@ -197,29 +197,29 @@
         <div class="reference-composer-bottom">
           <div class="reference-composer-tools">
             <label class="reference-tool-btn">
-              <svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="10" r="2"/><path d="m4 17 5-4 3 3 3-2 5 4"/></svg>
+              <span data-atta-icon="image"></span>
               <span>صورة</span>
               <input id="postImageInput" type="file" accept="image/*" hidden>
             </label>
 
             <button id="postVideoBtn" class="reference-tool-btn" type="button">
-              <svg viewBox="0 0 24 24"><rect x="3" y="5" width="14" height="14" rx="2"/><path d="m17 10 4-2v8l-4-2z"/></svg>
+              <span data-atta-icon="video"></span>
               <span>فيديو</span>
             </button>
 
             <button id="postPollBtn" class="reference-tool-btn" type="button">
-              <svg viewBox="0 0 24 24"><path d="M5 20V10M12 20V4M19 20v-7"/></svg>
+              <span data-atta-icon="chart"></span>
               <span>استطلاع</span>
             </button>
 
             <button id="postFeelingBtn" class="reference-tool-btn" type="button">
-              <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M8 10h.01M16 10h.01M8 15c2.7 2.2 5.3 2.2 8 0"/></svg>
+              <span data-atta-icon="smile"></span>
               <span>مشاركة مشاعر</span>
             </button>
           </div>
 
           <button id="publishPostBtn" class="reference-publish-btn">
-            <svg viewBox="0 0 24 24"><path d="m3 11 18-8-7 18-3-7-8-3Z"/><path d="m11 14 4-4"/></svg>
+            <span data-atta-icon="send"></span>
             <span>نشر</span>
           </button>
         </div>
@@ -244,7 +244,7 @@
           <div class="profile">
             <img id="avatarImg" class="avatar" alt="">
             <div><strong id="meDisplay"></strong><small id="meUsername"></small></div>
-            <label class="photo-btn">📷<input id="avatarInput" type="file" accept="image/*" hidden></label>
+            <label class="photo-btn" aria-label="تغيير الصورة"><span data-atta-icon="camera"></span><input id="avatarInput" type="file" accept="image/*" hidden></label>
           </div>
 
           <div class="side-tabs">
@@ -261,7 +261,7 @@
         <section class="chat-main">
           <header class="topbar chat-topbar">
             <button id="mobileBackContactsBtn" class="mobile-chat-back" type="button" aria-label="العودة لقائمة الأصدقاء">
-              <svg viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg>
+              <span data-atta-icon="chevron-left"></span>
             </button>
 
             <div class="chat-peer-heading">
@@ -271,10 +271,10 @@
 
             <div class="chat-call-actions">
               <button id="audioCallBtn" class="chat-call-btn" type="button" aria-label="مكالمة صوتية" title="مكالمة صوتية">
-                <svg viewBox="0 0 24 24"><path d="M6.6 2.8 9.4 7 7.7 9.1c1.2 2.6 3.5 4.9 6.2 6.2l2.1-1.7 4.2 2.8c.5.3.7.9.5 1.5l-.8 2.6c-.2.7-.9 1.2-1.7 1.2C9.3 21.2 2.8 14.7 2.3 5.8c0-.8.5-1.5 1.2-1.7l2.6-.8c.6-.2 1.2 0 1.5.5Z"/></svg>
+                <span data-atta-icon="phone"></span>
               </button>
               <button id="videoCallBtn" class="chat-call-btn" type="button" aria-label="مكالمة فيديو" title="مكالمة فيديو">
-                <svg viewBox="0 0 24 24"><rect x="3" y="6" width="13" height="12" rx="2"/><path d="m16 10 5-3v10l-5-3Z"/></svg>
+                <span data-atta-icon="video"></span>
               </button>
             </div>
           </header>
@@ -303,33 +303,33 @@
             <div class="composer advanced-composer">
               <div class="composer-call-actions" aria-label="المكالمات">
                 <button id="composerAudioCallBtn" class="composer-call-btn" type="button" aria-label="مكالمة صوتية" title="مكالمة صوتية">
-                  <svg viewBox="0 0 24 24"><path d="M6.6 2.8 9.4 7 7.7 9.1c1.2 2.6 3.5 4.9 6.2 6.2l2.1-1.7 4.2 2.8c.5.3.7.9.5 1.5l-.8 2.6c-.2.7-.9 1.2-1.7 1.2C9.3 21.2 2.8 14.7 2.3 5.8c0-.8.5-1.5 1.2-1.7l2.6-.8c.6-.2 1.2 0 1.5.5Z"/></svg>
+                  <span data-atta-icon="phone"></span>
                 </button>
                 <button id="composerVideoCallBtn" class="composer-call-btn" type="button" aria-label="مكالمة فيديو" title="مكالمة فيديو">
-                  <svg viewBox="0 0 24 24"><rect x="3" y="6" width="13" height="12" rx="2"/><path d="m16 10 5-3v10l-5-3Z"/></svg>
+                  <span data-atta-icon="video"></span>
                 </button>
               </div>
 
               <label class="chat-image-btn" title="إرسال صورة">
-                <svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="10" r="2"/><path d="m4 17 5-4 3 3 3-2 5 4"/></svg>
+                <span data-atta-icon="image"></span>
                 <span>صورة</span>
                 <input id="chatImageInput" type="file" accept="image/*" hidden>
               </label>
 
               <label class="chat-attach-btn" title="إرسال ملف">
-                <svg viewBox="0 0 24 24"><path d="m8.5 12.5 6.6-6.6a3.2 3.2 0 1 1 4.5 4.5l-8.4 8.4a5.2 5.2 0 0 1-7.4-7.4l8.1-8.1"/></svg>
+                <span data-atta-icon="paperclip"></span>
                 <input id="chatFileInput" type="file" accept="audio/*,.pdf,.doc,.docx,.xls,.xlsx" hidden>
               </label>
 
               <button id="recordVoiceBtn" class="chat-attach-btn" type="button" title="رسالة صوتية" aria-label="رسالة صوتية">
-                <svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3M9 21h6"/></svg>
+                <span data-atta-icon="mic"></span>
               </button>
 
               <input id="messageInput" placeholder="اكتب رسالة...">
 
               <button id="sendBtn" type="button">
                 <span>إرسال</span>
-                <svg viewBox="0 0 24 24"><path d="m3 11 18-8-7 18-3-7-8-3Z"/><path d="m11 14 4-4"/></svg>
+                <span data-atta-icon="send"></span>
               </button>
             </div>
           </section>
@@ -405,19 +405,19 @@
 
   <nav class="bottom-nav premium-nav">
     <button class="nav-btn active" data-page="homePage" aria-label="الرئيسية">
-      <svg viewBox="0 0 24 24"><path d="M3 10.7 12 3l9 7.7V21h-6v-6H9v6H3V10.7Z"/></svg><span>الرئيسية</span>
+      <span data-atta-icon="home"></span><span>الرئيسية</span>
     </button>
     <button class="nav-btn" data-page="searchPage" aria-label="استكشاف">
-      <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg><span>استكشاف</span>
+      <span data-atta-icon="search"></span><span>استكشاف</span>
     </button>
     <button class="nav-btn" data-page="messagesPage" aria-label="الرسائل">
-      <svg viewBox="0 0 24 24"><path d="M4 5h16v11H8l-4 4V5Z"/></svg><span>الرسائل</span>
+      <span data-atta-icon="message-circle"></span><span>الرسائل</span>
     </button>
     <button class="nav-btn" data-page="notificationsPage" aria-label="الإشعارات">
-      <svg viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M10 21h4"/></svg><span>الإشعارات</span>
+      <span data-atta-icon="bell"></span><span>الإشعارات</span>
     </button>
     <button class="nav-btn" data-page="profilePage" aria-label="حسابي">
-      <svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c1-5 4-7 8-7s7 2 8 7"/></svg><span>حسابي</span>
+      <span data-atta-icon="user"></span><span>حسابي</span>
     </button>
   </nav>
 </div>
@@ -433,8 +433,8 @@
       </div>
     </div>
     <div class="call-top-actions">
-      <button id="resumeRemoteMediaBtn" class="call-top-btn hidden">🔊 تشغيل الصوت</button>
-      <button id="minimizeCallBtn" class="call-top-btn">⌄</button>
+      <button id="resumeRemoteMediaBtn" class="call-top-btn hidden"><span data-atta-icon="volume"></span><span>تشغيل الصوت</span></button>
+      <button id="minimizeCallBtn" class="call-top-btn" aria-label="تصغير"><span data-atta-icon="chevron-down"></span></button>
     </div>
   </div>
 
@@ -455,40 +455,41 @@
   <div class="call-bottom-sheet">
     <div class="call-tools">
       <button id="muteBtn" class="round-call-btn">
-        <span class="round-icon">🎙️</span>
+        <span class="round-icon" data-atta-icon="mic"></span>
         <small>المايك</small>
       </button>
 
       <button id="cameraBtn" class="round-call-btn">
-        <span class="round-icon">📷</span>
+        <span class="round-icon" data-atta-icon="camera"></span>
         <small>الكاميرا</small>
       </button>
 
       <button id="screenBtn" class="round-call-btn">
-        <span class="round-icon">🖥️</span>
+        <span class="round-icon" data-atta-icon="monitor"></span>
         <small>الشاشة</small>
       </button>
 
       <button id="hangupBtn" class="round-call-btn hangup-round">
-        <span class="round-icon">📞</span>
+        <span class="round-icon" data-atta-icon="phone-off"></span>
         <small>إنهاء</small>
       </button>
     </div>
   </div>
 </div>
 
-<div id="storyModal" class="modal hidden"><div class="modal-card"><h3>إضافة حالة</h3><textarea id="storyTextInput" placeholder="اكتب حالة..."></textarea><label class="upload-label">🖼️ صورة<input id="storyMediaInput" type="file" accept="image/*" hidden></label><img id="storyPreview" class="story-preview hidden" alt=""><div class="modal-actions"><button id="publishStoryBtn" class="primary">نشر</button><button id="closeStoryModalBtn">إلغاء</button></div></div></div>
+<div id="storyModal" class="modal hidden"><div class="modal-card"><h3>إضافة حالة</h3><textarea id="storyTextInput" placeholder="اكتب حالة..."></textarea><label class="upload-label"><span data-atta-icon="image"></span><span>صورة</span><input id="storyMediaInput" type="file" accept="image/*" hidden></label><img id="storyPreview" class="story-preview hidden" alt=""><div class="modal-actions"><button id="publishStoryBtn" class="primary">نشر</button><button id="closeStoryModalBtn">إلغاء</button></div></div></div>
 <div id="storyViewer" class="story-viewer hidden"><button id="closeStoryViewer" class="story-close">×</button><div class="story-view-content"><div id="storyViewerAuthor" class="story-view-author"></div><img id="storyViewerImage" class="story-view-image hidden" alt=""><div id="storyViewerText" class="story-view-text"></div></div></div>
 <div id="incomingModal" class="modal hidden">
   <div class="modal-card">
     <h3>مكالمة واردة</h3>
     <p id="incomingText"></p>
-    <button id="acceptCallBtn" class="primary">قبول</button>
-    <button id="rejectCallBtn" class="danger">رفض</button>
+    <button id="acceptCallBtn" class="primary call-modal-action"><span data-atta-icon="phone"></span><span>قبول</span></button>
+    <button id="rejectCallBtn" class="danger call-modal-action"><span data-atta-icon="phone-off"></span><span>رفض</span></button>
   </div>
 </div>
 
 <script src="config.js"></script>
+<script src="icons.js"></script>
 <script src="app.js"></script>
 
 <audio id="incomingRingAudio" src="audio/incoming-ring.wav" preload="auto" loop></audio>

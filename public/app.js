@@ -182,6 +182,26 @@ function esc(s){
   return String(s??"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
 }
 
+function uiIcon(name,extraClass=""){
+  if(window.AttaIcons?.icon)return window.AttaIcons.icon(name,extraClass);
+  return "";
+}
+
+function setRoundCallButton(id,iconName,label){
+  const btn=$(id);
+  if(!btn)return;
+  btn.innerHTML=`<span class="round-icon">${uiIcon(iconName)}</span><small>${esc(label)}</small>`;
+}
+
+function setVoiceRecordButton(recording=false){
+  const btn=$("recordVoiceBtn");
+  if(!btn)return;
+  btn.innerHTML=uiIcon(recording?"square":"mic");
+  btn.classList.toggle("is-recording",recording);
+  btn.setAttribute("aria-label",recording?"إيقاف التسجيل":"رسالة صوتية");
+  btn.title=recording?"إيقاف التسجيل":"رسالة صوتية";
+}
+
 
 function timeAgoAr(ts){
   const diff=Math.max(1,Date.now()-Number(ts||Date.now()));
@@ -202,13 +222,13 @@ function totalReactionsCount(reactionCounts){
   return Object.values(reactionCounts||{}).reduce((a,b)=>a+Number(b||0),0);
 }
 
-function iconHeart(){return `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20.5s-7-4.35-9.2-8.17C1.02 9.24 2.04 5.6 5.8 4.76c2.2-.5 4.08.52 5.2 2.1 1.12-1.58 3-2.6 5.2-2.1 3.76.84 4.78 4.48 3 7.57C19 16.15 12 20.5 12 20.5Z"></path></svg>`}
-function iconComment(){return `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H9l-5 4V7a2 2 0 0 1 2-2Z"></path></svg>`}
-function iconRepeat(){return `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17 2l4 4-4 4"></path><path d="M3 11V9a3 3 0 0 1 3-3h15"></path><path d="M7 22l-4-4 4-4"></path><path d="M21 13v2a3 3 0 0 1-3 3H3"></path></svg>`}
-function iconBookmark(){return `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12v18l-6-4-6 4V3Z"></path></svg>`}
-function iconShare(){return `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 5h5v5"></path><path d="M10 14 19 5"></path><path d="M19 13v4a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h4"></path></svg>`}
-function iconGlobe(){return `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M3 12h18"></path><path d="M12 3a15 15 0 0 1 0 18"></path><path d="M12 3a15 15 0 0 0 0 18"></path></svg>`}
-function iconDots(){return `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="5" r="1.8"></circle><circle cx="12" cy="12" r="1.8"></circle><circle cx="12" cy="19" r="1.8"></circle></svg>`}
+function iconHeart(){return uiIcon("heart")}
+function iconComment(){return uiIcon("message-circle")}
+function iconRepeat(){return uiIcon("repeat")}
+function iconBookmark(){return uiIcon("bookmark")}
+function iconShare(){return uiIcon("share")}
+function iconGlobe(){return uiIcon("globe")}
+function iconDots(){return uiIcon("ellipsis")}
 
 async function askNotifications(){
   if("Notification" in window && Notification.permission==="default"){
@@ -897,7 +917,7 @@ function addRichMessage(msg){
       ? `<img class="chat-media-image" src="${msg.media}">`
       : msg.mediaType==="audio"
         ? `<audio class="chat-audio" controls src="${msg.media}"></audio>`
-        : `<a class="chat-file-link" href="${msg.media}" target="_blank">📎 فتح المرفق</a>`;
+        : `<a class="chat-file-link" href="${msg.media}" target="_blank">${uiIcon("paperclip")}<span>فتح المرفق</span></a>`;
   }
 
   const state=msg.read
@@ -2149,7 +2169,7 @@ async function loadStories(){
 
     if($("storiesStripSide")){
       const add=`<button id="sideAddStoryInline" class="side-add-story">
-        <span>+</span><small>إضافة قصة</small>
+        <span class="story-plus-icon">${uiIcon("plus")}</span><small>إضافة قصة</small>
       </button>`;
       $("storiesStripSide").innerHTML=add+(stories.length
         ? stories.slice(0,5).map(renderStory).join("")
@@ -2335,7 +2355,48 @@ $("chatFileInput").onchange=async e=>{
   }
 };
 
-$("recordVoiceBtn").onclick=async()=>{if(mediaRecorder?.state==='recording'){mediaRecorder.stop();$("recordVoiceBtn").textContent='🎤';return}try{const s=await navigator.mediaDevices.getUserMedia({audio:true});mediaRecorder=new MediaRecorder(s);voiceChunks=[];mediaRecorder.ondataavailable=e=>{if(e.data.size)voiceChunks.push(e.data)};mediaRecorder.onstop=()=>{const b=new Blob(voiceChunks,{type:'audio/webm'});const r=new FileReader();r.onload=()=>{pendingChatMedia={data:String(r.result||''),type:'audio',name:'رسالة صوتية'};$("messageInput").placeholder='رسالة صوتية جاهزة';updateChatMediaPreview()};r.readAsDataURL(b);s.getTracks().forEach(t=>t.stop())};mediaRecorder.start();$("recordVoiceBtn").textContent='⏹️'}catch(e){alert('تعذر تشغيل الميكروفون')}};
+$("recordVoiceBtn").onclick=async()=>{
+  if(mediaRecorder?.state==="recording"){
+    mediaRecorder.stop();
+    setVoiceRecordButton(false);
+    return;
+  }
+
+  try{
+    const s=await navigator.mediaDevices.getUserMedia({audio:true});
+    mediaRecorder=new MediaRecorder(s);
+    voiceChunks=[];
+
+    mediaRecorder.ondataavailable=e=>{
+      if(e.data.size)voiceChunks.push(e.data);
+    };
+
+    mediaRecorder.onstop=()=>{
+      setVoiceRecordButton(false);
+      const b=new Blob(voiceChunks,{type:"audio/webm"});
+      const r=new FileReader();
+
+      r.onload=()=>{
+        pendingChatMedia={
+          data:String(r.result||""),
+          type:"audio",
+          name:"رسالة صوتية"
+        };
+        $("messageInput").placeholder="رسالة صوتية جاهزة";
+        updateChatMediaPreview();
+      };
+
+      r.readAsDataURL(b);
+      s.getTracks().forEach(t=>t.stop());
+    };
+
+    mediaRecorder.start();
+    setVoiceRecordButton(true);
+  }catch(e){
+    setVoiceRecordButton(false);
+    alert("تعذر تشغيل الميكروفون");
+  }
+};
 $("messageInput").addEventListener('input',()=>{if(!selectedUser)return;send({type:'typing',to:selectedUser,active:true});clearTimeout(typingTimer);typingTimer=setTimeout(()=>send({type:'typing',to:selectedUser,active:false}),900)});
 
 
@@ -2691,13 +2752,17 @@ $("hangupBtn").onclick=async()=>{
 $("muteBtn").onclick=()=>{
   const tracks=localStream?.getAudioTracks()||[];
   tracks.forEach(t=>t.enabled=!t.enabled);
-  $("muteBtn").textContent=tracks[0]?.enabled===false?"🔇 تشغيل المايك":"🎙️ كتم المايك";
+  const muted=tracks[0]?.enabled===false;
+  setRoundCallButton("muteBtn",muted?"mic-off":"mic",muted?"تشغيل المايك":"كتم المايك");
+  $("muteBtn").classList.toggle("is-off",muted);
 };
 
 $("cameraBtn").onclick=()=>{
   const tracks=localStream?.getVideoTracks()||[];
   tracks.forEach(t=>t.enabled=!t.enabled);
-  $("cameraBtn").textContent=tracks[0]?.enabled===false?"📷 تشغيل الكاميرا":"📷 إيقاف الكاميرا";
+  const off=tracks[0]?.enabled===false;
+  setRoundCallButton("cameraBtn",off?"camera-off":"camera",off?"تشغيل الكاميرا":"إيقاف الكاميرا");
+  $("cameraBtn").classList.toggle("is-off",off);
 };
 
 
@@ -2720,6 +2785,8 @@ window.addEventListener("beforeunload",stopCallSounds);
 
 // افتح الحساب المحفوظ تلقائيًا بعد تجهيز كل عناصر الواجهة.
 queueMicrotask(()=>{
+  window.AttaIcons?.hydrate(document);
+  setVoiceRecordButton(false);
   restoreSavedLogin().catch(err=>console.warn("restore login failed",err));
 });
 })();
