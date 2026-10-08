@@ -44,16 +44,33 @@ export class SignalingRoom extends DurableObject {
       username:u.username,
       displayName:u.displayName||u.username,
       fullName:u.fullName||u.displayName||u.username,
-      age:u.age??"",
-      phone:u.phone||"",
-      email:u.email||"",
-      gender:u.gender||"",
       country:u.country||"",
       bio:u.bio||"",
       cover:u.cover||"",
       accountPrivate:!!u.accountPrivate,
       avatar:u.avatar||""
     };
+  }
+
+
+  async friends(username){
+    return await this.ctx.storage.get(`friends:${username}`)||[];
+  }
+
+  async incomingFriendRequests(username){
+    return await this.ctx.storage.get(`friendIncoming:${username}`)||[];
+  }
+
+  async outgoingFriendRequests(username){
+    return await this.ctx.storage.get(`friendOutgoing:${username}`)||[];
+  }
+
+  async friendState(me,target){
+    if(me===target)return "self";
+    if((await this.friends(me)).includes(target))return "friends";
+    if((await this.incomingFriendRequests(me)).some(r=>r.from===target))return "incoming";
+    if((await this.outgoingFriendRequests(me)).some(r=>r.to===target))return "outgoing";
+    return "none";
   }
 
   async createSession(username){
@@ -415,10 +432,13 @@ export class SignalingRoom extends DurableObject {
       const username=String(url.searchParams.get("username")||s.username).trim().toLowerCase();
       const u=await this.publicUser(username);
       if(!u)return j({ok:false,error:"المستخدم غير موجود"},404);
-      const followers=await this.ctx.storage.get(`followers:${username}`)||[];
-      const following=await this.ctx.storage.get(`following:${username}`)||[];
-      const myFollowing=await this.ctx.storage.get(`following:${s.username}`)||[];
-      return j({ok:true,user:u,followerCount:followers.length,followingCount:following.length,following:myFollowing.includes(username)});
+
+      return j({
+        ok:true,
+        user:u,
+        friendCount:(await this.friends(username)).length,
+        friendState:await this.friendState(s.username,username)
+      });
     }
 
     if(url.pathname==="/api/stories" && request.method==="POST"){
@@ -662,6 +682,120 @@ export class SignalingRoom extends DurableObject {
     }
 
 
+
+    if(url.pathname==="/api/me" && request.method==="GET"){
+      const s=await this.session(url.searchParams.get("token")||"");
+      if(!s)return j({ok:false,error:"الجلسة منتهية"},401);
+      const u=await this.user(s.username);
+      if(!u)return j({ok:false,error:"المستخدم غير موجود"},404);
+      return j({ok:true,user:{
+        username:u.username,
+        displayName:u.displayName||u.username,
+        fullName:u.fullName||u.displayName||u.username,
+        age:u.age??"",
+        phone:u.phone||"",
+        email:u.email||"",
+        gender:u.gender||"",
+        country:u.country||"",
+        bio:u.bio||"",
+        cover:u.cover||"",
+        accountPrivate:!!u.accountPrivate,
+        avatar:u.avatar||""
+      }});
+    }
+
+    if(url.pathname==="/api/friend-request" && request.method==="POST"){
+      const s=await this.session(String(body.token||""));
+      if(!s)return j({ok:false,error:"الجلسة منتهية"},401);
+      const target=String(body.username||"").trim().toLowerCase();
+      if(!target || target===s.username)return j({ok:false,error:"مستخدم غير صالح"},400);
+      if(!await this.user(target))return j({ok:false,error:"المستخدم غير موجود"},404);
+
+      const state=await this.friendState(s.username,target);
+      if(state==="friends")return j({ok:false,error:"أنتما أصدقاء بالفعل"},409);
+      if(state==="outgoing")return j({ok:false,error:"طلب الصداقة مرسل بالفعل"},409);
+      if(state==="incoming")return j({ok:false,error:"هذا المستخدم أرسل لك طلبًا بالفعل"},409);
+
+      const now=Date.now();
+      const outgoing=await this.outgoingFriendRequests(s.username);
+      const incoming=await this.incomingFriendRequests(target);
+      outgoing.push({to:target,createdAt:now});
+      incoming.push({from:s.username,createdAt:now});
+      await this.ctx.storage.put(`friendOutgoing:${s.username}`,outgoing.slice(-300));
+      await this.ctx.storage.put(`friendIncoming:${target}`,incoming.slice(-300));
+
+      const ns=await this.ctx.storage.get(`notifications:${target}`)||[];
+      ns.push({id:crypto.randomUUID(),type:"friend-request",from:s.username,createdAt:now,read:false});
+      await this.ctx.storage.put(`notifications:${target}`,ns.slice(-300));
+      return j({ok:true,state:"outgoing"});
+    }
+
+    if(url.pathname==="/api/friend-action" && request.method==="POST"){
+      const s=await this.session(String(body.token||""));
+      if(!s)return j({ok:false,error:"الجلسة منتهية"},401);
+      const other=String(body.username||"").trim().toLowerCase();
+      const action=String(body.action||"");
+
+      let myIn=await this.incomingFriendRequests(s.username);
+      let myOut=await this.outgoingFriendRequests(s.username);
+      let otherIn=await this.incomingFriendRequests(other);
+      let otherOut=await this.outgoingFriendRequests(other);
+
+      if(action==="accept"){
+        if(!myIn.some(r=>r.from===other))return j({ok:false,error:"طلب الصداقة غير موجود"},404);
+        myIn=myIn.filter(r=>r.from!==other);
+        otherOut=otherOut.filter(r=>r.to!==s.username);
+        const a=await this.friends(s.username), b=await this.friends(other);
+        if(!a.includes(other))a.push(other);
+        if(!b.includes(s.username))b.push(s.username);
+        await this.ctx.storage.put(`friends:${s.username}`,a);
+        await this.ctx.storage.put(`friends:${other}`,b);
+        const ns=await this.ctx.storage.get(`notifications:${other}`)||[];
+        ns.push({id:crypto.randomUUID(),type:"friend-accepted",from:s.username,createdAt:Date.now(),read:false});
+        await this.ctx.storage.put(`notifications:${other}`,ns.slice(-300));
+      }else if(action==="decline"){
+        myIn=myIn.filter(r=>r.from!==other);
+        otherOut=otherOut.filter(r=>r.to!==s.username);
+      }else if(action==="cancel"){
+        myOut=myOut.filter(r=>r.to!==other);
+        otherIn=otherIn.filter(r=>r.from!==s.username);
+      }else if(action==="remove"){
+        await this.ctx.storage.put(`friends:${s.username}`,(await this.friends(s.username)).filter(x=>x!==other));
+        await this.ctx.storage.put(`friends:${other}`,(await this.friends(other)).filter(x=>x!==s.username));
+      }else{
+        return j({ok:false,error:"إجراء غير صالح"},400);
+      }
+
+      await this.ctx.storage.put(`friendIncoming:${s.username}`,myIn);
+      await this.ctx.storage.put(`friendOutgoing:${s.username}`,myOut);
+      await this.ctx.storage.put(`friendIncoming:${other}`,otherIn);
+      await this.ctx.storage.put(`friendOutgoing:${other}`,otherOut);
+      return j({ok:true,state:await this.friendState(s.username,other)});
+    }
+
+    if(url.pathname==="/api/friend-requests" && request.method==="GET"){
+      const s=await this.session(url.searchParams.get("token")||"");
+      if(!s)return j({ok:false,error:"الجلسة منتهية"},401);
+      const requests=[];
+      for(const r of [...await this.incomingFriendRequests(s.username)].reverse()){
+        const u=await this.publicUser(r.from);
+        if(u)requests.push({...r,user:u});
+      }
+      return j({ok:true,requests});
+    }
+
+    if(url.pathname==="/api/friends" && request.method==="GET"){
+      const s=await this.session(url.searchParams.get("token")||"");
+      if(!s)return j({ok:false,error:"الجلسة منتهية"},401);
+      const username=String(url.searchParams.get("username")||s.username).trim().toLowerCase();
+      const result=[];
+      for(const name of await this.friends(username)){
+        const u=await this.publicUser(name);
+        if(u)result.push(u);
+      }
+      return j({ok:true,friends:result});
+    }
+
     return j({ok:false,error:"Not found"},404);
   }
 
@@ -806,7 +940,7 @@ export default {
       return Response.json({
         ok:true,
         app:"تواصل العطا",
-        version:"V9.4-Two-Way-Video"
+        version:"V10-Black-Gold-Friends"
       });
     }
 

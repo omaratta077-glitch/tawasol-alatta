@@ -3,6 +3,8 @@
 const $=id=>document.getElementById(id);
 
 let token="",me=null,ws=null,reconnectTimer=null;
+let viewedProfileUsername="";
+let viewedFriendState="none";
 let selectedUser="",selectedGroup=null,users=[],groups=[];
 let pc=null,localStream=null,currentCallType="video",incomingFrom="";
 let videoSender=null,audioSender=null;
@@ -183,6 +185,8 @@ function renderProfile(){
   $("meDisplay").textContent=me.displayName||me.username;
   $("meUsername").textContent="@"+me.username;
   $("avatarImg").src=me.avatar||avatarFallback(me.displayName||me.username);
+  if($("headerAvatar"))$("headerAvatar").src=me.avatar||avatarFallback(me.fullName||me.displayName||me.username);
+  if($("headerUserName"))$("headerUserName").textContent=me.fullName||me.displayName||me.username;
 }
 
 function renderUsers(){
@@ -698,21 +702,145 @@ function showPage(pageId){
 
   if(pageId==="homePage")loadPosts();
   if(pageId==="notificationsPage")loadNotifications();
-  if(pageId==="profilePage")renderProfilePage();
+  if(pageId==="profilePage"){
+    if(!viewedProfileUsername)viewedProfileUsername=me?.username||"";
+    renderProfilePage(viewedProfileUsername);
+  }
   if(pageId==="searchPage")loadExplore();
 }
 
 document.querySelectorAll(".nav-btn").forEach(btn=>{
-  btn.onclick=()=>showPage(btn.dataset.page);
+  btn.onclick=()=>{
+    if(btn.dataset.page==="profilePage")viewedProfileUsername=me?.username||"";
+    showPage(btn.dataset.page);
+  };
 });
 
-$("openProfileBtn").onclick=()=>showPage("profilePage");
+$("openProfileBtn").onclick=()=>{viewedProfileUsername=me?.username||"";showPage("profilePage")};
 
-async function renderProfilePage(){
-  if(!me)return;
-  try{const d=await api(`/api/profile-public?token=${encodeURIComponent(token)}&username=${encodeURIComponent(me.username)}`);me={...me,...d.user};
-  $("profileAvatarLarge").src=me.avatar||avatarFallback(me.fullName||me.displayName||me.username);$("profileName").textContent=me.fullName||me.displayName||me.username;$("profileUsername").textContent="@"+me.username;$("profileBio").textContent=me.bio||"لا توجد نبذة بعد";$("profileCover").style.backgroundImage=me.cover?`url("${me.cover}")`:"";$("bioInput").value=me.bio||"";$("privateAccountInput").checked=!!me.accountPrivate;$("followersCount").textContent=d.followerCount||0;$("followingCount").textContent=d.followingCount||0;
-  const parts=[];if(me.age)parts.push(`العمر: ${me.age}`);if(me.phone)parts.push(`الهاتف: ${me.phone}`);if(me.email)parts.push(`البريد: ${me.email}`);if(me.country)parts.push(`الدولة: ${me.country}`);$("profileMeta").innerHTML=parts.map(x=>`<div>${esc(x)}</div>`).join("");}catch(e){console.error(e)}}
+async function renderProfilePage(username=me?.username){
+  if(!me || !username)return;
+  viewedProfileUsername=username;
+
+  try{
+    const d=await api(`/api/profile-public?token=${encodeURIComponent(token)}&username=${encodeURIComponent(username)}`);
+    const p=d.user;
+    const self=username===me.username;
+    viewedFriendState=d.friendState||"none";
+
+    $("profileAvatarLarge").src=p.avatar||avatarFallback(p.fullName||p.displayName||p.username);
+    $("profileName").textContent=p.fullName||p.displayName||p.username;
+    $("profileUsername").textContent="@"+p.username;
+    $("profileBio").textContent=p.bio||"لا توجد نبذة بعد";
+    $("profileCover").style.backgroundImage=p.cover?`url("${p.cover}")`:"";
+    $("friendsCount").textContent=d.friendCount||0;
+
+    $("friendActionBtn").classList.toggle("hidden",self);
+    $("messageProfileBtn").classList.toggle("hidden",self);
+    $("myProfileBtn").classList.toggle("hidden",self);
+    $("profileEditArea").classList.toggle("hidden",!self);
+    $("privateInfoCard").classList.toggle("hidden",!self);
+    $("friendRequestsSection").classList.toggle("hidden",!self);
+
+    if(self){
+      const mine=await api(`/api/me?token=${encodeURIComponent(token)}`);
+      me={...me,...mine.user};
+      $("bioInput").value=me.bio||"";
+      $("privateAccountInput").checked=!!me.accountPrivate;
+      const rows=[];
+      if(me.phone)rows.push(`<div><span>رقم الهاتف</span><strong>${esc(me.phone)}</strong></div>`);
+      if(me.email)rows.push(`<div><span>البريد الإلكتروني</span><strong>${esc(me.email)}</strong></div>`);
+      if(me.age)rows.push(`<div><span>العمر</span><strong>${esc(me.age)}</strong></div>`);
+      $("profilePrivateMeta").innerHTML=rows.join("")||"<div>لا توجد بيانات خاصة.</div>";
+      await loadFriendRequests();
+    }else{
+      updateFriendButton(viewedFriendState);
+    }
+
+    $("profileMeta").innerHTML=p.country?`<div><span>الدولة</span><strong>${esc(p.country)}</strong></div>`:"";
+    await loadFriends(username);
+  }catch(e){
+    alert(e.message||"تعذر تحميل الملف الشخصي");
+  }
+}
+
+function updateFriendButton(state){
+  const b=$("friendActionBtn");
+  if(state==="friends"){b.textContent="✓ صديق";b.className="dark-outline";}
+  else if(state==="outgoing"){b.textContent="تم إرسال الطلب";b.className="dark-outline";}
+  else if(state==="incoming"){b.textContent="قبول طلب الصداقة";b.className="gold-action";}
+  else{b.textContent="إضافة صديق";b.className="gold-action";}
+}
+
+async function runFriendAction(username,state){
+  try{
+    let d;
+    if(state==="none"){
+      d=await api("/api/friend-request",{method:"POST",body:JSON.stringify({token,username})});
+    }else{
+      const action=state==="incoming"?"accept":state==="outgoing"?"cancel":"remove";
+      if((action==="cancel"||action==="remove")&&!confirm(action==="remove"?"إزالة الصديق؟":"إلغاء طلب الصداقة؟"))return;
+      d=await api("/api/friend-action",{method:"POST",body:JSON.stringify({token,username,action})});
+    }
+    viewedFriendState=d.state;
+    updateFriendButton(viewedFriendState);
+    await loadFriends(viewedProfileUsername);
+  }catch(e){alert(e.message)}
+}
+
+async function loadFriendRequests(){
+  const d=await api(`/api/friend-requests?token=${encodeURIComponent(token)}`);
+  const list=d.requests||[];
+  $("friendRequestsCount").textContent=list.length;
+  $("friendRequestsList").innerHTML=list.length?list.map(r=>{
+    const u=r.user,a=u.avatar||avatarFallback(u.fullName||u.displayName||u.username);
+    return `<div class="person-card">
+      <button class="person-main" data-open-profile="${esc(u.username)}"><img src="${a}"><span><strong>${esc(u.fullName||u.displayName||u.username)}</strong><small>@${esc(u.username)}</small></span></button>
+      <div class="person-actions"><button class="gold-mini" data-accept-friend="${esc(u.username)}">قبول</button><button class="dark-mini" data-decline-friend="${esc(u.username)}">رفض</button></div>
+    </div>`;
+  }).join(""):`<div class="empty-line">لا توجد طلبات صداقة جديدة.</div>`;
+  bindProfileLinks();
+
+  document.querySelectorAll("[data-accept-friend]").forEach(b=>b.onclick=async()=>{
+    await api("/api/friend-action",{method:"POST",body:JSON.stringify({token,username:b.dataset.acceptFriend,action:"accept"})});
+    await loadFriendRequests(); await loadFriends(me.username);
+  });
+  document.querySelectorAll("[data-decline-friend]").forEach(b=>b.onclick=async()=>{
+    await api("/api/friend-action",{method:"POST",body:JSON.stringify({token,username:b.dataset.declineFriend,action:"decline"})});
+    await loadFriendRequests();
+  });
+}
+
+async function loadFriends(username){
+  const d=await api(`/api/friends?token=${encodeURIComponent(token)}&username=${encodeURIComponent(username)}`);
+  const list=d.friends||[];
+  $("friendsCount").textContent=list.length;
+  $("friendsList").innerHTML=list.length?list.map(u=>{
+    const a=u.avatar||avatarFallback(u.fullName||u.displayName||u.username);
+    return `<button class="friend-card" data-open-profile="${esc(u.username)}"><img src="${a}"><span><strong>${esc(u.fullName||u.displayName||u.username)}</strong><small>@${esc(u.username)}</small></span></button>`;
+  }).join(""):`<div class="empty-line">لا يوجد أصدقاء لعرضهم.</div>`;
+  bindProfileLinks();
+}
+
+function openUserProfile(username){
+  viewedProfileUsername=username;
+  showPage("profilePage");
+}
+
+function bindProfileLinks(){
+  document.querySelectorAll("[data-open-profile]").forEach(el=>{
+    el.onclick=()=>openUserProfile(el.dataset.openProfile);
+  });
+}
+
+$("friendActionBtn").onclick=()=>runFriendAction(viewedProfileUsername,viewedFriendState);
+$("messageProfileBtn").onclick=()=>{
+  selectedUser=viewedProfileUsername;selectedGroup=null;
+  $("selectedLabel").textContent=selectedUser;
+  showPage("messagesPage");loadConversation(selectedUser);
+};
+$("myProfileBtn").onclick=()=>{viewedProfileUsername=me.username;renderProfilePage(me.username)};
+$("friendsStatBtn").onclick=()=>$("friendsSection").scrollIntoView({behavior:"smooth"});
 
 async function loadPosts(){
   if(!token)return;
@@ -741,13 +869,10 @@ async function loadPosts(){
 
       return `
       <article class="post-card" data-post="${post.id}">
-        <div class="post-head">
+        <button class="post-head profile-link-button" data-open-profile="${esc(a.username)}">
           <img src="${avatar}" class="avatar" alt="">
-          <div>
-            <strong>${esc(a.fullName||a.displayName||a.username)}</strong>
-            <small>@${esc(a.username)} · ${new Date(post.createdAt).toLocaleString("ar-SA")}</small>
-          </div>
-        </div>
+          <span><strong>${esc(a.fullName||a.displayName||a.username)}</strong><small>@${esc(a.username)} · ${new Date(post.createdAt).toLocaleString("ar-SA")}</small></span>
+        </button>
         ${post.text?`<div class="post-text">${esc(post.text)}</div>`:""}
         ${post.image?`<img class="post-image" src="${post.image}" alt="">`:""}
         ${post.sharedPost?`
@@ -782,6 +907,8 @@ async function loadPosts(){
         </div>
       </article>`;
     }).join(""):`<div class="empty-card">لا توجد منشورات بعد.</div>`;
+
+    bindProfileLinks();
 
     document.querySelectorAll("[data-like]").forEach(btn=>{
       btn.onclick=async()=>{
@@ -929,16 +1056,6 @@ async function searchUsers(){
         <div class="user-search-actions"><button data-follow-user="${esc(u.username)}">متابعة</button><button data-message-user="${esc(u.username)}">مراسلة</button></div>
       </div>
     `).join(""):`<div class="empty-card">لا توجد نتائج</div>`;
-
-    document.querySelectorAll("[data-follow-user]").forEach(btn=>{btn.onclick=async()=>{try{const d=await api("/api/follow",{method:"POST",body:JSON.stringify({token,username:btn.dataset.followUser})});btn.textContent=d.following?"إلغاء المتابعة":"متابعة"}catch(e){alert(e.message)}}});
-    document.querySelectorAll("[data-message-user]").forEach(btn=>{
-      btn.onclick=()=>{
-        selectedUser=btn.dataset.messageUser;
-        selectedGroup=null;
-        $("selectedLabel").textContent=selectedUser;
-        showPage("messagesPage");
-      };
-    });
   }catch(e){alert(e.message)}
 }
 
@@ -1062,6 +1179,7 @@ $("authBtn").onclick=async()=>{
 
     token=d.token;
     me=d.user;
+    viewedProfileUsername=me.username;
 
     $("authView").classList.add("hidden");
     $("appView").classList.remove("hidden");

@@ -42,10 +42,16 @@
 
 
 <div id="appView" class="app-shell hidden">
-  <header class="mobile-header">
-    <div class="brand-mini">تواصل العطا</div>
-    <button id="openProfileBtn" class="icon-btn">👤</button>
-  </header>
+  <header class="mobile-header premium-header">
+      <button id="openProfileBtn" class="header-profile-button">
+        <img id="headerAvatar" class="header-avatar" alt="">
+        <span id="headerUserName" class="header-user-name"></span>
+      </button>
+      <div class="app-brand">
+        <img src="logo.svg" class="brand-logo" alt="AL-ATTA">
+        <div class="brand-copy"><strong>تواصل العطا</strong><small>AL-ATTA</small></div>
+      </div>
+    </header>
 
   <main class="social-main">
     <section id="homePage" class="page active-page">
@@ -134,24 +140,59 @@
 </section>
 
     <section id="profilePage" class="page">
-      <div class="profile-card-large pro-profile-card">
+      <div class="profile-card-large pro-profile-card premium-profile">
         <div id="profileCover" class="profile-cover"></div>
-        <img id="profileAvatarLarge" class="profile-large-avatar pro-avatar" alt="">
-        <h2 id="profileName"></h2><div id="profileUsername"></div><p id="profileBio" class="profile-bio"></p>
-        <div class="profile-stats"><div><strong id="followersCount">0</strong><span>متابع</span></div><div><strong id="followingCount">0</strong><span>يتابع</span></div></div>
-        <div class="profile-edit-grid"><textarea id="bioInput" placeholder="نبذة مختصرة"></textarea><label class="upload-label">🖼️ صورة غلاف<input id="coverInput" type="file" accept="image/*" hidden></label><label><input id="privateAccountInput" type="checkbox"> حساب خاص</label><button id="saveProfileBtn" class="primary action-btn">حفظ</button></div>
+        <div class="profile-top-row">
+          <img id="profileAvatarLarge" class="profile-large-avatar pro-avatar" alt="">
+          <div class="profile-title-block">
+            <h2 id="profileName"></h2>
+            <div id="profileUsername" class="muted-gold"></div>
+            <p id="profileBio" class="profile-bio"></p>
+          </div>
+        </div>
+
+        <div class="profile-main-actions">
+          <button id="friendActionBtn" class="gold-action hidden">إضافة صديق</button>
+          <button id="messageProfileBtn" class="dark-outline hidden">مراسلة</button>
+          <button id="myProfileBtn" class="dark-outline hidden">ملفي الشخصي</button>
+        </div>
+
+        <button id="friendsStatBtn" class="profile-friend-stat"><strong id="friendsCount">0</strong><span>الأصدقاء</span></button>
+
+        <div id="friendRequestsSection" class="friend-section hidden">
+          <div class="section-bar"><h3>طلبات الصداقة</h3><span id="friendRequestsCount" class="gold-badge">0</span></div>
+          <div id="friendRequestsList" class="people-list"></div>
+        </div>
+
+        <div id="friendsSection" class="friend-section">
+          <div class="section-bar"><h3>الأصدقاء</h3></div>
+          <div id="friendsList" class="people-list"></div>
+        </div>
+
+        <div id="privateInfoCard" class="private-info-card hidden">
+          <div class="private-info-title">🔒 معلومات خاصة بك فقط</div>
+          <div id="profilePrivateMeta" class="profile-meta"></div>
+        </div>
+
+        <div id="profileEditArea" class="profile-edit-grid hidden">
+          <textarea id="bioInput" placeholder="نبذة مختصرة"></textarea>
+          <label class="upload-label premium-upload">صورة الغلاف<input id="coverInput" type="file" accept="image/*" hidden></label>
+          <label class="privacy-row"><input id="privateAccountInput" type="checkbox"> حساب خاص</label>
+          <button id="saveProfileBtn" class="gold-action">حفظ التغييرات</button>
+        </div>
+
         <div id="profileMeta" class="profile-meta"></div>
       </div>
     </section>
   </main>
 
-  <nav class="bottom-nav">
-    <button class="nav-btn active" data-page="homePage">🏠<span>الرئيسية</span></button>
-    <button class="nav-btn" data-page="searchPage">🧭<span>استكشاف</span></button>
-    <button class="nav-btn" data-page="messagesPage">💬<span>الرسائل</span></button>
-    <button class="nav-btn" data-page="notificationsPage">🔔<span>الإشعارات</span></button>
-    <button class="nav-btn" data-page="profilePage">👤<span>حسابي</span></button>
-  </nav>
+  <nav class="bottom-nav premium-nav">
+      <button class="nav-btn active" data-page="homePage"><svg viewBox="0 0 24 24"><path d="M3 10.7 12 3l9 7.7V21h-6v-6H9v6H3V10.7Z"/></svg><span>الرئيسية</span></button>
+      <button class="nav-btn" data-page="searchPage"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg><span>استكشاف</span></button>
+      <button class="nav-btn" data-page="messagesPage"><svg viewBox="0 0 24 24"><path d="M4 5h16v11H8l-4 4V5Z"/></svg><span>الرسائل</span></button>
+      <button class="nav-btn" data-page="notificationsPage"><svg viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M10 21h4"/></svg><span>الإشعارات</span></button>
+      <button class="nav-btn" data-page="profilePage"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c1-5 4-7 8-7s7 2 8 7"/></svg><span>حسابي</span></button>
+    </nav>
 </div>
 
 
