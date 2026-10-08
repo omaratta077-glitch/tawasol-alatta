@@ -88,6 +88,96 @@ async function api(path,opts={}){
   return d;
 }
 
+
+const SESSION_STORAGE_KEY="tawasol_alatta_session_v1";
+let appSessionStarted=false;
+
+function saveSession(sessionToken){
+  try{
+    localStorage.setItem(SESSION_STORAGE_KEY,JSON.stringify({
+      token:sessionToken,
+      savedAt:Date.now()
+    }));
+  }catch(err){
+    console.warn("تعذر حفظ الجلسة",err);
+  }
+}
+
+function clearSavedSession(){
+  try{localStorage.removeItem(SESSION_STORAGE_KEY)}catch{}
+}
+
+function readSavedSession(){
+  try{
+    const raw=localStorage.getItem(SESSION_STORAGE_KEY);
+    if(!raw)return null;
+    const data=JSON.parse(raw);
+    if(!data?.token)return null;
+    return data;
+  }catch{
+    return null;
+  }
+}
+
+async function startAuthenticatedApp(sessionToken,user=null){
+  if(appSessionStarted)return;
+
+  token=String(sessionToken||"");
+  if(!token)throw new Error("الجلسة غير صالحة");
+
+  if(!user){
+    const d=await api(`/api/me?token=${encodeURIComponent(token)}`);
+    user=d.user;
+  }
+
+  me=user;
+  viewedProfileUsername=me.username;
+  appSessionStarted=true;
+  saveSession(token);
+
+  $("authView").classList.add("hidden");
+  $("appView").classList.remove("hidden");
+
+  renderProfile();
+  $("homeAvatar").src=me.avatar||avatarFallback(me.fullName||me.displayName||me.username);
+  renderProfilePage();
+
+  ensureTurnIceServers().catch(()=>{});
+
+  connect();
+  startCallSignalPolling();
+  loadGroups();
+  loadChatContacts();
+  loadPosts();
+  loadStories();
+  loadDesktopSuggestions();
+  loadFriendRequests().catch(()=>{});
+  startSocialSync();
+  askNotifications();
+}
+
+async function restoreSavedLogin(){
+  const saved=readSavedSession();
+  if(!saved?.token)return false;
+
+  try{
+    $("authMsg").textContent="جاري فتح حسابك...";
+    await startAuthenticatedApp(saved.token);
+    $("authMsg").textContent="";
+    return true;
+  }catch(err){
+    console.warn("Saved login is no longer valid",err);
+    clearSavedSession();
+    token="";
+    me=null;
+    appSessionStarted=false;
+    $("appView").classList.add("hidden");
+    $("authView").classList.remove("hidden");
+    $("authMsg").textContent="";
+    return false;
+  }
+}
+
 function esc(s){
   return String(s??"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
 }
@@ -1345,45 +1435,58 @@ function ensureCallAudio(){
   }
 }
 
-function softTone(freq,duration=0.32,volume=0.045,delay=0){
+function chimeTone(freq,duration=0.20,volume=0.035,delay=0){
   if(!callAudioCtx)return;
 
   const now=callAudioCtx.currentTime+delay;
-  const osc=callAudioCtx.createOscillator();
-  const gain=callAudioCtx.createGain();
+  const master=callAudioCtx.createGain();
+  const osc1=callAudioCtx.createOscillator();
+  const osc2=callAudioCtx.createOscillator();
 
-  osc.type="sine";
-  osc.frequency.setValueAtTime(freq,now);
+  osc1.type="sine";
+  osc2.type="triangle";
 
-  gain.gain.setValueAtTime(0.0001,now);
-  gain.gain.exponentialRampToValueAtTime(volume,now+0.05);
-  gain.gain.setValueAtTime(volume,now+Math.max(0.08,duration-0.10));
-  gain.gain.exponentialRampToValueAtTime(0.0001,now+duration);
+  osc1.frequency.setValueAtTime(freq,now);
+  osc2.frequency.setValueAtTime(freq*2,now);
 
-  osc.connect(gain);
-  gain.connect(callAudioCtx.destination);
+  master.gain.setValueAtTime(0.0001,now);
+  master.gain.exponentialRampToValueAtTime(volume,now+0.018);
+  master.gain.exponentialRampToValueAtTime(volume*0.62,now+duration*0.42);
+  master.gain.exponentialRampToValueAtTime(0.0001,now+duration);
 
-  osc.start(now);
-  osc.stop(now+duration+0.03);
+  const overtone=callAudioCtx.createGain();
+  overtone.gain.setValueAtTime(0.13,now);
+
+  osc1.connect(master);
+  osc2.connect(overtone);
+  overtone.connect(master);
+  master.connect(callAudioCtx.destination);
+
+  osc1.start(now);
+  osc2.start(now);
+  osc1.stop(now+duration+0.02);
+  osc2.stop(now+duration+0.02);
 }
 
 function playIncomingPattern(){
   if(activeRingType!=="incoming")return;
   ensureCallAudio();
 
-  // نغمة هادئة: ثلاث نقرات موسيقية قصيرة
-  softTone(659.25,0.34,0.040,0.00);
-  softTone(783.99,0.34,0.038,0.36);
-  softTone(987.77,0.42,0.034,0.72);
+  // نمط أصلي لامع وخفيف مستوحى من إحساس تطبيقات المراسلة الحديثة.
+  chimeTone(783.99,0.18,0.040,0.00);   // G5
+  chimeTone(987.77,0.18,0.040,0.19);   // B5
+  chimeTone(1174.66,0.22,0.037,0.38);  // D6
+  chimeTone(987.77,0.17,0.032,0.67);   // B5
+  chimeTone(1318.51,0.28,0.035,0.86);  // E6
 }
 
 function playOutgoingPattern(){
   if(activeRingType!=="outgoing")return;
   ensureCallAudio();
 
-  // انتظار هادئ ومنخفض
-  softTone(440.00,0.28,0.030,0.00);
-  softTone(554.37,0.28,0.026,0.34);
+  // انتظار أهدأ للطرف الذي يجري الاتصال.
+  chimeTone(523.25,0.22,0.024,0.00);   // C5
+  chimeTone(659.25,0.22,0.022,0.28);   // E5
 }
 
 function stopCallSounds(){
@@ -1415,7 +1518,7 @@ async function playIncomingRing(){
 
   activeRingType="incoming";
   playIncomingPattern();
-  ringtoneTimer=setInterval(playIncomingPattern,2450);
+  ringtoneTimer=setInterval(playIncomingPattern,2050);
 
   if(!callAudioCtx){
     const audio=$("incomingRingAudio");
@@ -1436,7 +1539,7 @@ async function playOutgoingRing(){
 
   activeRingType="outgoing";
   playOutgoingPattern();
-  ringtoneTimer=setInterval(playOutgoingPattern,2800);
+  ringtoneTimer=setInterval(playOutgoingPattern,2450);
 
   if(!callAudioCtx){
     const audio=$("outgoingRingAudio");
@@ -2388,30 +2491,7 @@ $("authBtn").onclick=async()=>{
       {method:"POST",body:JSON.stringify(body)}
     );
 
-    token=d.token;
-    me=d.user;
-    viewedProfileUsername=me.username;
-
-    $("authView").classList.add("hidden");
-    $("appView").classList.remove("hidden");
-
-    renderProfile();
-    $("homeAvatar").src=me.avatar||avatarFallback(me.fullName||me.displayName||me.username);
-    renderProfilePage();
-
-    // Preload TURN credentials after login so calls start faster.
-    ensureTurnIceServers().catch(()=>{});
-
-    connect();
-    startCallSignalPolling();
-    loadGroups();
-    loadChatContacts();
-    loadPosts();
-    loadStories();
-    loadDesktopSuggestions();
-    loadFriendRequests().catch(()=>{});
-    startSocialSync();
-    askNotifications();
+    await startAuthenticatedApp(d.token,d.user);
   }catch(e){
     $("authMsg").textContent=e.message;
   }
@@ -2637,4 +2717,9 @@ if($("resumeRemoteMediaBtn")){
 
 $("screenBtn").onclick=shareScreen;
 window.addEventListener("beforeunload",stopCallSounds);
+
+// افتح الحساب المحفوظ تلقائيًا بعد تجهيز كل عناصر الواجهة.
+queueMicrotask(()=>{
+  restoreSavedLogin().catch(err=>console.warn("restore login failed",err));
+});
 })();
