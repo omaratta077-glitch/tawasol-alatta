@@ -2133,3 +2133,218 @@ button:active{
   .reference-header-title{display:none!important}
   .more-menu-panel{display:none!important}
 }
+
+/* ===== V12.4 HEADER + GOLD SEND FIX ===== */
+:root{
+  --atta-bg:#040506;
+  --atta-panel:#080d10;
+  --atta-panel-2:#0b1115;
+  --atta-line:rgba(230,185,78,.42);
+  --atta-line-soft:rgba(230,185,78,.22);
+  --atta-gold:#E6B94E;
+  --atta-gold-2:#F6D776;
+  --atta-text:#F7F8F9;
+  --atta-muted:#C9D0D4;
+}
+
+html,body{
+  background:var(--atta-bg)!important;
+  color:var(--atta-text)!important;
+}
+body{
+  background-image:radial-gradient(circle at 50% 0, rgba(230,185,78,.05), transparent 18%)!important;
+}
+.app-shell{
+  background:linear-gradient(180deg,#040506 0%,#05080a 45%,#040506 100%)!important;
+}
+
+/* cleaner cards + borders */
+.composer-card,.post-card,.stories-section,.notification-card,.user-search-card,.profile-card-large,.saved-post-card,.empty-card,.reference-side-card,.messages-layout,.chat-main,.topbar,.controls,.composer,.bubble,.comment-row,.shared-post-box,.friend-card,.person-card{
+  border-color:var(--atta-line-soft)!important;
+}
+.composer-card,.post-card,.stories-section,.notification-card,.user-search-card,.profile-card-large,.saved-post-card,.empty-card,.reference-side-card{
+  background:
+    radial-gradient(circle at top, rgba(230,185,78,.05), transparent 24%),
+    linear-gradient(145deg, #0a0f12, #070b0e)!important;
+  border:1px solid var(--atta-line)!important;
+  box-shadow:0 12px 28px rgba(0,0,0,.32)!important;
+}
+
+/* Exact header look */
+.premium-header{
+  position:fixed!important;
+  top:0!important;
+  right:0!important;
+  left:0!important;
+  height:79px!important;
+  z-index:90!important;
+  background:linear-gradient(180deg,#080b0e 0%,#050709 100%)!important;
+  border-bottom:1px solid rgba(230,185,78,.55)!important;
+  box-shadow:0 10px 26px rgba(0,0,0,.44)!important;
+}
+@media(min-width:1280px){
+  .premium-header{left:0!important}
+  .reference-header-inner{
+    max-width:1360px!important;
+    margin:0 auto!important;
+    grid-template-columns:290px 170px minmax(400px,620px)!important;
+    gap:24px!important;
+    padding:0 20px!important;
+    direction:rtl!important;
+    align-items:center!important;
+  }
+  .reference-header-brand{justify-self:end!important;display:flex!important;align-items:center!important;gap:12px!important}
+  .reference-header-actions{justify-self:center!important;display:flex!important;align-items:center!important;gap:18px!important}
+  .reference-search{justify-self:start!important;max-width:570px!important;width:100%!important}
+  .social-main{padding-top:102px!important}
+}
+.reference-header-title{display:none!important}
+.reference-header-brand strong{
+  color:var(--atta-gold-2)!important;
+  font-size:18px!important;
+  font-weight:900!important;
+}
+.reference-header-brand small{
+  color:#887240!important;
+  font-size:9px!important;
+  letter-spacing:2px!important;
+}
+.reference-mini-logo{
+  width:54px!important;
+  height:54px!important;
+  border-radius:50%!important;
+  border:1px solid var(--atta-gold)!important;
+  box-shadow:0 0 0 2px rgba(230,185,78,.10), 0 0 18px rgba(230,185,78,.18)!important;
+}
+.header-icon-btn{
+  width:44px!important;height:44px!important;
+  border-radius:50%!important;
+  border:1px solid transparent!important;
+  background:transparent!important;
+  color:var(--atta-gold)!important;
+}
+.header-icon-btn:hover{
+  background:rgba(230,185,78,.09)!important;
+  border-color:rgba(230,185,78,.20)!important;
+}
+.header-icon-btn svg{
+  width:24px!important;height:24px!important;
+  stroke:currentColor!important;
+}
+.header-mini-badge{
+  background:var(--atta-gold)!important;
+  color:#080808!important;
+  font-weight:900!important;
+  box-shadow:0 4px 10px rgba(230,185,78,.35)!important;
+}
+.reference-search{
+  height:48px!important;
+  border-radius:999px!important;
+  border:1px solid rgba(255,255,255,.14)!important;
+  background:#070b0e!important;
+  color:#9aa3aa!important;
+  box-shadow:inset 0 0 0 1px rgba(230,185,78,.05)!important;
+}
+.reference-search svg{stroke:var(--atta-gold)!important}
+.reference-search span{color:#8d959b!important;font-size:15px!important}
+
+/* left rail like premium screenshot */
+.reference-leftbar{
+  background:linear-gradient(180deg,#070a0d 0%,#050709 100%)!important;
+  border-right:1px solid rgba(230,185,78,.28)!important;
+}
+.reference-left-brand strong{color:var(--atta-gold-2)!important}
+.reference-left-brand small{color:#8a7440!important}
+.rail-btn{
+  color:#F1F3F4!important;
+  border:1px solid transparent!important;
+  background:transparent!important;
+}
+.rail-btn:hover{background:rgba(230,185,78,.06)!important;border-color:rgba(230,185,78,.14)!important}
+.rail-btn.active{
+  background:linear-gradient(135deg,#C8962B,#F4D16F)!important;
+  color:#090909!important;
+  border-color:#f4d16f!important;
+  box-shadow:0 10px 18px rgba(230,185,78,.18)!important;
+}
+.rail-btn.active svg{stroke:#090909!important}
+.rail-primary-btn,.reference-add-story{
+  background:linear-gradient(135deg,#C8962B,#F4D16F)!important;
+  color:#090909!important;
+  border:1px solid #f4d16f!important;
+  box-shadow:0 8px 18px rgba(230,185,78,.18)!important;
+}
+.rail-primary-btn svg,.reference-add-story svg{stroke:#090909!important}
+
+/* gold send buttons + clearer action colors */
+.comment-compose button,.reply-compose button,.composer button,#sendBtn,.action-btn,.small-btn,.search-box button,.user-search-card button,.page-title button{
+  background:linear-gradient(135deg,#C8962B,#F4D16F)!important;
+  color:#090909!important;
+  border:1px solid #f4d16f!important;
+  box-shadow:0 8px 18px rgba(230,185,78,.16)!important;
+  font-weight:800!important;
+}
+.comment-compose button:hover,.reply-compose button:hover,.composer button:hover,#sendBtn:hover,.action-btn:hover,.small-btn:hover,.search-box button:hover,.user-search-card button:hover,.page-title button:hover,.reference-publish-btn:hover,.rail-primary-btn:hover{
+  filter:brightness(1.04);
+}
+.reference-publish-btn{
+  background:linear-gradient(135deg,#C8962B,#F4D16F)!important;
+  color:#090909!important;
+  border:1px solid #f4d16f!important;
+  box-shadow:0 10px 20px rgba(230,185,78,.18)!important;
+}
+.reference-publish-btn svg{stroke:#090909!important}
+.reference-tool-btn{
+  background:#0a0f12!important;
+  color:#EBEEF0!important;
+  border:1px solid rgba(230,185,78,.16)!important;
+}
+.reference-tool-btn:hover{border-color:var(--atta-gold)!important;background:#0d1317!important}
+
+/* post action bar clarity */
+.reference-post-card{background:radial-gradient(circle at top, rgba(230,185,78,.04), transparent 20%), linear-gradient(145deg,#0a0f12,#06090c)!important}
+.reference-post-meta strong{color:#fff!important}
+.reference-post-meta small,.post-head small{color:#D7DEE3!important}
+.reference-post-text{color:#FAFBFC!important}
+.stat-btn span{color:#fff!important;font-size:20px!important;font-weight:800!important}
+.text-action-btn span{color:var(--atta-gold-2)!important;font-size:18px!important;font-weight:800!important}
+.stat-btn svg{stroke:#FFFFFF!important}
+.text-action-btn svg{stroke:var(--atta-gold-2)!important}
+.reference-post-footer{border-bottom:1px solid rgba(255,255,255,.12)!important}
+.comment-compose{
+  border-top:1px solid rgba(255,255,255,.10)!important;
+}
+.comment-compose input,.reply-compose input,textarea,input,select{
+  background:#091015!important;
+  color:#F7F9FA!important;
+  border:1px solid rgba(255,255,255,.16)!important;
+}
+textarea::placeholder,input::placeholder{color:#8f989e!important}
+
+/* messages send button specifically */
+.composer{
+  background:#0a0f12!important;
+  border-top:1px solid rgba(230,185,78,.18)!important;
+}
+.composer input{background:#070c10!important;color:#fff!important;border:1px solid rgba(255,255,255,.16)!important}
+#sendBtn{
+  min-width:94px!important;
+  border-radius:14px!important;
+}
+
+/* mobile header stays clean */
+@media(max-width:1279px){
+  .premium-header{
+    height:66px!important;
+    padding:0 10px!important;
+  }
+  .reference-header-inner{
+    display:grid!important;
+    grid-template-columns:auto 1fr auto!important;
+    align-items:center!important;
+    gap:12px!important;
+  }
+  .reference-search{display:none!important}
+  .reference-header-brand{display:flex!important;align-items:center!important;gap:8px!important}
+  .header-icon-btn{width:40px!important;height:40px!important}
+}
