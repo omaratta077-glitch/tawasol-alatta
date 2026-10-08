@@ -28,6 +28,34 @@ function esc(s){
   return String(s??"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
 }
 
+
+function timeAgoAr(ts){
+  const diff=Math.max(1,Date.now()-Number(ts||Date.now()));
+  const m=Math.floor(diff/60000);
+  if(m<1)return "الآن";
+  if(m<60)return `منذ ${m} ${m===1?"دقيقة":m===2?"دقيقتين":m<11?"دقائق":"دقيقة"}`;
+  const h=Math.floor(m/60);
+  if(h<24)return `منذ ${h} ${h===1?"ساعة":h===2?"ساعتين":h<11?"ساعات":"ساعة"}`;
+  const d=Math.floor(h/24);
+  if(d<30)return `منذ ${d} ${d===1?"يوم":d===2?"يومين":d<11?"أيام":"يوم"}`;
+  const mo=Math.floor(d/30);
+  if(mo<12)return `منذ ${mo} ${mo===1?"شهر":mo===2?"شهرين":mo<11?"أشهر":"شهر"}`;
+  const y=Math.floor(mo/12);
+  return `منذ ${y} ${y===1?"سنة":y===2?"سنتين":y<11?"سنوات":"سنة"}`;
+}
+
+function totalReactionsCount(reactionCounts){
+  return Object.values(reactionCounts||{}).reduce((a,b)=>a+Number(b||0),0);
+}
+
+function iconHeart(){return `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20.5s-7-4.35-9.2-8.17C1.02 9.24 2.04 5.6 5.8 4.76c2.2-.5 4.08.52 5.2 2.1 1.12-1.58 3-2.6 5.2-2.1 3.76.84 4.78 4.48 3 7.57C19 16.15 12 20.5 12 20.5Z"></path></svg>`}
+function iconComment(){return `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H9l-5 4V7a2 2 0 0 1 2-2Z"></path></svg>`}
+function iconRepeat(){return `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17 2l4 4-4 4"></path><path d="M3 11V9a3 3 0 0 1 3-3h15"></path><path d="M7 22l-4-4 4-4"></path><path d="M21 13v2a3 3 0 0 1-3 3H3"></path></svg>`}
+function iconBookmark(){return `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12v18l-6-4-6 4V3Z"></path></svg>`}
+function iconShare(){return `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 5h5v5"></path><path d="M10 14 19 5"></path><path d="M19 13v4a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h4"></path></svg>`}
+function iconGlobe(){return `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M3 12h18"></path><path d="M12 3a15 15 0 0 1 0 18"></path><path d="M12 3a15 15 0 0 0 0 18"></path></svg>`}
+function iconDots(){return `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="5" r="1.8"></circle><circle cx="12" cy="12" r="1.8"></circle><circle cx="12" cy="19" r="1.8"></circle></svg>`}
+
 async function askNotifications(){
   if("Notification" in window && Notification.permission==="default"){
     try{await Notification.requestPermission()}catch{}
@@ -934,9 +962,17 @@ async function loadPosts(){
     const d=await api(`/api/posts?token=${encodeURIComponent(token)}`);
     const posts=d.posts||[];
 
+    const shareCounts={};
+    posts.forEach(p=>{
+      if(p.sharedPostId)shareCounts[p.sharedPostId]=(shareCounts[p.sharedPostId]||0)+1;
+    });
+
     $("postsFeed").innerHTML=posts.length?posts.map(post=>{
       const a=post.authorInfo||{username:post.author,displayName:post.author};
       const avatar=a.avatar||avatarFallback(a.fullName||a.displayName||a.username);
+      const likeCount=totalReactionsCount(post.reactionCounts||{});
+      const commentCount=post.commentCount||0;
+      const shareCount=shareCounts[post.id]||0;
       const comments=(post.comments||[]).slice(-5).map(c=>{
         const replies=(c.replies||[]).map(r=>`
           <div class="comment-reply"><strong>@${esc(r.author)}</strong> ${esc(r.text)}</div>
@@ -954,37 +990,40 @@ async function loadPosts(){
       }).join("");
 
       return `
-      <article class="post-card" data-post="${post.id}">
-        <button class="post-head profile-link-button" data-open-profile="${esc(a.username)}">
-          <img src="${avatar}" class="avatar" alt="">
-          <span><strong>${esc(a.fullName||a.displayName||a.username)}</strong><small>@${esc(a.username)} · ${new Date(post.createdAt).toLocaleString("ar-SA")}</small></span>
-        </button>
-        ${post.text?`<div class="post-text">${esc(post.text)}</div>`:""}
-        ${post.image?`<img class="post-image" src="${post.image}" alt="">`:""}
+      <article class="post-card reference-post-card" data-post="${post.id}">
+        <div class="reference-post-header">
+          <button class="post-head profile-link-button reference-post-head" data-open-profile="${esc(a.username)}">
+            <img src="${avatar}" class="avatar" alt="">
+            <span class="reference-post-meta">
+              <strong>${esc(a.fullName||a.displayName||a.username)}</strong>
+              <small>@${esc(a.username)} <i>•</i> ${timeAgoAr(post.createdAt)} <span class="globe-inline">${iconGlobe()}</span></small>
+            </span>
+          </button>
+          <button class="post-menu-btn" type="button" aria-label="المزيد">${iconDots()}</button>
+        </div>
+        ${post.text?`<div class="post-text reference-post-text">${esc(post.text)}</div>`:""}
+        ${post.image?`<img class="post-image reference-post-image" src="${post.image}" alt="">`:""}
         ${post.sharedPost?`
         <div class="shared-post-box">
           <div class="shared-post-head">@${esc(post.sharedPost.authorInfo?.username||post.sharedPost.author)}</div>
           ${post.sharedPost.text?`<div>${esc(post.sharedPost.text)}</div>`:""}
           ${post.sharedPost.image?`<img src="${post.sharedPost.image}" class="shared-post-image" alt="">`:""}
         </div>`:""}
-        <div class="reaction-summary">
-          ${Object.entries(post.reactionCounts||{}).filter(([k,v])=>v>0).map(([k,v])=>`${reactionEmoji[k]||"👍"} ${v}`).join(" · ")}
-        </div>
-        <div class="post-actions post-actions-v8">
-          <div class="reaction-wrap">
-            <button class="reaction-main-btn" data-react-main="${post.id}">
-              ${post.myReaction?reactionEmoji[post.myReaction]:"👍"} تفاعل
-            </button>
-            <div class="reaction-picker hidden" data-reaction-picker="${post.id}">
-              ${Object.entries(reactionEmoji).map(([k,e])=>`<button data-react="${post.id}" data-reaction="${k}">${e}</button>`).join("")}
-            </div>
+        <div class="reference-post-footer">
+          <div class="reference-post-side-actions">
+            <button class="text-action-btn ${post.savedByMe?"active":""}" data-save-post="${post.id}">${iconBookmark()}<span>${post.savedByMe?"محفوظ":"حفظ"}</span></button>
+            <button class="text-action-btn" data-share-post="${post.id}">${iconShare()}<span>مشاركة</span></button>
           </div>
-          <button class="comment-focus-btn" data-comment-focus="${post.id}">💬 ${post.commentCount||0}</button>
-          <button data-save-post="${post.id}">${post.savedByMe?"🔖 محفوظ":"🔖 حفظ"}</button>
-          <button data-share-post="${post.id}">↗ مشاركة</button>
-          <button data-report-post="${post.id}">⚠️</button>
+          <div class="reference-post-stats">
+            <button class="stat-btn ${post.myReaction?"active":""}" data-react-main="${post.id}">${iconHeart()}<span>${likeCount}</span></button>
+            <button class="stat-btn" data-comment-focus="${post.id}">${iconComment()}<span>${commentCount}</span></button>
+            <button class="stat-btn" data-share-post="${post.id}">${iconRepeat()}<span>${shareCount}</span></button>
+          </div>
         </div>
-        <div class="comments-box">
+        <div class="reaction-picker hidden reference-reaction-picker" data-reaction-picker="${post.id}">
+          ${Object.entries(reactionEmoji).map(([k,e])=>`<button data-react="${post.id}" data-reaction="${k}">${e}</button>`).join("")}
+        </div>
+        <div class="comments-box reference-comments-box">
           <div class="comments-list">${comments}</div>
           <div class="comment-compose">
             <input data-comment-input="${post.id}" placeholder="اكتب تعليقًا...">
@@ -1045,7 +1084,7 @@ async function loadPosts(){
       btn.onclick=async()=>{
         try{
           const d=await api("/api/post-save",{method:"POST",body:JSON.stringify({token,postId:btn.dataset.savePost})});
-          btn.textContent=d.saved?"🔖 محفوظ":"🔖 حفظ";
+          btn.classList.toggle("active",!!d.saved); const span=btn.querySelector("span"); if(span) span.textContent=d.saved?"محفوظ":"حفظ";
         }catch(e){alert(e.message)}
       };
     });
