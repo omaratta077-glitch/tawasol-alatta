@@ -1623,8 +1623,16 @@ export default {
       return Response.json({
         ok:true,
         app:"تواصل العطا",
-        version:"V13.8-Free-Google-Signup"
+        version:"V13.9-Privacy-Terms"
       });
+    }
+
+    if(url.pathname==="/privacy" || url.pathname==="/privacy/"){
+      return env.ASSETS.fetch(new Request(new URL("/privacy.html", url.origin), request));
+    }
+
+    if(url.pathname==="/terms" || url.pathname==="/terms/"){
+      return env.ASSETS.fetch(new Request(new URL("/terms.html", url.origin), request));
     }
 
     if(url.pathname==="/ws" || url.pathname.startsWith("/api/")){
