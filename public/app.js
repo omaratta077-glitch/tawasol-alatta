@@ -734,6 +734,14 @@ if($("railStoryBtn")){
 }
 
 
+
+if($("brandProfileBtn")){
+  $("brandProfileBtn").onclick=()=>{
+    viewedProfileUsername=me?.username||"";
+    showPage("profilePage");
+  };
+}
+
 document.querySelectorAll("[data-top-page]").forEach(btn=>{
   btn.onclick=()=>showPage(btn.dataset.topPage);
 });
@@ -785,7 +793,12 @@ document.querySelectorAll(".nav-btn").forEach(btn=>{
   };
 });
 
-$("openProfileBtn").onclick=()=>{viewedProfileUsername=me?.username||"";showPage("profilePage")};
+if($("openProfileBtn")){
+  $("openProfileBtn").onclick=()=>{
+    viewedProfileUsername=me?.username||"";
+    showPage("profilePage");
+  };
+}
 
 async function renderProfilePage(username=me?.username){
   if(!me || !username)return;
@@ -1211,7 +1224,9 @@ async function loadStories(){
       $("storiesStripSide").innerHTML=add+(stories.length
         ? stories.slice(0,5).map(renderStory).join("")
         : '<div class="reference-side-empty">لا توجد قصص</div>');
-      $("sideAddStoryInline").onclick=()=>$("addStoryBtn")?.click();
+      if($("sideAddStoryInline")){
+        $("sideAddStoryInline").onclick=()=>$("addStoryBtn")?.click();
+      }
     }
 
     document.querySelectorAll("[data-story]").forEach(b=>{

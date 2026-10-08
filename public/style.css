@@ -1766,3 +1766,13 @@ button:active{
   .reference-tool-btn{justify-content:center}
   .saved-page-grid{grid-template-columns:1fr}
 }
+
+/* V12.1 Login Fix */
+.brand-profile-btn{
+  border:0!important;
+  background:transparent!important;
+  color:inherit!important;
+  padding:0!important;
+  cursor:pointer;
+  text-align:inherit;
+}
