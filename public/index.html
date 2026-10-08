@@ -74,6 +74,11 @@
         </div>
       </button>
 
+      <div class="reference-header-title">
+          <strong>تواصل العطا</strong>
+          <small>AL-ATTA</small>
+        </div>
+
       <div class="reference-header-actions">
         <button class="header-icon-btn" data-top-page="notificationsPage" aria-label="الإشعارات">
           <svg viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M10 21h4"/></svg>
@@ -107,10 +112,11 @@
       <svg viewBox="0 0 24 24"><path d="M3 10.7 12 3l9 7.7V21h-6v-6H9v6H3V10.7Z"/></svg><span>الرئيسية</span>
     </button>
     <button class="rail-btn" data-page="searchPage">
-      <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg><span>استكشف</span>
+      <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg><span>استكشاف</span>
     </button>
     <button class="rail-btn" data-page="notificationsPage">
       <svg viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M10 21h4"/></svg><span>الإشعارات</span>
+      <b id="railNotifyBadge" class="rail-badge hidden">0</b>
     </button>
     <button class="rail-btn" data-page="messagesPage">
       <svg viewBox="0 0 24 24"><path d="M4 5h16v11H8l-4 4V5Z"/></svg><span>الرسائل</span>
@@ -130,6 +136,11 @@
     </button>
   </aside>
 
+  <div id="moreMenuPanel" class="more-menu-panel hidden">
+    <button data-page="savedPage">المحفوظات</button>
+    <button data-page="profilePage">الملف الشخصي</button>
+    <button id="closeMoreMenuBtn">إغلاق</button>
+  </div>
 
   <aside class="reference-rightbar">
     <section class="reference-side-card stories-side-card">

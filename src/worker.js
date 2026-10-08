@@ -940,7 +940,7 @@ export default {
       return Response.json({
         ok:true,
         app:"تواصل العطا",
-        version:"V12.2-Post-Card-Match"
+        version:"V12.3-Exact-Social-Layout"
       });
     }
 
