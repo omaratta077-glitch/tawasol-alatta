@@ -699,6 +699,7 @@ function showPage(pageId){
   document.querySelectorAll(".page").forEach(p=>p.classList.remove("active-page"));
   $(pageId).classList.add("active-page");
   document.querySelectorAll(".nav-btn").forEach(b=>b.classList.toggle("active",b.dataset.page===pageId));
+  document.querySelectorAll(".rail-btn").forEach(b=>b.classList.toggle("active",b.dataset.page===pageId));
 
   if(pageId==="homePage")loadPosts();
   if(pageId==="notificationsPage")loadNotifications();
@@ -707,6 +708,27 @@ function showPage(pageId){
     renderProfilePage(viewedProfileUsername);
   }
   if(pageId==="searchPage")loadExplore();
+}
+
+
+if($("headerSearchBtn")){
+  $("headerSearchBtn").onclick=()=>{
+    showPage("searchPage");
+    setTimeout(()=>$("userSearchInput")?.focus(),50);
+  };
+}
+
+document.querySelectorAll(".rail-btn").forEach(btn=>{
+  btn.onclick=()=>{
+    document.querySelectorAll(".rail-btn").forEach(x=>x.classList.remove("active"));
+    btn.classList.add("active");
+    if(btn.dataset.page==="profilePage")viewedProfileUsername=me?.username||"";
+    showPage(btn.dataset.page);
+  };
+});
+
+if($("railStoryBtn")){
+  $("railStoryBtn").onclick=()=>$("addStoryBtn")?.click();
 }
 
 document.querySelectorAll(".nav-btn").forEach(btn=>{

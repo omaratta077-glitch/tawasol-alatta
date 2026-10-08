@@ -19,7 +19,7 @@
       <div class="atta-language">العربية</div>
 
       <div class="atta-login-brand">
-        <img src="logo.svg" class="atta-login-logo" alt="العطا">
+        <img src="logo-premium.png" class="atta-login-logo" alt="العطا">
         <div class="atta-login-brand-name">AL-ATTA</div>
       </div>
 
@@ -65,17 +65,56 @@
 
 <div id="appView" class="app-shell hidden">
   <header class="mobile-header premium-header">
-      <button id="openProfileBtn" class="header-profile-button">
+    <div class="premium-header-inner">
+      <div class="app-brand premium-brand">
+        <img src="logo-premium.png" class="brand-logo" alt="تواصل العطا">
+        <div class="brand-copy">
+          <strong>تواصل العطا</strong>
+          <small>AL-ATTA</small>
+        </div>
+      </div>
+
+      <button id="headerSearchBtn" class="header-search-shell" type="button">
+        <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
+        <span>ابحث عن الأشخاص أو المنشورات...</span>
+      </button>
+
+      <button id="openProfileBtn" class="header-profile-button" aria-label="حسابي">
         <img id="headerAvatar" class="header-avatar" alt="">
         <span id="headerUserName" class="header-user-name"></span>
       </button>
-      <div class="app-brand">
-        <img src="logo.svg" class="brand-logo" alt="AL-ATTA">
-        <div class="brand-copy"><strong>تواصل العطا</strong><small>AL-ATTA</small></div>
-      </div>
-    </header>
+    </div>
+  </header>
 
-  <main class="social-main">
+  
+  <aside class="desktop-rail" aria-label="التنقل الرئيسي">
+    <div class="rail-brand">
+      <img src="logo-premium.png" alt="تواصل العطا">
+      <div><strong>تواصل العطا</strong><small>AL-ATTA</small></div>
+    </div>
+
+    <button class="rail-btn active" data-page="homePage">
+      <svg viewBox="0 0 24 24"><path d="M3 10.7 12 3l9 7.7V21h-6v-6H9v6H3V10.7Z"/></svg><span>الرئيسية</span>
+    </button>
+    <button class="rail-btn" data-page="searchPage">
+      <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg><span>استكشاف</span>
+    </button>
+    <button class="rail-btn" data-page="notificationsPage">
+      <svg viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M10 21h4"/></svg><span>الإشعارات</span>
+    </button>
+    <button class="rail-btn" data-page="messagesPage">
+      <svg viewBox="0 0 24 24"><path d="M4 5h16v11H8l-4 4V5Z"/></svg><span>الرسائل</span>
+    </button>
+    <button class="rail-btn" data-page="profilePage">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c1-5 4-7 8-7s7 2 8 7"/></svg><span>الملف الشخصي</span>
+    </button>
+
+    <button id="railStoryBtn" class="rail-primary-btn" type="button">
+      <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg><span>إضافة حالة</span>
+    </button>
+  </aside>
+
+<main class="social-main">
     <section id="homePage" class="page active-page">
       <div class="stories-section"><div class="stories-head"><strong>الحالات</strong><button id="addStoryBtn">+ إضافة حالة</button></div><div id="storiesStrip" class="stories-strip"></div></div>
       <div class="composer-card">
@@ -209,12 +248,22 @@
   </main>
 
   <nav class="bottom-nav premium-nav">
-      <button class="nav-btn active" data-page="homePage"><svg viewBox="0 0 24 24"><path d="M3 10.7 12 3l9 7.7V21h-6v-6H9v6H3V10.7Z"/></svg><span>الرئيسية</span></button>
-      <button class="nav-btn" data-page="searchPage"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg><span>استكشاف</span></button>
-      <button class="nav-btn" data-page="messagesPage"><svg viewBox="0 0 24 24"><path d="M4 5h16v11H8l-4 4V5Z"/></svg><span>الرسائل</span></button>
-      <button class="nav-btn" data-page="notificationsPage"><svg viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M10 21h4"/></svg><span>الإشعارات</span></button>
-      <button class="nav-btn" data-page="profilePage"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c1-5 4-7 8-7s7 2 8 7"/></svg><span>حسابي</span></button>
-    </nav>
+    <button class="nav-btn active" data-page="homePage" aria-label="الرئيسية">
+      <svg viewBox="0 0 24 24"><path d="M3 10.7 12 3l9 7.7V21h-6v-6H9v6H3V10.7Z"/></svg><span>الرئيسية</span>
+    </button>
+    <button class="nav-btn" data-page="searchPage" aria-label="استكشاف">
+      <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg><span>استكشاف</span>
+    </button>
+    <button class="nav-btn" data-page="messagesPage" aria-label="الرسائل">
+      <svg viewBox="0 0 24 24"><path d="M4 5h16v11H8l-4 4V5Z"/></svg><span>الرسائل</span>
+    </button>
+    <button class="nav-btn" data-page="notificationsPage" aria-label="الإشعارات">
+      <svg viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M10 21h4"/></svg><span>الإشعارات</span>
+    </button>
+    <button class="nav-btn" data-page="profilePage" aria-label="حسابي">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c1-5 4-7 8-7s7 2 8 7"/></svg><span>حسابي</span>
+    </button>
+  </nav>
 </div>
 
 
