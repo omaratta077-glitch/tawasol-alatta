@@ -1523,7 +1523,7 @@ export default {
       return Response.json({
         ok:true,
         app:"تواصل العطا",
-        version:"V13.7-Logout"
+        version:"V13.7.1-Logout-Fix"
       });
     }
 

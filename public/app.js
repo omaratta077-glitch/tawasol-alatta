@@ -1795,19 +1795,21 @@ async function logoutCurrentAccount(){
 
 function bindLogoutButton(id){
   const btn=$(id);
-  if(!btn)return;
+  if(!btn || btn.dataset.logoutBound==="1")return;
 
-  btn.onclick=async()=>{
+  btn.dataset.logoutBound="1";
+
+  btn.addEventListener("click",async e=>{
+    e.preventDefault();
+    e.stopPropagation();
+
     if(!confirm("هل تريد تسجيل الخروج من تواصل العطا؟"))return;
     await logoutCurrentAccount();
-  };
+  });
 }
 
-bindLogoutButton("logoutBtn");
-bindLogoutButton("moreLogoutBtn");
-bindLogoutButton("profileLogoutBtn");
 
-document.querySelectorAll(".rail-btn").forEach(btn=>{
+document.querySelectorAll(".rail-btn:not(#logoutBtn)").forEach(btn=>{
   btn.onclick=()=>{
     document.querySelectorAll(".rail-btn").forEach(x=>x.classList.remove("active"));
     btn.classList.add("active");
@@ -3110,6 +3112,11 @@ $("screenBtn").onclick=shareScreen;
 window.addEventListener("beforeunload",stopCallSounds);
 
 // افتح الحساب المحفوظ تلقائيًا بعد تجهيز كل عناصر الواجهة.
+// ربط تسجيل الخروج بعد جميع أحداث التنقل حتى لا يتم استبدال onclick.
+bindLogoutButton("logoutBtn");
+bindLogoutButton("moreLogoutBtn");
+bindLogoutButton("profileLogoutBtn");
+
 queueMicrotask(()=>{
   window.AttaIcons?.hydrate(document);
   setVoiceRecordButton(false);
