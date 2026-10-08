@@ -174,6 +174,24 @@ export class SignalingRoom extends DurableObject {
 
   async api(request){
     const url=new URL(request.url);
+
+    if(url.pathname==="/api/diagnostics/env" && request.method==="GET"){
+      const resend=String(this.env.RESEND_API_KEY||"").trim();
+      const turnId=String(this.env.TURN_KEY_ID||"").trim();
+      const turnToken=String(this.env.TURN_KEY_API_TOKEN||"").trim();
+
+      return j({
+        ok:true,
+        diagnostics:{
+          resendApiKeyConfigured:!!resend,
+          resendApiKeyLength:resend.length,
+          resendApiKeyLooksValid:resend.startsWith("re_"),
+          turnKeyIdConfigured:!!turnId,
+          turnKeyApiTokenConfigured:!!turnToken
+        },
+        note:"No secret values are exposed by this endpoint."
+      });
+    }
     let body={};
     if(request.method!=="GET"){
       try{body=await request.json()}catch{}
@@ -1523,7 +1541,7 @@ export default {
       return Response.json({
         ok:true,
         app:"تواصل العطا",
-        version:"V13.7.1-Logout-Fix"
+        version:"V13.7.2-Env-Diagnostic"
       });
     }
 
