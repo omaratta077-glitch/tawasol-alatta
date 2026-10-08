@@ -940,7 +940,7 @@ export default {
       return Response.json({
         ok:true,
         app:"تواصل العطا",
-        version:"V10.1-Full-Gold"
+        version:"V10.2-Gold-Login"
       });
     }
 

@@ -1134,13 +1134,26 @@ $("loadSavedBtn").onclick=loadSavedPosts;
 
 let authMode="login";
 
+
+if($("attaRegisterShortcut")){
+  $("attaRegisterShortcut").onclick=()=>{
+    authMode="register";
+    $("registerFields").classList.remove("hidden");
+    $("confirmPasswordInput").classList.remove("hidden");
+    $("authBtn").textContent="إنشاء الحساب";
+  if($("attaRegisterShortcut"))$("attaRegisterShortcut").classList.add("hidden");
+    $("attaRegisterShortcut").classList.add("hidden");
+  };
+}
+
 $("loginTab").onclick=()=>{
   authMode="login";
   $("loginTab").classList.add("active");
   $("registerTab").classList.remove("active");
   $("registerFields").classList.add("hidden");
   $("confirmPasswordInput").classList.add("hidden");
-  $("authBtn").textContent="دخول";
+  $("authBtn").textContent="تسجيل الدخول";
+  if($("attaRegisterShortcut"))$("attaRegisterShortcut").classList.remove("hidden");
 };
 
 $("registerTab").onclick=()=>{

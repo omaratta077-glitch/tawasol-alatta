@@ -396,3 +396,194 @@ textarea,input,select{background:rgba(255,247,215,.72)!important;color:#17130A!i
 .call-overlay{background:radial-gradient(circle at center,#8f681b 0,#5a3e0c 48%,#2f2006 100%)!important}.call-stage{background:radial-gradient(circle at center,#a47922 0,#67480f 56%,#302006 100%)!important}.call-overlay-header{background:linear-gradient(to bottom,rgba(70,45,4,.72),rgba(70,45,4,0))!important}.call-bottom-sheet{background:linear-gradient(to top,rgba(59,38,3,.92),rgba(59,38,3,.24))!important}.round-icon{background:rgba(231,195,95,.20)!important;border-color:rgba(243,215,122,.55)!important}.call-status-bar{background:#e6c15e!important;border-color:#7b5814!important;color:#17130A!important}.call-status-bar button{background:#6b4a0b!important;color:#fff2c0!important}
 .auth-view{background:radial-gradient(circle at 50% 18%,rgba(255,250,226,.28),transparent 28%),linear-gradient(160deg,#E0B956,#A97A1D)!important}.auth-card{background:linear-gradient(145deg,#E7C562,#C8952E)!important;color:#17130A!important;border-color:#765317!important}.auth-tabs button{background:rgba(255,246,214,.38)!important;color:#17130A!important;border-color:#846019!important}.auth-tabs button.active{background:#69490c!important;color:#fff2c2!important}.modal{background:rgba(60,39,3,.60)!important}.modal-card{background:linear-gradient(145deg,#E6C15F,#BF8D28)!important;color:#17130A!important;border:1px solid #735114!important}
 ::-webkit-scrollbar-track{background:#B88627}::-webkit-scrollbar-thumb{background:#705014;border-radius:999px}
+
+/* ===== V10.2 AL-ATTA GOLD LOGIN ===== */
+.auth-view{
+  min-height:100vh!important;
+  display:block!important;
+  background:
+    radial-gradient(circle at 50% 0%, rgba(255,250,224,.52), transparent 28%),
+    linear-gradient(180deg,#E8C65E 0%,#D6AA3D 48%,#B98524 100%)!important;
+  color:#17130A!important;
+  padding:0!important;
+}
+
+.atta-login-shell{
+  min-height:100vh;
+  width:100%;
+  display:flex;
+  flex-direction:column;
+}
+
+.atta-download-strip{
+  min-height:58px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:12px;
+  padding:10px 18px;
+  background:rgba(255,247,218,.52);
+  border-bottom:1px solid rgba(87,61,12,.24);
+  color:#5A400C;
+  font-size:13px;
+  text-align:center;
+}
+
+.download-mark{
+  width:34px;
+  height:34px;
+  display:grid;
+  place-items:center;
+  border:2px solid #6E4D0D;
+  border-radius:10px;
+  font-size:22px;
+  line-height:1;
+}
+
+.atta-login-card{
+  width:min(440px,92vw);
+  margin:auto;
+  padding:24px 20px 28px;
+  text-align:center;
+  background:rgba(255,247,219,.78)!important;
+  border:1px solid rgba(104,74,15,.34)!important;
+  border-radius:22px!important;
+  box-shadow:0 20px 50px rgba(73,47,4,.22)!important;
+  backdrop-filter:blur(8px);
+}
+
+.atta-language{
+  color:#705922;
+  font-size:13px;
+  margin-bottom:18px;
+}
+
+.atta-login-brand{
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap:8px;
+  margin-bottom:22px;
+}
+
+.atta-login-logo{
+  width:92px;
+  height:92px;
+  object-fit:contain;
+  filter:drop-shadow(0 9px 16px rgba(92,59,4,.25));
+}
+
+.atta-login-brand-name{
+  color:#5C410C;
+  letter-spacing:3px;
+  font-size:12px;
+  font-weight:700;
+}
+
+.atta-login-card .auth-tabs{
+  display:none!important;
+}
+
+.atta-login-card input,
+.atta-login-card select{
+  width:100%!important;
+  min-height:54px!important;
+  margin-bottom:12px!important;
+  padding:0 16px!important;
+  border-radius:16px!important;
+  background:rgba(255,253,245,.82)!important;
+  color:#18130A!important;
+  border:1px solid #A77A20!important;
+  font-size:14px!important;
+  text-align:right;
+}
+
+.atta-login-card input::placeholder{
+  color:#7B6A43!important;
+}
+
+.atta-login-button{
+  width:100%;
+  height:52px;
+  margin-top:4px;
+  border:0;
+  border-radius:16px;
+  background:linear-gradient(135deg,#6B490B,#9B711D)!important;
+  color:#FFF4C7!important;
+  font-weight:800;
+  font-size:16px;
+  cursor:pointer;
+  box-shadow:0 7px 18px rgba(78,51,5,.22);
+}
+
+.atta-login-button:hover{
+  filter:brightness(1.07);
+}
+
+.atta-forgot-button{
+  border:0;
+  background:transparent;
+  color:#60430B;
+  font-weight:700;
+  margin:18px auto 22px;
+  cursor:pointer;
+}
+
+.atta-create-button{
+  width:100%;
+  height:50px;
+  border-radius:16px;
+  background:rgba(255,251,235,.62);
+  border:2px solid #745113;
+  color:#5B3E0A;
+  font-weight:800;
+  cursor:pointer;
+}
+
+.atta-footer-brand{
+  margin-top:30px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:12px;
+  color:#5C400B;
+  font-size:18px;
+}
+
+.atta-footer-brand span{
+  width:48px;
+  height:1px;
+  background:#7C5814;
+}
+
+.atta-login-card .error{
+  color:#7B1D16!important;
+  margin-top:10px;
+}
+
+@media(max-width:600px){
+  .atta-download-strip{
+    font-size:12px;
+    min-height:52px;
+  }
+
+  .atta-login-card{
+    width:100%;
+    max-width:none;
+    min-height:calc(100vh - 52px);
+    margin:0;
+    border-radius:0!important;
+    border-left:0!important;
+    border-right:0!important;
+    display:flex;
+    flex-direction:column;
+    justify-content:center;
+    padding:20px 18px 28px;
+    background:rgba(255,246,209,.78)!important;
+  }
+
+  .atta-login-logo{
+    width:84px;
+    height:84px;
+  }
+}
