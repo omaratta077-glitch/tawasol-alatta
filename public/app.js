@@ -5,7 +5,7 @@ const $=id=>document.getElementById(id);
 let token="",me=null,ws=null,reconnectTimer=null;
 let viewedProfileUsername="";
 let viewedFriendState="none";
-let selectedUser="",selectedGroup=null,users=[],groups=[];
+let selectedUser="",selectedGroup=null,users=[],groups=[],chatFriends=[];
 let pc=null,localStream=null,currentCallType="video",incomingFrom="";
 let videoSender=null,audioSender=null;
 
@@ -90,6 +90,8 @@ function connect(){
     if(msg.type==="joined"){
       me=msg.user;
       renderProfile();
+      await loadChatContacts();
+      await loadFriendRequests().catch(()=>{});
       return;
     }
 
@@ -99,7 +101,57 @@ function connect(){
       return;
     }
 
-    if(msg.type==="chat"){if(msg.from!==me.username)notify("رسالة جديدة",`${msg.from}: ${msg.text||"مرفق"}`);addRichMessage(msg);if(msg.from===selectedUser&&msg.to===me.username)send({type:"read",with:msg.from});return;}
+    if(msg.type==="chat"){
+      const counterpart=msg.from===me.username?msg.to:msg.from;
+      const isOpen=selectedUser===counterpart && !selectedGroup;
+
+      if(msg.from!==me.username){
+        notify("رسالة جديدة",`${msg.from}: ${msg.text||"مرفق"}`);
+      }
+
+      if(isOpen){
+        const exists=msg.id && document.querySelector(`[data-message-id="${msg.id}"]`);
+        if(!exists)addRichMessage(msg);
+
+        if(msg.from===counterpart && msg.to===me.username){
+          send({type:"read",with:msg.from});
+        }
+      }
+
+      return;
+    }
+
+    if(msg.type==="delivered"){
+      if(msg.messageId){
+        const el=document.querySelector(`[data-message-id="${msg.messageId}"] .message-read-state`);
+        if(el)el.textContent="✓✓ تم التسليم";
+      }
+      return;
+    }
+
+    if(msg.type==="friend-request"){
+      notify("طلب صداقة جديد",`${msg.from} أرسل لك طلب صداقة`);
+      await loadFriendRequests().catch(()=>{});
+      return;
+    }
+
+    if(msg.type==="friend-accepted"){
+      notify("تم قبول طلب الصداقة",`${msg.from} أصبح صديقًا لك`);
+      await loadChatContacts();
+      await loadFriendRequests().catch(()=>{});
+      if(me?.username)await loadFriends(me.username).catch(()=>{});
+      if(viewedProfileUsername===me?.username){
+        renderProfilePage(me.username).catch(()=>{});
+      }
+      return;
+    }
+
+    if(msg.type==="friends-changed"){
+      await loadChatContacts();
+      if(me?.username)await loadFriends(me.username).catch(()=>{});
+      await loadFriendRequests().catch(()=>{});
+      return;
+    }
     if(msg.type==="typing"){if(msg.from===selectedUser)$("typingIndicator").classList.toggle("hidden",!msg.active);return;}
     if(msg.type==="read"){document.querySelectorAll(".message-read-state").forEach(el=>el.textContent="✓✓ تمت القراءة");return;}
 
@@ -194,7 +246,11 @@ function connect(){
     }
 
     if(msg.type==="user-offline"){
-      alert("المستخدم غير متصل الآن");
+      // This event is now used for live calls only.
+      if(document.body.classList.contains("call-open") || pc){
+        alert("المستخدم غير متصل الآن ولا يمكن بدء المكالمة.");
+      }
+      return;
     }
   };
 }
@@ -218,29 +274,111 @@ function renderProfile(){
   if($("composerUserName"))$("composerUserName").textContent=me.fullName||me.displayName||me.username;
 }
 
-function renderUsers(){
-  const others=users.filter(u=>u.username!==me?.username);
+async function loadChatContacts(){
+  if(!token || !me)return;
 
-  $("usersList").innerHTML=others.length
-    ? others.map(u=>`
-      <button class="user-item" data-user="${esc(u.username)}">
-        <span class="online-dot"></span>${esc(u.displayName||u.username)}
-      </button>`).join("")
-    : `<div style="opacity:.7;font-size:12px">لا يوجد مستخدمون آخرون متصلون</div>`;
+  try{
+    const d=await api(`/api/friends?token=${encodeURIComponent(token)}&username=${encodeURIComponent(me.username)}`);
+    chatFriends=d.friends||[];
+    renderUsers();
+  }catch(e){
+    console.error("loadChatContacts",e);
+  }
+}
+
+function renderUsers(){
+  if(!me || !$("usersList"))return;
+
+  const onlineMap=new Map(
+    users
+      .filter(u=>u.username!==me.username)
+      .map(u=>[u.username,u])
+  );
+
+  const allMap=new Map();
+
+  for(const f of chatFriends){
+    if(f.username!==me.username){
+      allMap.set(f.username,{...f,isFriend:true});
+    }
+  }
+
+  for(const u of users){
+    if(u.username!==me.username){
+      allMap.set(u.username,{...(allMap.get(u.username)||{}),...u,isOnline:true});
+    }
+  }
+
+  const all=[...allMap.values()].sort((a,b)=>{
+    const ao=onlineMap.has(a.username)?1:0;
+    const bo=onlineMap.has(b.username)?1:0;
+    return bo-ao || String(a.displayName||a.username).localeCompare(String(b.displayName||b.username),"ar");
+  });
+
+  $("usersList").innerHTML=all.length
+    ? all.map(u=>{
+        const isOnline=onlineMap.has(u.username);
+        const avatar=u.avatar||avatarFallback(u.fullName||u.displayName||u.username);
+
+        return `
+        <button class="user-item chat-contact-item" data-user="${esc(u.username)}">
+          <img class="chat-contact-avatar" src="${avatar}" alt="">
+          <span class="chat-contact-copy">
+            <strong>${esc(u.fullName||u.displayName||u.username)}</strong>
+            <small>${isOnline?"متصل الآن":"غير متصل — يمكنك إرسال رسالة"}</small>
+          </span>
+          <span class="presence-dot ${isOnline?"online":"offline"}"></span>
+        </button>`;
+      }).join("")
+    : `<div class="chat-empty-contacts">لا يوجد أصدقاء بعد. أضف صديقًا ليظهر هنا حتى لو كان غير متصل.</div>`;
 
   document.querySelectorAll("[data-user]").forEach(btn=>{
     btn.onclick=()=>{
       selectedUser=btn.dataset.user;
       selectedGroup=null;
-      const u=users.find(x=>x.username===selectedUser);
-      $("selectedLabel").textContent=u?.displayName||selectedUser;
+
+      const u=allMap.get(selectedUser);
+      $("selectedLabel").textContent=u?.fullName||u?.displayName||selectedUser;
+
       loadConversation(selectedUser);
     };
   });
 }
 
 function addMessage(from,text,mine){addRichMessage({from,to:mine?selectedUser:me?.username,text,media:"",mediaType:"text",read:false,ts:Date.now()})}
-function addRichMessage(msg){const mine=msg.from===me?.username;const div=document.createElement("div");div.className="bubble"+(mine?" mine":"");let media="";if(msg.media){media=msg.mediaType==="image"?`<img class="chat-media-image" src="${msg.media}">`:msg.mediaType==="audio"?`<audio class="chat-audio" controls src="${msg.media}"></audio>`:`<a class="chat-file-link" href="${msg.media}" target="_blank">📎 فتح المرفق</a>`}div.innerHTML=`<div class="meta">${esc(msg.from)}</div>${msg.text?`<div>${esc(msg.text)}</div>`:""}${media}${mine?`<div class="message-read-state">${msg.read?"✓✓ تمت القراءة":"✓ تم الإرسال"}</div>`:""}`;$("messages").appendChild(div);$("messages").scrollTop=$("messages").scrollHeight}
+function addRichMessage(msg){
+  const mine=msg.from===me?.username;
+  const div=document.createElement("div");
+
+  div.className="bubble"+(mine?" mine":"");
+  if(msg.id)div.dataset.messageId=msg.id;
+
+  let media="";
+  if(msg.media){
+    media=msg.mediaType==="image"
+      ? `<img class="chat-media-image" src="${msg.media}">`
+      : msg.mediaType==="audio"
+        ? `<audio class="chat-audio" controls src="${msg.media}"></audio>`
+        : `<a class="chat-file-link" href="${msg.media}" target="_blank">📎 فتح المرفق</a>`;
+  }
+
+  const state=msg.read
+    ?"✓✓ تمت القراءة"
+    : msg.deliveredAt
+      ?"✓✓ تم التسليم"
+      :"✓ تم الإرسال";
+
+  div.innerHTML=`
+    <div class="meta">${esc(msg.from)}</div>
+    ${msg.text?`<div>${esc(msg.text)}</div>`:""}
+    ${media}
+    ${mine?`<div class="message-read-state">${state}</div>`:""}
+  `;
+
+  $("messages").appendChild(div);
+  $("messages").scrollTop=$("messages").scrollHeight;
+}
+
 async function loadConversation(username){if(!username)return;try{const d=await api(`/api/conversation?token=${encodeURIComponent(token)}&with=${encodeURIComponent(username)}`);$("messages").innerHTML="";(d.messages||[]).forEach(addRichMessage);send({type:"read",with:username})}catch(e){console.error(e)}}
 
 async function loadGroups(){
@@ -895,6 +1033,7 @@ async function runFriendAction(username,state){
     viewedFriendState=d.state;
     updateFriendButton(viewedFriendState);
     await loadFriends(viewedProfileUsername);
+    await loadChatContacts();
   }catch(e){alert(e.message)}
 }
 
@@ -917,7 +1056,7 @@ async function loadFriendRequests(){
 
   document.querySelectorAll("[data-accept-friend]").forEach(b=>b.onclick=async()=>{
     await api("/api/friend-action",{method:"POST",body:JSON.stringify({token,username:b.dataset.acceptFriend,action:"accept"})});
-    await loadFriendRequests(); await loadFriends(me.username);
+    await loadFriendRequests(); await loadFriends(me.username); await loadChatContacts();
   });
   document.querySelectorAll("[data-decline-friend]").forEach(b=>b.onclick=async()=>{
     await api("/api/friend-action",{method:"POST",body:JSON.stringify({token,username:b.dataset.declineFriend,action:"decline"})});
@@ -1461,6 +1600,7 @@ $("authBtn").onclick=async()=>{
     renderProfilePage();
     connect();
     loadGroups();
+    loadChatContacts();
     loadPosts();
     loadStories();
     loadDesktopSuggestions();

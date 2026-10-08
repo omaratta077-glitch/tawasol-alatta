@@ -470,9 +470,24 @@ export class SignalingRoom extends DurableObject {
     if(url.pathname==="/api/conversation" && request.method==="GET"){
       const s=await this.session(url.searchParams.get("token")||"");
       if(!s)return j({ok:false,error:"الجلسة منتهية"},401);
+
       const other=String(url.searchParams.get("with")||"").trim().toLowerCase();
       const key=[s.username,other].sort().join(":");
-      return j({ok:true,messages:(await this.ctx.storage.get(`messages:${key}`)||[]).slice(-200)});
+      const messages=await this.ctx.storage.get(`messages:${key}`)||[];
+
+      let changed=false;
+      for(const m of messages){
+        if(m.to===s.username && !m.deliveredAt){
+          m.deliveredAt=Date.now();
+          changed=true;
+        }
+      }
+
+      if(changed){
+        await this.ctx.storage.put(`messages:${key}`,messages.slice(-300));
+      }
+
+      return j({ok:true,messages:messages.slice(-200)});
     }
 
     
@@ -727,6 +742,17 @@ export class SignalingRoom extends DurableObject {
       const ns=await this.ctx.storage.get(`notifications:${target}`)||[];
       ns.push({id:crypto.randomUUID(),type:"friend-request",from:s.username,createdAt:now,read:false});
       await this.ctx.storage.put(`notifications:${target}`,ns.slice(-300));
+
+      const targetWs=this.findUser(target);
+      if(targetWs){
+        this.send(targetWs,{
+          type:"friend-request",
+          from:s.username,
+          user:await this.publicUser(s.username),
+          createdAt:now
+        });
+      }
+
       return j({ok:true,state:"outgoing"});
     }
 
@@ -750,9 +776,29 @@ export class SignalingRoom extends DurableObject {
         if(!b.includes(s.username))b.push(s.username);
         await this.ctx.storage.put(`friends:${s.username}`,a);
         await this.ctx.storage.put(`friends:${other}`,b);
+        const acceptedAt=Date.now();
         const ns=await this.ctx.storage.get(`notifications:${other}`)||[];
-        ns.push({id:crypto.randomUUID(),type:"friend-accepted",from:s.username,createdAt:Date.now(),read:false});
+        ns.push({id:crypto.randomUUID(),type:"friend-accepted",from:s.username,createdAt:acceptedAt,read:false});
         await this.ctx.storage.put(`notifications:${other}`,ns.slice(-300));
+
+        const otherWs=this.findUser(other);
+        if(otherWs){
+          this.send(otherWs,{
+            type:"friend-accepted",
+            from:s.username,
+            user:await this.publicUser(s.username),
+            createdAt:acceptedAt
+          });
+        }
+
+        const meWs=this.findUser(s.username);
+        if(meWs){
+          this.send(meWs,{
+            type:"friends-changed",
+            with:other,
+            action:"accept"
+          });
+        }
       }else if(action==="decline"){
         myIn=myIn.filter(r=>r.from!==other);
         otherOut=otherOut.filter(r=>r.to!==s.username);
@@ -770,6 +816,18 @@ export class SignalingRoom extends DurableObject {
       await this.ctx.storage.put(`friendOutgoing:${s.username}`,myOut);
       await this.ctx.storage.put(`friendIncoming:${other}`,otherIn);
       await this.ctx.storage.put(`friendOutgoing:${other}`,otherOut);
+
+      if(action!=="accept"){
+        const otherWs=this.findUser(other);
+        if(otherWs){
+          this.send(otherWs,{
+            type:"friends-changed",
+            with:s.username,
+            action
+          });
+        }
+      }
+
       return j({ok:true,state:await this.friendState(s.username,other)});
     }
 
@@ -825,10 +883,49 @@ export class SignalingRoom extends DurableObject {
 
     queueMicrotask(async()=>{
       this.send(server,{type:"joined",user:await this.publicUser(s.username)});
+      await this.deliverPendingMessages(s.username,server);
       await this.broadcastUsers();
     });
 
     return new Response(null,{status:101,webSocket:client});
+  }
+
+
+  async deliverPendingMessages(username, ws){
+    try{
+      const entries=await this.ctx.storage.list({prefix:"messages:"});
+
+      for(const [key,listValue] of entries){
+        if(!Array.isArray(listValue))continue;
+
+        let changed=false;
+
+        for(const m of listValue){
+          if(m.to!==username || m.read || m.deliveredAt)continue;
+
+          if(this.send(ws,{...m,type:"chat",offlineDelivery:true})){
+            m.deliveredAt=Date.now();
+            changed=true;
+
+            const sender=this.findUser(m.from);
+            if(sender){
+              this.send(sender,{
+                type:"delivered",
+                messageId:m.id,
+                by:username,
+                deliveredAt:m.deliveredAt
+              });
+            }
+          }
+        }
+
+        if(changed){
+          await this.ctx.storage.put(key,listValue.slice(-300));
+        }
+      }
+    }catch(err){
+      console.warn("deliverPendingMessages failed",err);
+    }
   }
 
   async broadcastUsers(){
@@ -871,12 +968,38 @@ export class SignalingRoom extends DurableObject {
 
     if(msg.type==="chat"){
       const to=String(msg.to||"").trim().toLowerCase();
-      const payload={type:"chat",id:crypto.randomUUID(),from,to,text:String(msg.text||""),media:String(msg.media||"").slice(0,700000),mediaType:String(msg.mediaType||"text"),ts:Date.now(),read:false};
+      if(!to)return;
+
+      const target=this.findUser(to);
+      const payload={
+        type:"chat",
+        id:crypto.randomUUID(),
+        from,
+        to,
+        text:String(msg.text||""),
+        media:String(msg.media||"").slice(0,700000),
+        mediaType:String(msg.mediaType||"text"),
+        ts:Date.now(),
+        read:false,
+        deliveredAt:target?Date.now():0
+      };
+
       const key=[from,to].sort().join(":");
-      const list=await this.ctx.storage.get(`messages:${key}`)||[];list.push(payload);
+      const list=await this.ctx.storage.get(`messages:${key}`)||[];
+      list.push(payload);
       await this.ctx.storage.put(`messages:${key}`,list.slice(-300));
-      const target=this.findUser(to);if(target)this.send(target,payload);else this.send(ws,{type:"user-offline",user:to});
-      this.send(ws,payload);return;
+
+      if(target){
+        this.send(target,payload);
+      }
+
+      // Always confirm to sender: message is stored even if recipient is offline.
+      this.send(ws,{
+        ...payload,
+        stored:true,
+        delivered:!!target
+      });
+      return;
     }
 
     if(msg.type==="typing"){
@@ -940,7 +1063,7 @@ export default {
       return Response.json({
         ok:true,
         app:"تواصل العطا",
-        version:"V12.3-Exact-Social-Layout"
+        version:"V12.5-Offline-Chat-Friends"
       });
     }
 

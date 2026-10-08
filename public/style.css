@@ -2348,3 +2348,68 @@ textarea::placeholder,input::placeholder{color:#8f989e!important}
   .reference-header-brand{display:flex!important;align-items:center!important;gap:8px!important}
   .header-icon-btn{width:40px!important;height:40px!important}
 }
+
+/* ===== V12.5 OFFLINE CHAT + FRIENDS ===== */
+.chat-contact-item{
+  display:grid!important;
+  grid-template-columns:auto 1fr auto!important;
+  align-items:center!important;
+  gap:10px!important;
+  min-height:62px!important;
+  padding:8px 10px!important;
+  background:#0c1216!important;
+  border:1px solid rgba(230,185,78,.20)!important;
+  border-radius:12px!important;
+  color:#fff!important;
+  text-align:right!important;
+}
+.chat-contact-item:hover{
+  border-color:rgba(230,185,78,.55)!important;
+  background:#10171b!important;
+}
+.chat-contact-avatar{
+  width:42px;
+  height:42px;
+  border-radius:50%;
+  object-fit:cover;
+  border:1px solid #E6B94E;
+}
+.chat-contact-copy{
+  display:flex;
+  flex-direction:column;
+  min-width:0;
+}
+.chat-contact-copy strong{
+  color:#fff;
+  font-size:13px;
+  overflow:hidden;
+  white-space:nowrap;
+  text-overflow:ellipsis;
+}
+.chat-contact-copy small{
+  margin-top:3px;
+  color:#8E989E;
+  font-size:9px;
+}
+.presence-dot{
+  width:10px;
+  height:10px;
+  border-radius:50%;
+  box-shadow:0 0 0 3px rgba(255,255,255,.04);
+}
+.presence-dot.online{
+  background:#39D47A;
+  box-shadow:0 0 0 3px rgba(57,212,122,.12);
+}
+.presence-dot.offline{
+  background:#626B70;
+}
+.chat-empty-contacts{
+  padding:14px 8px;
+  color:#89939A;
+  font-size:11px;
+  line-height:1.7;
+}
+.message-read-state{
+  color:#DDBB64!important;
+}
