@@ -65,39 +65,49 @@
 
 <div id="appView" class="app-shell hidden">
   <header class="mobile-header premium-header">
-    <div class="premium-header-inner">
-      <div class="app-brand premium-brand">
-        <img src="logo-premium.png" class="brand-logo" alt="تواصل العطا">
-        <div class="brand-copy">
+    <div class="reference-header-inner">
+      <div class="reference-header-brand">
+        <img src="logo-premium.png" class="reference-mini-logo" alt="تواصل العطا">
+        <div>
           <strong>تواصل العطا</strong>
           <small>AL-ATTA</small>
         </div>
       </div>
 
-      <button id="headerSearchBtn" class="header-search-shell" type="button">
+      <div class="reference-header-actions">
+        <button class="header-icon-btn" data-top-page="notificationsPage" aria-label="الإشعارات">
+          <svg viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M10 21h4"/></svg>
+          <span id="headerNotifyBadge" class="header-mini-badge hidden">0</span>
+        </button>
+        <button class="header-icon-btn" data-top-page="messagesPage" aria-label="الرسائل">
+          <svg viewBox="0 0 24 24"><path d="M4 5h16v11H8l-4 4V5Z"/></svg>
+        </button>
+        <button class="header-icon-btn" id="headerFriendsBtn" aria-label="طلبات الصداقة">
+          <svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3 20c.7-4 2.8-6 6-6s5.3 2 6 6"/><path d="M18 7v6M15 10h6"/></svg>
+          <span id="headerFriendBadge" class="header-mini-badge hidden">0</span>
+        </button>
+      </div>
+
+      <button id="headerSearchBtn" class="reference-search" type="button">
         <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
         <span>ابحث عن الأشخاص أو المنشورات...</span>
-      </button>
-
-      <button id="openProfileBtn" class="header-profile-button" aria-label="حسابي">
-        <img id="headerAvatar" class="header-avatar" alt="">
-        <span id="headerUserName" class="header-user-name"></span>
       </button>
     </div>
   </header>
 
   
-  <aside class="desktop-rail" aria-label="التنقل الرئيسي">
-    <div class="rail-brand">
+  <aside class="desktop-rail reference-leftbar" aria-label="التنقل الرئيسي">
+    <div class="reference-left-brand">
       <img src="logo-premium.png" alt="تواصل العطا">
-      <div><strong>تواصل العطا</strong><small>AL-ATTA</small></div>
+      <strong>تواصل العطا</strong>
+      <small>AL-ATTA</small>
     </div>
 
     <button class="rail-btn active" data-page="homePage">
       <svg viewBox="0 0 24 24"><path d="M3 10.7 12 3l9 7.7V21h-6v-6H9v6H3V10.7Z"/></svg><span>الرئيسية</span>
     </button>
     <button class="rail-btn" data-page="searchPage">
-      <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg><span>استكشاف</span>
+      <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg><span>استكشف</span>
     </button>
     <button class="rail-btn" data-page="notificationsPage">
       <svg viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M10 21h4"/></svg><span>الإشعارات</span>
@@ -108,28 +118,99 @@
     <button class="rail-btn" data-page="profilePage">
       <svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c1-5 4-7 8-7s7 2 8 7"/></svg><span>الملف الشخصي</span>
     </button>
+    <button class="rail-btn" id="railSavedBtn">
+      <svg viewBox="0 0 24 24"><path d="M6 4h12v17l-6-4-6 4V4Z"/></svg><span>المحفوظات</span>
+    </button>
+    <button class="rail-btn" id="railMoreBtn">
+      <svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="19" cy="12" r="1.3"/></svg><span>المزيد</span>
+    </button>
 
-    <button id="railStoryBtn" class="rail-primary-btn" type="button">
+    <button id="railStoryBtn" class="rail-primary-btn reference-add-story" type="button">
       <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg><span>إضافة حالة</span>
     </button>
+  </aside>
+
+
+  <aside class="reference-rightbar">
+    <section class="reference-side-card stories-side-card">
+      <div class="reference-card-title">
+        <strong>القصص</strong>
+        <button id="sideShowStoriesBtn" type="button">عرض الكل ‹</button>
+      </div>
+      <div id="storiesStripSide" class="reference-stories-row">
+        <button id="sideAddStoryBtn" class="side-add-story">
+          <span>+</span><small>إضافة قصة</small>
+        </button>
+      </div>
+    </section>
+
+    <section class="reference-side-card">
+      <div class="reference-card-title">
+        <strong>🔥 المتداول الآن</strong>
+      </div>
+      <div class="reference-trends">
+        <div><b>1</b><span><strong>#تواصل_العطا</strong><small>12.4 ألف منشور</small></span><i>•••</i></div>
+        <div><b>2</b><span><strong>الإبداع</strong><small>8.7 ألف منشور</small></span><i>•••</i></div>
+        <div><b>3</b><span><strong>الفرص</strong><small>6.1 ألف منشور</small></span><i>•••</i></div>
+        <div><b>4</b><span><strong>تطوير_الذات</strong><small>5.3 ألف منشور</small></span><i>•••</i></div>
+        <div><b>5</b><span><strong>النجاح</strong><small>4.9 ألف منشور</small></span><i>•••</i></div>
+      </div>
+    </section>
+
+    <section class="reference-side-card">
+      <div class="reference-card-title">
+        <strong>👥 اقتراحات قد تعجبك</strong>
+      </div>
+      <div id="suggestionsList" class="reference-suggestions">
+        <div class="reference-side-empty">جاري تحميل الاقتراحات...</div>
+      </div>
+    </section>
   </aside>
 
 <main class="social-main">
     <section id="homePage" class="page active-page">
       <div class="stories-section"><div class="stories-head"><strong>الحالات</strong><button id="addStoryBtn">+ إضافة حالة</button></div><div id="storiesStrip" class="stories-strip"></div></div>
-      <div class="composer-card">
-        <div class="composer-head">
-          <img id="homeAvatar" class="avatar" alt="">
-          <textarea id="postText" placeholder="بم تفكر؟"></textarea>
+      <div class="composer-card reference-composer">
+        <div class="reference-composer-top">
+          <img id="homeAvatar" class="reference-composer-avatar" alt="">
+          <div class="reference-composer-main">
+            <div class="reference-composer-name" id="composerUserName">حسابي</div>
+            <textarea id="postText" placeholder="بم تفكر؟"></textarea>
+          </div>
         </div>
+
         <div id="postImagePreviewWrap" class="hidden preview-wrap">
           <img id="postImagePreview" alt="">
         </div>
-        <div class="composer-actions">
-          <label class="upload-label">🖼️ صورة
-            <input id="postImageInput" type="file" accept="image/*" hidden>
-          </label>
-          <button id="publishPostBtn" class="primary action-btn">نشر</button>
+
+        <div class="reference-composer-bottom">
+          <div class="reference-composer-tools">
+            <label class="reference-tool-btn">
+              <svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="10" r="2"/><path d="m4 17 5-4 3 3 3-2 5 4"/></svg>
+              <span>صورة</span>
+              <input id="postImageInput" type="file" accept="image/*" hidden>
+            </label>
+
+            <button id="postVideoBtn" class="reference-tool-btn" type="button">
+              <svg viewBox="0 0 24 24"><rect x="3" y="5" width="14" height="14" rx="2"/><path d="m17 10 4-2v8l-4-2z"/></svg>
+              <span>فيديو</span>
+            </button>
+
+            <button id="postPollBtn" class="reference-tool-btn" type="button">
+              <svg viewBox="0 0 24 24"><path d="M5 20V10M12 20V4M19 20v-7"/></svg>
+              <span>استطلاع</span>
+            </button>
+
+            <button id="postFeelingBtn" class="reference-tool-btn" type="button">
+              <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M8 10h.01M16 10h.01M8 15c2.7 2.2 5.3 2.2 8 0"/></svg>
+              <span>مشاركة مشاعر</span>
+            </button>
+          </div>
+
+          <button id="publishPostBtn" class="reference-publish-btn">
+            <svg viewBox="0 0 24 24"><path d="m3 11 18-8-7 18-3-7-8-3Z"/><path d="m11 14 4-4"/></svg>
+            <span>نشر</span>
+          </button>
         </div>
       </div>
       <div id="postsFeed"></div>
@@ -200,7 +281,13 @@
       </div>
 </section>
 
-    <section id="profilePage" class="page">
+    
+    <section id="savedPage" class="page">
+      <div class="page-title"><h2>المحفوظات</h2><button id="refreshSavedPageBtn">تحديث</button></div>
+      <div id="savedPostsPageList" class="saved-page-grid"></div>
+    </section>
+
+<section id="profilePage" class="page">
       <div class="profile-card-large pro-profile-card premium-profile">
         <div id="profileCover" class="profile-cover"></div>
         <div class="profile-top-row">

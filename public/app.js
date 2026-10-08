@@ -187,6 +187,7 @@ function renderProfile(){
   $("avatarImg").src=me.avatar||avatarFallback(me.displayName||me.username);
   if($("headerAvatar"))$("headerAvatar").src=me.avatar||avatarFallback(me.fullName||me.displayName||me.username);
   if($("headerUserName"))$("headerUserName").textContent=me.fullName||me.displayName||me.username;
+  if($("composerUserName"))$("composerUserName").textContent=me.fullName||me.displayName||me.username;
 }
 
 function renderUsers(){
@@ -708,6 +709,7 @@ function showPage(pageId){
     renderProfilePage(viewedProfileUsername);
   }
   if(pageId==="searchPage")loadExplore();
+  if(pageId==="savedPage")loadSavedPostsPage();
 }
 
 
@@ -729,6 +731,51 @@ document.querySelectorAll(".rail-btn").forEach(btn=>{
 
 if($("railStoryBtn")){
   $("railStoryBtn").onclick=()=>$("addStoryBtn")?.click();
+}
+
+
+document.querySelectorAll("[data-top-page]").forEach(btn=>{
+  btn.onclick=()=>showPage(btn.dataset.topPage);
+});
+
+if($("headerFriendsBtn")){
+  $("headerFriendsBtn").onclick=()=>{
+    viewedProfileUsername=me?.username||"";
+    showPage("profilePage");
+    setTimeout(()=>$("friendRequestsSection")?.scrollIntoView({behavior:"smooth",block:"start"}),120);
+  };
+}
+
+if($("sideAddStoryBtn"))$("sideAddStoryBtn").onclick=()=>$("addStoryBtn")?.click();
+if($("sideShowStoriesBtn"))$("sideShowStoriesBtn").onclick=()=>showPage("homePage");
+
+if($("railSavedBtn"))$("railSavedBtn").onclick=()=>showPage("savedPage");
+if($("railMoreBtn"))$("railMoreBtn").onclick=()=>alert("قائمة المزيد سيتم توسيعها تدريجيًا.");
+
+if($("postFeelingBtn")){
+  $("postFeelingBtn").onclick=()=>{
+    const feeling=prompt("اختر شعورك: سعيد، متحمس، ممتن، فخور، هادئ","متحمس");
+    if(feeling){
+      const current=$("postText").value.trim();
+      $("postText").value=(current?current+" ":"")+`— أشعر أنني ${feeling}`;
+      $("postText").focus();
+    }
+  };
+}
+
+if($("postPollBtn")){
+  $("postPollBtn").onclick=()=>{
+    const q=prompt("اكتب سؤال الاستطلاع:");
+    if(!q)return;
+    const a=prompt("الخيار الأول:","نعم")||"نعم";
+    const b=prompt("الخيار الثاني:","لا")||"لا";
+    const current=$("postText").value.trim();
+    $("postText").value=(current?current+"\n\n":"")+`📊 ${q}\n1) ${a}\n2) ${b}`;
+  };
+}
+
+if($("postVideoBtn")){
+  $("postVideoBtn").onclick=()=>alert("شكل زر الفيديو جاهز؛ رفع الفيديو الكبير يحتاج تخزين ملفات منفصل حتى لا نثقل التطبيق.");
 }
 
 document.querySelectorAll(".nav-btn").forEach(btn=>{
@@ -814,6 +861,10 @@ async function loadFriendRequests(){
   const d=await api(`/api/friend-requests?token=${encodeURIComponent(token)}`);
   const list=d.requests||[];
   $("friendRequestsCount").textContent=list.length;
+  if($("headerFriendBadge")){
+    $("headerFriendBadge").textContent=list.length;
+    $("headerFriendBadge").classList.toggle("hidden",list.length===0);
+  }
   $("friendRequestsList").innerHTML=list.length?list.map(r=>{
     const u=r.user,a=u.avatar||avatarFallback(u.fullName||u.displayName||u.username);
     return `<div class="person-card">
@@ -1075,9 +1126,36 @@ async function searchUsers(){
           <strong>${esc(u.fullName||u.displayName||u.username)}</strong>
           <small>@${esc(u.username)}</small>
         </div>
-        <div class="user-search-actions"><button data-follow-user="${esc(u.username)}">متابعة</button><button data-message-user="${esc(u.username)}">مراسلة</button></div>
+        <div class="user-search-actions">
+          <button class="gold-mini" data-search-friend="${esc(u.username)}">إضافة صديق</button>
+          <button class="dark-mini" data-open-profile="${esc(u.username)}">الملف</button>
+          <button class="dark-mini" data-message-user="${esc(u.username)}">رسالة</button>
+        </div>
       </div>
     `).join(""):`<div class="empty-card">لا توجد نتائج</div>`;
+    bindProfileLinks();
+
+    document.querySelectorAll("[data-search-friend]").forEach(btn=>{
+      btn.onclick=async()=>{
+        try{
+          await api("/api/friend-request",{method:"POST",body:JSON.stringify({
+            token,username:btn.dataset.searchFriend
+          })});
+          btn.textContent="تم إرسال الطلب";
+          btn.disabled=true;
+        }catch(e){alert(e.message)}
+      };
+    });
+
+    document.querySelectorAll("[data-message-user]").forEach(btn=>{
+      btn.onclick=()=>{
+        selectedUser=btn.dataset.messageUser;
+        selectedGroup=null;
+        $("selectedLabel").textContent=selectedUser;
+        showPage("messagesPage");
+        loadConversation(selectedUser);
+      };
+    });
   }catch(e){alert(e.message)}
 }
 
@@ -1105,7 +1183,56 @@ $("markNotificationsRead").onclick=async()=>{
 
 
 
-async function loadStories(){if(!token)return;try{const d=await api(`/api/stories?token=${encodeURIComponent(token)}`);const stories=d.stories||[];$("storiesStrip").innerHTML=stories.length?stories.map(s=>{const u=s.authorInfo||{username:s.author};const av=u.avatar||avatarFallback(u.displayName||u.username);return `<button class="story-item" data-story="${s.id}"><span class="story-ring"><img src="${av}"></span><small>${esc(u.displayName||u.username)}</small></button>`}).join(""):'<div class="story-empty">لا توجد حالات</div>';document.querySelectorAll('[data-story]').forEach(b=>b.onclick=()=>{const s=stories.find(x=>x.id===b.dataset.story);if(!s)return;$("storyViewerAuthor").textContent=s.authorInfo?.displayName||s.author;$("storyViewerText").textContent=s.text||"";if(s.media){$("storyViewerImage").src=s.media;$("storyViewerImage").classList.remove("hidden")}else $("storyViewerImage").classList.add("hidden");$("storyViewer").classList.remove("hidden")})}catch(e){console.error(e)}}
+async function loadStories(){
+  if(!token)return;
+  try{
+    const d=await api(`/api/stories?token=${encodeURIComponent(token)}`);
+    const stories=d.stories||[];
+
+    const renderStory=s=>{
+      const u=s.authorInfo||{username:s.author};
+      const av=u.avatar||avatarFallback(u.displayName||u.username);
+      return `<button class="story-item" data-story="${s.id}">
+        <span class="story-ring"><img src="${av}" alt=""></span>
+        <small>${esc(u.displayName||u.username)}</small>
+      </button>`;
+    };
+
+    if($("storiesStrip")){
+      $("storiesStrip").innerHTML=stories.length
+        ? stories.map(renderStory).join("")
+        : '<div class="story-empty">لا توجد حالات</div>';
+    }
+
+    if($("storiesStripSide")){
+      const add=`<button id="sideAddStoryInline" class="side-add-story">
+        <span>+</span><small>إضافة قصة</small>
+      </button>`;
+      $("storiesStripSide").innerHTML=add+(stories.length
+        ? stories.slice(0,5).map(renderStory).join("")
+        : '<div class="reference-side-empty">لا توجد قصص</div>');
+      $("sideAddStoryInline").onclick=()=>$("addStoryBtn")?.click();
+    }
+
+    document.querySelectorAll("[data-story]").forEach(b=>{
+      b.onclick=()=>{
+        const s=stories.find(x=>x.id===b.dataset.story);
+        if(!s)return;
+        $("storyViewerAuthor").textContent=s.authorInfo?.displayName||s.author;
+        $("storyViewerText").textContent=s.text||"";
+        if(s.media){
+          $("storyViewerImage").src=s.media;
+          $("storyViewerImage").classList.remove("hidden");
+        }else{
+          $("storyViewerImage").classList.add("hidden");
+        }
+        $("storyViewer").classList.remove("hidden");
+      };
+    });
+  }catch(e){
+    console.error(e);
+  }
+}
 $("addStoryBtn").onclick=()=>$("storyModal").classList.remove("hidden");$("closeStoryModalBtn").onclick=()=>$("storyModal").classList.add("hidden");$("closeStoryViewer").onclick=()=>$("storyViewer").classList.add("hidden");
 $("storyMediaInput").onchange=e=>{const f=e.target.files?.[0];if(!f)return;const r=new FileReader();r.onload=()=>{storyMediaData=String(r.result||"");$("storyPreview").src=storyMediaData;$("storyPreview").classList.remove("hidden")};r.readAsDataURL(f)};
 $("publishStoryBtn").onclick=async()=>{const text=$("storyTextInput").value.trim();if(!text&&!storyMediaData)return alert("اكتب حالة أو أضف صورة");try{await api('/api/stories',{method:'POST',body:JSON.stringify({token,text,media:storyMediaData})});$("storyTextInput").value="";storyMediaData="";$("storyModal").classList.add("hidden");$("storyPreview").classList.add("hidden");loadStories()}catch(e){alert(e.message)}};
@@ -1152,6 +1279,62 @@ async function loadSavedPosts(){
 
 $("refreshExploreBtn").onclick=loadExplore;
 $("loadSavedBtn").onclick=loadSavedPosts;
+
+
+
+async function loadDesktopSuggestions(){
+  if(!$("suggestionsList") || !token)return;
+  try{
+    const d=await api(`/api/users?token=${encodeURIComponent(token)}&q=`);
+    const users=(d.users||[]).filter(u=>u.username!==me?.username).slice(0,4);
+
+    $("suggestionsList").innerHTML=users.length?users.map(u=>{
+      const avatar=u.avatar||avatarFallback(u.fullName||u.displayName||u.username);
+      return `<div class="reference-suggestion-row">
+        <button class="reference-suggestion-user" data-open-profile="${esc(u.username)}">
+          <img src="${avatar}" alt="">
+          <span><strong>${esc(u.fullName||u.displayName||u.username)}</strong><small>@${esc(u.username)}</small></span>
+        </button>
+        <button class="reference-friend-btn" data-side-friend="${esc(u.username)}">إضافة صديق</button>
+      </div>`;
+    }).join(""):`<div class="reference-side-empty">لا توجد اقتراحات الآن</div>`;
+
+    bindProfileLinks();
+
+    document.querySelectorAll("[data-side-friend]").forEach(btn=>{
+      btn.onclick=async()=>{
+        try{
+          await api("/api/friend-request",{method:"POST",body:JSON.stringify({
+            token,username:btn.dataset.sideFriend
+          })});
+          btn.textContent="تم الإرسال";
+          btn.disabled=true;
+        }catch(e){alert(e.message)}
+      };
+    });
+  }catch(e){
+    $("suggestionsList").innerHTML='<div class="reference-side-empty">تعذر تحميل الاقتراحات</div>';
+  }
+}
+
+async function loadSavedPostsPage(){
+  if(!$("savedPostsPageList"))return;
+  try{
+    const d=await api(`/api/saved-posts?token=${encodeURIComponent(token)}`);
+    const posts=d.posts||[];
+    $("savedPostsPageList").innerHTML=posts.length?posts.map(p=>`
+      <article class="saved-page-card">
+        <div class="saved-page-author">@${esc(p.authorInfo?.username||p.author)}</div>
+        ${p.text?`<p>${esc(p.text)}</p>`:""}
+        ${p.image?`<img src="${p.image}" alt="">`:""}
+      </article>
+    `).join(""):`<div class="empty-card">لا توجد منشورات محفوظة</div>`;
+  }catch(e){
+    $("savedPostsPageList").innerHTML=`<div class="empty-card">${esc(e.message)}</div>`;
+  }
+}
+
+if($("refreshSavedPageBtn"))$("refreshSavedPageBtn").onclick=loadSavedPostsPage;
 
 
 let authMode="login";
@@ -1226,6 +1409,8 @@ $("authBtn").onclick=async()=>{
     loadGroups();
     loadPosts();
     loadStories();
+    loadDesktopSuggestions();
+    loadFriendRequests().catch(()=>{});
     askNotifications();
   }catch(e){
     $("authMsg").textContent=e.message;
