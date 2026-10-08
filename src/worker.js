@@ -1268,7 +1268,7 @@ export default {
       return Response.json({
         ok:true,
         app:"تواصل العطا",
-        version:"V13.1-Cloudflare-TURN"
+        version:"V13.2-WebRTC-Core-Fix"
       });
     }
 
