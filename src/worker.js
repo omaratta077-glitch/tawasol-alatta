@@ -1114,7 +1114,7 @@ export default {
       return Response.json({
         ok:true,
         app:"تواصل العطا",
-        version:"V12.7-Mobile-Chat-Fix"
+        version:"V12.8-Call-Buttons-Visible"
       });
     }
 

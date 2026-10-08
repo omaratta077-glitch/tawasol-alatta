@@ -1926,6 +1926,20 @@ if($("mobileBackContactsBtn")){
   };
 }
 
+if($("composerAudioCallBtn")){
+  $("composerAudioCallBtn").onclick=()=>{
+    ensureCallAudio();
+    requestCall("audio");
+  };
+}
+
+if($("composerVideoCallBtn")){
+  $("composerVideoCallBtn").onclick=()=>{
+    ensureCallAudio();
+    requestCall("video");
+  };
+}
+
 $("audioCallBtn").onclick=()=>{ensureCallAudio();requestCall("audio")};
 $("videoCallBtn").onclick=()=>{ensureCallAudio();requestCall("video")};
 

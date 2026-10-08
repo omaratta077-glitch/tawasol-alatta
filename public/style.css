@@ -3036,3 +3036,82 @@ button:not(.post-menu-btn):not(.stat-btn):not(.text-action-btn):not(.nav-btn):no
     font-size:13px!important;
   }
 }
+
+
+/* ===== V12.8 CALL BUTTONS ALWAYS VISIBLE ===== */
+.composer-call-actions{
+  display:flex!important;
+  align-items:center!important;
+  gap:6px!important;
+  flex:0 0 auto!important;
+}
+.composer-call-btn{
+  width:48px!important;
+  height:48px!important;
+  min-width:48px!important;
+  padding:0!important;
+  display:grid!important;
+  place-items:center!important;
+  border-radius:12px!important;
+  background:linear-gradient(135deg,#BF8D23,#F1CB62)!important;
+  color:#070707!important;
+  border:1px solid #F5D66F!important;
+  box-shadow:0 6px 16px rgba(230,185,78,.16)!important;
+}
+.composer-call-btn svg{
+  width:21px!important;
+  height:21px!important;
+  fill:none!important;
+  stroke:#070707!important;
+  stroke-width:1.9!important;
+  stroke-linecap:round!important;
+  stroke-linejoin:round!important;
+}
+.composer-call-btn:hover{
+  filter:brightness(1.06);
+}
+
+/* keep composer usable even when browser reports a desktop-like width on phones */
+@media(max-width:1200px){
+  .advanced-composer{
+    display:flex!important;
+    align-items:center!important;
+    flex-wrap:nowrap!important;
+    gap:6px!important;
+  }
+  .composer-call-actions{
+    display:flex!important;
+  }
+  .composer-call-btn{
+    width:44px!important;
+    height:44px!important;
+    min-width:44px!important;
+  }
+  .composer #messageInput{
+    min-width:90px!important;
+  }
+}
+
+@media(max-width:520px){
+  .composer-call-btn{
+    width:40px!important;
+    height:40px!important;
+    min-width:40px!important;
+  }
+  .composer-call-btn svg{
+    width:18px!important;
+    height:18px!important;
+  }
+  .chat-attach-btn{
+    display:none!important;
+  }
+  .composer #messageInput{
+    height:42px!important;
+    font-size:13px!important;
+  }
+  #sendBtn{
+    min-width:62px!important;
+    height:42px!important;
+    padding:0 9px!important;
+  }
+}
