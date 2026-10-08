@@ -587,3 +587,279 @@ textarea,input,select{background:rgba(255,247,215,.72)!important;color:#17130A!i
     height:84px;
   }
 }
+
+
+/* ===== V10.3 BLACK BODY FIX ===== */
+
+/* أهم إصلاح: لا تظهر شاشة الدخول والبرنامج معًا */
+.hidden{
+  display:none !important;
+}
+.auth-view.hidden{
+  display:none !important;
+}
+.app-shell.hidden{
+  display:none !important;
+}
+
+/* الخلفية العامة سوداء */
+html,
+body{
+  background:#050607 !important;
+  color:#f4f4f4 !important;
+}
+
+body{
+  min-height:100vh;
+}
+
+/* التطبيق بعد الدخول */
+.app-shell{
+  background:
+    radial-gradient(circle at 85% 5%, rgba(214,173,69,.07), transparent 28%),
+    linear-gradient(180deg,#070809,#0b0d0f) !important;
+  color:#f3f3f3 !important;
+}
+
+/* الهيدر أسود بحد ذهبي */
+.premium-header,
+.mobile-header{
+  background:rgba(7,8,9,.98) !important;
+  border-bottom:1px solid #D6AD45 !important;
+  box-shadow:0 8px 24px #000a !important;
+  color:#f4f4f4 !important;
+}
+
+.brand-copy strong{
+  color:#F0CF73 !important;
+}
+.brand-copy small{
+  color:#9b854f !important;
+}
+
+.header-profile-button{
+  background:#111418 !important;
+  border:1px solid #D6AD45 !important;
+  color:#fff !important;
+}
+
+/* الكروت سوداء وحدود ذهبية */
+.composer-card,
+.post-card,
+.stories-section,
+.notification-card,
+.user-search-card,
+.profile-card-large,
+.saved-post-card,
+.empty-card,
+.friend-section,
+.private-info-card,
+.profile-edit-grid,
+.messages-layout,
+.chat-sidebar,
+.chat-main,
+.topbar,
+.controls,
+.composer{
+  background:#101317 !important;
+  color:#f4f4f4 !important;
+  border-color:#D6AD45 !important;
+}
+
+/* الحقول */
+textarea,
+input,
+select{
+  background:#0b0e11 !important;
+  color:#f4f4f4 !important;
+  border:1px solid #D6AD45 !important;
+}
+
+textarea::placeholder,
+input::placeholder{
+  color:#8f9296 !important;
+}
+
+/* الأزرار */
+.primary,
+.action-btn,
+.gold-action,
+.gold-mini,
+.search-box button,
+.page-title button,
+.small-btn,
+.atta-login-button{
+  background:linear-gradient(135deg,#C99E38,#E0BA59) !important;
+  color:#0a0a0a !important;
+  border:1px solid #F0CF73 !important;
+}
+
+.dark-outline,
+.dark-mini,
+.atta-create-button{
+  background:#0d1013 !important;
+  color:#F0CF73 !important;
+  border:1px solid #D6AD45 !important;
+}
+
+/* Bottom nav */
+.premium-nav,
+.bottom-nav{
+  background:rgba(8,10,12,.98) !important;
+  border:1px solid #D6AD45 !important;
+  box-shadow:0 12px 30px #000b !important;
+}
+
+.nav-btn{
+  color:#8f8f8f !important;
+}
+.nav-btn.active{
+  color:#F0CF73 !important;
+  background:rgba(214,173,69,.10) !important;
+}
+
+/* المنشورات والتعليقات */
+.comment-row,
+.comment-reply,
+.shared-post-box,
+.profile-meta > div,
+.friend-card,
+.person-card{
+  background:#14181c !important;
+  border-color:#8f6d22 !important;
+  color:#f4f4f4 !important;
+}
+
+.post-actions button,
+.reaction-main-btn,
+.chat-attach-btn{
+  background:#111519 !important;
+  color:#F0CF73 !important;
+  border-color:#D6AD45 !important;
+}
+
+/* الملف الشخصي */
+.premium-profile{
+  background:#0d1013 !important;
+  border-color:#D6AD45 !important;
+}
+
+.profile-cover{
+  background:
+    radial-gradient(circle at 20% 15%,rgba(214,173,69,.18),transparent 27%),
+    linear-gradient(135deg,#15191d,#070809) !important;
+  border-bottom:1px solid #D6AD45 !important;
+}
+
+.profile-title-block h2,
+.profile-bio{
+  color:#f4f4f4 !important;
+}
+
+.muted-gold,
+.private-info-title,
+.profile-friend-stat strong{
+  color:#F0CF73 !important;
+}
+
+.profile-friend-stat{
+  background:#111519 !important;
+  border-color:#D6AD45 !important;
+  color:#fff !important;
+}
+
+/* شاشة المكالمة */
+.call-overlay{
+  background:#020304 !important;
+}
+.call-stage{
+  background:
+    radial-gradient(circle at center,#16191c 0%,#08090a 62%,#020304 100%) !important;
+}
+.call-overlay-header,
+.call-bottom-sheet{
+  border-color:#D6AD45 !important;
+}
+.round-icon,
+.call-top-btn{
+  background:#12161a !important;
+  border-color:#D6AD45 !important;
+}
+.call-status-bar{
+  background:#111519 !important;
+  color:#F0CF73 !important;
+  border-color:#D6AD45 !important;
+}
+
+/* شاشة الدخول تبقى منفصلة ومظبوطة */
+.auth-view{
+  min-height:100vh !important;
+  background:
+    radial-gradient(circle at 50% 12%, rgba(214,173,69,.14), transparent 30%),
+    #050607 !important;
+  color:#f4f4f4 !important;
+}
+
+.atta-login-shell{
+  min-height:100vh;
+  background:transparent !important;
+}
+
+.atta-download-strip{
+  background:#0a0d10 !important;
+  border-bottom:1px solid #D6AD45 !important;
+  color:#F0CF73 !important;
+}
+
+.atta-login-card{
+  background:#0e1114 !important;
+  color:#f4f4f4 !important;
+  border:1px solid #D6AD45 !important;
+  box-shadow:0 20px 50px #000a !important;
+}
+
+.atta-language{
+  color:#b6a374 !important;
+}
+
+.atta-login-brand-name{
+  color:#F0CF73 !important;
+}
+
+.atta-login-card input,
+.atta-login-card select{
+  background:#090c0f !important;
+  color:#f5f5f5 !important;
+  border:1px solid #D6AD45 !important;
+}
+
+.atta-login-card input::placeholder{
+  color:#898989 !important;
+}
+
+.atta-forgot-button{
+  color:#F0CF73 !important;
+}
+
+.atta-footer-brand{
+  color:#F0CF73 !important;
+}
+.atta-footer-brand span{
+  background:#D6AD45 !important;
+}
+
+.download-mark{
+  border-color:#D6AD45 !important;
+  color:#F0CF73 !important;
+}
+
+/* لا تجعل بطاقة الدخول تمتد مع الصفحة بعد تسجيل الدخول */
+@media(max-width:600px){
+  .auth-view.hidden{
+    display:none !important;
+  }
+
+  .atta-login-card{
+    background:#0e1114 !important;
+  }
+}
