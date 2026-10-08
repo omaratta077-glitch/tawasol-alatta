@@ -467,6 +467,48 @@ export class SignalingRoom extends DurableObject {
       return j({ok:true,stories});
     }
 
+
+    if(url.pathname==="/api/message-send" && request.method==="POST"){
+      const s=await this.session(String(body.token||""));
+      if(!s)return j({ok:false,error:"الجلسة منتهية"},401);
+
+      const to=String(body.to||"").trim().toLowerCase();
+      if(!to)return j({ok:false,error:"اختر مستخدمًا"},400);
+      if(to===s.username)return j({ok:false,error:"لا يمكنك إرسال رسالة لنفسك"},400);
+      if(!await this.user(to))return j({ok:false,error:"المستخدم غير موجود"},404);
+
+      const target=this.findUser(to);
+
+      const payload={
+        type:"chat",
+        id:crypto.randomUUID(),
+        from:s.username,
+        to,
+        text:String(body.text||"").slice(0,6000),
+        media:String(body.media||"").slice(0,700000),
+        mediaType:String(body.mediaType||"text"),
+        ts:Date.now(),
+        read:false,
+        deliveredAt:target?Date.now():0
+      };
+
+      const key=[s.username,to].sort().join(":");
+      const list=await this.ctx.storage.get(`messages:${key}`)||[];
+      list.push(payload);
+      await this.ctx.storage.put(`messages:${key}`,list.slice(-300));
+
+      if(target){
+        this.send(target,payload);
+      }
+
+      return j({
+        ok:true,
+        message:payload,
+        delivered:!!target,
+        stored:true
+      });
+    }
+
     if(url.pathname==="/api/conversation" && request.method==="GET"){
       const s=await this.session(url.searchParams.get("token")||"");
       if(!s)return j({ok:false,error:"الجلسة منتهية"},401);
@@ -1063,7 +1105,7 @@ export default {
       return Response.json({
         ok:true,
         app:"تواصل العطا",
-        version:"V12.5-Offline-Chat-Friends"
+        version:"V12.6-Reliable-Chat-UI"
       });
     }
 

@@ -2,7 +2,7 @@
 (()=>{
 const $=id=>document.getElementById(id);
 
-let token="",me=null,ws=null,reconnectTimer=null;
+let token="",me=null,ws=null,reconnectTimer=null,syncTimer=null,lastConversationSignature="";
 let viewedProfileUsername="";
 let viewedFriendState="none";
 let selectedUser="",selectedGroup=null,users=[],groups=[],chatFriends=[];
@@ -80,7 +80,7 @@ function connect(){
 
   ws.onopen=()=>{$("connectionState").textContent="متصل"};
   ws.onclose=()=>{
-    $("connectionState").textContent="انقطع الاتصال — إعادة المحاولة...";
+    $("connectionState").textContent="الرسائل محفوظة — إعادة الاتصال المباشر...";
     reconnectTimer=setTimeout(connect,1500);
   };
 
@@ -340,6 +340,7 @@ function renderUsers(){
       const u=allMap.get(selectedUser);
       $("selectedLabel").textContent=u?.fullName||u?.displayName||selectedUser;
 
+      lastConversationSignature="";
       loadConversation(selectedUser);
     };
   });
@@ -379,7 +380,60 @@ function addRichMessage(msg){
   $("messages").scrollTop=$("messages").scrollHeight;
 }
 
-async function loadConversation(username){if(!username)return;try{const d=await api(`/api/conversation?token=${encodeURIComponent(token)}&with=${encodeURIComponent(username)}`);$("messages").innerHTML="";(d.messages||[]).forEach(addRichMessage);send({type:"read",with:username})}catch(e){console.error(e)}}
+function conversationSignature(messages){
+  return (messages||[]).map(m=>`${m.id||""}:${m.read?1:0}:${m.deliveredAt||0}`).join("|");
+}
+
+function renderConversationMessages(messages,{preserveScroll=false}={}){
+  const box=$("messages");
+  if(!box)return;
+
+  const wasNearBottom=box.scrollHeight-box.scrollTop-box.clientHeight<90;
+  box.innerHTML="";
+  (messages||[]).forEach(addRichMessage);
+
+  if(!preserveScroll || wasNearBottom){
+    box.scrollTop=box.scrollHeight;
+  }
+}
+
+async function loadConversation(username,{silent=false}={}){
+  if(!username)return;
+
+  try{
+    const d=await api(`/api/conversation?token=${encodeURIComponent(token)}&with=${encodeURIComponent(username)}`);
+    const messages=d.messages||[];
+    const sig=conversationSignature(messages);
+
+    if(!silent || sig!==lastConversationSignature){
+      renderConversationMessages(messages,{preserveScroll:silent});
+      lastConversationSignature=sig;
+    }
+
+    if(ws?.readyState===WebSocket.OPEN){
+      send({type:"read",with:username});
+    }
+  }catch(e){
+    console.error("loadConversation",e);
+  }
+}
+
+
+async function syncSocialState(){
+  if(!token || !me)return;
+
+  await Promise.allSettled([
+    loadChatContacts(),
+    loadFriendRequests(),
+    selectedUser && !selectedGroup ? loadConversation(selectedUser,{silent:true}) : Promise.resolve(),
+    loadNotifications()
+  ]);
+}
+
+function startSocialSync(){
+  clearInterval(syncTimer);
+  syncTimer=setInterval(syncSocialState,3000);
+}
 
 async function loadGroups(){
   const d=await api(`/api/groups?token=${encodeURIComponent(token)}`);
@@ -1605,6 +1659,7 @@ $("authBtn").onclick=async()=>{
     loadStories();
     loadDesktopSuggestions();
     loadFriendRequests().catch(()=>{});
+    startSocialSync();
     askNotifications();
   }catch(e){
     $("authMsg").textContent=e.message;
@@ -1669,7 +1724,44 @@ document.querySelectorAll(".side-tab").forEach(btn=>{
   };
 });
 
-$("sendBtn").onclick=()=>{const text=$("messageInput").value.trim();if(!text&&!pendingChatMedia)return;if(selectedGroup)send({type:"group-chat",groupId:selectedGroup.id,text});else if(selectedUser)send({type:"chat",to:selectedUser,text,media:pendingChatMedia?.data||"",mediaType:pendingChatMedia?.type||"text"});else return alert("اختر مستخدمًا أو مجموعة");$("messageInput").value="";$("messageInput").placeholder="اكتب رسالة...";pendingChatMedia=null;};
+$("sendBtn").onclick=async()=>{
+  const text=$("messageInput").value.trim();
+  if(!text&&!pendingChatMedia)return;
+
+  if(selectedGroup){
+    if(ws?.readyState!==WebSocket.OPEN){
+      return alert("المجموعات تحتاج اتصالًا مباشرًا الآن.");
+    }
+    send({type:"group-chat",groupId:selectedGroup.id,text});
+  }else if(selectedUser){
+    try{
+      const d=await api("/api/message-send",{
+        method:"POST",
+        body:JSON.stringify({
+          token,
+          to:selectedUser,
+          text,
+          media:pendingChatMedia?.data||"",
+          mediaType:pendingChatMedia?.type||"text"
+        })
+      });
+
+      if(d.message){
+        const exists=d.message.id && document.querySelector(`[data-message-id="${d.message.id}"]`);
+        if(!exists)addRichMessage(d.message);
+        lastConversationSignature="";
+      }
+    }catch(e){
+      return alert(e.message||"تعذر إرسال الرسالة");
+    }
+  }else{
+    return alert("اختر صديقًا أو مجموعة");
+  }
+
+  $("messageInput").value="";
+  $("messageInput").placeholder="اكتب رسالة...";
+  pendingChatMedia=null;
+};
 
 $("messageInput").onkeydown=e=>{
   if(e.key==="Enter")$("sendBtn").click();

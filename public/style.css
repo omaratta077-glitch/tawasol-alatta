@@ -2413,3 +2413,230 @@ textarea::placeholder,input::placeholder{color:#8f989e!important}
 .message-read-state{
   color:#DDBB64!important;
 }
+
+/* ===== V12.6 RELIABLE CHAT + PREMIUM UI ===== */
+html,body,button,input,textarea,select{
+  font-family:"Segoe UI",Tahoma,Arial,sans-serif!important;
+}
+body{
+  letter-spacing:.05px;
+}
+button{
+  font-weight:700;
+}
+
+/* bigger premium header/logo */
+.premium-header{
+  height:86px!important;
+  background:linear-gradient(180deg,#080B0E,#040607)!important;
+  border-bottom:1px solid rgba(230,185,78,.58)!important;
+}
+.reference-mini-logo{
+  width:62px!important;
+  height:62px!important;
+  border:2px solid #E6B94E!important;
+  box-shadow:0 0 0 3px rgba(230,185,78,.08),0 0 24px rgba(230,185,78,.20)!important;
+}
+.reference-header-brand strong{
+  font-size:20px!important;
+  color:#F5D66F!important;
+}
+.reference-header-brand small{
+  font-size:9px!important;
+  letter-spacing:2.5px!important;
+}
+.reference-search{
+  height:50px!important;
+  border-color:rgba(230,185,78,.24)!important;
+}
+.header-icon-btn{
+  width:46px!important;
+  height:46px!important;
+}
+.header-icon-btn svg{
+  width:26px!important;
+  height:26px!important;
+}
+
+/* all buttons unified gold */
+button:not(.post-menu-btn):not(.stat-btn):not(.text-action-btn):not(.nav-btn):not(.rail-btn):not(.header-icon-btn):not(.reference-search):not(.reference-suggestion-user):not(.profile-link-button):not(.person-main):not(.friend-card):not(.story-item):not(.side-add-story){
+  border-color:#E6B94E!important;
+}
+.primary,.action-btn,.gold-action,.gold-mini,.small-btn,.search-box button,.page-title button,
+.reference-publish-btn,.rail-primary-btn,.reference-add-story,.comment-compose button,.reply-compose button,
+#sendBtn,.atta-login-button,.reference-friend-btn{
+  background:linear-gradient(135deg,#BF8D23 0%,#E6B94E 48%,#F5D66F 100%)!important;
+  color:#080808!important;
+  border:1px solid #F5D66F!important;
+  box-shadow:0 8px 20px rgba(230,185,78,.17)!important;
+  border-radius:12px!important;
+}
+.dark-outline,.dark-mini,.reference-tool-btn,.chat-attach-btn,.upload-label,.call-top-btn,.round-icon{
+  background:#0B1115!important;
+  color:#F5D66F!important;
+  border:1px solid rgba(230,185,78,.48)!important;
+}
+.dark-outline:hover,.dark-mini:hover,.reference-tool-btn:hover,.chat-attach-btn:hover,.upload-label:hover{
+  background:#10181D!important;
+  border-color:#F5D66F!important;
+}
+
+/* post cards closer to reference */
+.reference-post-card{
+  padding:22px 20px 16px!important;
+  border-radius:22px!important;
+  background:
+    radial-gradient(circle at 12% 0%,rgba(230,185,78,.055),transparent 20%),
+    linear-gradient(145deg,#0B1115,#06090C)!important;
+}
+.reference-post-head .avatar{
+  width:72px!important;
+  height:72px!important;
+}
+.reference-post-meta strong{
+  font-size:21px!important;
+  font-weight:800!important;
+}
+.reference-post-meta small{
+  font-size:13px!important;
+  color:#B6C0C6!important;
+}
+.reference-post-text{
+  font-size:18px!important;
+  line-height:1.85!important;
+  padding:15px 6px 18px!important;
+}
+.reference-post-image{
+  border-radius:16px!important;
+}
+.reference-post-footer{
+  padding:15px 10px 10px!important;
+}
+.reference-post-side-actions,.reference-post-stats{
+  gap:24px!important;
+}
+.text-action-btn span{
+  font-size:16px!important;
+}
+.stat-btn span{
+  font-size:17px!important;
+}
+
+/* smoother overall spacing */
+.social-main{
+  padding-bottom:70px!important;
+}
+.reference-composer,.reference-side-card,.reference-post-card{
+  margin-bottom:16px!important;
+}
+.reference-composer{
+  padding:22px!important;
+}
+.reference-composer textarea{
+  line-height:1.7!important;
+}
+.reference-tool-btn{
+  min-width:108px!important;
+}
+
+/* chat screen: reduce empty dead space and make message area intentional */
+.messages-layout{
+  min-height:calc(100vh - 125px)!important;
+  max-height:calc(100vh - 125px)!important;
+  border:1px solid rgba(230,185,78,.34)!important;
+  border-radius:18px!important;
+  overflow:hidden!important;
+  background:#080D10!important;
+}
+.chat-main{
+  min-height:0!important;
+  grid-template-rows:auto minmax(0,1fr) auto auto!important;
+  background:#080D10!important;
+}
+.video-area{
+  display:none!important;
+}
+.controls{
+  display:none!important;
+}
+.messages{
+  min-height:0!important;
+  padding:18px!important;
+  background:
+    radial-gradient(circle at 80% 0%,rgba(230,185,78,.035),transparent 22%),
+    #080D10!important;
+}
+.bubble{
+  max-width:min(76%,560px)!important;
+  padding:10px 13px!important;
+  border-radius:14px!important;
+  font-size:14px!important;
+  line-height:1.55!important;
+}
+.bubble.mine{
+  background:linear-gradient(135deg,#8D6518,#A97A20)!important;
+  color:#FFF7D8!important;
+  border-color:#D9AE42!important;
+}
+.composer{
+  grid-template-columns:1fr auto auto auto!important;
+  gap:9px!important;
+  padding:12px!important;
+  background:#090E12!important;
+  border-top:1px solid rgba(230,185,78,.24)!important;
+}
+.composer input{
+  height:46px!important;
+  border-radius:14px!important;
+  font-size:14px!important;
+}
+#sendBtn{
+  min-width:96px!important;
+  height:46px!important;
+  font-size:15px!important;
+}
+.chat-attach-btn{
+  width:46px!important;
+  height:46px!important;
+  border-radius:12px!important;
+}
+
+/* contact list readability */
+.chat-contact-item{
+  min-height:66px!important;
+  border-radius:13px!important;
+  padding:9px 11px!important;
+}
+.chat-contact-copy strong{
+  font-size:13px!important;
+}
+.chat-contact-copy small{
+  font-size:10px!important;
+}
+
+/* mobile polish */
+@media(max-width:999px){
+  .premium-header{
+    height:72px!important;
+  }
+  .reference-mini-logo{
+    width:48px!important;
+    height:48px!important;
+  }
+  .reference-header-brand strong{
+    font-size:15px!important;
+  }
+  .messages-layout{
+    min-height:calc(100vh - 150px)!important;
+    max-height:none!important;
+  }
+  .composer{
+    grid-template-columns:1fr auto auto auto!important;
+  }
+  #sendBtn{
+    min-width:82px!important;
+  }
+  .reference-post-card{
+    padding:16px 13px 12px!important;
+  }
+}
