@@ -3122,7 +3122,6 @@ queueMicrotask(()=>{
   setVoiceRecordButton(false);
   restoreSavedLogin().catch(err=>console.warn("restore login failed",err));
 });
-})();
 
 
 // V13.8 — Google Identity Services (free verified-email signup/login).
@@ -3167,3 +3166,5 @@ async function setupGoogleSignIn(){
   }catch(e){hint.textContent=e.message||"تعذر تفعيل تسجيل Google";}
 }
 window.addEventListener("load",setupGoogleSignIn);
+
+})();

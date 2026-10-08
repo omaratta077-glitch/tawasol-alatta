@@ -1623,7 +1623,7 @@ export default {
       return Response.json({
         ok:true,
         app:"تواصل العطا",
-        version:"V13.11-Google-Button-Fix"
+        version:"V13.12-Google-Scope-Fix"
       });
     }
 
