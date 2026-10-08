@@ -147,6 +147,7 @@ async function startAuthenticatedApp(sessionToken,user=null){
   connect();
   startCallSignalPolling();
   loadGroups();
+  resetMessagesInbox();
   loadChatContacts();
   loadPosts();
   loadStories();
@@ -850,58 +851,94 @@ function renderUsers(){
       .map(u=>[u.username,u])
   );
 
-  const allMap=new Map();
+  // الرسائل الخاصة تعرض الأصدقاء فقط.
+  const friendMap=new Map();
 
-  for(const f of chatFriends){
-    if(f.username!==me.username){
-      allMap.set(f.username,{...f,isFriend:true});
-    }
+  for(const friend of chatFriends){
+    if(!friend?.username || friend.username===me.username)continue;
+
+    const live=onlineMap.get(friend.username);
+
+    friendMap.set(friend.username,{
+      ...friend,
+      ...(live||{}),
+      isOnline:!!live
+    });
   }
 
-  for(const u of users){
-    if(u.username!==me.username){
-      allMap.set(u.username,{...(allMap.get(u.username)||{}),...u,isOnline:true});
-    }
-  }
-
-  const all=[...allMap.values()].sort((a,b)=>{
-    const ao=onlineMap.has(a.username)?1:0;
-    const bo=onlineMap.has(b.username)?1:0;
-    return bo-ao || String(a.displayName||a.username).localeCompare(String(b.displayName||b.username),"ar");
+  const all=[...friendMap.values()].sort((a,b)=>{
+    const ao=a.isOnline?1:0;
+    const bo=b.isOnline?1:0;
+    return bo-ao ||
+      String(a.fullName||a.displayName||a.username)
+        .localeCompare(String(b.fullName||b.displayName||b.username),"ar");
   });
 
   $("usersList").innerHTML=all.length
     ? all.map(u=>{
-        const isOnline=onlineMap.has(u.username);
         const avatar=u.avatar||avatarFallback(u.fullName||u.displayName||u.username);
 
         return `
-        <button class="user-item chat-contact-item" data-user="${esc(u.username)}">
-          <img class="chat-contact-avatar" src="${avatar}" alt="">
-          <span class="chat-contact-copy">
-            <strong>${esc(u.fullName||u.displayName||u.username)}</strong>
-            <small>${isOnline?"متصل الآن":"غير متصل — يمكنك إرسال رسالة"}</small>
-          </span>
-          <span class="presence-dot ${isOnline?"online":"offline"}"></span>
-        </button>`;
+          <button class="user-item chat-contact-item" data-user="${esc(u.username)}">
+            <img class="chat-contact-avatar" src="${avatar}" alt="">
+            <span class="chat-contact-copy">
+              <strong>${esc(u.fullName||u.displayName||u.username)}</strong>
+              <small>${u.isOnline?"متصل الآن":"غير متصل"}</small>
+            </span>
+            <span class="presence-dot ${u.isOnline?"online":"offline"}"></span>
+            <span class="contact-open-arrow">${uiIcon("chevron-left")}</span>
+          </button>`;
       }).join("")
-    : `<div class="chat-empty-contacts">لا يوجد أصدقاء بعد. أضف صديقًا ليظهر هنا حتى لو كان غير متصل.</div>`;
+    : `
+      <div class="chat-empty-contacts premium-empty-inbox">
+        ${uiIcon("message-circle")}
+        <strong>لا توجد محادثات مفتوحة</strong>
+        <span>أضف أصدقاء أولًا، ثم اضغط على الصديق لبدء المحادثة.</span>
+      </div>`;
 
   document.querySelectorAll("[data-user]").forEach(btn=>{
     btn.onclick=()=>{
-      selectedUser=btn.dataset.user;
-      selectedGroup=null;
-
-      const u=allMap.get(selectedUser);
-      $("selectedLabel").textContent=u?.fullName||u?.displayName||selectedUser;
-
-      $("messagesLayout")?.classList.add("has-chat");
-      lastConversationSignature="";
-      loadConversation(selectedUser);
+      const username=btn.dataset.user;
+      const user=friendMap.get(username);
+      openDirectChat(username,user);
     };
   });
 }
 
+function resetMessagesInbox(){
+  selectedUser="";
+  selectedGroup=null;
+  lastConversationSignature="";
+  document.body.classList.remove("chat-fullscreen-open");
+  $("messagesLayout")?.classList.remove("has-chat");
+  $("messages").innerHTML="";
+  $("selectedLabel").textContent="اختر صديقًا";
+  $("typingIndicator")?.classList.add("hidden");
+  clearPendingChatMedia?.();
+}
+
+function openDirectChat(username,userInfo=null){
+  if(!username)return;
+
+  selectedUser=username;
+  selectedGroup=null;
+  lastConversationSignature="";
+
+  const user=userInfo ||
+    chatFriends.find(u=>u.username===username) ||
+    users.find(u=>u.username===username);
+
+  $("selectedLabel").textContent=
+    user?.fullName||user?.displayName||username;
+
+  $("messages").innerHTML="";
+  $("messagesLayout")?.classList.add("has-chat");
+  document.body.classList.add("chat-fullscreen-open");
+
+  loadConversation(username);
+
+  setTimeout(()=>$("messageInput")?.focus(),120);
+}
 function addMessage(from,text,mine){addRichMessage({from,to:mine?selectedUser:me?.username,text,media:"",mediaType:"text",read:false,ts:Date.now()})}
 function addRichMessage(msg){
   if(msg?.mediaType==="call-signal")return;
@@ -1009,6 +1046,7 @@ async function loadGroups(){
       selectedUser="";
       $("selectedLabel").textContent=selectedGroup?.name||"مجموعة";
       $("messagesLayout")?.classList.add("has-chat");
+      document.body.classList.add("chat-fullscreen-open");
       $("messages").innerHTML="";
     };
   });
@@ -1648,6 +1686,10 @@ function showPage(pageId){
   }
   if(pageId==="searchPage")loadExplore();
   if(pageId==="savedPage")loadSavedPostsPage();
+  if(pageId==="messagesPage"){
+    resetMessagesInbox();
+    loadChatContacts();
+  }
 }
 
 
@@ -2112,11 +2154,15 @@ async function searchUsers(){
 
     document.querySelectorAll("[data-message-user]").forEach(btn=>{
       btn.onclick=()=>{
-        selectedUser=btn.dataset.messageUser;
-        selectedGroup=null;
-        $("selectedLabel").textContent=selectedUser;
+        const username=btn.dataset.messageUser;
+        const friend=chatFriends.find(u=>u.username===username);
+
+        if(!friend){
+          return alert("يجب أن يكون المستخدم ضمن أصدقائك لبدء محادثة.");
+        }
+
         showPage("messagesPage");
-        loadConversation(selectedUser);
+        openDirectChat(username,friend);
       };
     });
   }catch(e){alert(e.message)}
@@ -2495,21 +2541,90 @@ if($("refreshSavedPageBtn"))$("refreshSavedPageBtn").onclick=loadSavedPostsPage;
 
 
 let authMode="login";
+let pendingVerificationId="";
+let verificationCountdownTimer=null;
 
+
+
+function setVerificationCountdown(seconds=600){
+  clearInterval(verificationCountdownTimer);
+
+  let remaining=Math.max(0,Number(seconds)||0);
+
+  const paint=()=>{
+    const mins=Math.floor(remaining/60);
+    const secs=String(remaining%60).padStart(2,"0");
+    if($("verificationExpiryText")){
+      $("verificationExpiryText").textContent=
+        remaining>0
+          ? `الكود صالح لمدة ${mins}:${secs}`
+          : "انتهت صلاحية الكود. اطلب إعادة الإرسال.";
+    }
+    remaining=Math.max(0,remaining-1);
+  };
+
+  paint();
+  verificationCountdownTimer=setInterval(paint,1000);
+}
+
+function showVerificationStep(data){
+  pendingVerificationId=String(data?.verificationId||pendingVerificationId||"");
+  authMode="verify";
+
+  $("authMainFields").classList.add("hidden");
+  $("registerFields").classList.add("hidden");
+  $("confirmPasswordInput").classList.add("hidden");
+  $("verificationFields").classList.remove("hidden");
+  $("authBtn").textContent="تأكيد الكود وإنشاء الحساب";
+
+  if($("verificationDeliveryText")){
+    $("verificationDeliveryText").textContent=
+      `أرسلنا كود التأكيد إلى ${data?.delivery||"بريدك الإلكتروني"}`;
+  }
+
+  $("verificationCodeInput").value="";
+  $("verificationCodeInput").focus();
+  $("loginTab").disabled=true;
+  $("registerTab").disabled=true;
+  if($("attaRegisterShortcut"))$("attaRegisterShortcut").classList.add("hidden");
+
+  setVerificationCountdown(data?.expiresIn||600);
+}
+
+function exitVerificationStep(){
+  clearInterval(verificationCountdownTimer);
+  pendingVerificationId="";
+  authMode="register";
+
+  $("authMainFields").classList.remove("hidden");
+  $("registerFields").classList.remove("hidden");
+  $("confirmPasswordInput").classList.remove("hidden");
+  $("verificationFields").classList.add("hidden");
+  $("authBtn").textContent="إرسال كود التأكيد";
+  $("loginTab").disabled=false;
+  $("registerTab").disabled=false;
+  $("registerTab").classList.add("active");
+  $("loginTab").classList.remove("active");
+  $("authMsg").textContent="";
+}
 
 if($("attaRegisterShortcut")){
   $("attaRegisterShortcut").onclick=()=>{
     authMode="register";
     $("registerFields").classList.remove("hidden");
     $("confirmPasswordInput").classList.remove("hidden");
-    $("authBtn").textContent="إنشاء الحساب";
+    $("authBtn").textContent="إرسال كود التأكيد";
   if($("attaRegisterShortcut"))$("attaRegisterShortcut").classList.add("hidden");
     $("attaRegisterShortcut").classList.add("hidden");
   };
 }
 
 $("loginTab").onclick=()=>{
+  clearInterval(verificationCountdownTimer);
+  pendingVerificationId="";
   authMode="login";
+  $("authMainFields").classList.remove("hidden");
+  $("verificationFields").classList.add("hidden");
   $("loginTab").classList.add("active");
   $("registerTab").classList.remove("active");
   $("registerFields").classList.add("hidden");
@@ -2519,18 +2634,50 @@ $("loginTab").onclick=()=>{
 };
 
 $("registerTab").onclick=()=>{
+  clearInterval(verificationCountdownTimer);
+  pendingVerificationId="";
   authMode="register";
+  $("authMainFields").classList.remove("hidden");
+  $("verificationFields").classList.add("hidden");
   $("registerTab").classList.add("active");
   $("loginTab").classList.remove("active");
   $("registerFields").classList.remove("hidden");
   $("confirmPasswordInput").classList.remove("hidden");
-  $("authBtn").textContent="إنشاء الحساب";
+  $("authBtn").textContent="إرسال كود التأكيد";
 };
 
 $("authBtn").onclick=async()=>{
   ensureCallAudio();
+
   try{
     $("authMsg").textContent="";
+
+    if(authMode==="verify"){
+      const code=$("verificationCodeInput").value.trim().replace(/\D/g,"");
+
+      if(!/^\d{6}$/.test(code)){
+        throw new Error("اكتب كود التأكيد المكون من 6 أرقام");
+      }
+
+      $("authBtn").disabled=true;
+      $("authBtn").textContent="جاري التأكيد...";
+
+      const d=await api("/api/register-verify",{
+        method:"POST",
+        body:JSON.stringify({
+          verificationId:pendingVerificationId,
+          code
+        })
+      });
+
+      clearInterval(verificationCountdownTimer);
+      pendingVerificationId="";
+      $("authBtn").disabled=false;
+      $("authBtn").textContent="تم إنشاء الحساب";
+
+      await startAuthenticatedApp(d.token,d.user);
+      return;
+    }
 
     const body={
       username:$("usernameInput").value.trim(),
@@ -2545,16 +2692,86 @@ $("authBtn").onclick=async()=>{
       body.gender=$("genderInput").value;
       body.country=$("countryInput").value.trim();
       body.confirmPassword=$("confirmPasswordInput").value;
+
+      $("authBtn").disabled=true;
+      $("authBtn").textContent="جاري إرسال الكود...";
+
+      const d=await api("/api/register-request",{
+        method:"POST",
+        body:JSON.stringify(body)
+      });
+
+      $("authBtn").disabled=false;
+      showVerificationStep(d);
+      return;
     }
 
-    const d=await api(
-      authMode==="register"?"/api/register":"/api/login",
-      {method:"POST",body:JSON.stringify(body)}
-    );
+    $("authBtn").disabled=true;
+    $("authBtn").textContent="جاري تسجيل الدخول...";
 
+    const d=await api("/api/login",{
+      method:"POST",
+      body:JSON.stringify(body)
+    });
+
+    $("authBtn").disabled=false;
+    $("authBtn").textContent="تسجيل الدخول";
     await startAuthenticatedApp(d.token,d.user);
   }catch(e){
+    $("authBtn").disabled=false;
+
+    if(authMode==="verify"){
+      $("authBtn").textContent="تأكيد الكود وإنشاء الحساب";
+    }else if(authMode==="register"){
+      $("authBtn").textContent="إرسال كود التأكيد";
+    }else{
+      $("authBtn").textContent="تسجيل الدخول";
+    }
+
     $("authMsg").textContent=e.message;
+  }
+};
+
+$("verificationCodeInput").addEventListener("input",e=>{
+  e.target.value=e.target.value.replace(/\D/g,"").slice(0,6);
+  if(e.target.value.length===6){
+    $("authMsg").textContent="";
+  }
+});
+
+$("verificationCodeInput").addEventListener("keydown",e=>{
+  if(e.key==="Enter")$("authBtn").click();
+});
+
+$("cancelVerificationBtn").onclick=exitVerificationStep;
+
+$("resendVerificationBtn").onclick=async()=>{
+  if(!pendingVerificationId)return;
+
+  try{
+    $("authMsg").textContent="";
+    $("resendVerificationBtn").disabled=true;
+    $("resendVerificationBtn").textContent="جاري الإرسال...";
+
+    const d=await api("/api/register-resend",{
+      method:"POST",
+      body:JSON.stringify({verificationId:pendingVerificationId})
+    });
+
+    if($("verificationDeliveryText")){
+      $("verificationDeliveryText").textContent=
+        `أرسلنا كودًا جديدًا إلى ${d.delivery||"بريدك الإلكتروني"}`;
+    }
+
+    $("verificationCodeInput").value="";
+    $("verificationCodeInput").focus();
+    setVerificationCountdown(d.expiresIn||600);
+    $("authMsg").textContent="تم إرسال كود جديد.";
+  }catch(e){
+    $("authMsg").textContent=e.message;
+  }finally{
+    $("resendVerificationBtn").disabled=false;
+    $("resendVerificationBtn").textContent="إعادة إرسال الكود";
   }
 };
 
@@ -2661,7 +2878,8 @@ $("messageInput").onkeydown=e=>{
 
 if($("mobileBackContactsBtn")){
   $("mobileBackContactsBtn").onclick=()=>{
-    $("messagesLayout")?.classList.remove("has-chat");
+    resetMessagesInbox();
+    loadChatContacts();
   };
 }
 

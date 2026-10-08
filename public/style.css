@@ -3618,3 +3618,266 @@ textarea:focus,input:focus,select:focus{
   .round-icon .atta-icon,
   .round-icon.atta-icon-slot .atta-icon{width:23px!important;height:23px!important}
 }
+
+
+/* =========================================================
+   V13.6 — Verified signup + fullscreen direct messages
+   ========================================================= */
+
+/* ---------- verification ---------- */
+.register-verification-hint{
+  margin:-2px 0 10px;
+  padding:10px 12px;
+  border:1px solid rgba(226,181,69,.28);
+  background:rgba(226,181,69,.07);
+  border-radius:11px;
+  color:#d8c89b;
+  font-size:12px;
+  line-height:1.65;
+}
+
+.verification-fields{
+  display:grid;
+  gap:13px;
+  justify-items:stretch;
+  text-align:center;
+  padding:18px 4px 8px;
+}
+
+.verification-fields.hidden{
+  display:none!important;
+}
+
+.verification-icon-wrap{
+  width:64px;
+  height:64px;
+  margin:0 auto 2px;
+  display:grid;
+  place-items:center;
+  border-radius:50%;
+  color:#f2c753;
+  border:1px solid rgba(242,199,83,.52);
+  background:
+    radial-gradient(circle at 35% 28%,rgba(255,229,132,.18),transparent 38%),
+    #0c1114;
+  box-shadow:0 0 26px rgba(215,163,40,.16);
+}
+
+.verification-icon-wrap .atta-icon{
+  width:29px;
+  height:29px;
+}
+
+.verification-fields>strong{
+  color:#f5cf67;
+  font-size:18px;
+}
+
+.verification-fields p{
+  margin:0;
+  color:#d7d7d7;
+  font-size:13px;
+  line-height:1.7;
+}
+
+.verification-code-input{
+  direction:ltr!important;
+  text-align:center!important;
+  letter-spacing:10px!important;
+  font-size:25px!important;
+  font-weight:800!important;
+  color:#f7d675!important;
+  font-variant-numeric:tabular-nums;
+}
+
+#verificationExpiryText{
+  color:#9ea5a9;
+  font-size:11px;
+}
+
+.verification-actions{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:9px;
+  flex-wrap:wrap;
+}
+
+.atta-secondary-button,
+.atta-link-button{
+  min-height:38px;
+  border-radius:10px;
+  cursor:pointer;
+  font-weight:700;
+}
+
+.atta-secondary-button{
+  padding:0 16px;
+  color:#eac45e;
+  border:1px solid rgba(234,196,94,.42);
+  background:#0d1215;
+}
+
+.atta-link-button{
+  padding:0 12px;
+  color:#b9bec1;
+  border:0;
+  background:transparent;
+}
+
+.atta-secondary-button:disabled,
+.auth-tabs button:disabled{
+  opacity:.45;
+  cursor:not-allowed;
+}
+
+/* ---------- inbox: nothing opens by itself ---------- */
+#messagesPage.active-page .messages-layout:not(.has-chat){
+  display:block!important;
+  width:min(100%,760px)!important;
+  height:auto!important;
+  min-height:520px!important;
+  max-height:none!important;
+  margin:0 auto!important;
+}
+
+#messagesPage .messages-layout:not(.has-chat) .chat-sidebar{
+  display:block!important;
+  width:100%!important;
+  height:auto!important;
+  min-height:520px!important;
+  max-height:none!important;
+  overflow:visible!important;
+}
+
+#messagesPage .messages-layout:not(.has-chat) .chat-main{
+  display:none!important;
+}
+
+.premium-empty-inbox{
+  min-height:250px;
+  display:grid!important;
+  place-items:center;
+  align-content:center;
+  gap:10px;
+  text-align:center;
+  padding:32px!important;
+  color:#8e969b!important;
+}
+
+.premium-empty-inbox>.atta-icon{
+  width:44px;
+  height:44px;
+  color:#d5a52e;
+  opacity:.8;
+}
+
+.premium-empty-inbox strong{
+  color:#e7c35d;
+  font-size:16px;
+}
+
+.premium-empty-inbox span{
+  max-width:360px;
+  line-height:1.7;
+  font-size:12px;
+}
+
+.contact-open-arrow{
+  margin-inline-start:auto;
+  display:grid;
+  place-items:center;
+  color:#d8ad3e;
+  opacity:.65;
+}
+
+.contact-open-arrow .atta-icon{
+  width:18px;
+  height:18px;
+}
+
+/* ---------- full screen conversation ---------- */
+body.chat-fullscreen-open{
+  overflow:hidden!important;
+}
+
+body.chat-fullscreen-open .premium-header,
+body.chat-fullscreen-open .reference-leftbar,
+body.chat-fullscreen-open .mobile-bottom-nav{
+  visibility:hidden!important;
+  pointer-events:none!important;
+}
+
+#messagesPage .messages-layout.has-chat{
+  position:fixed!important;
+  inset:0!important;
+  z-index:9000!important;
+  width:100vw!important;
+  height:100dvh!important;
+  min-height:100dvh!important;
+  max-height:100dvh!important;
+  margin:0!important;
+  border:0!important;
+  border-radius:0!important;
+  display:block!important;
+  overflow:hidden!important;
+  background:#070b0e!important;
+}
+
+#messagesPage .messages-layout.has-chat .chat-sidebar{
+  display:none!important;
+}
+
+#messagesPage .messages-layout.has-chat .chat-main{
+  display:grid!important;
+  width:100%!important;
+  height:100dvh!important;
+  min-height:0!important;
+  grid-template-rows:auto auto minmax(0,1fr)!important;
+  background:#070b0e!important;
+}
+
+#messagesPage .messages-layout.has-chat .chat{
+  min-height:0!important;
+  height:100%!important;
+  grid-template-rows:minmax(0,1fr) auto auto auto!important;
+}
+
+#messagesPage .messages-layout.has-chat .mobile-chat-back{
+  display:grid!important;
+  place-items:center!important;
+  flex:0 0 auto!important;
+}
+
+#messagesPage .messages-layout.has-chat .chat-topbar{
+  min-height:72px!important;
+  padding:9px max(14px,env(safe-area-inset-right)) 9px max(14px,env(safe-area-inset-left))!important;
+  background:#090e12!important;
+  border-bottom:1px solid rgba(220,174,60,.24)!important;
+}
+
+#messagesPage .messages-layout.has-chat .messages{
+  padding:20px clamp(14px,4vw,54px)!important;
+}
+
+#messagesPage .messages-layout.has-chat .advanced-composer{
+  padding:
+    12px max(14px,env(safe-area-inset-right))
+    calc(12px + env(safe-area-inset-bottom))
+    max(14px,env(safe-area-inset-left))!important;
+}
+
+@media(max-width:850px){
+  #messagesPage.active-page .messages-layout:not(.has-chat),
+  #messagesPage .messages-layout:not(.has-chat) .chat-sidebar{
+    min-height:calc(100dvh - 155px)!important;
+  }
+
+  #messagesPage .messages-layout.has-chat .chat-topbar{
+    min-height:62px!important;
+  }
+
+  #messagesPage .messages-layout.has-chat .messages{
+    padding:14px!important;
+  }
+}

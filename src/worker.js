@@ -83,6 +83,95 @@ export class SignalingRoom extends DurableObject {
     return token ? (await this.ctx.storage.get(`session:${token}`)||null) : null;
   }
 
+  normalizeRegistration(body={}){
+    return {
+      fullName:String(body.fullName||"").trim(),
+      username:String(body.username||"").trim().toLowerCase(),
+      age:Number(body.age||0),
+      phone:String(body.phone||"").trim().replace(/\s+/g,""),
+      email:String(body.email||"").trim().toLowerCase(),
+      gender:String(body.gender||"").trim(),
+      country:String(body.country||"").trim(),
+      password:String(body.password||""),
+      confirmPassword:String(body.confirmPassword||"")
+    };
+  }
+
+  async validateRegistration(reg){
+    if(reg.fullName.length<3)return "اكتب الاسم الكامل";
+    if(reg.username.length<3)return "اسم المستخدم 3 أحرف على الأقل";
+    if(!Number.isFinite(reg.age) || reg.age<13 || reg.age>120)return "اكتب عمرًا صحيحًا من 13 إلى 120";
+    if(!reg.email)return "أدخل البريد الإلكتروني لاستلام كود التأكيد";
+    if(reg.phone && !/^\+?[0-9]{8,15}$/.test(reg.phone))return "رقم الهاتف غير صحيح";
+    if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(reg.email))return "البريد الإلكتروني غير صحيح";
+    if(reg.password.length<6)return "كلمة المرور 6 أحرف على الأقل";
+    if(reg.password!==reg.confirmPassword)return "كلمتا المرور غير متطابقتين";
+    if(await this.user(reg.username))return "اسم المستخدم موجود بالفعل";
+
+    const existingUsers=await this.ctx.storage.get("usernames")||[];
+
+    for(const existingName of existingUsers){
+      const existing=await this.user(existingName);
+      if(!existing)continue;
+      if(reg.phone && existing.phone===reg.phone)return "رقم الهاتف مستخدم بالفعل";
+      if(existing.email===reg.email)return "البريد الإلكتروني مستخدم بالفعل";
+    }
+
+    return "";
+  }
+
+  maskEmail(email){
+    const [name,domain]=String(email||"").split("@");
+    if(!domain)return email;
+    const visible=name.slice(0,Math.min(2,name.length));
+    return `${visible}${"*".repeat(Math.max(2,name.length-visible.length))}@${domain}`;
+  }
+
+  async sendVerificationEmail(email,code){
+    const apiKey=String(this.env.RESEND_API_KEY||"").trim();
+    const from=String(
+      this.env.VERIFY_FROM_EMAIL||
+      "Tawasol Al-Atta <onboarding@resend.dev>"
+    ).trim();
+
+    if(!apiKey){
+      throw new Error("EMAIL_PROVIDER_NOT_CONFIGURED");
+    }
+
+    const response=await fetch("https://api.resend.com/emails",{
+      method:"POST",
+      headers:{
+        "Authorization":`Bearer ${apiKey}`,
+        "Content-Type":"application/json"
+      },
+      body:JSON.stringify({
+        from,
+        to:[email],
+        subject:"كود تأكيد حساب تواصل العطا",
+        html:`<!doctype html>
+          <html dir="rtl" lang="ar">
+            <body style="margin:0;background:#0a0d10;font-family:Arial,sans-serif;color:#fff">
+              <div style="max-width:520px;margin:30px auto;padding:28px;background:#11161a;border:1px solid #d7a936;border-radius:18px;text-align:center">
+                <h2 style="color:#f1c75b;margin:0 0 14px">تواصل العطا</h2>
+                <p style="line-height:1.8;color:#ddd">استخدم الكود التالي لتأكيد إنشاء حسابك:</p>
+                <div style="font-size:34px;letter-spacing:9px;font-weight:800;color:#f7d778;padding:18px 8px">${code}</div>
+                <p style="color:#aaa;font-size:13px">الكود صالح لمدة 10 دقائق. إذا لم تطلب إنشاء الحساب فتجاهل الرسالة.</p>
+              </div>
+            </body>
+          </html>`
+      })
+    });
+
+    const text=await response.text();
+
+    if(!response.ok){
+      console.error("Verification email provider error",response.status,text.slice(0,500));
+      throw new Error("EMAIL_SEND_FAILED");
+    }
+
+    return true;
+  }
+
   async api(request){
     const url=new URL(request.url);
     let body={};
@@ -163,54 +252,210 @@ export class SignalingRoom extends DurableObject {
       }
     }
 
-    if(url.pathname==="/api/register" && request.method==="POST"){
-      const fullName=String(body.fullName||"").trim();
-      const username=String(body.username||"").trim().toLowerCase();
-      const age=Number(body.age||0);
-      const phone=String(body.phone||"").trim().replace(/\s+/g,"");
-      const email=String(body.email||"").trim().toLowerCase();
-      const gender=String(body.gender||"").trim();
-      const country=String(body.country||"").trim();
-      const password=String(body.password||"");
-      const confirmPassword=String(body.confirmPassword||"");
+    if(
+      (url.pathname==="/api/register" || url.pathname==="/api/register-request") &&
+      request.method==="POST"
+    ){
+      const reg=this.normalizeRegistration(body);
+      const validationError=await this.validateRegistration(reg);
+      if(validationError)return j({ok:false,error:validationError},400);
 
-      if(fullName.length<3)return j({ok:false,error:"اكتب الاسم الكامل"},400);
-      if(username.length<3)return j({ok:false,error:"اسم المستخدم 3 أحرف على الأقل"},400);
-      if(!Number.isFinite(age) || age<13 || age>120)return j({ok:false,error:"اكتب عمرًا صحيحًا من 13 إلى 120"},400);
-      if(!phone && !email)return j({ok:false,error:"أدخل رقم الهاتف أو البريد الإلكتروني على الأقل"},400);
-      if(phone && !/^\+?[0-9]{8,15}$/.test(phone))return j({ok:false,error:"رقم الهاتف غير صحيح"},400);
-      if(email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))return j({ok:false,error:"البريد الإلكتروني غير صحيح"},400);
-      if(password.length<6)return j({ok:false,error:"كلمة المرور 6 أحرف على الأقل"},400);
-      if(password!==confirmPassword)return j({ok:false,error:"كلمتا المرور غير متطابقتين"},400);
-      if(await this.user(username))return j({ok:false,error:"اسم المستخدم موجود بالفعل"},409);
+      const emailRateKey=`verify-email-rate:${reg.email}`;
+      const lastEmailSent=Number(await this.ctx.storage.get(emailRateKey)||0);
+      const now=Date.now();
+
+      if(now-lastEmailSent<60000){
+        const wait=Math.ceil((60000-(now-lastEmailSent))/1000);
+        return j({ok:false,error:`انتظر ${wait} ثانية قبل طلب كود جديد`,retryAfter:wait},429);
+      }
+
+      const verificationId=crypto.randomUUID();
+      const code=String(crypto.getRandomValues(new Uint32Array(1))[0]%1000000).padStart(6,"0");
+      const codeHash=await hashPassword(`verify:${verificationId}:${code}`);
+
+      const pending={
+        verificationId,
+        registration:{
+          username:reg.username,
+          fullName:reg.fullName,
+          age:reg.age,
+          phone:reg.phone,
+          email:reg.email,
+          gender:reg.gender,
+          country:reg.country,
+          passwordHash:await hashPassword(reg.password)
+        },
+        codeHash,
+        createdAt:now,
+        expiresAt:now+(10*60*1000),
+        attempts:0,
+        resendCount:0,
+        lastSentAt:now
+      };
+
+      try{
+        await this.sendVerificationEmail(reg.email,code);
+      }catch(err){
+        if(err?.message==="EMAIL_PROVIDER_NOT_CONFIGURED"){
+          return j({
+            ok:false,
+            error:"إرسال كود التأكيد غير مفعّل على الخادم بعد",
+            code:"EMAIL_PROVIDER_NOT_CONFIGURED"
+          },503);
+        }
+
+        return j({
+          ok:false,
+          error:"تعذر إرسال كود التأكيد إلى البريد الإلكتروني",
+          code:"EMAIL_SEND_FAILED"
+        },502);
+      }
+
+      await this.ctx.storage.put(`pending-registration:${verificationId}`,pending,{
+        expirationTtl:15*60
+      });
+      await this.ctx.storage.put(emailRateKey,now,{expirationTtl:60});
+
+      return j({
+        ok:true,
+        verificationRequired:true,
+        verificationId,
+        delivery:this.maskEmail(reg.email),
+        expiresIn:600
+      });
+    }
+
+    if(url.pathname==="/api/register-verify" && request.method==="POST"){
+      const verificationId=String(body.verificationId||"").trim();
+      const code=String(body.code||"").trim().replace(/\D/g,"");
+
+      if(!verificationId || !/^\d{6}$/.test(code)){
+        return j({ok:false,error:"اكتب كود التأكيد المكون من 6 أرقام"},400);
+      }
+
+      const key=`pending-registration:${verificationId}`;
+      const pending=await this.ctx.storage.get(key);
+
+      if(!pending){
+        return j({ok:false,error:"طلب التسجيل غير موجود أو انتهت صلاحيته"},410);
+      }
+
+      if(Date.now()>Number(pending.expiresAt||0)){
+        await this.ctx.storage.delete(key);
+        return j({ok:false,error:"انتهت صلاحية الكود. اطلب كودًا جديدًا"},410);
+      }
+
+      pending.attempts=Number(pending.attempts||0)+1;
+
+      if(pending.attempts>6){
+        await this.ctx.storage.delete(key);
+        return j({ok:false,error:"تم تجاوز عدد محاولات التأكيد. ابدأ التسجيل من جديد"},429);
+      }
+
+      const inputHash=await hashPassword(`verify:${verificationId}:${code}`);
+
+      if(inputHash!==pending.codeHash){
+        await this.ctx.storage.put(key,pending,{expirationTtl:15*60});
+        return j({
+          ok:false,
+          error:`كود التأكيد غير صحيح. المحاولات المتبقية: ${Math.max(0,6-pending.attempts)}`
+        },400);
+      }
+
+      const reg=pending.registration||{};
+
+      if(await this.user(reg.username)){
+        await this.ctx.storage.delete(key);
+        return j({ok:false,error:"اسم المستخدم موجود بالفعل"},409);
+      }
 
       const existingUsers=await this.ctx.storage.get("usernames")||[];
+
       for(const existingName of existingUsers){
         const existing=await this.user(existingName);
         if(!existing)continue;
-        if(phone && existing.phone===phone)return j({ok:false,error:"رقم الهاتف مستخدم بالفعل"},409);
-        if(email && existing.email===email)return j({ok:false,error:"البريد الإلكتروني مستخدم بالفعل"},409);
+        if(reg.phone && existing.phone===reg.phone){
+          await this.ctx.storage.delete(key);
+          return j({ok:false,error:"رقم الهاتف مستخدم بالفعل"},409);
+        }
+        if(existing.email===reg.email){
+          await this.ctx.storage.delete(key);
+          return j({ok:false,error:"البريد الإلكتروني مستخدم بالفعل"},409);
+        }
       }
 
-      await this.ctx.storage.put(`user:${username}`,{
-        username,
-        displayName:fullName,
-        fullName,
-        age,
-        phone,
-        email,
-        gender,
-        country,
-        passwordHash:await hashPassword(password),
+      await this.ctx.storage.put(`user:${reg.username}`,{
+        username:reg.username,
+        displayName:reg.fullName,
+        fullName:reg.fullName,
+        age:reg.age,
+        phone:reg.phone,
+        email:reg.email,
+        emailVerified:true,
+        emailVerifiedAt:Date.now(),
+        gender:reg.gender,
+        country:reg.country,
+        passwordHash:reg.passwordHash,
         avatar:"",
         createdAt:Date.now()
       });
 
-      existingUsers.push(username);
+      existingUsers.push(reg.username);
       await this.ctx.storage.put("usernames",[...new Set(existingUsers)]);
+      await this.ctx.storage.delete(key);
 
-      const token=await this.createSession(username);
-      return j({ok:true,token,user:await this.publicUser(username)});
+      const token=await this.createSession(reg.username);
+
+      return j({
+        ok:true,
+        token,
+        user:await this.publicUser(reg.username),
+        verified:true
+      });
+    }
+
+    if(url.pathname==="/api/register-resend" && request.method==="POST"){
+      const verificationId=String(body.verificationId||"").trim();
+      const key=`pending-registration:${verificationId}`;
+      const pending=await this.ctx.storage.get(key);
+
+      if(!pending){
+        return j({ok:false,error:"طلب التسجيل غير موجود أو انتهت صلاحيته"},410);
+      }
+
+      const now=Date.now();
+      const lastSentAt=Number(pending.lastSentAt||0);
+
+      if(now-lastSentAt<60000){
+        const wait=Math.ceil((60000-(now-lastSentAt))/1000);
+        return j({ok:false,error:`يمكن إعادة الإرسال بعد ${wait} ثانية`,retryAfter:wait},429);
+      }
+
+      if(Number(pending.resendCount||0)>=4){
+        return j({ok:false,error:"تم تجاوز الحد المسموح لإعادة إرسال الكود. ابدأ التسجيل من جديد"},429);
+      }
+
+      const code=String(crypto.getRandomValues(new Uint32Array(1))[0]%1000000).padStart(6,"0");
+
+      try{
+        await this.sendVerificationEmail(pending.registration.email,code);
+      }catch(err){
+        return j({ok:false,error:"تعذر إعادة إرسال كود التأكيد"},502);
+      }
+
+      pending.codeHash=await hashPassword(`verify:${verificationId}:${code}`);
+      pending.lastSentAt=now;
+      pending.expiresAt=now+(10*60*1000);
+      pending.attempts=0;
+      pending.resendCount=Number(pending.resendCount||0)+1;
+
+      await this.ctx.storage.put(key,pending,{expirationTtl:15*60});
+
+      return j({
+        ok:true,
+        delivery:this.maskEmail(pending.registration.email),
+        expiresIn:600
+      });
     }
 
     if(url.pathname==="/api/login" && request.method==="POST"){
@@ -1268,7 +1513,7 @@ export default {
       return Response.json({
         ok:true,
         app:"تواصل العطا",
-        version:"V13.5-Premium-Icons-UI"
+        version:"V13.6-Verified-Signup-Fullscreen-Chat"
       });
     }
 

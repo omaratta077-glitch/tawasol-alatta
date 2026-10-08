@@ -28,23 +28,46 @@
         <button id="registerTab">حساب جديد</button>
       </div>
 
-      <div id="registerFields" class="hidden">
-        <input id="fullNameInput" placeholder="الاسم الكامل">
-        <input id="ageInput" type="number" min="13" max="120" placeholder="العمر">
-        <input id="phoneInput" type="tel" placeholder="رقم الهاتف">
-        <input id="emailInput" type="email" placeholder="البريد الإلكتروني">
-        <select id="genderInput">
-          <option value="">الجنس (اختياري)</option>
-          <option value="male">ذكر</option>
-          <option value="female">أنثى</option>
-          <option value="other">أخرى</option>
-        </select>
-        <input id="countryInput" placeholder="الدولة (اختياري)">
+      <div id="authMainFields">
+        <div id="registerFields" class="hidden">
+          <input id="fullNameInput" placeholder="الاسم الكامل">
+          <input id="ageInput" type="number" min="13" max="120" placeholder="العمر">
+          <input id="phoneInput" type="tel" placeholder="رقم الهاتف">
+          <input id="emailInput" type="email" placeholder="البريد الإلكتروني لاستلام كود التأكيد">
+          <select id="genderInput">
+            <option value="">الجنس (اختياري)</option>
+            <option value="male">ذكر</option>
+            <option value="female">أنثى</option>
+            <option value="other">أخرى</option>
+          </select>
+          <input id="countryInput" placeholder="الدولة (اختياري)">
+          <div class="register-verification-hint">سيتم إرسال كود تأكيد من 6 أرقام إلى بريدك الإلكتروني قبل إنشاء الحساب.</div>
+        </div>
+
+        <input id="usernameInput" placeholder="رقم الهاتف المحمول أو البريد الإلكتروني أو اسم المستخدم">
+        <input id="passwordInput" type="password" placeholder="كلمة السر">
+        <input id="confirmPasswordInput" class="hidden" type="password" placeholder="تأكيد كلمة السر">
       </div>
 
-      <input id="usernameInput" placeholder="رقم الهاتف المحمول أو البريد الإلكتروني أو اسم المستخدم">
-      <input id="passwordInput" type="password" placeholder="كلمة السر">
-      <input id="confirmPasswordInput" class="hidden" type="password" placeholder="تأكيد كلمة السر">
+      <div id="verificationFields" class="verification-fields hidden">
+        <div class="verification-icon-wrap">
+          <span data-atta-icon="mail"></span>
+        </div>
+        <strong>تأكيد إنشاء الحساب</strong>
+        <p id="verificationDeliveryText">أرسلنا كود التأكيد إلى بريدك الإلكتروني.</p>
+        <input id="verificationCodeInput"
+               class="verification-code-input"
+               type="text"
+               inputmode="numeric"
+               autocomplete="one-time-code"
+               maxlength="6"
+               placeholder="• • • • • •">
+        <small id="verificationExpiryText">الكود صالح لمدة 10 دقائق.</small>
+        <div class="verification-actions">
+          <button type="button" id="resendVerificationBtn" class="atta-secondary-button">إعادة إرسال الكود</button>
+          <button type="button" id="cancelVerificationBtn" class="atta-link-button">تعديل البيانات</button>
+        </div>
+      </div>
 
       <button id="authBtn" class="atta-login-button">تسجيل الدخول</button>
 
