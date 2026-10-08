@@ -1091,9 +1091,9 @@ async function getMedia(type,{force=false}={}){
         audio:audioConstraints,
         video:{
           facingMode:{ideal:"user"},
-          width:{ideal:960},
-          height:{ideal:540},
-          frameRate:{ideal:24,max:30}
+          width:{ideal:640,max:960},
+          height:{ideal:360,max:540},
+          frameRate:{ideal:20,max:24}
         }
       };
 
@@ -1189,17 +1189,43 @@ async function ensurePeer(){
   for(const track of stream.getTracks()){
     const sender=pc.addTrack(track,stream);
 
-    if(track.kind==="audio")audioSender=sender;
-    if(track.kind==="video")videoSender=sender;
+    if(track.kind==="audio"){
+      audioSender=sender;
+      try{track.contentHint="speech"}catch{}
+    }
+    if(track.kind==="video"){
+      videoSender=sender;
+      try{track.contentHint="motion"}catch{}
+    }
+  }
+
+  // Keep calls responsive on mobile/weak networks instead of pushing full camera bitrate.
+  try{
+    if(audioSender){
+      const p=audioSender.getParameters();
+      p.encodings=p.encodings?.length?p.encodings:[{}];
+      p.encodings[0].maxBitrate=48000;
+      await audioSender.setParameters(p);
+    }
+    if(videoSender){
+      const p=videoSender.getParameters();
+      p.encodings=p.encodings?.length?p.encodings:[{}];
+      p.encodings[0].maxBitrate=650000;
+      p.encodings[0].maxFramerate=20;
+      await videoSender.setParameters(p);
+    }
+  }catch(err){
+    console.warn("media sender tuning skipped",err);
   }
 
   // We wait for complete ICE in offer/answer, so trickle ICE is only a bonus.
   pc.onicecandidate=e=>{
-    if(!e.candidate || !selectedUser || !activeCallId)return;
+    const peer=activeCallPeer||selectedUser;
+    if(!e.candidate || !peer || !activeCallId)return;
 
     sendCallSignal({
       type:"ice",
-      to:selectedUser,
+      to:peer,
       callId:activeCallId,
       candidate:e.candidate
     }).catch(err=>console.warn("ICE signal failed",err));
@@ -1215,11 +1241,17 @@ async function ensurePeer(){
     }
 
     const remoteVideo=$("remoteVideo");
+    const remoteAudio=$("remoteAudio");
     remoteVideo.srcObject=remoteMediaStream;
     remoteVideo.playsInline=true;
     remoteVideo.autoplay=true;
-    remoteVideo.muted=false;
-    remoteVideo.volume=1;
+    // Audio is played from a dedicated element so video rendering cannot silence it.
+    remoteVideo.muted=true;
+    if(remoteAudio){
+      remoteAudio.srcObject=remoteMediaStream;
+      remoteAudio.autoplay=true;
+      remoteAudio.volume=1;
+    }
 
     const revealVideo=()=>{
       if(e.track.kind==="video"){
@@ -1233,12 +1265,13 @@ async function ensurePeer(){
     e.track.onunmute=async()=>{
       revealVideo();
       try{await remoteVideo.play()}catch{}
+      try{await remoteAudio?.play()}catch{}
     };
 
     revealVideo();
 
     try{
-      await remoteVideo.play();
+      await Promise.allSettled([remoteVideo.play(),remoteAudio?.play()]);
       $("resumeRemoteMediaBtn")?.classList.add("hidden");
     }catch(err){
       console.warn("remote autoplay blocked",err);
@@ -1290,7 +1323,8 @@ async function ensurePeer(){
       try{
         await ensureTurnIceServers(true);
 
-        if(pc && selectedUser){
+        const peer=activeCallPeer||selectedUser;
+        if(pc && peer){
           pc.setConfiguration({
             ...rtcConfig,
             iceCandidatePoolSize:6,
@@ -1309,7 +1343,7 @@ async function ensurePeer(){
 
           await sendCallSignal({
             type:"offer",
-            to:selectedUser,
+            to:peer,
             callId:activeCallId,
             sdp:pc.localDescription,
             callType:currentCallType,
@@ -1406,6 +1440,8 @@ async function requestCall(type){
 }
 async function startOffer(){
   await ensurePeer();
+  const peer=activeCallPeer||selectedUser;
+  if(!peer)throw new Error("لا يوجد طرف للمكالمة");
 
   const offer=await pc.createOffer({
     offerToReceiveAudio:true,
@@ -1417,7 +1453,7 @@ async function startOffer(){
 
   await sendCallSignal({
     type:"offer",
-    to:selectedUser,
+    to:peer,
     callId:activeCallId,
     sdp:pc.localDescription,
     callType:currentCallType,
@@ -1442,6 +1478,7 @@ async function teardownPeer(stopLocal=true){
 
   $("localVideo").srcObject=null;
   $("remoteVideo").srcObject=null;
+  if($("remoteAudio"))$("remoteAudio").srcObject=null;
 }
 
 async function hangup(notifyPeer=true){
@@ -3098,9 +3135,9 @@ if($("resumeRemoteMediaBtn")){
   $("resumeRemoteMediaBtn").onclick=async()=>{
     try{
       const rv=$("remoteVideo");
-      rv.muted=false;
-      rv.volume=1;
-      await rv.play();
+      const ra=$("remoteAudio");
+      rv.muted=true;
+      await Promise.allSettled([rv.play(),ra?.play()]);
       $("resumeRemoteMediaBtn").classList.add("hidden");
     }catch(err){
       console.warn("manual remote playback failed",err);
@@ -3134,9 +3171,11 @@ async function setupGoogleSignIn(){
   try{
     const config=await api("/api/google-config");
     if(!config.enabled){
-      hint.textContent="لتفعيل التسجيل المجاني: أضف GOOGLE_CLIENT_ID في إعدادات Cloudflare.";
+      hint.textContent="";
+      hint.style.display="none";
       return;
     }
+    hint.style.display="";
     await new Promise((resolve,reject)=>{
       if(window.google?.accounts?.id)return resolve();
       const script=document.createElement("script");
@@ -3161,7 +3200,7 @@ async function setupGoogleSignIn(){
       type:"standard",theme:"filled_black",size:"large",shape:"pill",
       text:"continue_with",width:300,locale:"ar"
     });
-    hint.textContent="مجاني — لا يحتاج شراء دومين أو كود بريد.";
+    hint.textContent="";
     googleWidgetStarted=true;
   }catch(e){hint.textContent=e.message||"تعذر تفعيل تسجيل Google";}
 }

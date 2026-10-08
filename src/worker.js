@@ -527,7 +527,7 @@ export class SignalingRoom extends DurableObject {
     if(url.pathname==="/api/google-login" && request.method==="POST"){
       const clientId=String(this.env.GOOGLE_CLIENT_ID||"").trim();
       const credential=String(body.credential||"").trim();
-      if(!clientId)return j({ok:false,error:"تسجيل Google يحتاج إعداد GOOGLE_CLIENT_ID على Cloudflare"},503);
+      if(!clientId)return j({ok:false,error:"تسجيل Google غير متاح حالياً"},503);
       if(!credential || credential.length>10000)return j({ok:false,error:"بيانات Google غير صالحة"},400);
       let claims;
       try{
@@ -1623,7 +1623,7 @@ export default {
       return Response.json({
         ok:true,
         app:"تواصل العطا",
-        version:"V13.12-Google-Scope-Fix"
+        version:"V13.14-Calls-Both-Sides"
       });
     }
 
