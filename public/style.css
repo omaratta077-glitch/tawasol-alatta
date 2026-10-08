@@ -3959,3 +3959,9 @@ body.chat-fullscreen-open .mobile-bottom-nav{
     font-size:14px;
   }
 }
+
+/* V13.8 — free Google verified signup */
+.google-signin-section{margin:14px 0 12px;text-align:center}
+.google-divider{color:#dfb954;font-size:13px;margin:0 0 12px}
+.google-signin-btn{display:flex;justify-content:center;min-height:42px}
+.google-setup-hint{font-size:12px;color:#cfbd8a;line-height:1.7;margin:8px 0 0}

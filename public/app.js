@@ -3123,3 +3123,47 @@ queueMicrotask(()=>{
   restoreSavedLogin().catch(err=>console.warn("restore login failed",err));
 });
 })();
+
+
+// V13.8 — Google Identity Services (free verified-email signup/login).
+// Google checks email ownership. No verification code is sent or exposed.
+let googleWidgetStarted=false;
+async function setupGoogleSignIn(){
+  const hint=$("googleSetupHint");
+  const holder=$("googleSignInBtn");
+  if(!hint || !holder || googleWidgetStarted)return;
+  try{
+    const config=await api("/api/google-config");
+    if(!config.enabled){
+      hint.textContent="لتفعيل التسجيل المجاني: أضف GOOGLE_CLIENT_ID في إعدادات Cloudflare.";
+      return;
+    }
+    await new Promise((resolve,reject)=>{
+      if(window.google?.accounts?.id)return resolve();
+      const script=document.createElement("script");
+      script.src="https://accounts.google.com/gsi/client";
+      script.async=true;script.defer=true;
+      script.onload=resolve;script.onerror=()=>reject(new Error("تعذر تحميل تسجيل Google"));
+      document.head.appendChild(script);
+    });
+    window.google.accounts.id.initialize({
+      client_id:config.clientId,
+      callback:async ({credential})=>{
+        try{
+          hint.textContent="جاري تأكيد البريد بواسطة Google...";
+          const result=await api("/api/google-login",{
+            method:"POST",body:JSON.stringify({credential})
+          });
+          await startAuthenticatedApp(result.token,result.user);
+        }catch(e){hint.textContent=e.message||"تعذر تسجيل الدخول بواسطة Google";}
+      }
+    });
+    window.google.accounts.id.renderButton(holder,{
+      type:"standard",theme:"filled_black",size:"large",shape:"pill",
+      text:"continue_with",width:300,locale:"ar"
+    });
+    hint.textContent="مجاني — لا يحتاج شراء دومين أو كود بريد.";
+    googleWidgetStarted=true;
+  }catch(e){hint.textContent=e.message||"تعذر تفعيل تسجيل Google";}
+}
+window.addEventListener("load",setupGoogleSignIn);

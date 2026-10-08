@@ -207,6 +207,11 @@ export class SignalingRoom extends DurableObject {
         note:"No secret values are exposed by this endpoint."
       });
     }
+    // Google Client ID is public; never return any secret here.
+    if(url.pathname==="/api/google-config" && request.method==="GET"){
+      const clientId=String(this.env.GOOGLE_CLIENT_ID||"").trim();
+      return j({ok:true,enabled:!!clientId,clientId});
+    }
     let body={};
     if(request.method!=="GET"){
       try{body=await request.json()}catch{}
@@ -515,6 +520,52 @@ export class SignalingRoom extends DurableObject {
       }
 
       return j({ok:true});
+    }
+
+    // تسجيل مجاني: Google تتحقق من البريد بدلاً من إرسال كود بريد.
+    // tokeninfo verifies Google signature, audience and expiry at Google's endpoint.
+    if(url.pathname==="/api/google-login" && request.method==="POST"){
+      const clientId=String(this.env.GOOGLE_CLIENT_ID||"").trim();
+      const credential=String(body.credential||"").trim();
+      if(!clientId)return j({ok:false,error:"تسجيل Google يحتاج إعداد GOOGLE_CLIENT_ID على Cloudflare"},503);
+      if(!credential || credential.length>10000)return j({ok:false,error:"بيانات Google غير صالحة"},400);
+      let claims;
+      try{
+        const check=await fetch("https://oauth2.googleapis.com/tokeninfo?id_token="+encodeURIComponent(credential));
+        if(!check.ok)return j({ok:false,error:"فشل التحقق من هوية Google"},401);
+        claims=await check.json();
+      }catch{return j({ok:false,error:"تعذر الاتصال بخدمة التحقق من Google"},502)}
+      if(claims.aud!==clientId || !["accounts.google.com","https://accounts.google.com"].includes(claims.iss)
+          || claims.email_verified!=="true" || !claims.sub || Number(claims.exp)*1000<=Date.now()){
+        return j({ok:false,error:"تعذر التحقق من البريد باستخدام Google"},401);
+      }
+      const email=String(claims.email||"").toLowerCase().trim();
+      if(!email || !email.includes("@"))return j({ok:false,error:"لم يرجع Google بريدًا صالحًا"},401);
+      const idHash=(await hashPassword("google:"+claims.sub)).slice(0,22);
+      const googleKey=`google-account:${idHash}`;
+      let username=await this.ctx.storage.get(googleKey);
+      if(username && !(await this.user(username)))username=null;
+      if(!username){
+        const all=await this.ctx.storage.get("usernames")||[];
+        for(const name of all){
+          const existing=await this.user(name);
+          if(existing?.email===email){
+            return j({ok:false,error:"هذا البريد مرتبط بحساب موجود. ادخل بكلمة المرور القديمة أولًا؛ لن نربط الحساب تلقائيًا حفاظًا على أمانه."},409);
+          }
+        }
+        username="g_"+idHash;
+        if(await this.user(username))return j({ok:false,error:"تعذر إنشاء الحساب. تواصل مع الإدارة."},409);
+        const fullName=String(claims.name||claims.given_name||"مستخدم Google").trim().slice(0,60);
+        await this.ctx.storage.put(`user:${username}`,{
+          username,displayName:fullName,fullName,age:0,phone:"",email,
+          emailVerified:true,emailVerifiedAt:Date.now(),googleIdHash:idHash,
+          gender:"",country:"",passwordHash:null,avatar:"",createdAt:Date.now()
+        });
+        await this.ctx.storage.put("usernames",[...new Set([...all,username])]);
+        await this.ctx.storage.put(googleKey,username);
+      }
+      const token=await this.createSession(username);
+      return j({ok:true,token,user:await this.publicUser(username)});
     }
 
     if(url.pathname==="/api/login" && request.method==="POST"){
@@ -1572,7 +1623,7 @@ export default {
       return Response.json({
         ok:true,
         app:"تواصل العطا",
-        version:"V13.7.3-Resend-Diagnostic"
+        version:"V13.8-Free-Google-Signup"
       });
     }
 
