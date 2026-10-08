@@ -3881,3 +3881,81 @@ body.chat-fullscreen-open .mobile-bottom-nav{
     padding:14px!important;
   }
 }
+
+
+/* =========================================================
+   V13.7 — Logout
+   ========================================================= */
+.rail-logout-btn{
+  margin-top:auto!important;
+  color:#e7bd55!important;
+  border-color:rgba(222,177,64,.18)!important;
+}
+
+.rail-logout-btn:hover{
+  color:#ffe28a!important;
+  background:linear-gradient(135deg,rgba(147,38,38,.18),rgba(213,165,46,.10))!important;
+  border-color:rgba(235,190,75,.42)!important;
+}
+
+.rail-logout-btn .atta-icon{
+  width:23px;
+  height:23px;
+}
+
+.more-logout-btn{
+  display:flex!important;
+  align-items:center;
+  gap:9px;
+  color:#f0c760!important;
+  border-top:1px solid rgba(220,174,60,.16)!important;
+}
+
+.more-logout-btn .atta-icon{
+  width:19px;
+  height:19px;
+}
+
+.own-account-actions{
+  margin-top:22px;
+  padding-top:18px;
+  border-top:1px solid rgba(220,174,60,.17);
+}
+
+.own-account-actions.hidden{
+  display:none!important;
+}
+
+.profile-logout-btn{
+  width:100%;
+  min-height:48px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:9px;
+  border:1px solid rgba(224,179,66,.35);
+  border-radius:13px;
+  color:#f1c85e;
+  background:linear-gradient(135deg,rgba(113,23,23,.18),rgba(12,16,18,.96));
+  font-weight:800;
+  cursor:pointer;
+  transition:.18s ease;
+}
+
+.profile-logout-btn:hover{
+  transform:translateY(-1px);
+  border-color:rgba(245,205,102,.65);
+  box-shadow:0 0 18px rgba(206,155,36,.12);
+}
+
+.profile-logout-btn .atta-icon{
+  width:20px;
+  height:20px;
+}
+
+@media(max-width:850px){
+  .profile-logout-btn{
+    min-height:52px;
+    font-size:14px;
+  }
+}

@@ -154,6 +154,10 @@
       <span data-atta-icon="ellipsis"></span><span>المزيد</span>
     </button>
 
+    <button class="rail-btn rail-logout-btn" id="logoutBtn" type="button">
+      <span data-atta-icon="log-out"></span><span>تسجيل الخروج</span>
+    </button>
+
     <button id="railStoryBtn" class="rail-primary-btn reference-add-story" type="button">
       <span data-atta-icon="plus"></span><span>إضافة حالة</span>
     </button>
@@ -162,6 +166,9 @@
   <div id="moreMenuPanel" class="more-menu-panel hidden">
     <button data-page="savedPage">المحفوظات</button>
     <button data-page="profilePage">الملف الشخصي</button>
+    <button id="moreLogoutBtn" class="more-logout-btn">
+      <span data-atta-icon="log-out"></span><span>تسجيل الخروج</span>
+    </button>
     <button id="closeMoreMenuBtn">إغلاق</button>
   </div>
 
@@ -422,6 +429,13 @@
         </div>
 
         <div id="profileMeta" class="profile-meta"></div>
+
+        <div id="ownAccountActions" class="own-account-actions hidden">
+          <button id="profileLogoutBtn" class="profile-logout-btn" type="button">
+            <span data-atta-icon="log-out"></span>
+            <span>تسجيل الخروج من الحساب</span>
+          </button>
+        </div>
       </div>
     </section>
   </main>

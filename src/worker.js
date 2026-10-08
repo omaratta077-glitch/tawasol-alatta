@@ -458,6 +458,16 @@ export class SignalingRoom extends DurableObject {
       });
     }
 
+    if(url.pathname==="/api/logout" && request.method==="POST"){
+      const sessionToken=String(body.token||url.searchParams.get("token")||"").trim();
+
+      if(sessionToken){
+        await this.ctx.storage.delete(`session:${sessionToken}`);
+      }
+
+      return j({ok:true});
+    }
+
     if(url.pathname==="/api/login" && request.method==="POST"){
       const username=String(body.username||"").trim().toLowerCase();
       const password=String(body.password||"");
@@ -1513,7 +1523,7 @@ export default {
       return Response.json({
         ok:true,
         app:"تواصل العطا",
-        version:"V13.6-Verified-Signup-Fullscreen-Chat"
+        version:"V13.7-Logout"
       });
     }
 

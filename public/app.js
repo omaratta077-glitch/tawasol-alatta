@@ -618,6 +618,11 @@ function connect(){
 
   ws.onopen=()=>{$("connectionState").textContent="متصل"};
   ws.onclose=()=>{
+    if(!token){
+      $("connectionState").textContent="غير متصل";
+      return;
+    }
+
     $("connectionState").textContent="إعادة الاتصال...";
     reconnectTimer=setTimeout(connect,1500);
   };
@@ -1700,6 +1705,108 @@ if($("headerSearchBtn")){
   };
 }
 
+
+let logoutInProgress=false;
+
+async function logoutCurrentAccount(){
+  if(logoutInProgress)return;
+  logoutInProgress=true;
+
+  const currentToken=token;
+
+  try{
+    if(callState!=="idle" || pc || localStream){
+      await hangup(false).catch(()=>{});
+    }
+
+    if(currentToken){
+      await api("/api/logout",{
+        method:"POST",
+        body:JSON.stringify({token:currentToken})
+      }).catch(()=>{});
+    }
+  }finally{
+    token="";
+    me=null;
+    viewedProfileUsername="";
+    viewedFriendState="none";
+    selectedUser="";
+    selectedGroup=null;
+    users=[];
+    groups=[];
+    chatFriends=[];
+    appSessionStarted=false;
+
+    clearSavedSession();
+
+    clearTimeout(reconnectTimer);
+    reconnectTimer=null;
+    clearInterval(syncTimer);
+    syncTimer=null;
+    clearInterval(callSignalPollTimer);
+    callSignalPollTimer=null;
+    clearInterval(verificationCountdownTimer);
+    verificationCountdownTimer=null;
+
+    try{
+      if(ws){
+        ws.onclose=null;
+        ws.close();
+      }
+    }catch{}
+    ws=null;
+
+    resetMessagesInbox();
+
+    document.body.classList.remove("chat-fullscreen-open");
+    $("appView").classList.add("hidden");
+    $("authView").classList.remove("hidden");
+    $("moreMenuPanel")?.classList.add("hidden");
+
+    authMode="login";
+    pendingVerificationId="";
+
+    $("authMainFields").classList.remove("hidden");
+    $("verificationFields").classList.add("hidden");
+    $("registerFields").classList.add("hidden");
+    $("confirmPasswordInput").classList.add("hidden");
+
+    $("loginTab").disabled=false;
+    $("registerTab").disabled=false;
+    $("loginTab").classList.add("active");
+    $("registerTab").classList.remove("active");
+
+    $("usernameInput").value="";
+    $("passwordInput").value="";
+    $("confirmPasswordInput").value="";
+    $("verificationCodeInput").value="";
+
+    $("authBtn").disabled=false;
+    $("authBtn").textContent="تسجيل الدخول";
+    $("authMsg").textContent="تم تسجيل الخروج بنجاح.";
+
+    if($("attaRegisterShortcut")){
+      $("attaRegisterShortcut").classList.remove("hidden");
+    }
+
+    logoutInProgress=false;
+  }
+}
+
+function bindLogoutButton(id){
+  const btn=$(id);
+  if(!btn)return;
+
+  btn.onclick=async()=>{
+    if(!confirm("هل تريد تسجيل الخروج من تواصل العطا؟"))return;
+    await logoutCurrentAccount();
+  };
+}
+
+bindLogoutButton("logoutBtn");
+bindLogoutButton("moreLogoutBtn");
+bindLogoutButton("profileLogoutBtn");
+
 document.querySelectorAll(".rail-btn").forEach(btn=>{
   btn.onclick=()=>{
     document.querySelectorAll(".rail-btn").forEach(x=>x.classList.remove("active"));
@@ -1802,6 +1909,7 @@ async function renderProfilePage(username=me?.username){
     $("myProfileBtn").classList.toggle("hidden",self);
     $("profileEditArea").classList.toggle("hidden",!self);
     $("privateInfoCard").classList.toggle("hidden",!self);
+    $("ownAccountActions")?.classList.toggle("hidden",!self);
     $("friendRequestsSection").classList.toggle("hidden",!self);
 
     if(self){
