@@ -1630,7 +1630,7 @@ export default {
       return Response.json({
         ok:true,
         app:"تواصل العطا",
-        version:"V13.17-Feed-Calls-Fix"
+        version:"V13.18-Mobile-Friends-Fix"
       });
     }
 

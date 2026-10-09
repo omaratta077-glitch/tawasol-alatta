@@ -4068,3 +4068,29 @@ body.chat-fullscreen-open .mobile-bottom-nav{
 
 /* ===== V13.17 call audio reliability ===== */
 .remote-call-audio{position:absolute!important;width:1px!important;height:1px!important;opacity:0!important;pointer-events:none!important;}
+
+
+/* ===== V13.18 Mobile friends visibility ===== */
+.mobile-friends-suggestions{display:none!important;}
+@media(max-width:999px){
+  .mobile-friends-suggestions{
+    display:block!important;
+    margin:0 0 10px!important;
+    padding:10px 12px!important;
+    border-radius:14px!important;
+  }
+  .mobile-friends-suggestions .reference-card-title{margin-bottom:6px!important;}
+  .mobile-friends-suggestions .reference-suggestion-row{padding:8px 0!important;gap:8px!important;}
+  .mobile-friends-suggestions .reference-suggestion-user{min-width:0!important;flex:1!important;}
+  .mobile-friends-suggestions .reference-suggestion-user img{width:42px!important;height:42px!important;}
+  .mobile-friends-suggestions .reference-friend-btn{
+    display:inline-flex!important;
+    min-width:92px!important;
+    height:36px!important;
+    padding:0 10px!important;
+    font-size:11px!important;
+    align-items:center!important;
+    justify-content:center!important;
+    flex:0 0 auto!important;
+  }
+}

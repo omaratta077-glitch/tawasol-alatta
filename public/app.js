@@ -2674,12 +2674,13 @@ $("loadSavedBtn").onclick=loadSavedPosts;
 
 
 async function loadDesktopSuggestions(){
-  if(!$("suggestionsList") || !token)return;
+  const targets=[$("suggestionsList"),$("mobileSuggestionsList")].filter(Boolean);
+  if(!targets.length || !token)return;
   try{
     const d=await api(`/api/users?token=${encodeURIComponent(token)}&q=`);
-    const users=(d.users||[]).filter(u=>u.username!==me?.username && (!u.friendState || u.friendState==="none")).slice(0,4);
+    const users=(d.users||[]).filter(u=>u.username!==me?.username && (!u.friendState || u.friendState==="none")).slice(0,6);
 
-    $("suggestionsList").innerHTML=users.length?users.map(u=>{
+    const html=users.length?users.map(u=>{
       const avatar=u.avatar||avatarFallback(u.fullName||u.displayName||u.username);
       return `<div class="reference-suggestion-row">
         <button class="reference-suggestion-user" data-open-profile="${esc(u.username)}">
@@ -2690,21 +2691,24 @@ async function loadDesktopSuggestions(){
       </div>`;
     }).join(""):`<div class="reference-side-empty">لا توجد اقتراحات الآن</div>`;
 
+    targets.forEach(el=>el.innerHTML=html);
     bindProfileLinks();
 
     document.querySelectorAll("[data-side-friend]").forEach(btn=>{
       btn.onclick=async()=>{
         try{
-          await api("/api/friend-request",{method:"POST",body:JSON.stringify({
-            token,username:btn.dataset.sideFriend
-          })});
-          btn.textContent="تم الإرسال";
-          btn.disabled=true;
+          const username=btn.dataset.sideFriend;
+          await api("/api/friend-request",{method:"POST",body:JSON.stringify({token,username})});
+          document.querySelectorAll(`[data-side-friend="${CSS.escape(username)}"]`).forEach(b=>{
+            b.textContent="تم الإرسال";
+            b.disabled=true;
+          });
+          setTimeout(()=>loadDesktopSuggestions().catch(()=>{}),250);
         }catch(e){alert(e.message)}
       };
     });
   }catch(e){
-    $("suggestionsList").innerHTML='<div class="reference-side-empty">تعذر تحميل الاقتراحات</div>';
+    targets.forEach(el=>el.innerHTML='<div class="reference-side-empty">تعذر تحميل الاقتراحات</div>');
   }
 }
 
