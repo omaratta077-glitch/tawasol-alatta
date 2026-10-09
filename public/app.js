@@ -341,40 +341,13 @@ async function sendCallSignal(signal){
     createdAt:signal.createdAt||Date.now()
   };
 
-  let wsSent=false;
-
-  if(ws?.readyState===WebSocket.OPEN){
-    try{
-      ws.send(JSON.stringify(normalized));
-      wsSent=true;
-    }catch(err){
-      console.warn("call websocket send failed",err);
-    }
-  }
-
-  let stored=null;
-
-  try{
-    stored=await api("/api/message-send",{
-      method:"POST",
-      body:JSON.stringify({
-        token,
-        to:normalized.to,
-        text:"",
-        media:JSON.stringify(normalized),
-        mediaType:"call-signal"
-      })
-    });
-  }catch(err){
-    if(!wsSent)throw err;
-    console.warn("stored call signal failed",err);
-  }
-
-  return {
-    ok:wsSent||!!stored?.ok,
-    online:wsSent||!!stored?.delivered,
-    transport:wsSent?"websocket+stored":"stored"
-  };
+  // V13.16: one authoritative signaling path. The Worker itself delivers
+  // immediately over WebSocket when the peer is online and stores the same
+  // event for HTTP polling fallback. This avoids duplicate/competing offers.
+  return await api("/api/call-signal",{
+    method:"POST",
+    body:JSON.stringify({token,to:normalized.to,signal:normalized})
+  });
 }
 async function handleCallSignal(msg){
   if(!msg || !CALL_SIGNAL_TYPES.has(msg.type))return false;
@@ -592,13 +565,14 @@ async function pollStoredCallSignals(){
 
 async function pollCallSignals(){
   if(!token || callSignalPollBusy)return;
-
   callSignalPollBusy=true;
-
   try{
-    // Always use the compatible stored-message fallback. This works with the
-    // currently deployed backend and does not require /api/call-signals.
-    await pollStoredCallSignals();
+    const d=await api(`/api/call-signals?token=${encodeURIComponent(token)}`);
+    for(const signal of (d.signals||[])){
+      try{await handleCallSignal(signal)}catch(err){console.warn("call signal failed",err)}
+    }
+  }catch(err){
+    console.warn("call polling failed",err);
   }finally{
     callSignalPollBusy=false;
   }
@@ -1480,7 +1454,7 @@ async function shareScreen(){
 
 let postImageData="";
 
-const reactionEmoji={like:"👍",love:"❤️",haha:"😂",wow:"😮",sad:"😢"};
+const reactionEmoji={like:"👍",love:"❤️",haha:"😂",wow:"😮",sad:"😢",angry:"😡",dislike:"👎"};
 
 
 
@@ -1689,7 +1663,7 @@ function showPage(pageId){
     if(!viewedProfileUsername)viewedProfileUsername=me?.username||"";
     renderProfilePage(viewedProfileUsername);
   }
-  if(pageId==="searchPage")loadExplore();
+  if(pageId==="searchPage")resetExploreSearch();
   if(pageId==="savedPage")loadSavedPostsPage();
   if(pageId==="messagesPage"){
     resetMessagesInbox();
@@ -2588,9 +2562,20 @@ $("recordVoiceBtn").onclick=async()=>{
 $("messageInput").addEventListener('input',()=>{if(!selectedUser)return;send({type:'typing',to:selectedUser,active:true});clearTimeout(typingTimer);typingTimer=setTimeout(()=>send({type:'typing',to:selectedUser,active:false}),900)});
 
 
-async function loadExplore(){
+function resetExploreSearch(){
+  const input=$("exploreSearchInput");
+  if(input)input.value="";
+  if($("exploreFeed"))$("exploreFeed").innerHTML='<div class="empty-card">اكتب كلمة في البحث لعرض المنشورات.</div>';
+}
+
+async function loadExplore(query=null){
+  const q=String(query ?? $("exploreSearchInput")?.value ?? "").trim();
+  if(!q){
+    if($("exploreFeed"))$("exploreFeed").innerHTML='<div class="empty-card">اكتب كلمة في البحث لعرض المنشورات.</div>';
+    return;
+  }
   try{
-    const d=await api(`/api/explore?token=${encodeURIComponent(token)}`);
+    const d=await api(`/api/explore?token=${encodeURIComponent(token)}&q=${encodeURIComponent(q)}`);
     const posts=d.posts||[];
 
     $("exploreFeed").innerHTML=posts.length?posts.map(p=>`
@@ -2601,7 +2586,7 @@ async function loadExplore(){
           <span>⭐ ${p.score||0}</span>
         </div>
       </article>
-    `).join(""):`<div class="empty-card">لا توجد منشورات للاستكشاف</div>`;
+    `).join(""):`<div class="empty-card">لا توجد منشورات مطابقة للبحث</div>`;
   }catch(e){
     $("exploreFeed").innerHTML=`<div class="empty-card">${esc(e.message)}</div>`;
   }
@@ -2622,7 +2607,18 @@ async function loadSavedPosts(){
   }catch(e){alert(e.message)}
 }
 
-$("refreshExploreBtn").onclick=loadExplore;
+$("refreshExploreBtn").onclick=()=>loadExplore();
+if($("exploreSearchBtn"))$("exploreSearchBtn").onclick=()=>loadExplore();
+if($("exploreSearchInput")){
+  let exploreSearchTimer=null;
+  $("exploreSearchInput").addEventListener("input",()=>{
+    clearTimeout(exploreSearchTimer);
+    const q=$("exploreSearchInput").value.trim();
+    if(!q){resetExploreSearch();return;}
+    exploreSearchTimer=setTimeout(()=>loadExplore(q),320);
+  });
+  $("exploreSearchInput").addEventListener("keydown",e=>{if(e.key==="Enter")loadExplore()});
+}
 $("loadSavedBtn").onclick=loadSavedPosts;
 
 
@@ -2631,7 +2627,7 @@ async function loadDesktopSuggestions(){
   if(!$("suggestionsList") || !token)return;
   try{
     const d=await api(`/api/users?token=${encodeURIComponent(token)}&q=`);
-    const users=(d.users||[]).filter(u=>u.username!==me?.username).slice(0,4);
+    const users=(d.users||[]).filter(u=>u.username!==me?.username && (!u.friendState || u.friendState==="none")).slice(0,4);
 
     $("suggestionsList").innerHTML=users.length?users.map(u=>{
       const avatar=u.avatar||avatarFallback(u.fullName||u.displayName||u.username);

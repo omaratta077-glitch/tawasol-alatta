@@ -737,7 +737,7 @@ export class SignalingRoom extends DurableObject {
         const u=await this.publicUser(name);
         if(!u)continue;
         if(!q || u.username.includes(q) || String(u.fullName||u.displayName||"").toLowerCase().includes(q)){
-          users.push(u);
+          users.push({...u,friendState:await this.friendState(s.username,u.username)});
         }
       }
 
@@ -786,7 +786,7 @@ export class SignalingRoom extends DurableObject {
         const saved=await this.ctx.storage.get(`saved:${s.username}`)||[];
         const reactionCounts={};
         const reactions=p.reactions||{};
-        for(const key of ["like","love","haha","wow","sad"]){
+        for(const key of ["like","love","haha","wow","sad","angry","dislike"]){
           reactionCounts[key]=Array.isArray(reactions[key])?reactions[key].length:0;
         }
 
@@ -805,7 +805,7 @@ export class SignalingRoom extends DurableObject {
 
         posts.push({
           ...p,
-          authorInfo:await this.publicUser(p.author),
+          authorInfo,
           likeCount:(p.likes||[]).length,
           commentCount:(p.comments||[]).length,
           likedByMe:(p.likes||[]).includes(s.username),
@@ -1053,7 +1053,7 @@ export class SignalingRoom extends DurableObject {
       const post=await this.ctx.storage.get(`post:${body.postId}`);
       if(!post)return j({ok:false,error:"المنشور غير موجود"},404);
 
-      const allowed=["like","love","haha","wow","sad"];
+      const allowed=["like","love","haha","wow","sad","angry","dislike"];
       const reaction=String(body.reaction||"like");
       if(!allowed.includes(reaction))return j({ok:false,error:"تفاعل غير صالح"},400);
 
@@ -1193,12 +1193,17 @@ export class SignalingRoom extends DurableObject {
       if(!s)return j({ok:false,error:"الجلسة منتهية"},401);
 
       const blocked=await this.ctx.storage.get(`blocked:${s.username}`)||[];
+      const q=String(url.searchParams.get("q")||"").trim().toLowerCase();
+      if(!q)return j({ok:true,posts:[]});
       const ids=await this.ctx.storage.get("postIds")||[];
       const posts=[];
 
       for(const id of ids){
         const p=await this.ctx.storage.get(`post:${id}`);
         if(!p || blocked.includes(p.author))continue;
+        const authorInfo=await this.publicUser(p.author);
+        const haystack=`${p.text||""} ${p.author||""} ${authorInfo?.fullName||authorInfo?.displayName||""}`.toLowerCase();
+        if(!haystack.includes(q))continue;
 
         const reactions=p.reactions||{};
         const reactionCount=Object.values(reactions).reduce((n,a)=>n+(Array.isArray(a)?a.length:0),0);
@@ -1623,7 +1628,7 @@ export default {
       return Response.json({
         ok:true,
         app:"تواصل العطا",
-        version:"V13.15-Call-Flow-Restore"
+        version:"V13.16-Mobile-Social-Calls-Fix"
       });
     }
 

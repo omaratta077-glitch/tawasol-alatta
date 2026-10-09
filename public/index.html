@@ -264,8 +264,12 @@
     </section>
 
     <section id="searchPage" class="page">
-      <div class="page-title"><h2>استكشاف</h2><button id="refreshExploreBtn">تحديث</button></div>
-      <div id="exploreFeed" class="explore-grid"></div>
+      <div class="page-title"><h2>استكشاف</h2><button id="refreshExploreBtn">بحث</button></div>
+      <div class="search-box explore-search-box">
+        <input id="exploreSearchInput" placeholder="ابحث في المنشورات...">
+        <button id="exploreSearchBtn">بحث</button>
+      </div>
+      <div id="exploreFeed" class="explore-grid"><div class="empty-card">اكتب كلمة في البحث لعرض المنشورات.</div></div>
       <h3 class="section-heading">البحث عن مستخدم</h3>
       <div class="search-box">
         <input id="userSearchInput" placeholder="ابحث عن مستخدم...">
