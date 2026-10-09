@@ -1,0 +1,565 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>تواصل العطا | رسائل ومكالمات وأصدقاء</title>
+<meta name="description" content="تواصل العطا: منصة عربية للتواصل مع الأصدقاء، الرسائل، والمكالمات الصوتية والمرئية عبر الويب وتطبيق Android.">
+<meta name="robots" content="index,follow,max-image-preview:large">
+<link rel="canonical" href="https://tawasol-alatta.omaratta077-4fd.workers.dev/">
+<meta property="og:type" content="website">
+<meta property="og:title" content="تواصل العطا | رسائل ومكالمات وأصدقاء">
+<meta property="og:description" content="تواصل مع أصدقائك عبر الرسائل والمكالمات الصوتية والمرئية.">
+<meta property="og:url" content="https://tawasol-alatta.omaratta077-4fd.workers.dev/">
+<meta property="og:image" content="https://tawasol-alatta.omaratta077-4fd.workers.dev/logo-premium.png">
+<meta name="theme-color" content="#111111">
+<link rel="icon" href="logo.svg" type="image/svg+xml">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div id="authView" class="auth-view">
+  <div class="atta-login-shell">
+    <div class="atta-download-strip">
+      <span>احصل على تطبيق العطا لهاتف Android واستمتع بتصفح أسرع.</span>
+      <span class="download-mark">⇩</span>
+    </div>
+
+    <div class="atta-login-card">
+      <div class="atta-language">العربية</div>
+
+      <div class="atta-login-brand">
+        <img src="logo-premium.png" class="atta-login-logo" alt="العطا">
+        <div class="atta-login-brand-name">AL-ATTA</div>
+      </div>
+
+      <div class="auth-tabs">
+        <button id="loginTab" class="active">تسجيل الدخول</button>
+        <button id="registerTab">حساب جديد</button>
+      </div>
+
+      <div id="authMainFields">
+        <div id="registerFields" class="hidden">
+          <input id="fullNameInput" placeholder="الاسم الكامل">
+          <input id="ageInput" type="number" min="13" max="120" placeholder="العمر">
+          <input id="phoneInput" type="tel" placeholder="رقم الهاتف">
+          <input id="emailInput" type="email" placeholder="البريد الإلكتروني لاستلام كود التأكيد">
+          <select id="genderInput">
+            <option value="">الجنس (اختياري)</option>
+            <option value="male">ذكر</option>
+            <option value="female">أنثى</option>
+            <option value="other">أخرى</option>
+          </select>
+          <input id="countryInput" placeholder="الدولة (اختياري)">
+          <div class="register-verification-hint">سيتم إرسال كود تأكيد من 6 أرقام إلى بريدك الإلكتروني قبل إنشاء الحساب.</div>
+        </div>
+
+        <input id="usernameInput" placeholder="رقم الهاتف المحمول أو البريد الإلكتروني أو اسم المستخدم">
+        <input id="passwordInput" type="password" placeholder="كلمة السر">
+        <input id="confirmPasswordInput" class="hidden" type="password" placeholder="تأكيد كلمة السر">
+      </div>
+
+      <div id="verificationFields" class="verification-fields hidden">
+        <div class="verification-icon-wrap">
+          <span data-atta-icon="mail"></span>
+        </div>
+        <strong>تأكيد إنشاء الحساب</strong>
+        <p id="verificationDeliveryText">أرسلنا كود التأكيد إلى بريدك الإلكتروني.</p>
+        <input id="verificationCodeInput"
+               class="verification-code-input"
+               type="text"
+               inputmode="numeric"
+               autocomplete="one-time-code"
+               maxlength="6"
+               placeholder="• • • • • •">
+        <small id="verificationExpiryText">الكود صالح لمدة 10 دقائق.</small>
+        <div class="verification-actions">
+          <button type="button" id="resendVerificationBtn" class="atta-secondary-button">إعادة إرسال الكود</button>
+          <button type="button" id="cancelVerificationBtn" class="atta-link-button">تعديل البيانات</button>
+        </div>
+      </div>
+
+      <button id="authBtn" class="atta-login-button">تسجيل الدخول</button>
+
+      <div class="google-signin-section">
+        <div class="google-divider">أو أنشئ حسابًا مجانًا ببريد Google المؤكد</div>
+        <div id="googleSignInBtn" class="google-signin-btn"></div>
+        <p id="googleSetupHint" class="google-setup-hint">جاري تحميل تسجيل Google...</p>
+      </div>
+
+      <button type="button" class="atta-forgot-button">هل نسيت كلمة السر؟</button>
+
+      <button type="button" id="attaRegisterShortcut" class="atta-create-button">إنشاء حساب جديد</button>
+
+      <div id="authMsg" class="error"></div>
+
+      <div class="atta-footer-brand">
+        <span></span>
+        <strong>العطا</strong>
+        <span></span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="appView" class="app-shell hidden">
+  <header class="mobile-header premium-header">
+    <div class="reference-header-inner">
+      <button id="brandProfileBtn" class="reference-header-brand brand-profile-btn" type="button">
+        <img src="logo-premium.png" class="reference-mini-logo" alt="تواصل العطا">
+        <div>
+          <strong>تواصل العطا</strong>
+          <small>AL-ATTA</small>
+        </div>
+      </button>
+
+      <div class="reference-header-title">
+          <strong>تواصل العطا</strong>
+          <small>AL-ATTA</small>
+        </div>
+
+      <div class="reference-header-actions">
+        <button class="header-icon-btn" data-top-page="notificationsPage" aria-label="الإشعارات">
+          <span data-atta-icon="bell"></span>
+          <span id="headerNotifyBadge" class="header-mini-badge hidden">0</span>
+        </button>
+        <button class="header-icon-btn" data-top-page="messagesPage" aria-label="الرسائل">
+          <span data-atta-icon="message-circle"></span>
+        </button>
+        <button class="header-icon-btn" id="headerFriendsBtn" aria-label="الأصدقاء وطلبات الصداقة">
+          <span data-atta-icon="users"></span>
+          <span id="headerFriendBadge" class="header-mini-badge hidden">0</span>
+        </button>
+      </div>
+
+      <button id="headerSearchBtn" class="reference-search" type="button">
+        <span data-atta-icon="search"></span>
+        <span>ابحث عن الأشخاص أو المنشورات...</span>
+      </button>
+    </div>
+  </header>
+
+  
+  <aside class="desktop-rail reference-leftbar" aria-label="التنقل الرئيسي">
+    <div class="reference-left-brand">
+      <img src="logo-premium.png" alt="تواصل العطا">
+      <strong>تواصل العطا</strong>
+      <small>AL-ATTA</small>
+    </div>
+
+    <button class="rail-btn active" data-page="homePage">
+      <span data-atta-icon="home"></span><span>الرئيسية</span>
+    </button>
+    <button class="rail-btn" data-page="searchPage">
+      <span data-atta-icon="search"></span><span>استكشاف</span>
+    </button>
+    <button class="rail-btn" data-page="notificationsPage">
+      <span data-atta-icon="bell"></span><span>الإشعارات</span>
+      <b id="railNotifyBadge" class="rail-badge hidden">0</b>
+    </button>
+    <button class="rail-btn" data-page="messagesPage">
+      <span data-atta-icon="message-circle"></span><span>الرسائل</span>
+    </button>
+    <button class="rail-btn" data-page="profilePage">
+      <span data-atta-icon="user"></span><span>الملف الشخصي</span>
+    </button>
+    <button class="rail-btn" id="railSavedBtn">
+      <span data-atta-icon="bookmark"></span><span>المحفوظات</span>
+    </button>
+    <button class="rail-btn" id="railMoreBtn">
+      <span data-atta-icon="ellipsis"></span><span>المزيد</span>
+    </button>
+
+    <button class="rail-btn rail-logout-btn" id="logoutBtn" type="button">
+      <span data-atta-icon="log-out"></span><span>تسجيل الخروج</span>
+    </button>
+
+    <button id="railStoryBtn" class="rail-primary-btn reference-add-story" type="button">
+      <span data-atta-icon="plus"></span><span>إضافة حالة</span>
+    </button>
+  </aside>
+
+  <div id="moreMenuPanel" class="more-menu-panel hidden">
+    <button data-page="savedPage">المحفوظات</button>
+    <button data-page="profilePage">الملف الشخصي</button>
+    <button id="moreLogoutBtn" class="more-logout-btn">
+      <span data-atta-icon="log-out"></span><span>تسجيل الخروج</span>
+    </button>
+    <button id="closeMoreMenuBtn">إغلاق</button>
+  </div>
+
+  <aside class="reference-rightbar">
+    <section class="reference-side-card stories-side-card">
+      <div class="reference-card-title">
+        <strong>القصص</strong>
+        <button id="sideShowStoriesBtn" type="button">عرض الكل ‹</button>
+      </div>
+      <div id="storiesStripSide" class="reference-stories-row">
+        <button id="sideAddStoryBtn" class="side-add-story">
+          <span>+</span><small>إضافة قصة</small>
+        </button>
+      </div>
+    </section>
+
+    <section class="reference-side-card">
+      <div class="reference-card-title">
+        <strong class="side-title-with-icon"><span data-atta-icon="flame"></span>المتداول الآن</strong>
+      </div>
+      <div class="reference-trends">
+        <div><b>1</b><span><strong>#تواصل_العطا</strong><small>12.4 ألف منشور</small></span><i>•••</i></div>
+        <div><b>2</b><span><strong>الإبداع</strong><small>8.7 ألف منشور</small></span><i>•••</i></div>
+        <div><b>3</b><span><strong>الفرص</strong><small>6.1 ألف منشور</small></span><i>•••</i></div>
+        <div><b>4</b><span><strong>تطوير_الذات</strong><small>5.3 ألف منشور</small></span><i>•••</i></div>
+        <div><b>5</b><span><strong>النجاح</strong><small>4.9 ألف منشور</small></span><i>•••</i></div>
+      </div>
+    </section>
+
+    <section class="reference-side-card">
+      <div class="reference-card-title">
+        <strong class="side-title-with-icon"><span data-atta-icon="users"></span>اقتراحات قد تعجبك</strong>
+      </div>
+      <div id="suggestionsList" class="reference-suggestions">
+        <div class="reference-side-empty">جاري تحميل الاقتراحات...</div>
+      </div>
+    </section>
+  </aside>
+
+<main class="social-main">
+    <section id="homePage" class="page active-page">
+      <div class="stories-section"><div class="stories-head"><strong>الحالات</strong><button id="addStoryBtn">+ إضافة حالة</button></div><div id="storiesStrip" class="stories-strip"></div></div>
+      <section id="mobileFriendsSuggestions" class="reference-side-card mobile-friends-suggestions">
+        <div class="reference-card-title">
+          <strong class="side-title-with-icon"><span data-atta-icon="users"></span>أشخاص قد تعرفهم</strong>
+        </div>
+        <div id="mobileSuggestionsList" class="reference-suggestions">
+          <div class="reference-side-empty">جاري تحميل الاقتراحات...</div>
+        </div>
+      </section>
+      <div class="composer-card reference-composer">
+        <div class="reference-composer-top">
+          <img id="homeAvatar" class="reference-composer-avatar" alt="">
+          <div class="reference-composer-main">
+            <div class="reference-composer-name" id="composerUserName">حسابي</div>
+            <textarea id="postText" placeholder="بم تفكر؟"></textarea>
+          </div>
+        </div>
+
+        <div id="postImagePreviewWrap" class="hidden preview-wrap">
+          <img id="postImagePreview" alt="">
+        </div>
+
+        <div class="reference-composer-bottom">
+          <div class="reference-composer-tools">
+            <label class="reference-tool-btn">
+              <span data-atta-icon="image"></span>
+              <span>صورة</span>
+              <input id="postImageInput" type="file" accept="image/*" hidden>
+            </label>
+
+            <button id="postVideoBtn" class="reference-tool-btn" type="button">
+              <span data-atta-icon="video"></span>
+              <span>فيديو</span>
+            </button>
+
+            <button id="postPollBtn" class="reference-tool-btn" type="button">
+              <span data-atta-icon="chart"></span>
+              <span>استطلاع</span>
+            </button>
+
+            <button id="postFeelingBtn" class="reference-tool-btn" type="button">
+              <span data-atta-icon="smile"></span>
+              <span>مشاركة مشاعر</span>
+            </button>
+          </div>
+
+          <button id="publishPostBtn" class="reference-publish-btn">
+            <span data-atta-icon="send"></span>
+            <span>نشر</span>
+          </button>
+        </div>
+      </div>
+      <div id="postsFeed"></div>
+    </section>
+
+    <section id="searchPage" class="page">
+      <div class="page-title"><h2>استكشاف</h2><button id="refreshExploreBtn">بحث</button></div>
+      <div class="search-box explore-search-box">
+        <input id="exploreSearchInput" placeholder="ابحث في المنشورات...">
+        <button id="exploreSearchBtn">بحث</button>
+      </div>
+      <div id="exploreFeed" class="explore-grid"><div class="empty-card">اكتب كلمة في البحث لعرض المنشورات.</div></div>
+      <h3 class="section-heading">البحث عن مستخدم</h3>
+      <div class="search-box">
+        <input id="userSearchInput" placeholder="ابحث عن مستخدم...">
+        <button id="userSearchBtn">بحث</button>
+      </div>
+      <div id="searchResults"></div>
+    </section>
+
+    <section id="messagesPage" class="page">
+      <div id="messagesLayout" class="messages-layout">
+        <aside class="chat-sidebar">
+          <div class="profile">
+            <img id="avatarImg" class="avatar" alt="">
+            <div><strong id="meDisplay"></strong><small id="meUsername"></small></div>
+            <label class="photo-btn" aria-label="تغيير الصورة"><span data-atta-icon="camera"></span><input id="avatarInput" type="file" accept="image/*" hidden></label>
+          </div>
+
+          <div class="side-tabs">
+            <button class="side-tab active" data-tab="users">المستخدمون</button>
+            <button class="side-tab" data-tab="groups">المجموعات</button>
+            <button class="side-tab" data-tab="calls">المكالمات</button>
+          </div>
+
+          <section id="usersPanel"><h4>المتصلون الآن</h4><div id="usersList"></div></section>
+          <section id="groupsPanel" class="hidden"><button id="newGroupBtn" class="small-btn">+ مجموعة جديدة</button><div id="groupsList"></div></section>
+          <section id="callsPanel" class="hidden"><div id="callsList"></div></section>
+        </aside>
+
+        <section class="chat-main">
+          <header class="topbar chat-topbar">
+            <button id="mobileBackContactsBtn" class="mobile-chat-back" type="button" aria-label="العودة لقائمة الأصدقاء">
+              <span data-atta-icon="chevron-left"></span>
+            </button>
+
+            <div class="chat-peer-heading">
+              <strong id="selectedLabel">اختر مستخدمًا أو مجموعة</strong>
+              <small id="connectionState">متصل</small>
+            </div>
+
+            <div class="chat-call-actions">
+              <button id="audioCallBtn" class="chat-call-btn" type="button" aria-label="مكالمة صوتية" title="مكالمة صوتية">
+                <span data-atta-icon="phone"></span>
+              </button>
+              <button id="videoCallBtn" class="chat-call-btn" type="button" aria-label="مكالمة فيديو" title="مكالمة فيديو">
+                <span data-atta-icon="video"></span>
+              </button>
+            </div>
+          </header>
+
+          <div id="callStatusBar" class="call-status-bar hidden">
+            <span class="call-pulse"></span>
+            <span id="callStatusText">مكالمة جارية</span>
+            <button id="openCallViewBtn">فتح المكالمة</button>
+          </div>
+
+          <section class="chat">
+            <div id="messages" class="messages"></div>
+            <div id="typingIndicator" class="typing-indicator hidden">يكتب الآن...</div>
+
+            <div id="chatMediaPreview" class="chat-media-preview hidden">
+              <div class="chat-preview-content">
+                <img id="chatPreviewImage" class="hidden" alt="معاينة الصورة">
+                <div>
+                  <strong id="chatPreviewTitle">مرفق جاهز</strong>
+                  <small id="chatPreviewInfo"></small>
+                </div>
+              </div>
+              <button id="clearChatMediaBtn" type="button" aria-label="إلغاء المرفق">×</button>
+            </div>
+
+            <div class="composer advanced-composer">
+              <div class="composer-call-actions" aria-label="المكالمات">
+                <button id="composerAudioCallBtn" class="composer-call-btn" type="button" aria-label="مكالمة صوتية" title="مكالمة صوتية">
+                  <span data-atta-icon="phone"></span>
+                </button>
+                <button id="composerVideoCallBtn" class="composer-call-btn" type="button" aria-label="مكالمة فيديو" title="مكالمة فيديو">
+                  <span data-atta-icon="video"></span>
+                </button>
+              </div>
+
+              <label class="chat-image-btn" title="إرسال صورة">
+                <span data-atta-icon="image"></span>
+                <span>صورة</span>
+                <input id="chatImageInput" type="file" accept="image/*" hidden>
+              </label>
+
+              <label class="chat-attach-btn" title="إرسال ملف">
+                <span data-atta-icon="paperclip"></span>
+                <input id="chatFileInput" type="file" accept="audio/*,.pdf,.doc,.docx,.xls,.xlsx" hidden>
+              </label>
+
+              <button id="recordVoiceBtn" class="chat-attach-btn" type="button" title="رسالة صوتية" aria-label="رسالة صوتية">
+                <span data-atta-icon="mic"></span>
+              </button>
+
+              <input id="messageInput" placeholder="اكتب رسالة...">
+
+              <button id="sendBtn" type="button">
+                <span>إرسال</span>
+                <span data-atta-icon="send"></span>
+              </button>
+            </div>
+          </section>
+        </section>
+      </div>
+    </section>
+
+    <section id="notificationsPage" class="page">
+      <div class="page-title"><h2>الإشعارات</h2><button id="markNotificationsRead">تحديد الكل كمقروء</button></div>
+      <div id="notificationsList"></div>
+    
+      <div class="saved-section">
+        <div class="page-title">
+          <h3>المنشورات المحفوظة</h3>
+          <button id="loadSavedBtn">عرض المحفوظات</button>
+        </div>
+        <div id="savedPostsList"></div>
+      </div>
+</section>
+
+    
+    <section id="savedPage" class="page">
+      <div class="page-title"><h2>المحفوظات</h2><button id="refreshSavedPageBtn">تحديث</button></div>
+      <div id="savedPostsPageList" class="saved-page-grid"></div>
+    </section>
+
+<section id="profilePage" class="page">
+      <div class="profile-card-large pro-profile-card premium-profile">
+        <div id="profileCover" class="profile-cover"></div>
+        <div class="profile-top-row">
+          <img id="profileAvatarLarge" class="profile-large-avatar pro-avatar" alt="">
+          <div class="profile-title-block">
+            <h2 id="profileName"></h2>
+            <div id="profileUsername" class="muted-gold"></div>
+            <p id="profileBio" class="profile-bio"></p>
+          </div>
+        </div>
+
+        <div class="profile-main-actions">
+          <button id="friendActionBtn" class="gold-action hidden">إضافة صديق</button>
+          <button id="messageProfileBtn" class="dark-outline hidden">مراسلة</button>
+          <button id="myProfileBtn" class="dark-outline hidden">ملفي الشخصي</button>
+        </div>
+
+        <button id="friendsStatBtn" class="profile-friend-stat"><strong id="friendsCount">0</strong><span>الأصدقاء</span></button>
+
+        <div id="friendRequestsSection" class="friend-section hidden">
+          <div class="section-bar"><h3>طلبات الصداقة</h3><span id="friendRequestsCount" class="gold-badge">0</span></div>
+          <div id="friendRequestsList" class="people-list"></div>
+        </div>
+
+        <div id="friendsSection" class="friend-section">
+          <div class="section-bar"><h3>الأصدقاء</h3></div>
+          <div id="friendsList" class="people-list"></div>
+        </div>
+
+        <div id="privateInfoCard" class="private-info-card hidden">
+          <div class="private-info-title">🔒 معلومات خاصة بك فقط</div>
+          <div id="profilePrivateMeta" class="profile-meta"></div>
+        </div>
+
+        <div id="profileEditArea" class="profile-edit-grid hidden">
+          <textarea id="bioInput" placeholder="نبذة مختصرة"></textarea>
+          <label class="upload-label premium-upload">صورة الغلاف<input id="coverInput" type="file" accept="image/*" hidden></label>
+          <label class="privacy-row"><input id="privateAccountInput" type="checkbox"> حساب خاص</label>
+          <button id="saveProfileBtn" class="gold-action">حفظ التغييرات</button>
+        </div>
+
+        <div id="profileMeta" class="profile-meta"></div>
+
+        <div id="ownAccountActions" class="own-account-actions hidden">
+          <button id="profileLogoutBtn" class="profile-logout-btn" type="button">
+            <span data-atta-icon="log-out"></span>
+            <span>تسجيل الخروج من الحساب</span>
+          </button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <nav class="bottom-nav premium-nav">
+    <button class="nav-btn active" data-page="homePage" aria-label="الرئيسية">
+      <span data-atta-icon="home"></span><span>الرئيسية</span>
+    </button>
+    <button class="nav-btn" data-page="searchPage" aria-label="استكشاف">
+      <span data-atta-icon="search"></span><span>استكشاف</span>
+    </button>
+    <button class="nav-btn" data-page="messagesPage" aria-label="الرسائل">
+      <span data-atta-icon="message-circle"></span><span>الرسائل</span>
+    </button>
+    <button class="nav-btn" data-page="notificationsPage" aria-label="الإشعارات">
+      <span data-atta-icon="bell"></span><span>الإشعارات</span>
+    </button>
+    <button class="nav-btn" data-page="profilePage" aria-label="حسابي">
+      <span data-atta-icon="user"></span><span>حسابي</span>
+    </button>
+  </nav>
+</div>
+
+
+<div id="callOverlay" class="call-overlay hidden">
+  <div class="call-overlay-header">
+    <div class="call-user-info">
+      <img id="callPeerAvatar" class="call-peer-avatar" alt="صورة المتصل">
+      <div>
+        <strong id="callPeerName">مكالمة</strong>
+        <small id="callPeerState">جاري الاتصال...</small>
+      </div>
+    </div>
+    <div class="call-top-actions">
+      <button id="resumeRemoteMediaBtn" class="call-top-btn hidden"><span data-atta-icon="volume"></span><span>تشغيل الصوت</span></button>
+      <button id="minimizeCallBtn" class="call-top-btn" aria-label="تصغير"><span data-atta-icon="chevron-down"></span></button>
+    </div>
+  </div>
+
+  <div class="call-stage">
+    <video id="remoteVideo" class="remote-full-video" autoplay playsinline></video>
+    <audio id="remoteAudio" class="remote-call-audio" autoplay playsinline></audio>
+
+    <div class="remote-empty-state">
+      <img id="remoteEmptyAvatar" class="remote-empty-avatar-img" alt="صورة المتصل">
+      <div id="remoteEmptyName">الطرف الآخر</div>
+    </div>
+
+    <div class="local-pip">
+      <video id="localVideo" autoplay playsinline muted></video>
+      <span>أنت</span>
+    </div>
+  </div>
+
+  <div class="call-bottom-sheet">
+    <div class="call-tools">
+      <button id="muteBtn" class="round-call-btn">
+        <span class="round-icon" data-atta-icon="mic"></span>
+        <small>المايك</small>
+      </button>
+
+      <button id="cameraBtn" class="round-call-btn">
+        <span class="round-icon" data-atta-icon="camera"></span>
+        <small>الكاميرا</small>
+      </button>
+
+      <button id="screenBtn" class="round-call-btn">
+        <span class="round-icon" data-atta-icon="monitor"></span>
+        <small>الشاشة</small>
+      </button>
+
+      <button id="hangupBtn" class="round-call-btn hangup-round">
+        <span class="round-icon" data-atta-icon="phone-off"></span>
+        <small>إنهاء</small>
+      </button>
+    </div>
+  </div>
+</div>
+
+<div id="storyModal" class="modal hidden"><div class="modal-card"><h3>إضافة حالة</h3><textarea id="storyTextInput" placeholder="اكتب حالة..."></textarea><label class="upload-label"><span data-atta-icon="image"></span><span>صورة</span><input id="storyMediaInput" type="file" accept="image/*" hidden></label><img id="storyPreview" class="story-preview hidden" alt=""><div class="modal-actions"><button id="publishStoryBtn" class="primary">نشر</button><button id="closeStoryModalBtn">إلغاء</button></div></div></div>
+<div id="storyViewer" class="story-viewer hidden"><button id="closeStoryViewer" class="story-close">×</button><div class="story-view-content"><div id="storyViewerAuthor" class="story-view-author"></div><img id="storyViewerImage" class="story-view-image hidden" alt=""><div id="storyViewerText" class="story-view-text"></div></div></div>
+<div id="incomingModal" class="modal hidden">
+  <div class="modal-card">
+    <h3>مكالمة واردة</h3>
+    <p id="incomingText"></p>
+    <button id="acceptCallBtn" class="primary call-modal-action"><span data-atta-icon="phone"></span><span>قبول</span></button>
+    <button id="rejectCallBtn" class="danger call-modal-action"><span data-atta-icon="phone-off"></span><span>رفض</span></button>
+  </div>
+</div>
+
+<script src="config.js"></script>
+<script src="icons.js"></script>
+<script src="app.js"></script>
+
+<audio id="incomingRingAudio" src="audio/incoming-ring.wav" preload="auto" loop></audio>
+<audio id="outgoingRingAudio" src="audio/outgoing-ring.wav" preload="auto" loop></audio>
+
+</body>
+</html>
