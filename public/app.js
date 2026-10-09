@@ -1825,6 +1825,13 @@ if($("headerSearchBtn")){
   };
 }
 
+if($("mobileHeaderSearchBtn")){
+  $("mobileHeaderSearchBtn").onclick=()=>{
+    showPage("searchPage");
+    setTimeout(()=>$("userSearchInput")?.focus(),50);
+  };
+}
+
 
 let logoutInProgress=false;
 
@@ -3431,7 +3438,7 @@ window.addEventListener("load",setupGoogleSignIn);
 
   if ("serviceWorker" in navigator) {
     window.addEventListener("load", () => {
-      navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(() => {});
+      navigator.serviceWorker.register("/sw.js?v=13.30", { scope: "/" }).catch(() => {});
     });
   }
 

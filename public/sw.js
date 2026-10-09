@@ -1,9 +1,9 @@
-const CACHE = "tawasol-alatta-v13-29";
+const CACHE = "tawasol-alatta-v13-30";
 const STATIC = [
   "/",
-  "/style.css",
-  "/app.js",
-  "/icons.js",
+  "/style.css?v=13.30",
+  "/app.js?v=13.30",
+  "/icons.js?v=13.30",
   "/logo-premium.png",
   "/logo.svg",
   "/icons/icon-192.png",
