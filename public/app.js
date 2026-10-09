@@ -1022,7 +1022,7 @@ async function loadConversation(username,{silent=false}={}){
 
 
 async function syncSocialState(){
-  if(!token || !me)return;
+  if(!token || !me || callState!=="idle" || pc)return;
 
   await Promise.allSettled([
     loadChatContacts(),
@@ -1034,7 +1034,7 @@ async function syncSocialState(){
 
 function startSocialSync(){
   clearInterval(syncTimer);
-  syncTimer=setInterval(syncSocialState,3000);
+  syncTimer=setInterval(syncSocialState,8000);
 }
 
 async function loadGroups(){
@@ -1091,8 +1091,8 @@ async function getMedia(type,{force=false}={}){
         audio:audioConstraints,
         video:{
           facingMode:{ideal:"user"},
-          width:{ideal:640,max:960},
-          height:{ideal:360,max:540},
+          width:{ideal:640},
+          height:{ideal:360},
           frameRate:{ideal:20,max:24}
         }
       };
@@ -1189,43 +1189,32 @@ async function ensurePeer(){
   for(const track of stream.getTracks()){
     const sender=pc.addTrack(track,stream);
 
-    if(track.kind==="audio"){
-      audioSender=sender;
-      try{track.contentHint="speech"}catch{}
-    }
-    if(track.kind==="video"){
-      videoSender=sender;
-      try{track.contentHint="motion"}catch{}
-    }
-  }
+    if(track.kind==="audio")audioSender=sender;
+    if(track.kind==="video")videoSender=sender;
 
-  // Keep calls responsive on mobile/weak networks instead of pushing full camera bitrate.
-  try{
-    if(audioSender){
-      const p=audioSender.getParameters();
-      p.encodings=p.encodings?.length?p.encodings:[{}];
-      p.encodings[0].maxBitrate=48000;
-      await audioSender.setParameters(p);
+    // Keep calls smooth on typical mobile connections without changing signaling.
+    try{
+      const params=sender.getParameters();
+      params.encodings=params.encodings?.length?params.encodings:[{}];
+      if(track.kind==="video"){
+        params.encodings[0].maxBitrate=700000;
+        params.encodings[0].maxFramerate=24;
+      }else if(track.kind==="audio"){
+        params.encodings[0].maxBitrate=64000;
+      }
+      await sender.setParameters(params);
+    }catch(err){
+      console.warn("sender tuning skipped",err);
     }
-    if(videoSender){
-      const p=videoSender.getParameters();
-      p.encodings=p.encodings?.length?p.encodings:[{}];
-      p.encodings[0].maxBitrate=650000;
-      p.encodings[0].maxFramerate=20;
-      await videoSender.setParameters(p);
-    }
-  }catch(err){
-    console.warn("media sender tuning skipped",err);
   }
 
   // We wait for complete ICE in offer/answer, so trickle ICE is only a bonus.
   pc.onicecandidate=e=>{
-    const peer=activeCallPeer||selectedUser;
-    if(!e.candidate || !peer || !activeCallId)return;
+    if(!e.candidate || !selectedUser || !activeCallId)return;
 
     sendCallSignal({
       type:"ice",
-      to:peer,
+      to:selectedUser,
       callId:activeCallId,
       candidate:e.candidate
     }).catch(err=>console.warn("ICE signal failed",err));
@@ -1241,17 +1230,11 @@ async function ensurePeer(){
     }
 
     const remoteVideo=$("remoteVideo");
-    const remoteAudio=$("remoteAudio");
     remoteVideo.srcObject=remoteMediaStream;
     remoteVideo.playsInline=true;
     remoteVideo.autoplay=true;
-    // Audio is played from a dedicated element so video rendering cannot silence it.
-    remoteVideo.muted=true;
-    if(remoteAudio){
-      remoteAudio.srcObject=remoteMediaStream;
-      remoteAudio.autoplay=true;
-      remoteAudio.volume=1;
-    }
+    remoteVideo.muted=false;
+    remoteVideo.volume=1;
 
     const revealVideo=()=>{
       if(e.track.kind==="video"){
@@ -1265,13 +1248,12 @@ async function ensurePeer(){
     e.track.onunmute=async()=>{
       revealVideo();
       try{await remoteVideo.play()}catch{}
-      try{await remoteAudio?.play()}catch{}
     };
 
     revealVideo();
 
     try{
-      await Promise.allSettled([remoteVideo.play(),remoteAudio?.play()]);
+      await remoteVideo.play();
       $("resumeRemoteMediaBtn")?.classList.add("hidden");
     }catch(err){
       console.warn("remote autoplay blocked",err);
@@ -1323,8 +1305,7 @@ async function ensurePeer(){
       try{
         await ensureTurnIceServers(true);
 
-        const peer=activeCallPeer||selectedUser;
-        if(pc && peer){
+        if(pc && selectedUser){
           pc.setConfiguration({
             ...rtcConfig,
             iceCandidatePoolSize:6,
@@ -1343,7 +1324,7 @@ async function ensurePeer(){
 
           await sendCallSignal({
             type:"offer",
-            to:peer,
+            to:selectedUser,
             callId:activeCallId,
             sdp:pc.localDescription,
             callType:currentCallType,
@@ -1440,8 +1421,6 @@ async function requestCall(type){
 }
 async function startOffer(){
   await ensurePeer();
-  const peer=activeCallPeer||selectedUser;
-  if(!peer)throw new Error("لا يوجد طرف للمكالمة");
 
   const offer=await pc.createOffer({
     offerToReceiveAudio:true,
@@ -1453,7 +1432,7 @@ async function startOffer(){
 
   await sendCallSignal({
     type:"offer",
-    to:peer,
+    to:selectedUser,
     callId:activeCallId,
     sdp:pc.localDescription,
     callType:currentCallType,
@@ -1478,7 +1457,6 @@ async function teardownPeer(stopLocal=true){
 
   $("localVideo").srcObject=null;
   $("remoteVideo").srcObject=null;
-  if($("remoteAudio"))$("remoteAudio").srcObject=null;
 }
 
 async function hangup(notifyPeer=true){
@@ -2115,7 +2093,7 @@ async function loadPosts(){
             <button class="text-action-btn" data-share-post="${post.id}">${iconShare()}<span>مشاركة</span></button>
           </div>
           <div class="reference-post-stats">
-            <button class="stat-btn ${post.myReaction?"active":""}" data-react-main="${post.id}">${iconHeart()}<span>${likeCount}</span></button>
+            <button class="stat-btn ${post.myReaction?"active":""}" data-react-main="${post.id}" data-current-reaction="${esc(post.myReaction||"")}" title="إعجاب">${iconHeart()}<span>${likeCount}</span></button>
             <button class="stat-btn" data-comment-focus="${post.id}">${iconComment()}<span>${commentCount}</span></button>
             <button class="stat-btn" data-share-post="${post.id}">${iconRepeat()}<span>${shareCount}</span></button>
           </div>
@@ -2162,9 +2140,41 @@ async function loadPosts(){
     });
 
     document.querySelectorAll("[data-react-main]").forEach(btn=>{
-      btn.onclick=()=>{
+      // Normal click = Like / Unlike immediately. This keeps the main reaction usable
+      // on desktop and mobile instead of only opening a hidden picker.
+      btn.onclick=async()=>{
+        try{
+          const current=btn.dataset.currentReaction||"";
+          await api("/api/post-react",{method:"POST",body:JSON.stringify({
+            token,
+            postId:btn.dataset.reactMain,
+            reaction:"like",
+            remove:current==="like"
+          })});
+          await loadPosts();
+        }catch(e){alert(e.message)}
+      };
+
+      // Right click on desktop opens the full reaction picker.
+      btn.oncontextmenu=(e)=>{
+        e.preventDefault();
         document.querySelector(`[data-reaction-picker="${btn.dataset.reactMain}"]`)?.classList.toggle("hidden");
       };
+    });
+
+
+    document.querySelectorAll("[data-react-main]").forEach(btn=>{
+      let holdTimer=null;
+      btn.addEventListener("pointerdown",()=>{
+        holdTimer=setTimeout(()=>{
+          const picker=document.querySelector(`[data-reaction-picker="${btn.dataset.reactMain}"]`);
+          if(picker)picker.classList.remove("hidden");
+          holdTimer=null;
+        },550);
+      });
+      ["pointerup","pointercancel","pointerleave"].forEach(evt=>btn.addEventListener(evt,()=>{
+        if(holdTimer){clearTimeout(holdTimer);holdTimer=null;}
+      }));
     });
 
     document.querySelectorAll("[data-react]").forEach(btn=>{
@@ -3135,9 +3145,9 @@ if($("resumeRemoteMediaBtn")){
   $("resumeRemoteMediaBtn").onclick=async()=>{
     try{
       const rv=$("remoteVideo");
-      const ra=$("remoteAudio");
-      rv.muted=true;
-      await Promise.allSettled([rv.play(),ra?.play()]);
+      rv.muted=false;
+      rv.volume=1;
+      await rv.play();
       $("resumeRemoteMediaBtn").classList.add("hidden");
     }catch(err){
       console.warn("manual remote playback failed",err);
@@ -3200,7 +3210,6 @@ async function setupGoogleSignIn(){
       type:"standard",theme:"filled_black",size:"large",shape:"pill",
       text:"continue_with",width:300,locale:"ar"
     });
-    hint.textContent="";
     googleWidgetStarted=true;
   }catch(e){hint.textContent=e.message||"تعذر تفعيل تسجيل Google";}
 }

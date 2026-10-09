@@ -3965,3 +3965,33 @@ body.chat-fullscreen-open .mobile-bottom-nav{
 .google-divider{color:#dfb954;font-size:13px;margin:0 0 12px}
 .google-signin-btn{display:flex;justify-content:center;min-height:42px}
 .google-setup-hint{font-size:12px;color:#cfbd8a;line-height:1.7;margin:8px 0 0}
+
+
+/* ===== V13.14 MEDIA DISPLAY FIX ===== */
+.reference-post-image,
+.post-image{
+  width:100%!important;
+  height:auto!important;
+  max-height:72vh!important;
+  aspect-ratio:auto!important;
+  object-fit:contain!important;
+  object-position:center center!important;
+  background:#05080A!important;
+  display:block!important;
+}
+.shared-post-image{
+  width:100%!important;
+  height:auto!important;
+  max-height:60vh!important;
+  object-fit:contain!important;
+  object-position:center center!important;
+  background:#05080A!important;
+}
+.reference-reaction-picker{
+  position:relative!important;
+  z-index:40!important;
+}
+@media (max-width:900px){
+  .reference-post-image,.post-image{max-height:68vh!important;}
+  .shared-post-image{max-height:55vh!important;}
+}
