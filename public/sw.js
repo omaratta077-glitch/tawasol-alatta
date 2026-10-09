@@ -1,9 +1,9 @@
 const CACHE = "tawasol-alatta-v13-30";
 const STATIC = [
   "/",
-  "/style.css?v=13.30",
-  "/app.js?v=13.30",
-  "/icons.js?v=13.30",
+  "/style.css?v=13.31",
+  "/app.js?v=13.31",
+  "/icons.js?v=13.31",
   "/logo-premium.png",
   "/logo.svg",
   "/icons/icon-192.png",
@@ -28,6 +28,12 @@ self.addEventListener("fetch", event => {
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;
   if (url.pathname === "/ws" || url.pathname.startsWith("/api/")) return;
+
+  const freshShell = req.mode === "navigate" || /\.(?:css|js|webmanifest)$/.test(url.pathname) || url.pathname === "/sw.js";
+  if (freshShell) {
+    event.respondWith(fetch(new Request(req, {cache:"no-store"})).catch(() => caches.match(req).then(hit => hit || caches.match("/"))));
+    return;
+  }
 
   event.respondWith(
     fetch(req).then(res => {

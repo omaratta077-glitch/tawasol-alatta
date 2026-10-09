@@ -3438,7 +3438,7 @@ window.addEventListener("load",setupGoogleSignIn);
 
   if ("serviceWorker" in navigator) {
     window.addEventListener("load", () => {
-      navigator.serviceWorker.register("/sw.js?v=13.30", { scope: "/" }).catch(() => {});
+      navigator.serviceWorker.register("/sw.js?v=13.31", { scope: "/" }).catch(() => {});
     });
   }
 
