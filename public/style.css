@@ -4094,3 +4094,19 @@ body.chat-fullscreen-open .mobile-bottom-nav{
     flex:0 0 auto!important;
   }
 }
+
+
+/* ===== V13.23 video framing + reliable in-app notifications ===== */
+.call-stage{background:#050607!important;}
+.remote-full-video{
+  width:100%!important;
+  height:100%!important;
+  object-fit:contain!important;
+  object-position:center center!important;
+  background:#050607!important;
+}
+.atta-toast-host{position:fixed;top:76px;right:14px;z-index:99999;display:flex;flex-direction:column;gap:8px;width:min(360px,calc(100vw - 28px));pointer-events:none}
+.atta-toast{direction:rtl;background:#111519;color:#fff;border:1px solid #D6AD45;border-radius:12px;padding:11px 13px;box-shadow:0 12px 32px #0008;display:flex;flex-direction:column;gap:3px;transform:translateY(-10px);opacity:0;transition:.22s ease}
+.atta-toast.show{transform:translateY(0);opacity:1}
+.atta-toast strong{color:#F0CF73;font-size:13px}.atta-toast span{font-size:12px;line-height:1.55}
+@media(max-width:700px){.atta-toast-host{top:64px;right:8px;width:calc(100vw - 16px)}}

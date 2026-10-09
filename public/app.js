@@ -237,9 +237,28 @@ async function askNotifications(){
   }
 }
 
+function showInAppToast(title,body){
+  let host=document.getElementById("attaToastHost");
+  if(!host){
+    host=document.createElement("div");
+    host.id="attaToastHost";
+    host.className="atta-toast-host";
+    document.body.appendChild(host);
+  }
+  const toast=document.createElement("div");
+  toast.className="atta-toast";
+  toast.innerHTML=`<strong>${esc(title||"إشعار")}</strong><span>${esc(body||"")}</span>`;
+  host.appendChild(toast);
+  requestAnimationFrame(()=>toast.classList.add("show"));
+  setTimeout(()=>{toast.classList.remove("show");setTimeout(()=>toast.remove(),250)},4500);
+}
+
 function notify(title,body){
+  // Always show an in-app alert. Browser notifications are only a bonus because
+  // Chrome can block permission prompts that were not triggered by a user gesture.
+  showInAppToast(title,body);
   if("Notification" in window && Notification.permission==="granted"){
-    new Notification(title,{body});
+    try{new Notification(title,{body})}catch{}
   }
 }
 
@@ -2354,9 +2373,24 @@ async function loadNotifications(){
     const list=d.notifications||[];
 
     $("notificationsList").innerHTML=list.length?list.map(n=>{
-      const label=n.type==="like"?`أعجب @${esc(n.from)} بمنشورك`:n.type==="follow"?`بدأ @${esc(n.from)} بمتابعتك`:`علّق @${esc(n.from)} على منشورك${n.text?`: ${esc(n.text)}`:""}`;
+      const labels={
+        like:`أعجب @${esc(n.from)} بمنشورك`,
+        reaction:`تفاعل @${esc(n.from)} مع منشورك`,
+        follow:`بدأ @${esc(n.from)} بمتابعتك`,
+        "friend-request":`أرسل @${esc(n.from)} لك طلب صداقة`,
+        "friend-accepted":`قبل @${esc(n.from)} طلب الصداقة`,
+        share:`شارك @${esc(n.from)} منشورك`
+      };
+      const label=labels[n.type]||`علّق @${esc(n.from)} على منشورك${n.text?`: ${esc(n.text)}`:""}`;
       return `<div class="notification-card ${n.read?"read":""}">${label}<small>${new Date(n.createdAt).toLocaleString("ar-SA")}</small></div>`;
     }).join(""):`<div class="empty-card">لا توجد إشعارات</div>`;
+
+    const unread=list.filter(n=>!n.read).length;
+    const badge=$("headerNotifyBadge");
+    if(badge){
+      badge.textContent=unread>99?"99+":String(unread);
+      badge.classList.toggle("hidden",unread===0);
+    }
   }catch(e){alert(e.message)}
 }
 

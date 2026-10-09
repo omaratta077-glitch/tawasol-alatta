@@ -1630,7 +1630,7 @@ export default {
       return Response.json({
         ok:true,
         app:"تواصل العطا",
-        version:"V13.22-Cloudflare-Calls-Fix"
+        version:"V13.23-Video-Notifications-Fix"
       });
     }
 
