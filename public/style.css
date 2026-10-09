@@ -4064,3 +4064,7 @@ body.chat-fullscreen-open .mobile-bottom-nav{
   .reference-tool-btn span:last-of-type{max-width:42px;overflow:hidden;text-overflow:ellipsis}
   .reference-publish-btn{min-width:52px!important;padding:0 5px!important;font-size:10px!important}
 }
+
+
+/* ===== V13.17 call audio reliability ===== */
+.remote-call-audio{position:absolute!important;width:1px!important;height:1px!important;opacity:0!important;pointer-events:none!important;}

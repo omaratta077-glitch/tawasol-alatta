@@ -341,13 +341,40 @@ async function sendCallSignal(signal){
     createdAt:signal.createdAt||Date.now()
   };
 
-  // V13.16: one authoritative signaling path. The Worker itself delivers
-  // immediately over WebSocket when the peer is online and stores the same
-  // event for HTTP polling fallback. This avoids duplicate/competing offers.
-  return await api("/api/call-signal",{
-    method:"POST",
-    body:JSON.stringify({token,to:normalized.to,signal:normalized})
-  });
+  let wsSent=false;
+
+  if(ws?.readyState===WebSocket.OPEN){
+    try{
+      ws.send(JSON.stringify(normalized));
+      wsSent=true;
+    }catch(err){
+      console.warn("call websocket send failed",err);
+    }
+  }
+
+  let stored=null;
+
+  try{
+    stored=await api("/api/message-send",{
+      method:"POST",
+      body:JSON.stringify({
+        token,
+        to:normalized.to,
+        text:"",
+        media:JSON.stringify(normalized),
+        mediaType:"call-signal"
+      })
+    });
+  }catch(err){
+    if(!wsSent)throw err;
+    console.warn("stored call signal failed",err);
+  }
+
+  return {
+    ok:wsSent||!!stored?.ok,
+    online:wsSent||!!stored?.delivered,
+    transport:wsSent?"websocket+stored":"stored"
+  };
 }
 async function handleCallSignal(msg){
   if(!msg || !CALL_SIGNAL_TYPES.has(msg.type))return false;
@@ -565,14 +592,13 @@ async function pollStoredCallSignals(){
 
 async function pollCallSignals(){
   if(!token || callSignalPollBusy)return;
+
   callSignalPollBusy=true;
+
   try{
-    const d=await api(`/api/call-signals?token=${encodeURIComponent(token)}`);
-    for(const signal of (d.signals||[])){
-      try{await handleCallSignal(signal)}catch(err){console.warn("call signal failed",err)}
-    }
-  }catch(err){
-    console.warn("call polling failed",err);
+    // Always use the compatible stored-message fallback. This works with the
+    // currently deployed backend and does not require /api/call-signals.
+    await pollStoredCallSignals();
   }finally{
     callSignalPollBusy=false;
   }
@@ -1165,6 +1191,22 @@ async function ensurePeer(){
 
     if(track.kind==="audio")audioSender=sender;
     if(track.kind==="video")videoSender=sender;
+
+    // Keep calls responsive on mobile and slower connections.
+    try{
+      const params=sender.getParameters();
+      params.encodings=params.encodings?.length?params.encodings:[{}];
+      if(track.kind==="video"){
+        params.encodings[0].maxBitrate=550000;
+        params.encodings[0].maxFramerate=18;
+        params.degradationPreference="maintain-framerate";
+      }else{
+        params.encodings[0].maxBitrate=48000;
+      }
+      await sender.setParameters(params);
+    }catch(err){
+      console.warn("media sender tuning skipped",err);
+    }
   }
 
   // We wait for complete ICE in offer/answer, so trickle ICE is only a bonus.
@@ -1189,11 +1231,18 @@ async function ensurePeer(){
     }
 
     const remoteVideo=$("remoteVideo");
+    const remoteAudio=$("remoteAudio");
     remoteVideo.srcObject=remoteMediaStream;
     remoteVideo.playsInline=true;
     remoteVideo.autoplay=true;
     remoteVideo.muted=false;
     remoteVideo.volume=1;
+    if(remoteAudio){
+      remoteAudio.srcObject=remoteMediaStream;
+      remoteAudio.autoplay=true;
+      remoteAudio.volume=1;
+      remoteAudio.muted=false;
+    }
 
     const revealVideo=()=>{
       if(e.track.kind==="video"){
@@ -1207,12 +1256,13 @@ async function ensurePeer(){
     e.track.onunmute=async()=>{
       revealVideo();
       try{await remoteVideo.play()}catch{}
+      try{await remoteAudio?.play()}catch{}
     };
 
     revealVideo();
 
     try{
-      await remoteVideo.play();
+      await Promise.allSettled([remoteVideo.play(),remoteAudio?.play?.()]);
       $("resumeRemoteMediaBtn")?.classList.add("hidden");
     }catch(err){
       console.warn("remote autoplay blocked",err);

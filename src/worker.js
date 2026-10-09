@@ -803,6 +803,8 @@ export class SignalingRoom extends DurableObject {
           }
         }
 
+        const authorInfo=await this.publicUser(p.author);
+
         posts.push({
           ...p,
           authorInfo,
@@ -1628,7 +1630,7 @@ export default {
       return Response.json({
         ok:true,
         app:"تواصل العطا",
-        version:"V13.16-Mobile-Social-Calls-Fix"
+        version:"V13.17-Feed-Calls-Fix"
       });
     }
 
