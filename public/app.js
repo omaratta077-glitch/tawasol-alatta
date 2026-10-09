@@ -11,10 +11,6 @@ let viewedFriendState="none";
 let selectedUser="",selectedGroup=null,users=[],groups=[],chatFriends=[];
 let pc=null,localStream=null,currentCallType="video",incomingFrom="";
 let videoSender=null,audioSender=null,remoteMediaStream=null;
-// Cloudflare Realtime SFU: separate publish/subscribe PeerConnections.
-let sfuPublishPc=null,sfuSubscribePc=null;
-let sfuPublishSessionId="",sfuSubscribeSessionId="";
-let sfuReadySentForCall="";
 let callState="idle",activeCallId="",activeCallPeer="",outgoingCallTimer=null;
 
 let pendingIceCandidates=[];
@@ -261,7 +257,6 @@ const CALL_SIGNAL_TYPES=new Set([
   "offer",
   "answer",
   "ice",
-  "sfu-ready",
   "hangup"
 ]);
 
@@ -312,7 +307,7 @@ function hasUsableLocalStream(type=currentCallType){
   return audio && (type!=="video" || video);
 }
 
-async function waitForIceGatheringComplete(peer,timeoutMs=9000){
+async function waitForIceGatheringComplete(peer,timeoutMs=3500){
   if(!peer || peer.iceGatheringState==="complete")return;
 
   await new Promise(resolve=>{
@@ -525,24 +520,6 @@ async function handleCallSignal(msg){
       }
     }
 
-    return true;
-  }
-
-  if(msg.type==="sfu-ready"){
-    selectedUser=msg.from;
-    activeCallPeer=msg.from;
-    currentCallType=msg.callType||currentCallType||"video";
-    showCallOverlay(msg.from,"جاري ربط الوسائط عبر Cloudflare Realtime...");
-    try{
-      await subscribeRemoteSfu(
-        String(msg.publisherSessionId||""),
-        msg.from,
-        Array.isArray(msg.tracks)?msg.tracks:[]
-      );
-    }catch(err){
-      console.error("SFU subscribe failed",err);
-      if($("callPeerState"))$("callPeerState").textContent=err?.message||"تعذر استقبال المكالمة";
-    }
     return true;
   }
 
@@ -1191,205 +1168,206 @@ async function flushPendingIce(){
   }
 }
 
-async function sfuApi(path,body,method="POST"){
-  return api(path,{
-    method,
-    body:JSON.stringify({token,...body})
-  });
-}
+async function ensurePeer(){
+  if(pc)return pc;
 
-function waitForPeerConnected(peer,timeoutMs=12000){
-  if(!peer)return Promise.reject(new Error("اتصال الوسائط غير موجود"));
-  if(peer.connectionState==="connected")return Promise.resolve();
-  return new Promise((resolve,reject)=>{
-    let done=false;
-    const finish=(err)=>{
-      if(done)return;
-      done=true;
-      clearTimeout(timer);
-      peer.removeEventListener("connectionstatechange",onState);
-      err?reject(err):resolve();
-    };
-    const onState=()=>{
-      if(peer.connectionState==="connected")finish();
-      else if(["failed","closed"].includes(peer.connectionState))finish(new Error("تعذر ربط الوسائط"));
-    };
-    const timer=setTimeout(()=>finish(new Error("انتهت مهلة ربط الوسائط")),timeoutMs);
-    peer.addEventListener("connectionstatechange",onState);
-  });
-}
-
-async function createSfuPublisher(){
-  if(sfuPublishPc && sfuPublishSessionId)return {pc:sfuPublishPc,sessionId:sfuPublishSessionId};
-
-  await ensureTurnIceServers().catch(()=>{});
+  const turnOk=await ensureTurnIceServers();
   const stream=await getMedia(currentCallType);
-  const created=await sfuApi("/api/sfu/session-new",{});
-  sfuPublishSessionId=created.sessionId;
 
-  const pub=new RTCPeerConnection({
+  pendingIceCandidates=[];
+  videoSender=null;
+  audioSender=null;
+  remoteMediaStream=new MediaStream();
+
+  pc=new RTCPeerConnection({
     ...rtcConfig,
+    iceCandidatePoolSize:6,
     bundlePolicy:"max-bundle",
     rtcpMuxPolicy:"require"
   });
-  sfuPublishPc=pub;
-  pc=pub; // Keep existing mute/camera/screen controls compatible.
-  videoSender=null;
-  audioSender=null;
 
   for(const track of stream.getTracks()){
-    const transceiver=pub.addTransceiver(track,{direction:"sendonly"});
-    const sender=transceiver.sender;
+    const sender=pc.addTrack(track,stream);
+
     if(track.kind==="audio")audioSender=sender;
     if(track.kind==="video")videoSender=sender;
+
+    // Keep calls responsive on mobile and slower connections.
     try{
       const params=sender.getParameters();
       params.encodings=params.encodings?.length?params.encodings:[{}];
       if(track.kind==="video"){
-        params.encodings[0].maxBitrate=500000;
+        params.encodings[0].maxBitrate=550000;
         params.encodings[0].maxFramerate=18;
-        params.degradationPreference="balanced";
+        params.degradationPreference="maintain-framerate";
       }else{
         params.encodings[0].maxBitrate=48000;
       }
       await sender.setParameters(params);
-    }catch{}
+    }catch(err){
+      console.warn("media sender tuning skipped",err);
+    }
   }
 
-  pub.onconnectionstatechange=()=>{
-    const state=pub.connectionState;
-    if(state==="connected"){
-      if($ ("callPeerState")) $("callPeerState").textContent="تم ربط الإرسال بالسيرفر";
-    }else if(state==="failed"){
-      if($ ("callPeerState")) $("callPeerState").textContent="فشل إرسال الوسائط — أعد المحاولة";
-    }
+  // We wait for complete ICE in offer/answer, so trickle ICE is only a bonus.
+  pc.onicecandidate=e=>{
+    if(!e.candidate || !selectedUser || !activeCallId)return;
+
+    sendCallSignal({
+      type:"ice",
+      to:selectedUser,
+      callId:activeCallId,
+      candidate:e.candidate
+    }).catch(err=>console.warn("ICE signal failed",err));
   };
 
-  const offer=await pub.createOffer();
-  await pub.setLocalDescription(offer);
-  await waitForIceGatheringComplete(pub,8000);
-
-  const tracks=pub.getTransceivers()
-    .filter(t=>t.sender?.track)
-    .map(t=>({
-      location:"local",
-      mid:t.mid,
-      trackName:t.sender.track.kind==="audio"?"microphone":"camera"
-    }));
-
-  const published=await sfuApi("/api/sfu/publish",{
-    sessionId:sfuPublishSessionId,
-    sessionDescription:pub.localDescription,
-    tracks
-  });
-
-  if(!published.sessionDescription)throw new Error("لم يرجع SFU وصف الاتصال");
-  await pub.setRemoteDescription(published.sessionDescription);
-
-  waitForPeerConnected(pub,12000).catch(err=>console.warn("SFU publisher connection",err));
-  return {pc:pub,sessionId:sfuPublishSessionId};
-}
-
-async function announceSfuReady(){
-  if(!activeCallPeer || !activeCallId || !sfuPublishSessionId)return;
-  if(sfuReadySentForCall===activeCallId)return;
-  sfuReadySentForCall=activeCallId;
-  await sendCallSignal({
-    type:"sfu-ready",
-    to:activeCallPeer,
-    callId:activeCallId,
-    callType:currentCallType,
-    publisherSessionId:sfuPublishSessionId,
-    tracks:currentCallType==="video"?["microphone","camera"]:["microphone"]
-  });
-}
-
-async function subscribeRemoteSfu(remoteSessionId,remoteUser,trackNames=[]){
-  if(!remoteSessionId || !remoteUser)return;
-  if(sfuSubscribePc && sfuSubscribeSessionId){
-    try{sfuSubscribePc.close()}catch{}
-    sfuSubscribePc=null;
-    sfuSubscribeSessionId="";
-  }
-
-  await ensureTurnIceServers().catch(()=>{});
-  remoteMediaStream=new MediaStream();
-  const sub=new RTCPeerConnection({
-    ...rtcConfig,
-    bundlePolicy:"max-bundle",
-    rtcpMuxPolicy:"require"
-  });
-  sfuSubscribePc=sub;
-
-  const remoteVideo=$("remoteVideo");
-  const remoteAudio=$("remoteAudio");
-  sub.ontrack=async e=>{
-    if(!remoteMediaStream.getTracks().some(t=>t.id===e.track.id))remoteMediaStream.addTrack(e.track);
-    if(remoteVideo){
-      remoteVideo.srcObject=remoteMediaStream;
-      remoteVideo.playsInline=true;
-      remoteVideo.autoplay=true;
-      remoteVideo.muted=false;
+  pc.ontrack=async e=>{
+    if(!remoteMediaStream){
+      remoteMediaStream=new MediaStream();
     }
+
+    if(!remoteMediaStream.getTracks().some(t=>t.id===e.track.id)){
+      remoteMediaStream.addTrack(e.track);
+    }
+
+    const remoteVideo=$("remoteVideo");
+    const remoteAudio=$("remoteAudio");
+
+    // Keep remote sound on ONE element only. Using the same stream on both
+    // <video> and <audio> caused duplicated/silent audio on some Chrome/mobile combinations.
+    remoteVideo.srcObject=remoteMediaStream;
+    remoteVideo.playsInline=true;
+    remoteVideo.autoplay=true;
+    remoteVideo.muted=true;
+
     if(remoteAudio){
-      remoteAudio.srcObject=remoteMediaStream;
+      const remoteAudioTracks=remoteMediaStream.getAudioTracks();
+      remoteAudio.srcObject=remoteAudioTracks.length?new MediaStream(remoteAudioTracks):null;
       remoteAudio.autoplay=true;
-      remoteAudio.muted=false;
       remoteAudio.volume=1;
+      remoteAudio.muted=false;
     }
-    if(e.track.kind==="video"){
-      const empty=document.querySelector(".remote-empty-state");
-      if(empty)empty.style.display="none";
-    }
-    e.track.onunmute=async()=>{
-      try{await remoteVideo?.play?.()}catch{}
-      try{await remoteAudio?.play?.()}catch{}
+
+    const revealVideo=()=>{
+      if(e.track.kind==="video"){
+        const empty=document.querySelector(".remote-empty-state");
+        if(empty)empty.style.display="none";
+        $("callPeerState").textContent="الفيديو متصل";
+        $("callStatusText").textContent="مكالمة فيديو جارية";
+      }
     };
-    try{await remoteVideo?.play?.()}catch{}
-    try{await remoteAudio?.play?.()}catch{}
+
+    e.track.onunmute=async()=>{
+      revealVideo();
+      try{await remoteVideo.play()}catch{}
+      try{await remoteAudio?.play()}catch{}
+    };
+
+    revealVideo();
+
+    const playback=[];
+    if(e.track.kind==="video")playback.push(remoteVideo.play());
+    if(remoteAudio?.srcObject)playback.push(remoteAudio.play());
+
+    const playbackResults=await Promise.allSettled(playback);
+    const blocked=playbackResults.some(r=>r.status==="rejected");
+    if(blocked){
+      console.warn("remote autoplay blocked",playbackResults);
+      $("resumeRemoteMediaBtn")?.classList.remove("hidden");
+    }else{
+      $("resumeRemoteMediaBtn")?.classList.add("hidden");
+    }
+
+    if(e.track.kind==="audio" && currentCallType==="audio"){
+      $("callPeerState").textContent="الصوت متصل";
+    }
   };
 
-  sub.onconnectionstatechange=()=>{
-    const state=sub.connectionState;
+  pc.oniceconnectionstatechange=()=>{
+    const state=pc?.iceConnectionState||"";
+
+    const labels={
+      checking:turnOk?"فحص الاتصال عبر STUN / TURN...":"فحص الاتصال...",
+      connected:"تم ربط الوسائط",
+      completed:"تم توصيل الوسائط",
+      disconnected:"الاتصال ضعيف — إعادة المحاولة...",
+      failed:"فشل مسار الوسائط",
+      closed:"انتهت المكالمة"
+    };
+
+    if(labels[state] && $("callPeerState")){
+      $("callPeerState").textContent=labels[state];
+    }
+  };
+
+  pc.onconnectionstatechange=async()=>{
+    const state=pc?.connectionState||"";
+
     if(state==="connected"){
       setCallState("connected",activeCallPeer,activeCallId);
-      if($ ("callPeerState")) $("callPeerState").textContent=currentCallType==="video"?"الصوت والفيديو متصلان":"الصوت متصل";
-      if($ ("callStatusText")) $("callStatusText").textContent=currentCallType==="video"?"مكالمة فيديو جارية":"مكالمة صوتية جارية";
-    }else if(state==="connecting"){
-      if($ ("callPeerState")) $("callPeerState").textContent="جاري ربط الطرف الآخر...";
-    }else if(state==="failed"){
-      if($ ("callPeerState")) $("callPeerState").textContent="تعذر استقبال الوسائط";
+
+      if(currentCallType==="video"){
+        const remoteHasVideo=remoteMediaStream?.getVideoTracks().some(t=>t.readyState==="live");
+
+        if(!remoteHasVideo){
+          $("callPeerState").textContent="الصوت متصل — جاري تشغيل الفيديو...";
+        }
+      }else{
+        $("callPeerState").textContent="الصوت متصل";
+      }
+    }
+
+    if(state==="failed"){
+      $("callPeerState").textContent="إعادة توصيل المكالمة عبر TURN...";
+
+      try{
+        await ensureTurnIceServers(true);
+
+        if(pc && selectedUser){
+          pc.setConfiguration({
+            ...rtcConfig,
+            iceCandidatePoolSize:6,
+            bundlePolicy:"max-bundle",
+            rtcpMuxPolicy:"require"
+          });
+
+          const restartOffer=await pc.createOffer({
+            iceRestart:true,
+            offerToReceiveAudio:true,
+            offerToReceiveVideo:currentCallType==="video"
+          });
+
+          await pc.setLocalDescription(restartOffer);
+          await waitForIceGatheringComplete(pc);
+
+          await sendCallSignal({
+            type:"offer",
+            to:selectedUser,
+            callId:activeCallId,
+            sdp:pc.localDescription,
+            callType:currentCallType,
+            renegotiate:true,
+            turnRetry:true,
+            iceComplete:true
+          });
+        }
+      }catch(err){
+        console.error("ICE restart failed",err);
+        $("callPeerState").textContent="تعذر توصيل المكالمة";
+      }
     }
   };
 
-  const created=await sfuApi("/api/sfu/session-new",{});
-  sfuSubscribeSessionId=created.sessionId;
-  const wanted=(trackNames||[]).filter(x=>x==="microphone"||x==="camera");
-  const subscribed=await sfuApi("/api/sfu/subscribe",{
-    sessionId:sfuSubscribeSessionId,
-    remoteSessionId,
-    remoteUser,
-    tracks:wanted.length?wanted:(currentCallType==="video"?["microphone","camera"]:["microphone"])
+  console.log("Local call media",{
+    turnReady,
+    audio:!!audioSender?.track,
+    video:!!videoSender?.track,
+    audioState:audioSender?.track?.readyState,
+    videoState:videoSender?.track?.readyState
   });
 
-  if(!subscribed.sessionDescription)throw new Error("لم يرجع SFU عرض الاستقبال");
-  await sub.setRemoteDescription(subscribed.sessionDescription);
-  const answer=await sub.createAnswer();
-  await sub.setLocalDescription(answer);
-  await waitForIceGatheringComplete(sub,8000);
-  await sfuApi("/api/sfu/renegotiate",{
-    sessionId:sfuSubscribeSessionId,
-    sessionDescription:sub.localDescription
-  },"PUT");
-  await waitForPeerConnected(sub,12000);
+  return pc;
 }
-
-async function ensurePeer(){
-  const r=await createSfuPublisher();
-  await announceSfuReady();
-  return r.pc;
-}
-
 async function requestCall(type){
   if(!selectedUser)return alert("اختر مستخدمًا أولًا");
 
@@ -1460,20 +1438,28 @@ async function requestCall(type){
   }
 }
 async function startOffer(){
-  if($("callPeerState"))$("callPeerState").textContent="جاري الاتصال عبر Cloudflare Realtime...";
-  await createSfuPublisher();
-  await announceSfuReady();
+  await ensurePeer();
+
+  const offer=await pc.createOffer({
+    offerToReceiveAudio:true,
+    offerToReceiveVideo:currentCallType==="video"
+  });
+
+  await pc.setLocalDescription(offer);
+  await waitForIceGatheringComplete(pc);
+
+  await sendCallSignal({
+    type:"offer",
+    to:selectedUser,
+    callId:activeCallId,
+    sdp:pc.localDescription,
+    callType:currentCallType,
+    iceComplete:true
+  });
 }
 async function teardownPeer(stopLocal=true){
-  for(const peer of [sfuPublishPc,sfuSubscribePc,pc]){
-    try{peer?.close()}catch{}
-  }
-  sfuPublishPc=null;
-  sfuSubscribePc=null;
+  try{pc?.close()}catch{}
   pc=null;
-  sfuPublishSessionId="";
-  sfuSubscribeSessionId="";
-  sfuReadySentForCall="";
   videoSender=null;
   audioSender=null;
   pendingIceCandidates=[];
@@ -1487,10 +1473,12 @@ async function teardownPeer(stopLocal=true){
     localStream=null;
   }
 
-  if($("localVideo"))$("localVideo").srcObject=null;
-  if($("remoteVideo"))$("remoteVideo").srcObject=null;
+  $("localVideo").srcObject=null;
+  $("remoteVideo").srcObject=null;
   if($("remoteAudio"))$("remoteAudio").srcObject=null;
+  $("resumeRemoteMediaBtn")?.classList.add("hidden");
 }
+
 async function hangup(notifyPeer=true){
   const peer=activeCallPeer||selectedUser;
   const callId=activeCallId;
@@ -3203,9 +3191,14 @@ if($("resumeRemoteMediaBtn")){
   $("resumeRemoteMediaBtn").onclick=async()=>{
     try{
       const rv=$("remoteVideo");
-      rv.muted=false;
-      rv.volume=1;
-      await rv.play();
+      const ra=$("remoteAudio");
+      rv.muted=true;
+      await rv.play().catch(()=>{});
+      if(ra?.srcObject){
+        ra.muted=false;
+        ra.volume=1;
+        await ra.play();
+      }
       $("resumeRemoteMediaBtn").classList.add("hidden");
     }catch(err){
       console.warn("manual remote playback failed",err);

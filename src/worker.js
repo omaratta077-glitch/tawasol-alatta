@@ -194,8 +194,6 @@ export class SignalingRoom extends DurableObject {
       const resend=String(this.env.RESEND_API_KEY||"").trim();
       const turnId=String(this.env.TURN_KEY_ID||"").trim();
       const turnToken=String(this.env.TURN_KEY_API_TOKEN||"").trim();
-      const sfuAppId=String(this.env.REALTIME_SFU_APP_ID||"").trim();
-      const sfuToken=String(this.env.REALTIME_SFU_BEARER_TOKEN||"").trim();
 
       return j({
         ok:true,
@@ -204,9 +202,7 @@ export class SignalingRoom extends DurableObject {
           resendApiKeyLength:resend.length,
           resendApiKeyLooksValid:resend.startsWith("re_"),
           turnKeyIdConfigured:!!turnId,
-          turnKeyApiTokenConfigured:!!turnToken,
-          realtimeSfuAppIdConfigured:!!sfuAppId,
-          realtimeSfuBearerTokenConfigured:!!sfuToken
+          turnKeyApiTokenConfigured:!!turnToken
         },
         note:"No secret values are exposed by this endpoint."
       });
@@ -291,97 +287,6 @@ export class SignalingRoom extends DurableObject {
           error:"تعذر الاتصال بخدمة TURN",
           code:"TURN_FETCH_FAILED"
         },502);
-      }
-    }
-
-
-    // Cloudflare Realtime SFU proxy. The App Secret never leaves the Worker.
-    if(url.pathname.startsWith("/api/sfu/")){
-      const sessionToken=request.method==="GET"
-        ? String(url.searchParams.get("token")||"")
-        : String(body.token||"");
-      const s=await this.session(sessionToken);
-      if(!s)return j({ok:false,error:"الجلسة منتهية"},401);
-
-      const appId=String(this.env.REALTIME_SFU_APP_ID||"").trim();
-      const bearer=String(this.env.REALTIME_SFU_BEARER_TOKEN||"").trim();
-      if(!appId || !bearer){
-        return j({ok:false,error:"Cloudflare Realtime SFU غير مفعّل على الخادم",code:"SFU_NOT_CONFIGURED"},503);
-      }
-
-      const sfuFetch=async(path,method="POST",payload)=>{
-        const resp=await fetch(`https://rtc.live.cloudflare.com/v1/apps/${encodeURIComponent(appId)}${path}`,{
-          method,
-          headers:{
-            "Authorization":`Bearer ${bearer}`,
-            "Content-Type":"application/json"
-          },
-          body:payload===undefined?undefined:JSON.stringify(payload)
-        });
-        const text=await resp.text();
-        let data={};
-        try{data=JSON.parse(text||"{}")}catch{data={raw:text.slice(0,500)}}
-        if(!resp.ok){
-          console.error("Realtime SFU error",resp.status,path,text.slice(0,800));
-          const err=new Error(data?.errorDescription||data?.error||"تعذر الاتصال بخدمة Realtime SFU");
-          err.status=resp.status;
-          err.data=data;
-          throw err;
-        }
-        return data;
-      };
-
-      try{
-        if(url.pathname==="/api/sfu/session-new" && request.method==="POST"){
-          const data=await sfuFetch("/sessions/new","POST");
-          const sessionId=String(data.sessionId||"");
-          if(!sessionId)return j({ok:false,error:"لم يرجع SFU رقم جلسة"},502);
-          await this.ctx.storage.put(`sfuOwner:${sessionId}`,{username:s.username,createdAt:Date.now()},{expirationTtl:3600});
-          return j({ok:true,sessionId});
-        }
-
-        if(url.pathname==="/api/sfu/publish" && request.method==="POST"){
-          const sessionId=String(body.sessionId||"");
-          const owner=await this.ctx.storage.get(`sfuOwner:${sessionId}`);
-          if(!owner || owner.username!==s.username)return j({ok:false,error:"جلسة SFU غير مصرح بها"},403);
-          const tracks=Array.isArray(body.tracks)?body.tracks.slice(0,2):[];
-          if(!sessionId || !body.sessionDescription || !tracks.length)return j({ok:false,error:"بيانات نشر SFU غير مكتملة"},400);
-          const data=await sfuFetch(`/sessions/${encodeURIComponent(sessionId)}/tracks/new`,"POST",{
-            sessionDescription:body.sessionDescription,
-            tracks:tracks.map(x=>({location:"local",mid:String(x.mid||""),trackName:String(x.trackName||"")}))
-          });
-          return j({ok:true,...data});
-        }
-
-        if(url.pathname==="/api/sfu/subscribe" && request.method==="POST"){
-          const sessionId=String(body.sessionId||"");
-          const remoteSessionId=String(body.remoteSessionId||"");
-          const remoteUser=String(body.remoteUser||"").trim().toLowerCase();
-          const owner=await this.ctx.storage.get(`sfuOwner:${sessionId}`);
-          const remoteOwner=await this.ctx.storage.get(`sfuOwner:${remoteSessionId}`);
-          if(!owner || owner.username!==s.username)return j({ok:false,error:"جلسة الاستقبال غير مصرح بها"},403);
-          if(!remoteOwner || remoteOwner.username!==remoteUser)return j({ok:false,error:"جلسة الطرف الآخر غير صالحة"},403);
-          if(await this.friendState(s.username,remoteUser)!=="friends")return j({ok:false,error:"المكالمات متاحة بين الأصدقاء فقط"},403);
-          const names=(Array.isArray(body.tracks)?body.tracks:[]).map(String).filter(x=>x==="microphone"||x==="camera").slice(0,2);
-          if(!names.length)return j({ok:false,error:"لا توجد مسارات وسائط مطلوبة"},400);
-          const data=await sfuFetch(`/sessions/${encodeURIComponent(sessionId)}/tracks/new`,"POST",{
-            tracks:names.map(trackName=>({location:"remote",sessionId:remoteSessionId,trackName}))
-          });
-          return j({ok:true,...data});
-        }
-
-        if(url.pathname==="/api/sfu/renegotiate" && request.method==="PUT"){
-          const sessionId=String(body.sessionId||"");
-          const owner=await this.ctx.storage.get(`sfuOwner:${sessionId}`);
-          if(!owner || owner.username!==s.username)return j({ok:false,error:"جلسة SFU غير مصرح بها"},403);
-          if(!body.sessionDescription)return j({ok:false,error:"وصف الاتصال غير موجود"},400);
-          const data=await sfuFetch(`/sessions/${encodeURIComponent(sessionId)}/renegotiate`,"PUT",{sessionDescription:body.sessionDescription});
-          return j({ok:true,...data});
-        }
-
-        return j({ok:false,error:"مسار SFU غير معروف"},404);
-      }catch(err){
-        return j({ok:false,error:err?.message||"تعذر الاتصال بخدمة Realtime SFU",code:"SFU_PROVIDER_ERROR",providerStatus:Number(err?.status||0)||undefined},502);
       }
     }
 
@@ -747,7 +652,6 @@ export class SignalingRoom extends DurableObject {
         "offer",
         "answer",
         "ice",
-        "sfu-ready",
         "hangup"
       ]);
 
@@ -1697,7 +1601,7 @@ export class SignalingRoom extends DurableObject {
       return;
     }
 
-    if(["offer","answer","ice","sfu-ready","call-request","call-accept","call-reject","hangup"].includes(msg.type)){
+    if(["offer","answer","ice","call-request","call-accept","call-reject","hangup"].includes(msg.type)){
       const to=String(msg.to||"").trim().toLowerCase();
       const target=this.findUser(to);
 
@@ -1726,7 +1630,7 @@ export default {
       return Response.json({
         ok:true,
         app:"تواصل العطا",
-        version:"V13.19-Realtime-SFU-Calls"
+        version:"V13.22-Cloudflare-Calls-Fix"
       });
     }
 
