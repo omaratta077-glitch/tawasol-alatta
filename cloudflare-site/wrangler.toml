@@ -5,6 +5,8 @@ compatibility_date = "2026-10-01"
 [vars]
 # Google OAuth Client ID is public (not a secret).
 GOOGLE_CLIENT_ID = "892140625911-rgln2915nsojaftmuvkst46m1kepetk3.apps.googleusercontent.com"
+# ضع اسم مستخدم حسابك هنا أو أضفه من Cloudflare Variables باسم SUPER_ADMIN_USERNAME
+SUPER_ADMIN_USERNAME = ""
 
 [assets]
 directory = "./public"

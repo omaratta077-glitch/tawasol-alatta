@@ -80,7 +80,30 @@ export class SignalingRoom extends DurableObject {
   }
 
   async session(token){
-    return token ? (await this.ctx.storage.get(`session:${token}`)||null) : null;
+    const session=token ? (await this.ctx.storage.get(`session:${token}`)||null) : null;
+    if(!session)return null;
+    const u=await this.user(session.username);
+    if(!u || u.banned)return null;
+    return session;
+  }
+
+  ownerUsername(){
+    return String(this.env.SUPER_ADMIN_USERNAME||"").trim().toLowerCase();
+  }
+
+  async roleFor(username){
+    const name=String(username||"").trim().toLowerCase();
+    if(name && name===this.ownerUsername())return "super_admin";
+    const moderators=await this.ctx.storage.get("moderators")||[];
+    return moderators.includes(name)?"moderator":"user";
+  }
+
+  async requireAdmin(token){
+    const session=await this.session(String(token||""));
+    if(!session)return {error:j({ok:false,error:"الجلسة منتهية"},401)};
+    const role=await this.roleFor(session.username);
+    if(role!=="super_admin" && role!=="moderator")return {error:j({ok:false,error:"غير مصرح لك بالدخول إلى لوحة الإدارة"},403)};
+    return {session,role};
   }
 
   normalizeRegistration(body={}){
@@ -564,6 +587,8 @@ export class SignalingRoom extends DurableObject {
         await this.ctx.storage.put("usernames",[...new Set([...all,username])]);
         await this.ctx.storage.put(googleKey,username);
       }
+      const googleUser=await this.user(username);
+      if(googleUser?.banned)return j({ok:false,error:"تم إيقاف هذا الحساب بواسطة الإدارة"},403);
       const token=await this.createSession(username);
       return j({ok:true,token,user:await this.publicUser(username)});
     }
@@ -576,6 +601,7 @@ export class SignalingRoom extends DurableObject {
       if(!u || u.passwordHash!==await hashPassword(password)){
         return j({ok:false,error:"اسم المستخدم أو كلمة المرور غير صحيحة"},401);
       }
+      if(u.banned)return j({ok:false,error:"تم إيقاف هذا الحساب بواسطة الإدارة"},403);
 
       const token=await this.createSession(username);
       return j({ok:true,token,user:await this.publicUser(username)});
@@ -1277,8 +1303,86 @@ export class SignalingRoom extends DurableObject {
         bio:u.bio||"",
         cover:u.cover||"",
         accountPrivate:!!u.accountPrivate,
-        avatar:u.avatar||""
+        avatar:u.avatar||"",
+        role:await this.roleFor(u.username)
       }});
+    }
+
+    if(url.pathname==="/api/admin/summary" && request.method==="GET"){
+      const auth=await this.requireAdmin(url.searchParams.get("token")||"");
+      if(auth.error)return auth.error;
+      const usernames=await this.ctx.storage.get("usernames")||[];
+      const postIds=await this.ctx.storage.get("postIds")||[];
+      const reports=await this.ctx.storage.get("reports")||[];
+      let banned=0;
+      for(const name of usernames){ const u=await this.user(name); if(u?.banned)banned++; }
+      return j({ok:true,role:auth.role,owner:this.ownerUsername(),counts:{users:usernames.length,posts:postIds.length,reports:reports.filter(r=>!r.resolved).length,banned}});
+    }
+
+    if(url.pathname==="/api/admin/users" && request.method==="GET"){
+      const auth=await this.requireAdmin(url.searchParams.get("token")||"");
+      if(auth.error)return auth.error;
+      const usernames=await this.ctx.storage.get("usernames")||[];
+      const list=[];
+      for(const name of usernames){
+        const u=await this.user(name); if(!u)continue;
+        list.push({username:u.username,displayName:u.displayName||u.fullName||u.username,avatar:u.avatar||"",banned:!!u.banned,role:await this.roleFor(u.username),createdAt:u.createdAt||0});
+      }
+      list.sort((a,b)=>b.createdAt-a.createdAt);
+      return j({ok:true,users:list.slice(0,500)});
+    }
+
+    if(url.pathname==="/api/admin/reports" && request.method==="GET"){
+      const auth=await this.requireAdmin(url.searchParams.get("token")||"");
+      if(auth.error)return auth.error;
+      const reports=await this.ctx.storage.get("reports")||[];
+      return j({ok:true,reports:[...reports].reverse().slice(0,500)});
+    }
+
+    if(url.pathname==="/api/admin/posts" && request.method==="GET"){
+      const auth=await this.requireAdmin(url.searchParams.get("token")||"");
+      if(auth.error)return auth.error;
+      const ids=await this.ctx.storage.get("postIds")||[];
+      const posts=[];
+      for(const id of [...ids].reverse().slice(0,200)){ const p=await this.ctx.storage.get(`post:${id}`); if(p)posts.push({id:p.id,author:p.author,text:String(p.text||"").slice(0,180),createdAt:p.createdAt||0,hasImage:!!p.image}); }
+      return j({ok:true,posts});
+    }
+
+    if(url.pathname==="/api/admin/action" && request.method==="POST"){
+      const auth=await this.requireAdmin(body.token||"");
+      if(auth.error)return auth.error;
+      const action=String(body.action||"");
+      const target=String(body.username||"").trim().toLowerCase();
+      const owner=this.ownerUsername();
+
+      if(["ban","unban","make_moderator","remove_moderator"].includes(action)){
+        if(!target || !await this.user(target))return j({ok:false,error:"المستخدم غير موجود"},404);
+        if(target===owner)return j({ok:false,error:"لا يمكن تعديل صلاحيات أو إيقاف حساب المدير الرئيسي"},403);
+        if(["make_moderator","remove_moderator"].includes(action) && auth.role!=="super_admin")return j({ok:false,error:"هذه العملية للمدير الرئيسي فقط"},403);
+        const u=await this.user(target);
+        if(action==="ban" || action==="unban"){ u.banned=action==="ban"; u.bannedAt=u.banned?Date.now():0; u.bannedBy=u.banned?auth.session.username:""; await this.ctx.storage.put(`user:${target}`,u); }
+        if(action==="make_moderator" || action==="remove_moderator"){ let mods=await this.ctx.storage.get("moderators")||[]; mods=action==="make_moderator"?[...new Set([...mods,target])]:mods.filter(x=>x!==target); await this.ctx.storage.put("moderators",mods); }
+        return j({ok:true});
+      }
+
+      if(action==="delete_post"){
+        const id=String(body.postId||"");
+        if(!id)return j({ok:false,error:"المنشور غير محدد"},400);
+        await this.ctx.storage.delete(`post:${id}`);
+        const ids=await this.ctx.storage.get("postIds")||[];
+        await this.ctx.storage.put("postIds",ids.filter(x=>x!==id));
+        return j({ok:true});
+      }
+
+      if(action==="resolve_report"){
+        const id=String(body.reportId||"");
+        const reports=await this.ctx.storage.get("reports")||[];
+        const r=reports.find(x=>x.id===id); if(r){r.resolved=true;r.resolvedAt=Date.now();r.resolvedBy=auth.session.username;}
+        await this.ctx.storage.put("reports",reports);
+        return j({ok:true});
+      }
+
+      return j({ok:false,error:"إجراء إداري غير صالح"},400);
     }
 
     if(url.pathname==="/api/friend-request" && request.method==="POST"){
@@ -1630,7 +1734,7 @@ export default {
       return Response.json({
         ok:true,
         app:"تواصل العطا",
-        version:"V13.26-Mobile-Social-UI"
+        version:"V13.27-Super-Admin"
       });
     }
 
