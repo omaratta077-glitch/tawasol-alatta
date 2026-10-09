@@ -1734,7 +1734,7 @@ export default {
       return Response.json({
         ok:true,
         app:"تواصل العطا",
-        version:"V13.27-Super-Admin"
+        version:"V13.28-Android-PWA"
       });
     }
 

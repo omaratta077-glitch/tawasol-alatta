@@ -3385,3 +3385,55 @@ async function setupGoogleSignIn(){
 window.addEventListener("load",setupGoogleSignIn);
 
 })();
+
+
+/* ===== V13.28 Android/PWA install support ===== */
+(() => {
+  let deferredInstallPrompt = null;
+  const installBtn = document.getElementById("installAppBtn");
+
+  const isStandalone = () =>
+    window.matchMedia("(display-mode: standalone)").matches ||
+    window.navigator.standalone === true;
+
+  const refreshInstallButton = () => {
+    if (!installBtn) return;
+    if (isStandalone()) {
+      installBtn.classList.add("hidden");
+      return;
+    }
+    if (deferredInstallPrompt) installBtn.classList.remove("hidden");
+  };
+
+  window.addEventListener("beforeinstallprompt", (event) => {
+    event.preventDefault();
+    deferredInstallPrompt = event;
+    refreshInstallButton();
+  });
+
+  window.addEventListener("appinstalled", () => {
+    deferredInstallPrompt = null;
+    if (installBtn) installBtn.classList.add("hidden");
+  });
+
+  if (installBtn) {
+    installBtn.addEventListener("click", async () => {
+      if (!deferredInstallPrompt) {
+        alert("من Chrome على Android: افتح القائمة ⋮ ثم اختر «تثبيت التطبيق» أو «إضافة إلى الشاشة الرئيسية».");
+        return;
+      }
+      deferredInstallPrompt.prompt();
+      try { await deferredInstallPrompt.userChoice; } catch (_) {}
+      deferredInstallPrompt = null;
+      refreshInstallButton();
+    });
+  }
+
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(() => {});
+    });
+  }
+
+  refreshInstallButton();
+})();
