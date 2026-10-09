@@ -1191,21 +1191,6 @@ async function ensurePeer(){
 
     if(track.kind==="audio")audioSender=sender;
     if(track.kind==="video")videoSender=sender;
-
-    // Keep calls smooth on typical mobile connections without changing signaling.
-    try{
-      const params=sender.getParameters();
-      params.encodings=params.encodings?.length?params.encodings:[{}];
-      if(track.kind==="video"){
-        params.encodings[0].maxBitrate=700000;
-        params.encodings[0].maxFramerate=24;
-      }else if(track.kind==="audio"){
-        params.encodings[0].maxBitrate=64000;
-      }
-      await sender.setParameters(params);
-    }catch(err){
-      console.warn("sender tuning skipped",err);
-    }
   }
 
   // We wait for complete ICE in offer/answer, so trickle ICE is only a bonus.
@@ -1596,7 +1581,7 @@ async function playIncomingRing(){
 
   activeRingType="incoming";
   playIncomingPattern();
-  ringtoneTimer=setInterval(playIncomingPattern,2050);
+  ringtoneTimer=setInterval(playIncomingPattern,2450);
 
   if(!callAudioCtx){
     const audio=$("incomingRingAudio");
@@ -1617,7 +1602,7 @@ async function playOutgoingRing(){
 
   activeRingType="outgoing";
   playOutgoingPattern();
-  ringtoneTimer=setInterval(playOutgoingPattern,2450);
+  ringtoneTimer=setInterval(playOutgoingPattern,2800);
 
   if(!callAudioCtx){
     const audio=$("outgoingRingAudio");

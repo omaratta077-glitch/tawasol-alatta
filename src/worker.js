@@ -1623,7 +1623,7 @@ export default {
       return Response.json({
         ok:true,
         app:"تواصل العطا",
-        version:"V13.14-Media-Reactions-Calls-Fix"
+        version:"V13.15-Call-Flow-Restore"
       });
     }
 
