@@ -3,7 +3,17 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>تواصل العطا</title>
+<title>تواصل العطا | رسائل ومكالمات وأصدقاء</title>
+<meta name="description" content="تواصل العطا: منصة عربية للتواصل مع الأصدقاء، الرسائل، والمكالمات الصوتية والمرئية عبر الويب وتطبيق Android.">
+<meta name="robots" content="index,follow,max-image-preview:large">
+<link rel="canonical" href="https://tawasol-alatta.omaratta077-4fd.workers.dev/">
+<meta property="og:type" content="website">
+<meta property="og:title" content="تواصل العطا | رسائل ومكالمات وأصدقاء">
+<meta property="og:description" content="تواصل مع أصدقائك عبر الرسائل والمكالمات الصوتية والمرئية.">
+<meta property="og:url" content="https://tawasol-alatta.omaratta077-4fd.workers.dev/">
+<meta property="og:image" content="https://tawasol-alatta.omaratta077-4fd.workers.dev/logo-premium.png">
+<meta name="theme-color" content="#111111">
+<link rel="icon" href="logo.svg" type="image/svg+xml">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -116,8 +126,8 @@
         <button class="header-icon-btn" data-top-page="messagesPage" aria-label="الرسائل">
           <span data-atta-icon="message-circle"></span>
         </button>
-        <button class="header-icon-btn" id="headerFriendsBtn" aria-label="طلبات الصداقة">
-          <span data-atta-icon="user-plus"></span>
+        <button class="header-icon-btn" id="headerFriendsBtn" aria-label="الأصدقاء وطلبات الصداقة">
+          <span data-atta-icon="users"></span>
           <span id="headerFriendBadge" class="header-mini-badge hidden">0</span>
         </button>
       </div>
@@ -153,6 +163,9 @@
     <button class="rail-btn" data-page="profilePage">
       <span data-atta-icon="user"></span><span>الملف الشخصي</span>
     </button>
+    <button class="rail-btn hidden" id="adminRailBtn" data-page="adminPage">
+      <span data-atta-icon="shield"></span><span>لوحة الإدارة</span>
+    </button>
     <button class="rail-btn" id="railSavedBtn">
       <span data-atta-icon="bookmark"></span><span>المحفوظات</span>
     </button>
@@ -172,6 +185,7 @@
   <div id="moreMenuPanel" class="more-menu-panel hidden">
     <button data-page="savedPage">المحفوظات</button>
     <button data-page="profilePage">الملف الشخصي</button>
+    <button id="adminMoreBtn" class="hidden" data-page="adminPage">لوحة الإدارة</button>
     <button id="moreLogoutBtn" class="more-logout-btn">
       <span data-atta-icon="log-out"></span><span>تسجيل الخروج</span>
     </button>
@@ -402,6 +416,28 @@
     <section id="savedPage" class="page">
       <div class="page-title"><h2>المحفوظات</h2><button id="refreshSavedPageBtn">تحديث</button></div>
       <div id="savedPostsPageList" class="saved-page-grid"></div>
+    </section>
+
+
+    <section id="adminPage" class="page admin-page">
+      <div class="admin-head">
+        <div><h2>لوحة إدارة تواصل العطا</h2><p>إدارة المستخدمين والمنشورات والبلاغات والصلاحيات</p></div>
+        <span id="adminRoleBadge" class="admin-role-badge">مدير</span>
+      </div>
+      <div class="admin-stats">
+        <div><strong id="adminUsersCount">0</strong><span>المستخدمون</span></div>
+        <div><strong id="adminPostsCount">0</strong><span>المنشورات</span></div>
+        <div><strong id="adminReportsCount">0</strong><span>البلاغات</span></div>
+        <div><strong id="adminBannedCount">0</strong><span>الموقوفون</span></div>
+      </div>
+      <div class="admin-tabs">
+        <button class="active" data-admin-tab="users">المستخدمون</button>
+        <button data-admin-tab="posts">المنشورات</button>
+        <button data-admin-tab="reports">البلاغات</button>
+      </div>
+      <div id="adminUsersPanel" class="admin-panel"><div id="adminUsersList"></div></div>
+      <div id="adminPostsPanel" class="admin-panel hidden"><div id="adminPostsList"></div></div>
+      <div id="adminReportsPanel" class="admin-panel hidden"><div id="adminReportsList"></div></div>
     </section>
 
 <section id="profilePage" class="page">

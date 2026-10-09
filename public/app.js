@@ -128,9 +128,14 @@ async function startAuthenticatedApp(sessionToken,user=null){
   if(!user){
     const d=await api(`/api/me?token=${encodeURIComponent(token)}`);
     user=d.user;
+  }else{
+    try{ const d=await api(`/api/me?token=${encodeURIComponent(token)}`); user={...user,...d.user}; }catch{}
   }
 
   me=user;
+  const canAdmin=me?.role==="super_admin" || me?.role==="moderator";
+  $("adminRailBtn")?.classList.toggle("hidden",!canAdmin);
+  $("adminMoreBtn")?.classList.toggle("hidden",!canAdmin);
   viewedProfileUsername=me.username;
   appSessionStarted=true;
   saveSession(token);
@@ -1110,9 +1115,9 @@ async function getMedia(type,{force=false}={}){
         audio:audioConstraints,
         video:{
           facingMode:{ideal:"user"},
-          width:{ideal:640},
-          height:{ideal:360},
-          frameRate:{ideal:20,max:24}
+          width:{ideal:1280,max:1280},
+          height:{ideal:720,max:720},
+          frameRate:{ideal:24,max:30}
         }
       };
 
@@ -1216,9 +1221,9 @@ async function ensurePeer(){
       const params=sender.getParameters();
       params.encodings=params.encodings?.length?params.encodings:[{}];
       if(track.kind==="video"){
-        params.encodings[0].maxBitrate=550000;
-        params.encodings[0].maxFramerate=18;
-        params.degradationPreference="maintain-framerate";
+        params.encodings[0].maxBitrate=1400000;
+        params.encodings[0].maxFramerate=24;
+        params.degradationPreference="balanced";
       }else{
         params.encodings[0].maxBitrate=48000;
       }
@@ -1708,6 +1713,10 @@ async function setCallPeerIdentity(username){
 
 function showCallOverlay(peerName,stateText="مكالمة جارية"){
   callOverlayOpen=true;
+  const audioOnly=currentCallType==="audio";
+  $("callOverlay")?.classList.toggle("audio-only-call",audioOnly);
+  $("cameraBtn")?.classList.toggle("hidden",audioOnly);
+  $("localVideo")?.closest(".local-pip")?.classList.toggle("hidden",audioOnly);
   $("callOverlay").classList.remove("hidden");
   $("callStatusBar").classList.remove("hidden");
 
@@ -1731,6 +1740,62 @@ $("openCallViewBtn").onclick=()=>showCallOverlay(selectedUser||incomingFrom||"م
 
 
 
+
+function adminEscape(v){return String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
+function adminDate(v){try{return new Date(Number(v)||0).toLocaleString("ar-SA")}catch{return ""}}
+
+async function loadAdminDashboard(){
+  if(!me || !["super_admin","moderator"].includes(me.role))return;
+  try{
+    const d=await api(`/api/admin/summary?token=${encodeURIComponent(token)}`);
+    $("adminUsersCount").textContent=d.counts.users||0;
+    $("adminPostsCount").textContent=d.counts.posts||0;
+    $("adminReportsCount").textContent=d.counts.reports||0;
+    $("adminBannedCount").textContent=d.counts.banned||0;
+    $("adminRoleBadge").textContent=d.role==="super_admin"?"المدير الرئيسي":"مشرف";
+    await loadAdminUsers();
+  }catch(e){alert(e.message||"تعذر تحميل لوحة الإدارة")}
+}
+
+async function loadAdminUsers(){
+  const d=await api(`/api/admin/users?token=${encodeURIComponent(token)}`);
+  $("adminUsersList").innerHTML=d.users.length?d.users.map(u=>{
+    const owner=u.role==="super_admin", mod=u.role==="moderator";
+    return `<div class="admin-item"><div class="admin-item-main"><img src="${adminEscape(u.avatar||avatarFallback(u.displayName||u.username))}"><div class="admin-item-text"><strong>${adminEscape(u.displayName||u.username)}</strong><span>@${adminEscape(u.username)} · ${owner?'مدير رئيسي':mod?'مشرف':u.banned?'موقوف':'مستخدم'}</span></div></div><div class="admin-actions">${owner?'':`<button class="${u.banned?'gold':'danger'}" data-admin-action="${u.banned?'unban':'ban'}" data-user="${adminEscape(u.username)}">${u.banned?'فك الحظر':'حظر'}</button>${me.role==='super_admin'?`<button class="gold" data-admin-action="${mod?'remove_moderator':'make_moderator'}" data-user="${adminEscape(u.username)}">${mod?'إلغاء الإشراف':'تعيين مشرف'}</button>`:''}`}</div></div>`;
+  }).join(""):'<div class="admin-empty">لا يوجد مستخدمون</div>';
+}
+
+async function loadAdminPosts(){
+  const d=await api(`/api/admin/posts?token=${encodeURIComponent(token)}`);
+  $("adminPostsList").innerHTML=d.posts.length?d.posts.map(p=>`<div class="admin-item"><div class="admin-item-text"><strong>@${adminEscape(p.author)}</strong><span class="admin-post-text">${adminEscape(p.text|| (p.hasImage?'منشور صورة':'منشور'))}</span><span>${adminDate(p.createdAt)}</span></div><div class="admin-actions"><button class="danger" data-admin-action="delete_post" data-post="${adminEscape(p.id)}">حذف المنشور</button></div></div>`).join(""):'<div class="admin-empty">لا توجد منشورات</div>';
+}
+
+async function loadAdminReports(){
+  const d=await api(`/api/admin/reports?token=${encodeURIComponent(token)}`);
+  $("adminReportsList").innerHTML=d.reports.length?d.reports.map(r=>`<div class="admin-item"><div class="admin-item-text"><strong>بلاغ من @${adminEscape(r.reporter)}</strong><span>${adminEscape(r.targetType)} · ${adminEscape(r.reason||'بدون سبب')}</span><span>${adminDate(r.createdAt)} ${r.resolved?'· تمت المراجعة':''}</span></div><div class="admin-actions">${r.resolved?'':`<button class="gold" data-admin-action="resolve_report" data-report="${adminEscape(r.id)}">تمت المراجعة</button>`}</div></div>`).join(""):'<div class="admin-empty">لا توجد بلاغات</div>';
+}
+
+document.addEventListener("click",async e=>{
+  const tab=e.target.closest("[data-admin-tab]");
+  if(tab){
+    document.querySelectorAll("[data-admin-tab]").forEach(x=>x.classList.toggle("active",x===tab));
+    const name=tab.dataset.adminTab;
+    ["users","posts","reports"].forEach(x=>$("admin"+x[0].toUpperCase()+x.slice(1)+"Panel")?.classList.toggle("hidden",x!==name));
+    if(name==="users")await loadAdminUsers(); if(name==="posts")await loadAdminPosts(); if(name==="reports")await loadAdminReports();
+    return;
+  }
+  const btn=e.target.closest("[data-admin-action]"); if(!btn)return;
+  const action=btn.dataset.adminAction;
+  if((action==="ban"||action==="delete_post") && !confirm(action==="ban"?"هل تريد حظر هذا المستخدم؟":"هل تريد حذف هذا المنشور نهائيًا؟"))return;
+  btn.disabled=true;
+  try{
+    await api("/api/admin/action",{method:"POST",body:JSON.stringify({token,action,username:btn.dataset.user||"",postId:btn.dataset.post||"",reportId:btn.dataset.report||""})});
+    await loadAdminDashboard();
+    const active=document.querySelector("[data-admin-tab].active")?.dataset.adminTab;
+    if(active==="posts")await loadAdminPosts(); if(active==="reports")await loadAdminReports();
+  }catch(err){alert(err.message||"تعذر تنفيذ العملية")}finally{btn.disabled=false}
+});
+
 function showPage(pageId){
   document.querySelectorAll(".page").forEach(p=>p.classList.remove("active-page"));
   $(pageId).classList.add("active-page");
@@ -1738,6 +1803,7 @@ function showPage(pageId){
   document.querySelectorAll(".rail-btn").forEach(b=>b.classList.toggle("active",b.dataset.page===pageId));
 
   if(pageId==="homePage")loadPosts();
+  if(pageId==="adminPage")loadAdminDashboard();
   if(pageId==="notificationsPage")loadNotifications();
   if(pageId==="profilePage"){
     if(!viewedProfileUsername)viewedProfileUsername=me?.username||"";
@@ -3212,9 +3278,27 @@ $("muteBtn").onclick=()=>{
   $("muteBtn").classList.toggle("is-off",muted);
 };
 
-$("cameraBtn").onclick=()=>{
-  const tracks=localStream?.getVideoTracks()||[];
-  tracks.forEach(t=>t.enabled=!t.enabled);
+$("cameraBtn").onclick=async()=>{
+  // المكالمة الصوتية لا تفتح الكاميرا تلقائيًا. تشغيلها يدويًا يحولها لفيديو.
+  let tracks=localStream?.getVideoTracks()||[];
+  if(!tracks.length){
+    try{
+      const cam=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:"user"},width:{ideal:1280,max:1280},height:{ideal:720,max:720},frameRate:{ideal:24,max:30}},audio:false});
+      const track=cam.getVideoTracks()[0];
+      if(!track)return;
+      localStream.addTrack(track);
+      if(videoSender) await videoSender.replaceTrack(track);
+      else if(pc){ videoSender=pc.addTrack(track,localStream); }
+      currentCallType="video";
+      $("callOverlay")?.classList.remove("audio-only-call");
+      $("localVideo")?.closest(".local-pip")?.classList.remove("hidden");
+      $("localVideo").srcObject=localStream;
+      await $("localVideo").play().catch(()=>{});
+      tracks=[track];
+    }catch(err){ console.warn("Camera start failed",err); return; }
+  }else{
+    tracks.forEach(t=>t.enabled=!t.enabled);
+  }
   const off=tracks[0]?.enabled===false;
   setRoundCallButton("cameraBtn",off?"camera-off":"camera",off?"تشغيل الكاميرا":"إيقاف الكاميرا");
   $("cameraBtn").classList.toggle("is-off",off);
