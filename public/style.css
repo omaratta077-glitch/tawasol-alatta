@@ -4507,3 +4507,64 @@ body.chat-fullscreen-open .mobile-bottom-nav{
 
 
 /* V13.34 real-device mobile rules live inline in index.html intentionally to bypass stale CSS caches. */
+
+
+/* V13.38 — stable profile cover + personal posts, built on V13.36 */
+.profile-cover{position:relative!important;overflow:hidden!important;isolation:isolate}
+.profile-cover-image{position:absolute!important;inset:0!important;width:100%!important;height:100%!important;object-fit:cover!important;object-position:center!important;z-index:0!important;display:block!important}
+.profile-cover-image.hidden{display:none!important}
+.profile-cover-shade{position:absolute!important;inset:0!important;z-index:1!important;background:linear-gradient(180deg,rgba(0,0,0,.02),rgba(0,0,0,.16))!important;pointer-events:none!important}
+.profile-cover-edit{position:absolute!important;z-index:3!important}
+.profile-top-row{z-index:4}
+.profile-posts-section{margin:18px 28px 22px;padding:14px;border:1px solid rgba(214,173,69,.34);border-radius:14px;background:#0b0e10;color:#f4f4f4;text-align:right}
+.profile-posts-list{display:grid;gap:14px;margin-top:12px}
+.profile-post-card{border:1px solid #2c3237;border-radius:14px;background:#0f1316;overflow:hidden;text-align:right;color:#f4f4f4}
+.profile-post-head{display:flex;align-items:center;gap:10px;padding:13px 14px;border:0;background:transparent;color:inherit;width:100%;text-align:right}
+.profile-post-head img{width:48px;height:48px;border-radius:50%;object-fit:cover;border:2px solid #d6ad45;background:#fff;flex:0 0 auto}
+.profile-post-head strong{display:block;color:#fff;font-size:17px}
+.profile-post-head small{display:block;color:#a6adb2;margin-top:2px;font-size:12px}
+.profile-post-text{padding:4px 15px 15px;color:#f1f1f1;font-size:17px;line-height:1.8;white-space:pre-wrap}
+.profile-post-image{display:block;width:100%;max-height:620px;object-fit:contain;background:#050607;border-top:1px solid #24292d;border-bottom:1px solid #24292d}
+.profile-post-footer{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 14px}
+.profile-post-stats{display:flex;gap:18px;align-items:center;color:#d7ba69;font-size:13px}
+.profile-post-open{border:1px solid #d6ad45;background:#111519;color:#f0cf73;border-radius:9px;padding:7px 12px;font-weight:800;cursor:pointer}
+.profile-post-empty{padding:26px 12px;text-align:center;color:#9aa2a8;border:1px dashed #333a3f;border-radius:12px}
+@media(max-width:700px){
+  .profile-posts-section{margin:12px 9px 18px;padding:10px}
+  .profile-post-head img{width:54px;height:54px}
+  .profile-post-head strong{font-size:19px}
+  .profile-post-head small{font-size:14px}
+  .profile-post-text{font-size:19px;line-height:1.75}
+  .profile-post-stats{font-size:15px}
+  .profile-post-open{font-size:15px;min-height:40px}
+}
+html.mobile-device #appView .profile-post-head img{width:60px!important;height:60px!important}
+html.mobile-device #appView .profile-post-head strong{font-size:21px!important}
+html.mobile-device #appView .profile-post-head small{font-size:16px!important}
+html.mobile-device #appView .profile-post-text{font-size:21px!important}
+html.mobile-device #appView .profile-post-stats{font-size:16px!important}
+
+
+/* V13.39 — profile controls at top + current user in header */
+#brandProfileBtn.reference-header-brand{max-width:260px!important;min-width:0!important;display:flex!important;align-items:center!important;gap:10px!important;padding:5px 10px!important}
+#brandProfileBtn .header-profile-copy{display:flex!important;min-width:0!important;flex-direction:column!important;align-items:flex-start!important;text-align:right!important;line-height:1.25!important}
+#brandProfileBtn #headerProfileName{display:block!important;max-width:175px!important;overflow:hidden!important;text-overflow:ellipsis!important;white-space:nowrap!important;color:#f3d77a!important;font-size:15px!important;font-weight:900!important}
+#brandProfileBtn #headerProfileUsername{display:block!important;max-width:175px!important;overflow:hidden!important;text-overflow:ellipsis!important;white-space:nowrap!important;color:#9d8a54!important;font-size:10px!important;letter-spacing:0!important;margin-top:2px!important}
+.profile-edit-top{order:0!important;margin-top:14px!important;margin-bottom:12px!important;border-color:rgba(214,173,69,.48)!important;box-shadow:0 8px 24px rgba(0,0,0,.2)!important}
+.profile-edit-top .profile-photo-actions{display:grid!important;grid-template-columns:1fr 1fr!important;gap:8px!important}
+.profile-edit-top textarea{font-size:16px!important;min-height:88px!important}
+.profile-edit-top .privacy-row{font-size:15px!important}
+.profile-edit-top #saveProfileBtn{min-height:44px!important;font-size:16px!important}
+@media(max-width:700px){
+  #brandProfileBtn.reference-header-brand{max-width:175px!important;padding:4px 6px!important;gap:7px!important}
+  #brandProfileBtn .header-profile-avatar{width:44px!important;height:44px!important;flex:0 0 44px!important}
+  #brandProfileBtn #headerProfileName{max-width:112px!important;font-size:14px!important}
+  #brandProfileBtn #headerProfileUsername{max-width:112px!important;font-size:9px!important}
+  .profile-edit-top{margin:10px 9px 14px!important;padding:12px!important}
+  .profile-edit-top .profile-photo-actions{grid-template-columns:1fr!important}
+  .profile-edit-top .profile-photo-actions button{min-height:46px!important;font-size:15px!important}
+}
+html.mobile-device #brandProfileBtn.reference-header-brand{max-width:190px!important}
+html.mobile-device #brandProfileBtn .header-profile-avatar{width:50px!important;height:50px!important;flex:0 0 50px!important}
+html.mobile-device #brandProfileBtn #headerProfileName{font-size:16px!important;max-width:125px!important}
+html.mobile-device #brandProfileBtn #headerProfileUsername{font-size:11px!important;max-width:125px!important}

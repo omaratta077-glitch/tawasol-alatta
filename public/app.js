@@ -855,6 +855,8 @@ function renderProfile(){
   $("meUsername").textContent="@"+me.username;
   $("avatarImg").src=me.avatar||avatarFallback(me.displayName||me.username);
   if($("headerAvatar"))$("headerAvatar").src=me.avatar||avatarFallback(me.fullName||me.displayName||me.username);
+  if($("headerProfileName"))$("headerProfileName").textContent=me.fullName||me.displayName||me.username;
+  if($("headerProfileUsername"))$("headerProfileUsername").textContent="@"+me.username;
   if($("homeAvatar"))$("homeAvatar").src=me.avatar||avatarFallback(me.fullName||me.displayName||me.username);
   if($("profileAvatarLarge") && viewedProfileUsername===me.username)$("profileAvatarLarge").src=me.avatar||avatarFallback(me.fullName||me.displayName||me.username);
   if($("headerUserName"))$("headerUserName").textContent=me.fullName||me.displayName||me.username;
@@ -2075,11 +2077,10 @@ async function renderProfilePage(username=me?.username){
   }
 }
 
-
 async function loadProfilePosts(username){
   const listEl=$("profilePostsList");
   const countEl=$("profilePostsCount");
-  if(!listEl || !username || !token)return;
+  if(!listEl)return;
   listEl.innerHTML='<div class="profile-post-empty">جاري تحميل المنشورات...</div>';
   try{
     const d=await api(`/api/posts?token=${encodeURIComponent(token)}`);
@@ -2102,10 +2103,24 @@ async function loadProfilePosts(username){
         ${post.text?`<div class="profile-post-text">${esc(post.text)}</div>`:""}
         ${post.image?`<img class="profile-post-image" src="${post.image}" alt="صورة المنشور">`:""}
         ${post.sharedPost?`<div class="shared-post-box"><div class="shared-post-head">@${esc(post.sharedPost.authorInfo?.username||post.sharedPost.author)}</div>${post.sharedPost.text?`<div>${esc(post.sharedPost.text)}</div>`:""}${post.sharedPost.image?`<img src="${post.sharedPost.image}" class="shared-post-image" alt="">`:""}</div>`:""}
-        <div class="profile-post-stats"><span>♡ ${reactionCount}</span><span>💬 ${commentCount}</span></div>
+        <div class="profile-post-footer"><div class="profile-post-stats"><span>♡ ${reactionCount}</span><span>💬 ${commentCount}</span></div><button class="profile-post-open" data-profile-post-open="${esc(post.id)}">عرض المنشور</button></div>
       </article>`;
     }).join("");
     bindProfileLinks();
+    document.querySelectorAll("[data-profile-post-open]").forEach(btn=>{
+      btn.onclick=async()=>{
+        showPage("homePage");
+        await loadPosts();
+        await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+        const id=String(btn.dataset.profilePostOpen||"");
+        const post=[...document.querySelectorAll("[data-post]")].find(el=>String(el.dataset.post||"")===id);
+        if(post){
+          post.classList.add("notification-target-highlight");
+          post.scrollIntoView({behavior:"smooth",block:"center"});
+          setTimeout(()=>post.classList.remove("notification-target-highlight"),2600);
+        }
+      };
+    });
   }catch(e){
     if(countEl)countEl.textContent="0";
     listEl.innerHTML=`<div class="profile-post-empty">${esc(e.message||"تعذر تحميل المنشورات")}</div>`;

@@ -33,7 +33,7 @@
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
 <link rel="icon" href="logo.svg" type="image/svg+xml">
-<link rel="stylesheet" href="style.css?v=13.37">
+<link rel="stylesheet" href="style.css?v=13.39">
 
 <style id="v1331-mobile-force">
 /* V13.31: mobile sizing is intentionally inline so it cannot be lost behind an old CSS rule. */
@@ -106,34 +106,10 @@
   #appView .header-icon-btn,#appView .mobile-header-search-btn{width:42px!important;height:42px!important;min-width:42px!important}
   #appView .header-icon-btn .atta-icon,#appView .header-icon-btn svg{width:27px!important;height:27px!important}
 }
-
-/* V13.37 profile media + posts */
-.profile-cover{position:relative!important;overflow:hidden!important}
-.profile-cover-image{position:absolute!important;inset:0!important;width:100%!important;height:100%!important;object-fit:cover!important;object-position:center!important;z-index:0!important;display:block!important}
-.profile-cover-image.hidden{display:none!important}
-.profile-cover-shade{position:absolute;inset:0;z-index:1;background:linear-gradient(180deg,rgba(0,0,0,.04),rgba(0,0,0,.14));pointer-events:none}
-.profile-cover-edit{z-index:3!important}
-.profile-posts-section{margin:18px 28px 22px;padding:14px;border:1px solid rgba(214,173,69,.26);border-radius:14px;background:#0b0e10}
-.profile-posts-list{display:grid;gap:14px;margin-top:12px}
-.profile-post-card{border:1px solid #272d31;border-radius:14px;background:#0f1316;overflow:hidden;text-align:right}
-.profile-post-head{display:flex;align-items:center;gap:10px;padding:13px 14px}
-.profile-post-head img{width:48px;height:48px;border-radius:50%;object-fit:cover;border:2px solid #cfa63b;background:#fff}
-.profile-post-head strong{display:block;color:#fff;font-size:17px}
-.profile-post-head small{display:block;color:#a6adb2;margin-top:2px;font-size:12px}
-.profile-post-text{padding:4px 15px 15px;color:#f1f1f1;font-size:17px;line-height:1.8;white-space:pre-wrap}
-.profile-post-image{display:block;width:100%;max-height:620px;object-fit:contain;background:#050607;border-top:1px solid #24292d;border-bottom:1px solid #24292d}
-.profile-post-stats{display:flex;gap:18px;align-items:center;padding:11px 15px;color:#d7ba69;font-size:13px}
-.profile-post-empty{padding:26px 12px;text-align:center;color:#9aa2a8;border:1px dashed #333a3f;border-radius:12px}
-@media(max-width:700px){.profile-posts-section{margin:12px 9px 18px;padding:10px}.profile-post-head img{width:54px;height:54px}.profile-post-head strong{font-size:19px}.profile-post-head small{font-size:14px}.profile-post-text{font-size:19px;line-height:1.75}.profile-post-stats{font-size:15px}.profile-cover-image{object-position:center!important}}
-html.mobile-device #appView .profile-post-head img{width:60px!important;height:60px!important}
-html.mobile-device #appView .profile-post-head strong{font-size:21px!important}
-html.mobile-device #appView .profile-post-head small{font-size:16px!important}
-html.mobile-device #appView .profile-post-text{font-size:21px!important}
-html.mobile-device #appView .profile-post-stats{font-size:16px!important}
 </style>
 <script>
 (function(){
-  var BUILD='13.35';
+  var BUILD='13.39';
   try{
     if(localStorage.getItem('tawasol-ui-build')!==BUILD){
       localStorage.setItem('tawasol-ui-build',BUILD);
@@ -270,7 +246,7 @@ html.mobile-device #appView .premium-nav .atta-icon,html.mobile-device #appView 
 html.mobile-device #appView .premium-nav .nav-btn span,html.mobile-device #appView .mobile-bottom-nav .nav-btn span{font-size:16px!important;font-weight:900!important}
 
 /* Tiny build marker for testing only; unobtrusive at bottom */
-html.mobile-device body::after{content:"V13.36";position:fixed;left:4px;bottom:2px;z-index:99999;font-size:9px;color:#6f6f6f;opacity:.45;pointer-events:none}
+html.mobile-device body::after{content:"V13.39";position:fixed;left:4px;bottom:2px;z-index:99999;font-size:9px;color:#6f6f6f;opacity:.45;pointer-events:none}
 
 /* V13.35 profile photo + cover editor */
 .header-profile-avatar{object-fit:cover!important;border-radius:50%!important;border:2px solid #d8ab3a!important;background:#fff!important;box-shadow:0 0 0 2px rgba(216,171,58,.18)!important}
@@ -394,11 +370,11 @@ html.mobile-device #appView .profile-cover-edit{font-size:17px!important;min-hei
 <div id="appView" class="app-shell hidden">
   <header class="mobile-header premium-header">
     <div class="reference-header-inner">
-      <button id="brandProfileBtn" class="reference-header-brand brand-profile-btn" type="button">
-        <img id="headerAvatar" src="logo-premium.png" class="reference-mini-logo header-profile-avatar" alt="الصفحة الشخصية">
-        <div>
-          <strong>تواصل العطا</strong>
-          <small>AL-ATTA</small>
+      <button id="brandProfileBtn" class="reference-header-brand brand-profile-btn" type="button" aria-label="فتح صفحتي الشخصية">
+        <img id="headerAvatar" src="logo-premium.png" class="reference-mini-logo header-profile-avatar" alt="الصورة الشخصية">
+        <div class="header-profile-copy">
+          <strong id="headerProfileName">حسابي</strong>
+          <small id="headerProfileUsername">@...</small>
         </div>
       </button>
 
@@ -772,6 +748,18 @@ html.mobile-device #appView .profile-cover-edit{font-size:17px!important;min-hei
           </div>
         </div>
 
+        <div id="profileEditArea" class="profile-edit-grid profile-edit-top hidden">
+          <div class="profile-photo-actions">
+            <button id="profileAvatarEditListBtn" class="dark-outline" type="button"><span data-atta-icon="camera"></span> تغيير الصورة الشخصية</button>
+            <button id="profileCoverEditListBtn" class="dark-outline" type="button"><span data-atta-icon="image"></span> تغيير صورة الغلاف</button>
+          </div>
+          <input id="profileAvatarInput" type="file" accept="image/*" hidden>
+          <input id="coverInput" type="file" accept="image/*" hidden>
+          <textarea id="bioInput" placeholder="نبذة مختصرة"></textarea>
+          <label class="privacy-row"><input id="privateAccountInput" type="checkbox"> حساب خاص</label>
+          <button id="saveProfileBtn" class="gold-action">حفظ التغييرات</button>
+        </div>
+
         <div class="profile-main-actions">
           <button id="friendActionBtn" class="gold-action hidden">إضافة صديق</button>
           <button id="messageProfileBtn" class="dark-outline hidden">مراسلة</button>
@@ -798,18 +786,6 @@ html.mobile-device #appView .profile-cover-edit{font-size:17px!important;min-hei
         <div id="privateInfoCard" class="private-info-card hidden">
           <div class="private-info-title">🔒 معلومات خاصة بك فقط</div>
           <div id="profilePrivateMeta" class="profile-meta"></div>
-        </div>
-
-        <div id="profileEditArea" class="profile-edit-grid hidden">
-          <div class="profile-photo-actions">
-            <button id="profileAvatarEditListBtn" class="dark-outline" type="button"><span data-atta-icon="camera"></span> تغيير الصورة الشخصية</button>
-            <button id="profileCoverEditListBtn" class="dark-outline" type="button"><span data-atta-icon="image"></span> تغيير صورة الغلاف</button>
-          </div>
-          <input id="profileAvatarInput" type="file" accept="image/*" hidden>
-          <input id="coverInput" type="file" accept="image/*" hidden>
-          <textarea id="bioInput" placeholder="نبذة مختصرة"></textarea>
-          <label class="privacy-row"><input id="privateAccountInput" type="checkbox"> حساب خاص</label>
-          <button id="saveProfileBtn" class="gold-action">حفظ التغييرات</button>
         </div>
 
         <div id="profileMeta" class="profile-meta"></div>
@@ -914,8 +890,8 @@ html.mobile-device #appView .profile-cover-edit{font-size:17px!important;min-hei
 </div>
 
 <script src="config.js"></script>
-<script src="icons.js?v=13.37"></script>
-<script src="app.js?v=13.37"></script>
+<script src="icons.js?v=13.35"></script>
+<script src="app.js?v=13.39"></script>
 
 <audio id="incomingRingAudio" src="audio/incoming-ring.wav" preload="auto" loop></audio>
 <audio id="outgoingRingAudio" src="audio/outgoing-ring.wav" preload="auto" loop></audio>
