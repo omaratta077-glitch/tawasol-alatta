@@ -2006,7 +2006,7 @@ if($("postPollBtn")){
 }
 
 if($("postVideoBtn")){
-  $("postVideoBtn").onclick=()=>alert("شكل زر الفيديو جاهز؛ رفع الفيديو الكبير يحتاج تخزين ملفات منفصل حتى لا نثقل التطبيق.");
+  $("postVideoBtn").onclick=()=>showToast?.("رفع الفيديو يحتاج تفعيل تخزين الفيديو؛ الصور والمنشورات تعمل الآن.") || console.info("Video storage not enabled");
 }
 
 document.querySelectorAll(".nav-btn").forEach(btn=>{
@@ -3654,7 +3654,7 @@ window.addEventListener("load",setupGoogleSignIn);
 
   if ("serviceWorker" in navigator) {
     window.addEventListener("load", () => {
-      navigator.serviceWorker.register("/sw.js?v=13.31", { scope: "/" }).catch(() => {});
+      navigator.serviceWorker.register("/sw.js?v=13.44", { scope: "/" }).catch(() => {});
     });
   }
 
