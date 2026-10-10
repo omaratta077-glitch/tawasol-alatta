@@ -855,8 +855,6 @@ function renderProfile(){
   $("meUsername").textContent="@"+me.username;
   $("avatarImg").src=me.avatar||avatarFallback(me.displayName||me.username);
   if($("headerAvatar"))$("headerAvatar").src=me.avatar||avatarFallback(me.fullName||me.displayName||me.username);
-  if($("headerProfileName"))$("headerProfileName").textContent=me.fullName||me.displayName||me.username;
-  if($("headerProfileUsername"))$("headerProfileUsername").textContent="@"+me.username;
   if($("homeAvatar"))$("homeAvatar").src=me.avatar||avatarFallback(me.fullName||me.displayName||me.username);
   if($("profileAvatarLarge") && viewedProfileUsername===me.username)$("profileAvatarLarge").src=me.avatar||avatarFallback(me.fullName||me.displayName||me.username);
   if($("headerUserName"))$("headerUserName").textContent=me.fullName||me.displayName||me.username;
@@ -2037,11 +2035,11 @@ async function renderProfilePage(username=me?.username){
     $("profileName").textContent=p.fullName||p.displayName||p.username;
     $("profileUsername").textContent="@"+p.username;
     $("profileBio").textContent=p.bio||"لا توجد نبذة بعد";
-    const coverImg=$("profileCoverImage");
-    if(coverImg){
-      if(p.cover){ coverImg.src=p.cover; coverImg.classList.remove("hidden"); }
-      else{ coverImg.removeAttribute("src"); coverImg.classList.add("hidden"); }
+    if($("profileCoverImage")){
+      $("profileCoverImage").src=p.cover||"";
+      $("profileCoverImage").classList.toggle("hidden",!p.cover);
     }
+    $("profileCover").style.backgroundImage="";
     $("friendsCount").textContent=d.friendCount||0;
 
     $("friendActionBtn").classList.toggle("hidden",self);
@@ -2071,59 +2069,8 @@ async function renderProfilePage(username=me?.username){
 
     $("profileMeta").innerHTML=p.country?`<div><span>الدولة</span><strong>${esc(p.country)}</strong></div>`:"";
     await loadFriends(username);
-    await loadProfilePosts(username);
   }catch(e){
     alert(e.message||"تعذر تحميل الملف الشخصي");
-  }
-}
-
-async function loadProfilePosts(username){
-  const listEl=$("profilePostsList");
-  const countEl=$("profilePostsCount");
-  if(!listEl)return;
-  listEl.innerHTML='<div class="profile-post-empty">جاري تحميل المنشورات...</div>';
-  try{
-    const d=await api(`/api/posts?token=${encodeURIComponent(token)}`);
-    const posts=(d.posts||[]).filter(p=>String(p.author||"").toLowerCase()===String(username||"").toLowerCase());
-    if(countEl)countEl.textContent=posts.length;
-    if(!posts.length){
-      listEl.innerHTML='<div class="profile-post-empty">لا توجد منشورات لهذا الحساب حتى الآن.</div>';
-      return;
-    }
-    listEl.innerHTML=posts.map(post=>{
-      const a=post.authorInfo||{username:post.author,displayName:post.author};
-      const avatar=a.avatar||avatarFallback(a.fullName||a.displayName||a.username);
-      const reactionCount=totalReactionsCount(post.reactionCounts||{});
-      const commentCount=post.commentCount||0;
-      return `<article class="profile-post-card" data-profile-post="${esc(post.id)}">
-        <button class="profile-post-head profile-link-button" data-open-profile="${esc(a.username)}">
-          <img src="${avatar}" alt="">
-          <span><strong>${esc(a.fullName||a.displayName||a.username)}</strong><small>@${esc(a.username)} • ${timeAgoAr(post.createdAt)}</small></span>
-        </button>
-        ${post.text?`<div class="profile-post-text">${esc(post.text)}</div>`:""}
-        ${post.image?`<img class="profile-post-image" src="${post.image}" alt="صورة المنشور">`:""}
-        ${post.sharedPost?`<div class="shared-post-box"><div class="shared-post-head">@${esc(post.sharedPost.authorInfo?.username||post.sharedPost.author)}</div>${post.sharedPost.text?`<div>${esc(post.sharedPost.text)}</div>`:""}${post.sharedPost.image?`<img src="${post.sharedPost.image}" class="shared-post-image" alt="">`:""}</div>`:""}
-        <div class="profile-post-footer"><div class="profile-post-stats"><span>♡ ${reactionCount}</span><span>💬 ${commentCount}</span></div><button class="profile-post-open" data-profile-post-open="${esc(post.id)}">عرض المنشور</button></div>
-      </article>`;
-    }).join("");
-    bindProfileLinks();
-    document.querySelectorAll("[data-profile-post-open]").forEach(btn=>{
-      btn.onclick=async()=>{
-        showPage("homePage");
-        await loadPosts();
-        await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
-        const id=String(btn.dataset.profilePostOpen||"");
-        const post=[...document.querySelectorAll("[data-post]")].find(el=>String(el.dataset.post||"")===id);
-        if(post){
-          post.classList.add("notification-target-highlight");
-          post.scrollIntoView({behavior:"smooth",block:"center"});
-          setTimeout(()=>post.classList.remove("notification-target-highlight"),2600);
-        }
-      };
-    });
-  }catch(e){
-    if(countEl)countEl.textContent="0";
-    listEl.innerHTML=`<div class="profile-post-empty">${esc(e.message||"تعذر تحميل المنشورات")}</div>`;
   }
 }
 
@@ -2725,8 +2672,11 @@ async function uploadOwnProfileImage(kind,file){
       if($("headerAvatar"))$("headerAvatar").src=data;
       if($("homeAvatar"))$("homeAvatar").src=data;
     }else{
-      const coverImg=$("profileCoverImage");
-      if(coverImg){ coverImg.src=data; coverImg.classList.remove("hidden"); }
+      if($("profileCoverImage")){
+        $("profileCoverImage").src=data;
+        $("profileCoverImage").classList.remove("hidden");
+      }
+      $("profileCover").style.backgroundImage="";
     }
     const d=await api("/api/profile",{method:"POST",body:JSON.stringify({token,[kind]:data})});
     me={...me,...d.user};

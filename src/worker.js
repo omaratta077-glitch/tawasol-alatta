@@ -617,12 +617,42 @@ export class SignalingRoom extends DurableObject {
       if(typeof body.displayName==="string" && body.displayName.trim()){
         u.displayName=body.displayName.trim().slice(0,60);
       }
-      if(typeof body.avatar==="string")u.avatar=body.avatar.slice(0,250000);
-      if(typeof body.cover==="string")u.cover=body.cover.slice(0,500000);
+      const oldAvatar=String(u.avatar||"");
+      const oldCover=String(u.cover||"");
+      let avatarChanged=false,coverChanged=false;
+      if(typeof body.avatar==="string"){
+        const next=body.avatar.slice(0,250000);
+        avatarChanged=!!next && next!==oldAvatar;
+        u.avatar=next;
+      }
+      if(typeof body.cover==="string"){
+        const next=body.cover.slice(0,500000);
+        coverChanged=!!next && next!==oldCover;
+        u.cover=next;
+      }
       if(typeof body.bio==="string")u.bio=body.bio.slice(0,300);
       if(typeof body.accountPrivate==="boolean")u.accountPrivate=body.accountPrivate;
 
       await this.ctx.storage.put(`user:${u.username}`,u);
+
+      // Facebook-like profile media updates: publish a normal feed post automatically.
+      const publishProfileMediaPost=async(type,image)=>{
+        if(!image)return;
+        const id=crypto.randomUUID();
+        const post={
+          id,author:u.username,
+          text:type==="avatar"?"حدّث صورته الشخصية":"حدّث صورة الغلاف",
+          image,profileUpdateType:type,
+          createdAt:Date.now(),likes:[],comments:[]
+        };
+        await this.ctx.storage.put(`post:${id}`,post);
+        const ids=await this.ctx.storage.get("postIds")||[];
+        ids.push(id);
+        await this.ctx.storage.put("postIds",ids.slice(-500));
+      };
+      if(avatarChanged)await publishProfileMediaPost("avatar",u.avatar);
+      if(coverChanged)await publishProfileMediaPost("cover",u.cover);
+
       return j({ok:true,user:await this.publicUser(u.username)});
     }
 
@@ -1746,7 +1776,7 @@ export default {
       return Response.json({
         ok:true,
         app:"تواصل العطا",
-        version:"V13.39-Profile-Top-User-Header"
+        version:"V13.38-Complete-Mobile-Review"
       });
     }
 
