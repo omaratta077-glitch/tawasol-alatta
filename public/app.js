@@ -2728,29 +2728,24 @@ async function uploadOwnProfileImage(kind,file){
       const coverImg=$("profileCoverImage");
       if(coverImg){ coverImg.src=data; coverImg.classList.remove("hidden"); }
     }
-    const d=await api("/api/profile",{method:"POST",body:JSON.stringify({token,[kind]:data})});
+    const d=await api("/api/profile-media",{method:"POST",body:JSON.stringify({token,kind,data})});
     me={...me,...d.user};
     renderProfile();
     await renderProfilePage(me.username);
 
-    const createdIds=Array.isArray(d.createdProfilePostIds)?d.createdProfilePostIds:[];
-    if(d.createdProfilePosts || createdIds.length){
-      showPage("homePage");
-      await loadPosts();
-      await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
-      const targetId=createdIds[createdIds.length-1];
-      if(targetId){
-        const post=[...document.querySelectorAll("[data-post]")].find(el=>String(el.dataset.post||"")===String(targetId));
-        if(post){
-          post.classList.add("notification-target-highlight");
-          post.scrollIntoView({behavior:"smooth",block:"center"});
-          setTimeout(()=>post.classList.remove("notification-target-highlight"),3200);
-        }
+    showPage("homePage");
+    await loadPosts();
+    await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+    const targetId=String(d.postId||"");
+    if(targetId){
+      const post=[...document.querySelectorAll("[data-post]")].find(el=>String(el.dataset.post||"")===targetId);
+      if(post){
+        post.classList.add("notification-target-highlight");
+        post.scrollIntoView({behavior:"smooth",block:"center"});
+        setTimeout(()=>post.classList.remove("notification-target-highlight"),3600);
       }
-      showInAppToast("تم النشر",isAvatar?"تم تحديث الصورة الشخصية ونشرها في الصفحة الرئيسية.":"تم تحديث صورة الغلاف ونشرها في الصفحة الرئيسية.");
-    }else{
-      await loadPosts().catch(()=>{});
     }
+    showInAppToast("تم النشر",isAvatar?"تم تحديث الصورة الشخصية ونشرها في الصفحة الرئيسية.":"تم تحديث صورة الغلاف ونشرها في الصفحة الرئيسية.");
   }catch(err){alert(err.message||"تعذر رفع الصورة");}
   finally{trigger?.classList.remove("profile-image-uploading");}
 }

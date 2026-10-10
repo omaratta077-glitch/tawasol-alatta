@@ -607,6 +607,43 @@ export class SignalingRoom extends DurableObject {
       return j({ok:true,token,user:await this.publicUser(username)});
     }
 
+    if(url.pathname==="/api/profile-media" && request.method==="POST"){
+      const s=await this.session(String(body.token||""));
+      if(!s)return j({ok:false,error:"الجلسة منتهية"},401);
+
+      const u=await this.user(s.username);
+      if(!u)return j({ok:false,error:"المستخدم غير موجود"},404);
+
+      const kind=String(body.kind||"");
+      const data=String(body.data||"");
+      if(!["avatar","cover"].includes(kind))return j({ok:false,error:"نوع الصورة غير صحيح"},400);
+      if(!data.startsWith("data:image/"))return j({ok:false,error:"ملف الصورة غير صحيح"},400);
+
+      const max=kind==="avatar"?250000:500000;
+      const image=data.slice(0,max);
+      if(kind==="avatar")u.avatar=image; else u.cover=image;
+      await this.ctx.storage.put(`user:${u.username}`,u);
+
+      // V13.42: every profile-photo/cover update creates a real feed post unconditionally.
+      const id=crypto.randomUUID();
+      const post={
+        id,
+        author:u.username,
+        text:kind==="avatar"?"قام بتحديث صورته الشخصية.":"قام بتحديث صورة الغلاف.",
+        image,
+        profileMediaKind:kind==="avatar"?"profile_avatar":"profile_cover",
+        createdAt:Date.now(),
+        likes:[],
+        comments:[]
+      };
+      await this.ctx.storage.put(`post:${id}`,post);
+      const ids=await this.ctx.storage.get("postIds")||[];
+      ids.push(id);
+      await this.ctx.storage.put("postIds",ids.slice(-500));
+
+      return j({ok:true,user:await this.publicUser(u.username),postId:id,post});
+    }
+
     if(url.pathname==="/api/profile" && request.method==="POST"){
       const s=await this.session(String(body.token||""));
       if(!s)return j({ok:false,error:"الجلسة منتهية"},401);
@@ -1777,7 +1814,7 @@ export default {
       return Response.json({
         ok:true,
         app:"تواصل العطا",
-        version:"V13.41-Mobile-Login-Profile-Post-Fix"
+        version:"V13.42-Facebook-Login-Profile-Media-Post"
       });
     }
 

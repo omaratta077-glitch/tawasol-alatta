@@ -246,7 +246,7 @@ html.mobile-device #appView .premium-nav .atta-icon,html.mobile-device #appView 
 html.mobile-device #appView .premium-nav .nav-btn span,html.mobile-device #appView .mobile-bottom-nav .nav-btn span{font-size:16px!important;font-weight:900!important}
 
 /* Tiny build marker for testing only; unobtrusive at bottom */
-html.mobile-device body::after{content:"V13.41";position:fixed;left:4px;bottom:2px;z-index:99999;font-size:9px;color:#6f6f6f;opacity:.45;pointer-events:none}
+html.mobile-device body::after{content:"V13.42";position:fixed;left:4px;bottom:2px;z-index:99999;font-size:9px;color:#6f6f6f;opacity:.45;pointer-events:none}
 
 /* V13.35 profile photo + cover editor */
 .header-profile-avatar{object-fit:cover!important;border-radius:50%!important;border:2px solid #d8ab3a!important;background:#fff!important;box-shadow:0 0 0 2px rgba(216,171,58,.18)!important}
@@ -475,6 +475,44 @@ html.mobile-device .google-signin-section{font-size:14px!important;margin:12px 0
 html.mobile-device .google-signin-btn{min-height:46px!important;font-size:14px!important}
 html.mobile-device .atta-forgot-button{font-size:18px!important;margin:14px auto!important;min-height:42px!important}
 html.mobile-device .atta-footer-brand{font-size:19px!important;margin:18px 0 0!important}
+html.mobile-device .atta-login-card .error{font-size:14px!important}
+</style>
+
+<style id="v1342-facebook-login-final">
+/* V13.42 — phone login: full-width container; only inputs/buttons/padding sized like a social app */
+html.mobile-device .auth-view{
+  width:100%!important;min-height:100dvh!important;padding:0!important;margin:0!important;background:#080a0c!important;
+}
+html.mobile-device .atta-login-shell{
+  width:100%!important;max-width:none!important;min-height:100dvh!important;margin:0!important;padding:0!important;
+}
+html.mobile-device .atta-download-strip{
+  min-height:42px!important;padding:7px 12px!important;font-size:13px!important;line-height:1.25!important;
+}
+html.mobile-device .atta-login-card{
+  width:100%!important;max-width:none!important;min-height:0!important;height:auto!important;
+  margin:0!important;padding:22px 16px 28px!important;border:0!important;border-radius:0!important;box-shadow:none!important;
+  background:#080a0c!important;display:block!important;
+}
+html.mobile-device .atta-language{font-size:14px!important;margin:0 0 8px!important}
+html.mobile-device .atta-login-brand{margin:0 0 16px!important;gap:6px!important}
+html.mobile-device .atta-login-logo{width:96px!important;height:96px!important}
+html.mobile-device .atta-login-brand-name{font-size:14px!important;letter-spacing:3px!important}
+html.mobile-device .atta-login-card input,html.mobile-device .atta-login-card select{
+  width:100%!important;height:56px!important;min-height:56px!important;margin:0 0 10px!important;
+  padding:0 15px!important;border-radius:12px!important;font-size:18px!important;line-height:1.2!important;
+}
+html.mobile-device .atta-login-card input::placeholder{font-size:17px!important}
+html.mobile-device .atta-login-button{
+  width:100%!important;height:54px!important;min-height:54px!important;margin:2px 0 0!important;border-radius:12px!important;font-size:20px!important;
+}
+html.mobile-device .google-signin-section{font-size:13px!important;margin:14px 0 10px!important}
+html.mobile-device .google-signin-btn{min-height:44px!important;font-size:13px!important}
+html.mobile-device .atta-forgot-button{font-size:17px!important;margin:14px auto!important;min-height:40px!important}
+html.mobile-device .atta-create-button{
+  width:100%!important;height:52px!important;min-height:52px!important;border-radius:12px!important;font-size:19px!important;
+}
+html.mobile-device .atta-footer-brand{font-size:18px!important;margin:18px 0 0!important}
 html.mobile-device .atta-login-card .error{font-size:14px!important}
 </style>
 </head>

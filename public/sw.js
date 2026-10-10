@@ -1,4 +1,4 @@
-const CACHE = "tawasol-alatta-v13-41";
+const CACHE = "tawasol-alatta-v13-42";
 const STATIC = [
   "/",
   "/style.css?v=13.40",
