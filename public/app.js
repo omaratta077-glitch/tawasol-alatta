@@ -1542,6 +1542,8 @@ async function shareScreen(){
 
 
 let postImageData="";
+let postVideoData="";
+let postVideoUrl="";
 
 const reactionEmoji={like:"👍",love:"❤️",haha:"😂",wow:"😮",sad:"😢",angry:"😡",dislike:"👎"};
 
@@ -2006,7 +2008,42 @@ if($("postPollBtn")){
 }
 
 if($("postVideoBtn")){
-  $("postVideoBtn").onclick=()=>showToast?.("رفع الفيديو يحتاج تفعيل تخزين الفيديو؛ الصور والمنشورات تعمل الآن.") || console.info("Video storage not enabled");
+  $("postVideoBtn").onclick=()=>$("postVideoInput")?.click();
+}
+
+if($("postVideoInput")){
+  $("postVideoInput").onchange=async e=>{
+    const f=e.target.files?.[0];
+    if(!f)return;
+    if(!String(f.type||"").startsWith("video/")){showInAppToast("ملف غير صالح","اختر ملف فيديو.");return;}
+    postVideoData="";postVideoUrl="";
+    const preview=$("postVideoPreview");
+    const wrap=$("postVideoPreviewWrap");
+    try{
+      // Prefer Cloudflare R2 when a MEDIA_BUCKET binding is configured.
+      const up=await fetch(`/api/media-upload?token=${encodeURIComponent(token)}&kind=video&name=${encodeURIComponent(f.name||"video")}`,{
+        method:"POST",headers:{"content-type":f.type||"application/octet-stream"},body:f
+      });
+      if(up.ok){
+        const d=await up.json();
+        postVideoUrl=String(d.url||"");
+        if(postVideoUrl){preview.src=postVideoUrl;wrap.classList.remove("hidden");showInAppToast("تم تجهيز الفيديو","جاهز للنشر.");return;}
+      }
+      // No R2 yet: allow a short/small video directly in Durable Object storage.
+      if(f.size>1100000){
+        wrap.classList.add("hidden");
+        showInAppToast("الفيديو كبير","الفيديوهات الكبيرة تحتاج تفعيل مخزن الوسائط R2 في Cloudflare. جرّب فيديو قصير أقل من 1 MB الآن.");
+        return;
+      }
+      const r=new FileReader();
+      r.onload=()=>{postVideoData=String(r.result||"");preview.src=postVideoData;wrap.classList.remove("hidden");showInAppToast("تم تجهيز الفيديو","جاهز للنشر.");};
+      r.readAsDataURL(f);
+    }catch(err){
+      if(f.size<=1100000){
+        const r=new FileReader();r.onload=()=>{postVideoData=String(r.result||"");preview.src=postVideoData;wrap.classList.remove("hidden");};r.readAsDataURL(f);
+      }else showInAppToast("تعذر تجهيز الفيديو",err?.message||"حاول فيديو أقصر.");
+    }
+  };
 }
 
 document.querySelectorAll(".nav-btn").forEach(btn=>{
@@ -2101,8 +2138,9 @@ async function loadProfilePosts(username){
           <span><strong>${esc(a.fullName||a.displayName||a.username)}</strong><small>@${esc(a.username)} • ${timeAgoAr(post.createdAt)}</small></span>
         </button>
         ${post.text?`<div class="profile-post-text">${esc(post.text)}</div>`:""}
-        ${post.image?`<img class="profile-post-image" src="${post.image}" alt="صورة المنشور">`:""}
-        ${post.sharedPost?`<div class="shared-post-box"><div class="shared-post-head">@${esc(post.sharedPost.authorInfo?.username||post.sharedPost.author)}</div>${post.sharedPost.text?`<div>${esc(post.sharedPost.text)}</div>`:""}${post.sharedPost.image?`<img src="${post.sharedPost.image}" class="shared-post-image" alt="">`:""}</div>`:""}
+        ${post.image?`<img class="profile-post-image" loading="lazy" decoding="async" src="${post.image}" alt="صورة المنشور">`:""}
+        ${post.video?`<video class="profile-post-image post-video" controls playsinline preload="metadata" src="${post.video}"></video>`:""}
+        ${post.sharedPost?`<div class="shared-post-box"><div class="shared-post-head">@${esc(post.sharedPost.authorInfo?.username||post.sharedPost.author)}</div>${post.sharedPost.text?`<div>${esc(post.sharedPost.text)}</div>`:""}${post.sharedPost.image?`<img loading="lazy" decoding="async" src="${post.sharedPost.image}" class="shared-post-image" alt="">`:""}</div>`:""}
         <div class="profile-post-footer"><div class="profile-post-stats"><span>♡ ${reactionCount}</span><span>💬 ${commentCount}</span></div><button class="profile-post-open" data-profile-post-open="${esc(post.id)}">عرض المنشور</button></div>
       </article>`;
     }).join("");
@@ -2224,7 +2262,7 @@ async function loadPosts(){
   if(!token)return;
   try{
     const d=await api(`/api/posts?token=${encodeURIComponent(token)}`);
-    const posts=d.posts||[];
+    const posts=(d.posts||[]).slice(0,20);
 
     const shareCounts={};
     posts.forEach(p=>{
@@ -2266,12 +2304,13 @@ async function loadPosts(){
           <button class="post-menu-btn" type="button" aria-label="المزيد">${iconDots()}</button>
         </div>
         ${post.text?`<div class="post-text reference-post-text">${esc(post.text)}</div>`:""}
-        ${post.image?`<img class="post-image reference-post-image" src="${post.image}" alt="">`:""}
+        ${post.image?`<img class="post-image reference-post-image" loading="lazy" decoding="async" src="${post.image}" alt="">`:""}
+        ${post.video?`<video class="post-image reference-post-image post-video" controls playsinline preload="metadata" src="${post.video}"></video>`:""}
         ${post.sharedPost?`
         <div class="shared-post-box">
           <div class="shared-post-head">@${esc(post.sharedPost.authorInfo?.username||post.sharedPost.author)}</div>
           ${post.sharedPost.text?`<div>${esc(post.sharedPost.text)}</div>`:""}
-          ${post.sharedPost.image?`<img src="${post.sharedPost.image}" class="shared-post-image" alt="">`:""}
+          ${post.sharedPost.image?`<img loading="lazy" decoding="async" src="${post.sharedPost.image}" class="shared-post-image" alt="">`:""}
         </div>`:""}
         <div class="reference-post-footer">
           <div class="reference-post-side-actions">
@@ -2450,13 +2489,16 @@ $("postImageInput").onchange=e=>{
 
 $("publishPostBtn").onclick=async()=>{
   const text=$("postText").value.trim();
-  if(!text && !postImageData)return alert("اكتب منشورًا أو أضف صورة");
+  if(!text && !postImageData && !postVideoData && !postVideoUrl)return alert("اكتب منشورًا أو أضف صورة أو فيديو");
   try{
-    await api("/api/posts",{method:"POST",body:JSON.stringify({token,text,image:postImageData})});
+    await api("/api/posts",{method:"POST",body:JSON.stringify({token,text,image:postImageData,video:postVideoUrl||postVideoData})});
     $("postText").value="";
     $("postImageInput").value="";
-    postImageData="";
+    if($("postVideoInput"))$("postVideoInput").value="";
+    postImageData="";postVideoData="";postVideoUrl="";
     $("postImagePreviewWrap").classList.add("hidden");
+    $("postVideoPreviewWrap")?.classList.add("hidden");
+    if($("postVideoPreview"))$("postVideoPreview").removeAttribute("src");
     await loadPosts();
   }catch(e){alert(e.message)}
 };

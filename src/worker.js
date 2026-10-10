@@ -235,6 +235,21 @@ export class SignalingRoom extends DurableObject {
       const clientId=String(this.env.GOOGLE_CLIENT_ID||"").trim();
       return j({ok:true,enabled:!!clientId,clientId});
     }
+    if(url.pathname==="/api/media-upload" && request.method==="POST"){
+      const s=await this.session(String(url.searchParams.get("token")||""));
+      if(!s)return j({ok:false,error:"الجلسة منتهية"},401);
+      if(!this.env.MEDIA_BUCKET)return j({ok:false,error:"MEDIA_BUCKET_NOT_CONFIGURED"},503);
+      const kind=String(url.searchParams.get("kind")||"file").replace(/[^a-z0-9_-]/gi,"").slice(0,20)||"file";
+      const supplied=String(url.searchParams.get("name")||"media");
+      const ext=(supplied.match(/\.([a-z0-9]{1,8})$/i)||[])[1]||"bin";
+      const key=`${kind}/${Date.now()}-${crypto.randomUUID()}.${ext.toLowerCase()}`;
+      const contentType=request.headers.get("content-type")||"application/octet-stream";
+      const len=Number(request.headers.get("content-length")||0);
+      if(len>50*1024*1024)return j({ok:false,error:"حجم الفيديو أكبر من 50 MB"},413);
+      await this.env.MEDIA_BUCKET.put(key,request.body,{httpMetadata:{contentType}});
+      return j({ok:true,url:`/media/${key}`});
+    }
+
     let body={};
     if(request.method!=="GET"){
       try{body=await request.json()}catch{}
@@ -844,8 +859,9 @@ export class SignalingRoom extends DurableObject {
 
       const text=String(body.text||"").trim().slice(0,5000);
       const image=String(body.image||"").slice(0,500000);
+      const video=String(body.video||"").slice(0,1750000);
 
-      if(!text && !image)return j({ok:false,error:"اكتب منشورًا أو أضف صورة"},400);
+      if(!text && !image && !video)return j({ok:false,error:"اكتب منشورًا أو أضف صورة أو فيديو"},400);
 
       const id=crypto.randomUUID();
       const post={
@@ -853,6 +869,7 @@ export class SignalingRoom extends DurableObject {
         author:s.username,
         text,
         image,
+        video,
         createdAt:Date.now(),
         likes:[],
         comments:[]
@@ -1814,7 +1831,7 @@ export default {
       return Response.json({
         ok:true,
         app:"تواصل العطا",
-        version:"V13.44-Cache-Sync-Profile-Media"
+        version:"V13.45-Light-Mobile-Video"
       });
     }
 
@@ -1824,6 +1841,18 @@ export default {
 
     if(url.pathname==="/terms" || url.pathname==="/terms/"){
       return env.ASSETS.fetch(new Request(new URL("/terms.html", url.origin), request));
+    }
+
+    if(url.pathname.startsWith("/media/")){
+      if(!env.MEDIA_BUCKET)return new Response("Media storage is not configured",{status:404});
+      const key=decodeURIComponent(url.pathname.slice("/media/".length));
+      const obj=await env.MEDIA_BUCKET.get(key);
+      if(!obj)return new Response("Not found",{status:404});
+      const headers=new Headers();
+      obj.writeHttpMetadata(headers);
+      headers.set("etag",obj.httpEtag);
+      headers.set("cache-control","public, max-age=31536000, immutable");
+      return new Response(obj.body,{headers});
     }
 
     if(url.pathname==="/ws" || url.pathname.startsWith("/api/")){
