@@ -33,7 +33,7 @@
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
 <link rel="icon" href="logo.svg" type="image/svg+xml">
-<link rel="stylesheet" href="style.css?v=13.45">
+<link rel="stylesheet" href="style.css?v=13.46">
 
 <style id="v1331-mobile-force">
 /* V13.31: mobile sizing is intentionally inline so it cannot be lost behind an old CSS rule. */
@@ -442,12 +442,12 @@ html.mobile-device .atta-footer-brand{font-size:23px!important}
 
 
 
-<style id="v1345-clean-mobile-login">
-/* V13.45 — one authoritative mobile login layout, Facebook-like proportions */
+<style id="v1346-centered-mobile-login">
+/* V13.46 — centered mobile login layout, Facebook-like proportions */
 html.mobile-device .auth-view{min-height:100dvh!important;width:100%!important;background:#080a0c!important;padding:0!important;margin:0!important;overflow-x:hidden!important}
-html.mobile-device .atta-login-shell{width:100%!important;max-width:none!important;min-height:100dvh!important;margin:0!important;padding:0 14px 26px!important}
-html.mobile-device .atta-download-strip{margin:0 -14px 18px!important;min-height:38px!important;padding:6px 12px!important;font-size:12px!important;line-height:1.25!important}
-html.mobile-device .atta-login-card{width:100%!important;max-width:520px!important;margin:0 auto!important;padding:0!important;border:0!important;border-radius:0!important;background:transparent!important;box-shadow:none!important;min-height:0!important;height:auto!important;display:block!important}
+html.mobile-device .atta-login-shell{width:100%!important;max-width:none!important;min-height:100dvh!important;margin:0!important;padding:0 0 26px!important;display:flex!important;flex-direction:column!important;align-items:center!important}
+html.mobile-device .atta-download-strip{width:100%!important;margin:0 0 22px!important;min-height:38px!important;padding:6px 12px!important;font-size:12px!important;line-height:1.25!important}
+html.mobile-device .atta-login-card{width:88vw!important;max-width:430px!important;margin:0 auto!important;padding:0!important;border:0!important;border-radius:0!important;background:transparent!important;box-shadow:none!important;min-height:0!important;height:auto!important;display:block!important}
 html.mobile-device .atta-language{font-size:13px!important;margin:0 0 8px!important}
 html.mobile-device .atta-login-brand{margin:0 0 18px!important;gap:4px!important}
 html.mobile-device .atta-login-logo{width:86px!important;height:86px!important}
@@ -1080,7 +1080,7 @@ html.mobile-device .video-preview-wrap video{display:block;width:100%!important;
 
 <script src="config.js"></script>
 <script src="icons.js?v=13.35"></script>
-<script src="app.js?v=13.45"></script>
+<script src="app.js?v=13.46"></script>
 
 <audio id="incomingRingAudio" src="audio/incoming-ring.wav" preload="auto" loop></audio>
 <audio id="outgoingRingAudio" src="audio/outgoing-ring.wav" preload="auto" loop></audio>

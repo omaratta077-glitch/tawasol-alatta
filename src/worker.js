@@ -1831,7 +1831,7 @@ export default {
       return Response.json({
         ok:true,
         app:"تواصل العطا",
-        version:"V13.45-Light-Mobile-Video"
+        version:"V13.46-Centered-Mobile-Login"
       });
     }
 
