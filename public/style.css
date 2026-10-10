@@ -4504,3 +4504,6 @@ body.chat-fullscreen-open .mobile-bottom-nav{
 .smart-notification-card{appearance:none;background:var(--panel)!important;color:inherit;border:1px solid #242A2F;display:flex;flex-direction:column;gap:5px}
 .smart-notification-card:hover{border-color:#D6AD45!important}
 .notification-action-hint{color:#d6ad45;font-weight:800}
+
+
+/* V13.34 real-device mobile rules live inline in index.html intentionally to bypass stale CSS caches. */

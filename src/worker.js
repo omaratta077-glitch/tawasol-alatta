@@ -1746,7 +1746,7 @@ export default {
       return Response.json({
         ok:true,
         app:"تواصل العطا",
-        version:"V13.33-Large-Mobile-Notifications"
+        version:"V13.34-Real-Mobile-Full-Login"
       });
     }
 
