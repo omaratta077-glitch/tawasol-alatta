@@ -1633,7 +1633,7 @@ button:active{
     padding:100px 0 60px!important;
   }
 
-  #homePage,#searchPage,#messagesPage,#notificationsPage,#profilePage,#savedPage{
+  #homePage,#searchPage,#friendsPage,#messagesPage,#notificationsPage,#profilePage,#savedPage{
     width:min(100%,870px);
     margin-inline:auto;
   }
@@ -1736,7 +1736,7 @@ button:active{
   .premium-header{left:240px}
   .reference-leftbar{width:240px!important}
   .social-main{margin:0 24px 0 264px!important;padding-top:100px!important}
-  #homePage,#searchPage,#messagesPage,#notificationsPage,#profilePage,#savedPage{width:min(100%,900px)}
+  #homePage,#searchPage,#friendsPage,#messagesPage,#notificationsPage,#profilePage,#savedPage{width:min(100%,900px)}
   #homePage>.stories-section{display:block!important}
 }
 
@@ -1989,7 +1989,7 @@ button:active{
     padding-top:98px!important;
   }
 
-  #homePage,#searchPage,#messagesPage,#notificationsPage,#profilePage,#savedPage{
+  #homePage,#searchPage,#friendsPage,#messagesPage,#notificationsPage,#profilePage,#savedPage{
     width:min(100%,895px)!important;
   }
 }
@@ -4401,3 +4401,10 @@ body.chat-fullscreen-open .mobile-bottom-nav{
 @media (max-width:370px){
   .reference-header-brand>div{display:none!important}
 }
+
+/* V13.32 friends + statuses */
+.friends-page-title{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px}
+.friends-find-btn{display:flex;align-items:center;gap:8px;background:linear-gradient(135deg,#c8962b,#f4d16f);color:#080808;border:1px solid #f6d77a}
+.friends-find-btn svg{width:20px;height:20px}
+.friends-page-card{background:#0b1013;border:1px solid rgba(214,173,69,.34);border-radius:16px;padding:15px;margin-bottom:14px}
+.feed-story-card{cursor:pointer}

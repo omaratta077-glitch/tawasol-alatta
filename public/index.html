@@ -20,7 +20,7 @@
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
 <link rel="icon" href="logo.svg" type="image/svg+xml">
-<link rel="stylesheet" href="style.css?v=13.31">
+<link rel="stylesheet" href="style.css?v=13.32">
 
 <style id="v1331-mobile-force">
 /* V13.31: mobile sizing is intentionally inline so it cannot be lost behind an old CSS rule. */
@@ -55,6 +55,36 @@
   #appView .premium-nav .atta-icon,#appView .mobile-bottom-nav .atta-icon{width:30px!important;height:30px!important}
   #appView .premium-nav .nav-btn span,#appView .mobile-bottom-nav .nav-btn span{font-size:13px!important;font-weight:800!important}
 }
+/* V13.32: dedicated friends page + Facebook-like mobile status cards */
+@media (max-width:999px){
+  #appView #headerFriendsBtn{order:2!important;background:rgba(216,171,58,.08)!important;border:1px solid rgba(216,171,58,.34)!important}
+  #appView #headerFriendsBtn::after{content:"الأصدقاء";position:absolute;top:48px;font-size:10px;color:#f0cb65;white-space:nowrap}
+  #appView #headerFriendsBtn{position:relative!important;margin-bottom:9px!important}
+  #appView .mobile-status-section{display:block!important;margin:0 0 12px!important;padding:10px 8px 12px!important;border-radius:14px!important;background:#0a0f12!important;border:1px solid rgba(222,178,67,.28)!important;overflow:hidden!important}
+  #appView .mobile-status-head{display:flex!important;align-items:center!important;justify-content:space-between!important;padding:0 4px 8px!important}
+  #appView .mobile-status-head strong{font-size:18px!important;color:#fff!important}
+  #appView .mobile-status-head button{font-size:14px!important;color:#efcb68!important;background:transparent!important;border:0!important;font-weight:800!important}
+  #appView #storiesStrip{display:flex!important;gap:9px!important;overflow-x:auto!important;scroll-snap-type:x proximity!important;padding:2px 1px 5px!important}
+  #appView #storiesStrip::-webkit-scrollbar{display:none!important}
+  #appView .feed-story-card{position:relative!important;flex:0 0 108px!important;height:172px!important;border-radius:14px!important;overflow:hidden!important;border:1px solid rgba(231,190,82,.42)!important;background:#12191e!important;scroll-snap-align:start!important;padding:0!important;box-shadow:0 5px 15px #0006!important}
+  #appView .feed-story-card .story-cover{position:absolute!important;inset:0!important;width:100%!important;height:100%!important;object-fit:cover!important}
+  #appView .feed-story-card .story-shade{position:absolute!important;inset:0!important;background:linear-gradient(180deg,transparent 38%,rgba(0,0,0,.86) 100%)!important}
+  #appView .feed-story-card .story-avatar{position:absolute!important;top:8px!important;right:8px!important;width:38px!important;height:38px!important;border-radius:50%!important;object-fit:cover!important;border:3px solid #e9bd4f!important;background:#fff!important}
+  #appView .feed-story-card .story-name{position:absolute!important;right:8px!important;left:8px!important;bottom:10px!important;color:#fff!important;font-size:14px!important;font-weight:900!important;line-height:1.25!important;text-align:center!important;text-shadow:0 1px 3px #000!important}
+  #appView .feed-story-add{background:#11171b!important}
+  #appView .feed-story-add .story-add-photo{position:absolute!important;inset:0 0 55px!important;width:100%!important;height:117px!important;object-fit:cover!important;opacity:.94!important}
+  #appView .feed-story-add .story-add-bottom{position:absolute!important;right:0!important;left:0!important;bottom:0!important;height:58px!important;background:#151b1f!important;display:flex!important;align-items:flex-end!important;justify-content:center!important;padding-bottom:9px!important;color:#fff!important;font-size:13px!important;font-weight:900!important}
+  #appView .feed-story-add .story-plus{position:absolute!important;bottom:40px!important;right:50%!important;transform:translateX(50%)!important;width:36px!important;height:36px!important;border-radius:50%!important;background:#d5a93e!important;color:#080808!important;border:3px solid #11171b!important;display:grid!important;place-items:center!important;font-size:26px!important;font-weight:900!important;z-index:3!important}
+  #appView .friends-page-shell{padding:4px 0 20px!important}
+  #appView .friends-page-title{display:flex!important;justify-content:space-between!important;align-items:center!important;margin:0 0 12px!important}
+  #appView .friends-page-title h2{font-size:24px!important;margin:0!important;color:#fff!important}
+  #appView .friends-find-btn{min-height:44px!important;padding:0 14px!important;border-radius:10px!important;font-size:15px!important;font-weight:900!important}
+  #appView .friends-page-card{background:#0a0f12!important;border:1px solid rgba(222,178,67,.28)!important;border-radius:15px!important;padding:12px!important;margin-bottom:12px!important}
+  #appView .friends-page-card .section-bar h3{font-size:19px!important;color:#fff!important}
+  #appView .friends-page-card .person-card,#appView .friends-page-card .friend-card{min-height:70px!important}
+  #appView .friends-page-card img{width:52px!important;height:52px!important}
+}
+
 @media (max-width:390px){
   #appView .reference-header-brand{max-width:105px!important}
   #appView .reference-header-brand strong{font-size:14px!important}
@@ -66,7 +96,7 @@
 </style>
 <script>
 (function(){
-  var BUILD='13.31';
+  var BUILD='13.32';
   try{
     if(localStorage.getItem('tawasol-ui-build')!==BUILD){
       localStorage.setItem('tawasol-ui-build',BUILD);
@@ -295,7 +325,7 @@
 
 <main class="social-main">
     <section id="homePage" class="page active-page">
-      <div class="stories-section"><div class="stories-head"><strong>الحالات</strong><button id="addStoryBtn">+ إضافة حالة</button></div><div id="storiesStrip" class="stories-strip"></div></div>
+      <div class="stories-section mobile-status-section"><div class="stories-head mobile-status-head"><strong>الحالات</strong><button id="addStoryBtn">إضافة حالة</button></div><div id="storiesStrip" class="stories-strip"></div></div>
       <section id="mobileFriendsSuggestions" class="reference-side-card mobile-friends-suggestions">
         <div class="reference-card-title">
           <strong class="side-title-with-icon"><span data-atta-icon="users"></span>أشخاص قد تعرفهم</strong>
@@ -348,6 +378,23 @@
         </div>
       </div>
       <div id="postsFeed"></div>
+    </section>
+
+    <section id="friendsPage" class="page">
+      <div class="friends-page-shell">
+        <div class="friends-page-title">
+          <h2>الأصدقاء</h2>
+          <button id="friendsFindPeopleBtn" class="friends-find-btn" type="button"><span data-atta-icon="user-plus"></span> إضافة صديق</button>
+        </div>
+        <section class="friends-page-card">
+          <div class="section-bar"><h3>طلبات الصداقة</h3><span id="friendsPageRequestsCount" class="gold-badge">0</span></div>
+          <div id="friendsPageRequestsList" class="people-list"></div>
+        </section>
+        <section class="friends-page-card">
+          <div class="section-bar"><h3>أصدقاؤك</h3><span id="friendsPageCount" class="gold-badge">0</span></div>
+          <div id="friendsPageList" class="people-list"></div>
+        </section>
+      </div>
     </section>
 
     <section id="searchPage" class="page">
@@ -566,6 +613,9 @@
     <button class="nav-btn" data-page="searchPage" aria-label="استكشاف">
       <span data-atta-icon="search"></span><span>استكشاف</span>
     </button>
+    <button class="nav-btn" data-page="friendsPage" aria-label="الأصدقاء">
+      <span data-atta-icon="users"></span><span>الأصدقاء</span>
+    </button>
     <button class="nav-btn" data-page="messagesPage" aria-label="الرسائل">
       <span data-atta-icon="message-circle"></span><span>الرسائل</span>
     </button>
@@ -646,8 +696,8 @@
 </div>
 
 <script src="config.js"></script>
-<script src="icons.js?v=13.31"></script>
-<script src="app.js?v=13.31"></script>
+<script src="icons.js?v=13.32"></script>
+<script src="app.js?v=13.32"></script>
 
 <audio id="incomingRingAudio" src="audio/incoming-ring.wav" preload="auto" loop></audio>
 <audio id="outgoingRingAudio" src="audio/outgoing-ring.wav" preload="auto" loop></audio>

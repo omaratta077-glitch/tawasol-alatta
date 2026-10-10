@@ -1803,6 +1803,7 @@ function showPage(pageId){
   document.querySelectorAll(".rail-btn").forEach(b=>b.classList.toggle("active",b.dataset.page===pageId));
 
   if(pageId==="homePage")loadPosts();
+  if(pageId==="friendsPage"){ loadFriendRequests().catch(()=>{}); if(me?.username)loadFriends(me.username).catch(()=>{}); }
   if(pageId==="adminPage")loadAdminDashboard();
   if(pageId==="notificationsPage")loadNotifications();
   if(pageId==="profilePage"){
@@ -1963,10 +1964,12 @@ document.querySelectorAll("[data-top-page]").forEach(btn=>{
 });
 
 if($("headerFriendsBtn")){
-  $("headerFriendsBtn").onclick=()=>{
-    viewedProfileUsername=me?.username||"";
-    showPage("profilePage");
-    setTimeout(()=>$("friendRequestsSection")?.scrollIntoView({behavior:"smooth",block:"start"}),120);
+  $("headerFriendsBtn").onclick=()=>showPage("friendsPage");
+}
+if($("friendsFindPeopleBtn")){
+  $("friendsFindPeopleBtn").onclick=()=>{
+    showPage("searchPage");
+    setTimeout(()=>$("userSearchInput")?.focus(),80);
   };
 }
 
@@ -2091,18 +2094,23 @@ async function runFriendAction(username,state){
 async function loadFriendRequests(){
   const d=await api(`/api/friend-requests?token=${encodeURIComponent(token)}`);
   const list=d.requests||[];
-  $("friendRequestsCount").textContent=list.length;
-  if($("headerFriendBadge")){
-    $("headerFriendBadge").textContent=list.length;
-    $("headerFriendBadge").classList.toggle("hidden",list.length===0);
-  }
-  $("friendRequestsList").innerHTML=list.length?list.map(r=>{
+  const markup=list.length?list.map(r=>{
     const u=r.user,a=u.avatar||avatarFallback(u.fullName||u.displayName||u.username);
     return `<div class="person-card">
       <button class="person-main" data-open-profile="${esc(u.username)}"><img src="${a}"><span><strong>${esc(u.fullName||u.displayName||u.username)}</strong><small>@${esc(u.username)}</small></span></button>
       <div class="person-actions"><button class="gold-mini" data-accept-friend="${esc(u.username)}">قبول</button><button class="dark-mini" data-decline-friend="${esc(u.username)}">رفض</button></div>
     </div>`;
   }).join(""):`<div class="empty-line">لا توجد طلبات صداقة جديدة.</div>`;
+
+  if($("friendRequestsCount"))$("friendRequestsCount").textContent=list.length;
+  if($("friendRequestsList"))$("friendRequestsList").innerHTML=markup;
+  if($("friendsPageRequestsCount"))$("friendsPageRequestsCount").textContent=list.length;
+  if($("friendsPageRequestsList"))$("friendsPageRequestsList").innerHTML=markup;
+
+  if($("headerFriendBadge")){
+    $("headerFriendBadge").textContent=list.length;
+    $("headerFriendBadge").classList.toggle("hidden",list.length===0);
+  }
   bindProfileLinks();
 
   document.querySelectorAll("[data-accept-friend]").forEach(b=>b.onclick=async()=>{
@@ -2118,11 +2126,16 @@ async function loadFriendRequests(){
 async function loadFriends(username){
   const d=await api(`/api/friends?token=${encodeURIComponent(token)}&username=${encodeURIComponent(username)}`);
   const list=d.friends||[];
-  $("friendsCount").textContent=list.length;
-  $("friendsList").innerHTML=list.length?list.map(u=>{
+  const markup=list.length?list.map(u=>{
     const a=u.avatar||avatarFallback(u.fullName||u.displayName||u.username);
     return `<button class="friend-card" data-open-profile="${esc(u.username)}"><img src="${a}"><span><strong>${esc(u.fullName||u.displayName||u.username)}</strong><small>@${esc(u.username)}</small></span></button>`;
   }).join(""):`<div class="empty-line">لا يوجد أصدقاء لعرضهم.</div>`;
+  if($("friendsCount"))$("friendsCount").textContent=list.length;
+  if($("friendsList"))$("friendsList").innerHTML=markup;
+  if(username===me?.username){
+    if($("friendsPageCount"))$("friendsPageCount").textContent=list.length;
+    if($("friendsPageList"))$("friendsPageList").innerHTML=markup;
+  }
   bindProfileLinks();
 }
 
@@ -2482,7 +2495,7 @@ async function loadStories(){
     const d=await api(`/api/stories?token=${encodeURIComponent(token)}`);
     const stories=d.stories||[];
 
-    const renderStory=s=>{
+    const renderSideStory=s=>{
       const u=s.authorInfo||{username:s.author};
       const av=u.avatar||avatarFallback(u.displayName||u.username);
       return `<button class="story-item" data-story="${s.id}">
@@ -2491,10 +2504,29 @@ async function loadStories(){
       </button>`;
     };
 
+    const renderFeedStory=s=>{
+      const u=s.authorInfo||{username:s.author};
+      const av=u.avatar||avatarFallback(u.displayName||u.username);
+      const cover=s.media||av;
+      return `<button class="feed-story-card" data-story="${s.id}">
+        <img class="story-cover" src="${cover}" alt="">
+        <span class="story-shade"></span>
+        <img class="story-avatar" src="${av}" alt="">
+        <span class="story-name">${esc(u.displayName||u.username)}</span>
+      </button>`;
+    };
+
     if($("storiesStrip")){
-      $("storiesStrip").innerHTML=stories.length
-        ? stories.map(renderStory).join("")
-        : '<div class="story-empty">لا توجد حالات</div>';
+      const mine=me?.avatar||avatarFallback(me?.fullName||me?.displayName||me?.username||"أنت");
+      const add=`<button id="feedAddStoryBtn" class="feed-story-card feed-story-add" type="button">
+        <img class="story-add-photo" src="${mine}" alt="">
+        <span class="story-plus">+</span>
+        <span class="story-add-bottom">إضافة حالة</span>
+      </button>`;
+      $("storiesStrip").innerHTML=add+(stories.length
+        ? stories.map(renderFeedStory).join("")
+        : '<div class="story-empty">لا توجد حالات من الأصدقاء بعد.</div>');
+      if($("feedAddStoryBtn"))$("feedAddStoryBtn").onclick=()=>$("addStoryBtn")?.click();
     }
 
     if($("storiesStripSide")){
@@ -2502,7 +2534,7 @@ async function loadStories(){
         <span class="story-plus-icon">${uiIcon("plus")}</span><small>إضافة قصة</small>
       </button>`;
       $("storiesStripSide").innerHTML=add+(stories.length
-        ? stories.slice(0,5).map(renderStory).join("")
+        ? stories.slice(0,5).map(renderSideStory).join("")
         : '<div class="reference-side-empty">لا توجد قصص</div>');
       if($("sideAddStoryInline")){
         $("sideAddStoryInline").onclick=()=>$("addStoryBtn")?.click();
@@ -2528,6 +2560,7 @@ async function loadStories(){
     console.error(e);
   }
 }
+
 $("addStoryBtn").onclick=()=>$("storyModal").classList.remove("hidden");$("closeStoryModalBtn").onclick=()=>$("storyModal").classList.add("hidden");$("closeStoryViewer").onclick=()=>$("storyViewer").classList.add("hidden");
 $("storyMediaInput").onchange=e=>{const f=e.target.files?.[0];if(!f)return;const r=new FileReader();r.onload=()=>{storyMediaData=String(r.result||"");$("storyPreview").src=storyMediaData;$("storyPreview").classList.remove("hidden")};r.readAsDataURL(f)};
 $("publishStoryBtn").onclick=async()=>{const text=$("storyTextInput").value.trim();if(!text&&!storyMediaData)return alert("اكتب حالة أو أضف صورة");try{await api('/api/stories',{method:'POST',body:JSON.stringify({token,text,media:storyMediaData})});$("storyTextInput").value="";storyMediaData="";$("storyModal").classList.add("hidden");$("storyPreview").classList.add("hidden");loadStories()}catch(e){alert(e.message)}};

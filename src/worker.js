@@ -1734,7 +1734,7 @@ export default {
       return Response.json({
         ok:true,
         app:"تواصل العطا",
-        version:"V13.31-Mobile-Forced-UI"
+        version:"V13.32-Friends-Stories"
       });
     }
 
