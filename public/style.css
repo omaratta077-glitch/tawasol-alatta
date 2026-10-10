@@ -4717,12 +4717,4 @@ html.mobile-device .round-call-btn{width:84px!important;height:84px!important}
 html.mobile-device .round-call-btn .round-icon,html.mobile-device .round-call-btn svg{width:38px!important;height:38px!important}
 html.mobile-device .round-call-btn small{font-size:17px!important}
 
-/* auth page - full but comfortable */
-html.mobile-device .atta-login-card{width:calc(100vw - 20px)!important;max-width:none!important;padding:22px 18px 26px!important;margin:10px auto 0!important;border-radius:18px!important}
-html.mobile-device .atta-login-logo{width:132px!important;height:132px!important}
-html.mobile-device .atta-login-card input,html.mobile-device .atta-login-card select{height:68px!important;min-height:68px!important;font-size:22px!important;padding:0 18px!important}
-html.mobile-device .atta-login-card input::placeholder{font-size:20px!important}
-html.mobile-device .atta-login-button,html.mobile-device .atta-create-button{height:68px!important;min-height:68px!important;font-size:24px!important}
-html.mobile-device .google-signin-section,html.mobile-device .google-signin-btn{font-size:19px!important}
-html.mobile-device .atta-forgot-button{font-size:21px!important}
-html.mobile-device .atta-footer-brand{font-size:23px!important}
+/* V13.47: auth sizing lives in index.html final mobile block. */
