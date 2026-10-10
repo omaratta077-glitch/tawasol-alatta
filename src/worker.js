@@ -1814,7 +1814,7 @@ export default {
       return Response.json({
         ok:true,
         app:"تواصل العطا",
-        version:"V13.42-Facebook-Login-Profile-Media-Post"
+        version:"V13.43-Profile-Media-Compatibility-Fix"
       });
     }
 

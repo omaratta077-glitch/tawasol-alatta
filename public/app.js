@@ -2728,15 +2728,22 @@ async function uploadOwnProfileImage(kind,file){
       const coverImg=$("profileCoverImage");
       if(coverImg){ coverImg.src=data; coverImg.classList.remove("hidden"); }
     }
-    const d=await api("/api/profile-media",{method:"POST",body:JSON.stringify({token,kind,data})});
+    // V13.43: use only long-standing API routes for maximum deployment compatibility.
+    // 1) Update the user's profile media through /api/profile.
+    const profilePayload=kind==="avatar"?{token,avatar:data}:{token,cover:data};
+    const d=await api("/api/profile",{method:"POST",body:JSON.stringify(profilePayload)});
     me={...me,...d.user};
     renderProfile();
     await renderProfilePage(me.username);
 
+    // 2) Publish a normal feed post through the existing /api/posts route.
+    const postText=isAvatar?"قام بتحديث صورته الشخصية.":"قام بتحديث صورة الغلاف.";
+    const posted=await api("/api/posts",{method:"POST",body:JSON.stringify({token,text:postText,image:data})});
+
     showPage("homePage");
     await loadPosts();
     await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
-    const targetId=String(d.postId||"");
+    const targetId=String(posted?.post?.id||"");
     if(targetId){
       const post=[...document.querySelectorAll("[data-post]")].find(el=>String(el.dataset.post||"")===targetId);
       if(post){
