@@ -855,6 +855,8 @@ function renderProfile(){
   $("meUsername").textContent="@"+me.username;
   $("avatarImg").src=me.avatar||avatarFallback(me.displayName||me.username);
   if($("headerAvatar"))$("headerAvatar").src=me.avatar||avatarFallback(me.fullName||me.displayName||me.username);
+  if($("homeAvatar"))$("homeAvatar").src=me.avatar||avatarFallback(me.fullName||me.displayName||me.username);
+  if($("profileAvatarLarge") && viewedProfileUsername===me.username)$("profileAvatarLarge").src=me.avatar||avatarFallback(me.fullName||me.displayName||me.username);
   if($("headerUserName"))$("headerUserName").textContent=me.fullName||me.displayName||me.username;
   if($("composerUserName"))$("composerUserName").textContent=me.fullName||me.displayName||me.username;
 }
@@ -2040,6 +2042,8 @@ async function renderProfilePage(username=me?.username){
     $("messageProfileBtn").classList.toggle("hidden",self);
     $("myProfileBtn").classList.toggle("hidden",self);
     $("profileEditArea").classList.toggle("hidden",!self);
+    $("profileAvatarEditBtn")?.classList.toggle("hidden",!self);
+    $("profileCoverEditBtn")?.classList.toggle("hidden",!self);
     $("privateInfoCard").classList.toggle("hidden",!self);
     $("ownAccountActions")?.classList.toggle("hidden",!self);
     $("friendRequestsSection").classList.toggle("hidden",!self);
@@ -2618,8 +2622,73 @@ async function loadStories(){
 $("addStoryBtn").onclick=()=>$("storyModal").classList.remove("hidden");$("closeStoryModalBtn").onclick=()=>$("storyModal").classList.add("hidden");$("closeStoryViewer").onclick=()=>$("storyViewer").classList.add("hidden");
 $("storyMediaInput").onchange=e=>{const f=e.target.files?.[0];if(!f)return;const r=new FileReader();r.onload=()=>{storyMediaData=String(r.result||"");$("storyPreview").src=storyMediaData;$("storyPreview").classList.remove("hidden")};r.readAsDataURL(f)};
 $("publishStoryBtn").onclick=async()=>{const text=$("storyTextInput").value.trim();if(!text&&!storyMediaData)return alert("اكتب حالة أو أضف صورة");try{await api('/api/stories',{method:'POST',body:JSON.stringify({token,text,media:storyMediaData})});$("storyTextInput").value="";storyMediaData="";$("storyModal").classList.add("hidden");$("storyPreview").classList.add("hidden");loadStories()}catch(e){alert(e.message)}};
-$("coverInput").onchange=e=>{const f=e.target.files?.[0];if(!f)return;const r=new FileReader();r.onload=()=>{profileCoverData=String(r.result||"");$("profileCover").style.backgroundImage=`url("${profileCoverData}")`};r.readAsDataURL(f)};
-$("saveProfileBtn").onclick=async()=>{try{const body={token,bio:$("bioInput").value.trim(),accountPrivate:$("privateAccountInput").checked};if(profileCoverData)body.cover=profileCoverData;const d=await api('/api/profile',{method:'POST',body:JSON.stringify(body)});me={...me,...d.user};profileCoverData="";renderProfilePage()}catch(e){alert(e.message)}};
+async function compressProfileImage(file,{maxWidth,maxHeight,maxChars,quality=.86}){
+  const dataUrl=await new Promise((resolve,reject)=>{
+    const reader=new FileReader();
+    reader.onerror=()=>reject(new Error("تعذر قراءة الصورة"));
+    reader.onload=()=>resolve(String(reader.result||""));
+    reader.readAsDataURL(file);
+  });
+  const img=await new Promise((resolve,reject)=>{
+    const x=new Image();
+    x.onload=()=>resolve(x);
+    x.onerror=()=>reject(new Error("صيغة الصورة غير مدعومة"));
+    x.src=dataUrl;
+  });
+  let w=img.naturalWidth||img.width,h=img.naturalHeight||img.height;
+  const scale=Math.min(1,maxWidth/w,maxHeight/h);
+  w=Math.max(1,Math.round(w*scale));
+  h=Math.max(1,Math.round(h*scale));
+  let q=quality;
+  for(let pass=0;pass<7;pass++){
+    const canvas=document.createElement("canvas");
+    canvas.width=w; canvas.height=h;
+    const ctx=canvas.getContext("2d");
+    ctx.fillStyle="#111";ctx.fillRect(0,0,w,h);ctx.drawImage(img,0,0,w,h);
+    const out=canvas.toDataURL("image/jpeg",q);
+    if(out.length<=maxChars)return out;
+    q=Math.max(.52,q-.08);
+    if(pass>=3){w=Math.max(320,Math.round(w*.86));h=Math.max(220,Math.round(h*.86));}
+  }
+  const canvas=document.createElement("canvas");canvas.width=w;canvas.height=h;canvas.getContext("2d").drawImage(img,0,0,w,h);
+  return canvas.toDataURL("image/jpeg",.5);
+}
+
+async function uploadOwnProfileImage(kind,file){
+  if(!file)return;
+  const isAvatar=kind==="avatar";
+  const trigger=isAvatar?$("profileAvatarEditBtn"):$("profileCoverEditBtn");
+  try{
+    trigger?.classList.add("profile-image-uploading");
+    const data=await compressProfileImage(file,isAvatar
+      ?{maxWidth:520,maxHeight:520,maxChars:150000,quality:.88}
+      :{maxWidth:1400,maxHeight:700,maxChars:390000,quality:.82});
+    if(isAvatar){
+      $("profileAvatarLarge").src=data;
+      if($("headerAvatar"))$("headerAvatar").src=data;
+      if($("homeAvatar"))$("homeAvatar").src=data;
+    }else{
+      $("profileCover").style.backgroundImage=`url("${data}")`;
+    }
+    const d=await api("/api/profile",{method:"POST",body:JSON.stringify({token,[kind]:data})});
+    me={...me,...d.user};
+    renderProfile();
+    await renderProfilePage(me.username);
+    loadPosts().catch(()=>{});
+  }catch(err){alert(err.message||"تعذر رفع الصورة");}
+  finally{trigger?.classList.remove("profile-image-uploading");}
+}
+
+if($("profileAvatarEditBtn"))$("profileAvatarEditBtn").onclick=()=>$("profileAvatarInput")?.click();
+if($("profileAvatarEditListBtn"))$("profileAvatarEditListBtn").onclick=()=>$("profileAvatarInput")?.click();
+if($("profileCoverEditBtn"))$("profileCoverEditBtn").onclick=()=>$("coverInput")?.click();
+if($("profileCoverEditListBtn"))$("profileCoverEditListBtn").onclick=()=>$("coverInput")?.click();
+if($("profileAvatarLarge"))$("profileAvatarLarge").onclick=()=>{if(viewedProfileUsername===me?.username)$("profileAvatarInput")?.click()};
+
+if($("profileAvatarInput"))$("profileAvatarInput").onchange=async e=>{const f=e.target.files?.[0];e.target.value="";await uploadOwnProfileImage("avatar",f)};
+if($("coverInput"))$("coverInput").onchange=async e=>{const f=e.target.files?.[0];e.target.value="";await uploadOwnProfileImage("cover",f)};
+
+$("saveProfileBtn").onclick=async()=>{try{const body={token,bio:$("bioInput").value.trim(),accountPrivate:$("privateAccountInput").checked};const d=await api('/api/profile',{method:'POST',body:JSON.stringify(body)});me={...me,...d.user};renderProfile();renderProfilePage()}catch(e){alert(e.message)}};
 
 function readFileDataUrl(file){
   return new Promise((resolve,reject)=>{
@@ -3174,26 +3243,8 @@ $("resendVerificationBtn").onclick=async()=>{
 
 $("avatarInput").onchange=async e=>{
   const f=e.target.files?.[0];
-  if(!f)return;
-
-  const reader=new FileReader();
-
-  reader.onload=async()=>{
-    try{
-      const d=await api("/api/profile",{
-        method:"POST",
-        body:JSON.stringify({token,avatar:reader.result})
-      });
-      me=d.user;
-      renderProfile();
-      $("homeAvatar").src=me.avatar||avatarFallback(me.fullName||me.displayName||me.username);
-      renderProfilePage();
-    }catch(err){
-      alert(err.message);
-    }
-  };
-
-  reader.readAsDataURL(f);
+  e.target.value="";
+  await uploadOwnProfileImage("avatar",f);
 };
 
 $("newGroupBtn").onclick=async()=>{

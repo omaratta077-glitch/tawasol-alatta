@@ -33,7 +33,7 @@
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
 <link rel="icon" href="logo.svg" type="image/svg+xml">
-<link rel="stylesheet" href="style.css?v=13.34">
+<link rel="stylesheet" href="style.css?v=13.35">
 
 <style id="v1331-mobile-force">
 /* V13.31: mobile sizing is intentionally inline so it cannot be lost behind an old CSS rule. */
@@ -109,7 +109,7 @@
 </style>
 <script>
 (function(){
-  var BUILD='13.34';
+  var BUILD='13.35';
   try{
     if(localStorage.getItem('tawasol-ui-build')!==BUILD){
       localStorage.setItem('tawasol-ui-build',BUILD);
@@ -246,7 +246,31 @@ html.mobile-device #appView .premium-nav .atta-icon,html.mobile-device #appView 
 html.mobile-device #appView .premium-nav .nav-btn span,html.mobile-device #appView .mobile-bottom-nav .nav-btn span{font-size:16px!important;font-weight:900!important}
 
 /* Tiny build marker for testing only; unobtrusive at bottom */
-html.mobile-device body::after{content:"V13.34";position:fixed;left:4px;bottom:2px;z-index:99999;font-size:9px;color:#6f6f6f;opacity:.45;pointer-events:none}
+html.mobile-device body::after{content:"V13.35";position:fixed;left:4px;bottom:2px;z-index:99999;font-size:9px;color:#6f6f6f;opacity:.45;pointer-events:none}
+
+/* V13.35 profile photo + cover editor */
+.header-profile-avatar{object-fit:cover!important;border-radius:50%!important;border:2px solid #d8ab3a!important;background:#fff!important;box-shadow:0 0 0 2px rgba(216,171,58,.18)!important}
+.profile-cover{position:relative!important}
+.profile-cover-edit{position:absolute;left:18px;bottom:16px;z-index:3;display:flex;align-items:center;gap:7px;min-height:42px;padding:0 13px;border-radius:10px;border:1px solid rgba(255,255,255,.22);background:rgba(8,10,12,.78);color:#fff;font-weight:900;backdrop-filter:blur(8px)}
+.profile-cover-edit svg{width:20px;height:20px}
+.profile-avatar-editor{position:relative;flex:0 0 auto}
+.profile-avatar-edit{position:absolute;left:4px;bottom:5px;width:42px;height:42px;border-radius:50%;display:grid;place-items:center;border:3px solid #0e1114;background:linear-gradient(135deg,#c8962b,#f3d06b);color:#080808;box-shadow:0 5px 18px #0008}
+.profile-avatar-edit svg{width:22px;height:22px}
+.profile-photo-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.profile-photo-actions button{display:flex;align-items:center;justify-content:center;gap:8px;min-height:46px}
+.profile-photo-actions svg{width:20px;height:20px}
+.profile-image-uploading{opacity:.55!important;pointer-events:none!important}
+@media(max-width:700px){
+  .profile-cover-edit{left:10px;bottom:10px;font-size:15px;min-height:44px}
+  .profile-avatar-edit{width:46px;height:46px;left:0;bottom:0}
+  .profile-avatar-edit svg{width:24px;height:24px}
+  .profile-photo-actions{grid-template-columns:1fr}
+}
+html.mobile-device #appView .header-profile-avatar{width:58px!important;height:58px!important}
+html.mobile-device #appView .profile-cover{height:210px!important}
+html.mobile-device #appView .profile-large-avatar{width:132px!important;height:132px!important}
+html.mobile-device #appView .profile-avatar-edit{width:50px!important;height:50px!important}
+html.mobile-device #appView .profile-cover-edit{font-size:17px!important;min-height:50px!important;padding:0 16px!important}
 </style>
 
 </head>
@@ -341,7 +365,7 @@ html.mobile-device body::after{content:"V13.34";position:fixed;left:4px;bottom:2
   <header class="mobile-header premium-header">
     <div class="reference-header-inner">
       <button id="brandProfileBtn" class="reference-header-brand brand-profile-btn" type="button">
-        <img src="logo-premium.png" class="reference-mini-logo" alt="تواصل العطا">
+        <img id="headerAvatar" src="logo-premium.png" class="reference-mini-logo header-profile-avatar" alt="الصفحة الشخصية">
         <div>
           <strong>تواصل العطا</strong>
           <small>AL-ATTA</small>
@@ -697,9 +721,18 @@ html.mobile-device body::after{content:"V13.34";position:fixed;left:4px;bottom:2
 
 <section id="profilePage" class="page">
       <div class="profile-card-large pro-profile-card premium-profile">
-        <div id="profileCover" class="profile-cover"></div>
+        <div id="profileCover" class="profile-cover">
+          <button id="profileCoverEditBtn" class="profile-cover-edit hidden" type="button" aria-label="تغيير صورة الغلاف">
+            <span data-atta-icon="camera"></span><span>تغيير الغلاف</span>
+          </button>
+        </div>
         <div class="profile-top-row">
-          <img id="profileAvatarLarge" class="profile-large-avatar pro-avatar" alt="">
+          <div class="profile-avatar-editor">
+            <img id="profileAvatarLarge" class="profile-large-avatar pro-avatar" alt="">
+            <button id="profileAvatarEditBtn" class="profile-avatar-edit hidden" type="button" aria-label="تغيير الصورة الشخصية">
+              <span data-atta-icon="camera"></span>
+            </button>
+          </div>
           <div class="profile-title-block">
             <h2 id="profileName"></h2>
             <div id="profileUsername" class="muted-gold"></div>
@@ -731,8 +764,13 @@ html.mobile-device body::after{content:"V13.34";position:fixed;left:4px;bottom:2
         </div>
 
         <div id="profileEditArea" class="profile-edit-grid hidden">
+          <div class="profile-photo-actions">
+            <button id="profileAvatarEditListBtn" class="dark-outline" type="button"><span data-atta-icon="camera"></span> تغيير الصورة الشخصية</button>
+            <button id="profileCoverEditListBtn" class="dark-outline" type="button"><span data-atta-icon="image"></span> تغيير صورة الغلاف</button>
+          </div>
+          <input id="profileAvatarInput" type="file" accept="image/*" hidden>
+          <input id="coverInput" type="file" accept="image/*" hidden>
           <textarea id="bioInput" placeholder="نبذة مختصرة"></textarea>
-          <label class="upload-label premium-upload">صورة الغلاف<input id="coverInput" type="file" accept="image/*" hidden></label>
           <label class="privacy-row"><input id="privateAccountInput" type="checkbox"> حساب خاص</label>
           <button id="saveProfileBtn" class="gold-action">حفظ التغييرات</button>
         </div>
@@ -839,8 +877,8 @@ html.mobile-device body::after{content:"V13.34";position:fixed;left:4px;bottom:2
 </div>
 
 <script src="config.js"></script>
-<script src="icons.js?v=13.34"></script>
-<script src="app.js?v=13.34"></script>
+<script src="icons.js?v=13.35"></script>
+<script src="app.js?v=13.35"></script>
 
 <audio id="incomingRingAudio" src="audio/incoming-ring.wav" preload="auto" loop></audio>
 <audio id="outgoingRingAudio" src="audio/outgoing-ring.wav" preload="auto" loop></audio>
