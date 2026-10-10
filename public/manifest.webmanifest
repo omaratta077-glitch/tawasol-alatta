@@ -4,7 +4,7 @@
   "description": "تواصل العطا للرسائل والأصدقاء والمكالمات الصوتية والمرئية.",
   "lang": "ar",
   "dir": "rtl",
-  "start_url": "/?source=pwa&v=13.31",
+  "start_url": "/?source=pwa",
   "scope": "/",
   "display": "standalone",
   "orientation": "any",

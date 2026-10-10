@@ -1734,7 +1734,7 @@ export default {
       return Response.json({
         ok:true,
         app:"تواصل العطا",
-        version:"V13.31-Mobile-XL-Header-Fresh"
+        version:"V13.31-Mobile-Forced-UI"
       });
     }
 
@@ -1751,14 +1751,6 @@ export default {
       return env.SIGNALING.get(id).fetch(request);
     }
 
-    const assetResponse = await env.ASSETS.fetch(request);
-    if (["/", "/index.html", "/style.css", "/app.js", "/icons.js", "/sw.js", "/manifest.webmanifest"].includes(url.pathname)) {
-      const headers = new Headers(assetResponse.headers);
-      headers.set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
-      headers.set("Pragma", "no-cache");
-      headers.set("Expires", "0");
-      return new Response(assetResponse.body, {status:assetResponse.status, statusText:assetResponse.statusText, headers});
-    }
-    return assetResponse;
+    return env.ASSETS.fetch(request);
   }
 };

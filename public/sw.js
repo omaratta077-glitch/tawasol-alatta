@@ -1,4 +1,4 @@
-const CACHE = "tawasol-alatta-v13-30";
+const CACHE = "tawasol-alatta-v13-31";
 const STATIC = [
   "/",
   "/style.css?v=13.31",
@@ -29,14 +29,8 @@ self.addEventListener("fetch", event => {
   if (url.origin !== self.location.origin) return;
   if (url.pathname === "/ws" || url.pathname.startsWith("/api/")) return;
 
-  const freshShell = req.mode === "navigate" || /\.(?:css|js|webmanifest)$/.test(url.pathname) || url.pathname === "/sw.js";
-  if (freshShell) {
-    event.respondWith(fetch(new Request(req, {cache:"no-store"})).catch(() => caches.match(req).then(hit => hit || caches.match("/"))));
-    return;
-  }
-
   event.respondWith(
-    fetch(req).then(res => {
+    fetch(new Request(req, { cache: "no-store" })).then(res => {
       const copy = res.clone();
       if (res.ok) caches.open(CACHE).then(cache => cache.put(req, copy)).catch(() => {});
       return res;

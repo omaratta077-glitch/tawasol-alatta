@@ -4329,7 +4329,7 @@ body.chat-fullscreen-open .mobile-bottom-nav{
 }
 
 
-/* ===== V13.30 Mobile Large UI + top friends/messages/notifications/search ===== */
+/* ===== V13.31 Mobile Large UI + top friends/messages/notifications/search ===== */
 .mobile-header-search-btn{display:none!important}
 @media (max-width:999px){
   html{font-size:18px!important;-webkit-text-size-adjust:100%!important;text-size-adjust:100%!important}
@@ -4400,86 +4400,4 @@ body.chat-fullscreen-open .mobile-bottom-nav{
 }
 @media (max-width:370px){
   .reference-header-brand>div{display:none!important}
-}
-
-
-/* ===== V13.31 Mobile XL Readability + forced top navigation ===== */
-@media (max-width:999px){
-  :root{font-size:19px!important}
-  html,body{font-size:19px!important;-webkit-text-size-adjust:100%!important;text-size-adjust:100%!important}
-
-  /* Top bar: search + friends + messages + notifications */
-  .premium-header{height:82px!important;min-height:82px!important;padding:0 6px!important}
-  .reference-header-inner{display:flex!important;align-items:center!important;justify-content:space-between!important;gap:6px!important;width:100%!important;padding:0 4px!important}
-  .reference-header-title{display:none!important}
-  .reference-header-brand{flex:0 0 auto!important;min-width:0!important}
-  .reference-header-actions{display:flex!important;flex:0 0 auto!important;align-items:center!important;gap:5px!important;margin-inline-start:auto!important}
-  .header-icon-btn,.mobile-header-search-btn{display:grid!important;place-items:center!important;width:49px!important;height:49px!important;min-width:49px!important;border-radius:14px!important}
-  .header-icon-btn .atta-icon,.header-icon-btn svg{width:31px!important;height:31px!important;min-width:31px!important}
-  .header-mini-badge{min-width:23px!important;height:23px!important;line-height:23px!important;font-size:13px!important;font-weight:900!important}
-  .reference-mini-logo{width:48px!important;height:48px!important}
-  .reference-search{display:none!important}
-
-  /* Main feed */
-  .social-main{padding:12px 6px 108px!important}
-  .reference-composer,.composer-card,.reference-post-card,.post-card,.mobile-friends-suggestions,.reference-side-card{border-radius:16px!important}
-  .reference-composer{padding:16px 13px!important}
-  .reference-composer-avatar{width:56px!important;height:56px!important}
-  .reference-composer-name{font-size:20px!important;line-height:1.3!important}
-  .reference-composer textarea{font-size:20px!important;line-height:1.65!important;min-height:100px!important;padding:15px!important}
-  .reference-tool-btn,.reference-publish-btn{height:48px!important;font-size:15px!important;font-weight:800!important}
-  .reference-tool-btn .atta-icon,.reference-tool-btn svg,.reference-publish-btn .atta-icon,.reference-publish-btn svg{width:23px!important;height:23px!important}
-
-  /* Post typography */
-  .reference-post-header{padding:0 14px!important;gap:12px!important}
-  .reference-post-head{gap:12px!important}
-  .reference-post-head .avatar{width:58px!important;height:58px!important;min-width:58px!important}
-  .reference-post-meta strong{font-size:21px!important;line-height:1.3!important;font-weight:900!important}
-  .reference-post-meta small{font-size:16px!important;line-height:1.5!important;color:#e4e9ed!important;gap:7px!important}
-  .reference-post-text,.post-text{font-size:21px!important;line-height:1.7!important;padding:11px 14px 16px!important;font-weight:500!important}
-  .post-menu-btn{width:46px!important;height:46px!important;min-width:46px!important}
-  .post-menu-btn .atta-icon,.post-menu-btn svg{width:28px!important;height:28px!important}
-  .globe-inline .atta-icon,.globe-inline svg{width:19px!important;height:19px!important}
-
-  /* Post controls */
-  .reference-post-footer{padding:12px 10px 9px!important;gap:5px!important}
-  .reference-post-side-actions,.reference-post-stats{gap:3px!important}
-  .stat-btn,.text-action-btn{min-height:52px!important;padding:0 5px!important;gap:7px!important}
-  .stat-btn span,.text-action-btn span{font-size:17px!important;line-height:1!important;font-weight:900!important}
-  .stat-btn .atta-icon,.text-action-btn .atta-icon,.stat-btn svg,.text-action-btn svg,.post-actions .atta-icon{width:31px!important;height:31px!important;min-width:31px!important}
-
-  /* Comments and secondary information */
-  .reference-comments-box{padding:0 12px 7px!important}
-  .comment-row{font-size:18px!important;line-height:1.65!important;padding:12px!important}
-  .comment-row strong{font-size:18px!important}
-  .comment-reply{font-size:17px!important;line-height:1.55!important}
-  .reply-open-btn{font-size:15px!important}
-  .comment-compose input,.reply-compose input{height:52px!important;font-size:18px!important;padding:0 15px!important}
-  .comment-compose button,.reply-compose button{height:48px!important;font-size:17px!important;padding:0 16px!important}
-  .shared-post-head,.reaction-summary{font-size:16px!important}
-
-  /* People / notifications / search */
-  .notification-card{font-size:19px!important;line-height:1.65!important;padding:16px!important}
-  .notification-card small{font-size:15px!important}
-  .reference-suggestion-user strong,.person-main strong,.friend-card strong,.user-search-card strong{font-size:18px!important}
-  .reference-suggestion-user small,.person-main small,.friend-card small,.user-search-card small{font-size:15px!important}
-  .mobile-friends-suggestions .reference-friend-btn,.gold-mini,.dark-mini{min-height:46px!important;font-size:16px!important}
-  .search-box input,.explore-search-box input{font-size:18px!important;min-height:50px!important}
-
-  /* Bottom nav */
-  .premium-nav,.mobile-bottom-nav{height:82px!important;min-height:82px!important;width:calc(100% - 12px)!important;max-width:470px!important}
-  .premium-nav .nav-btn,.mobile-bottom-nav .nav-btn{height:70px!important;min-height:70px!important}
-  .premium-nav .atta-icon,.mobile-bottom-nav .atta-icon{width:32px!important;height:32px!important}
-  .premium-nav .nav-btn span,.mobile-bottom-nav .nav-btn span{font-size:14px!important;font-weight:800!important}
-}
-@media (max-width:520px){
-  .reference-header-brand>div{display:none!important}
-  .reference-mini-logo{width:45px!important;height:45px!important}
-  .header-icon-btn,.mobile-header-search-btn{width:47px!important;height:47px!important;min-width:47px!important}
-  .header-icon-btn .atta-icon,.header-icon-btn svg{width:30px!important;height:30px!important}
-}
-@media (max-width:380px){
-  .header-icon-btn,.mobile-header-search-btn{width:43px!important;height:43px!important;min-width:43px!important}
-  .header-icon-btn .atta-icon,.header-icon-btn svg{width:28px!important;height:28px!important}
-  .reference-mini-logo{width:42px!important;height:42px!important}
 }

@@ -21,6 +21,61 @@
 <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
 <link rel="icon" href="logo.svg" type="image/svg+xml">
 <link rel="stylesheet" href="style.css?v=13.31">
+
+<style id="v1331-mobile-force">
+/* V13.31: mobile sizing is intentionally inline so it cannot be lost behind an old CSS rule. */
+@media (max-width: 999px){
+  html,body{font-size:18px!important;-webkit-text-size-adjust:100%!important;text-size-adjust:100%!important}
+  #appView .premium-header{height:78px!important;padding:0 8px!important}
+  #appView .reference-header-inner{display:flex!important;flex-direction:row!important;align-items:center!important;justify-content:space-between!important;width:100%!important;gap:6px!important}
+  #appView .reference-header-title,#appView .reference-search{display:none!important}
+  #appView .reference-header-brand{display:flex!important;align-items:center!important;flex:0 0 auto!important;max-width:145px!important}
+  #appView .reference-mini-logo{width:48px!important;height:48px!important}
+  #appView .reference-header-brand strong{font-size:16px!important}
+  #appView .reference-header-brand small{font-size:9px!important}
+  #appView .reference-header-actions{display:flex!important;align-items:center!important;justify-content:flex-start!important;gap:5px!important;flex:0 0 auto!important}
+  #appView .header-icon-btn,#appView .mobile-header-search-btn{display:grid!important;width:45px!important;height:45px!important;min-width:45px!important;place-items:center!important;border-radius:12px!important}
+  #appView .header-icon-btn .atta-icon,#appView .header-icon-btn svg{width:29px!important;height:29px!important}
+  #appView .header-mini-badge{font-size:13px!important;min-width:22px!important;height:22px!important;line-height:22px!important}
+
+  #appView .reference-post-meta strong{font-size:20px!important;line-height:1.3!important;font-weight:900!important}
+  #appView .reference-post-meta small,#appView .post-head small{font-size:15px!important;line-height:1.45!important}
+  #appView .reference-post-text,#appView .post-text{font-size:19px!important;line-height:1.7!important}
+  #appView .reference-post-head .avatar{width:56px!important;height:56px!important}
+  #appView .stat-btn span,#appView .text-action-btn span{font-size:16px!important;font-weight:800!important}
+  #appView .stat-btn .atta-icon,#appView .text-action-btn .atta-icon,#appView .stat-btn svg,#appView .text-action-btn svg{width:29px!important;height:29px!important}
+  #appView .stat-btn,#appView .text-action-btn{min-height:48px!important;gap:7px!important}
+  #appView .comment-row{font-size:17px!important;line-height:1.6!important}
+  #appView .comment-compose input,#appView .reply-compose input{font-size:17px!important;height:50px!important}
+  #appView .notification-card{font-size:17px!important}
+  #appView .notification-card small{font-size:14px!important}
+  #appView .reference-suggestion-user strong,#appView .person-main strong,#appView .friend-card strong{font-size:17px!important}
+  #appView .reference-suggestion-user small,#appView .person-main small,#appView .friend-card small{font-size:14px!important}
+
+  #appView .premium-nav .atta-icon,#appView .mobile-bottom-nav .atta-icon{width:30px!important;height:30px!important}
+  #appView .premium-nav .nav-btn span,#appView .mobile-bottom-nav .nav-btn span{font-size:13px!important;font-weight:800!important}
+}
+@media (max-width:390px){
+  #appView .reference-header-brand{max-width:105px!important}
+  #appView .reference-header-brand strong{font-size:14px!important}
+  #appView .reference-header-brand small{display:none!important}
+  #appView .reference-mini-logo{width:42px!important;height:42px!important}
+  #appView .header-icon-btn,#appView .mobile-header-search-btn{width:42px!important;height:42px!important;min-width:42px!important}
+  #appView .header-icon-btn .atta-icon,#appView .header-icon-btn svg{width:27px!important;height:27px!important}
+}
+</style>
+<script>
+(function(){
+  var BUILD='13.31';
+  try{
+    if(localStorage.getItem('tawasol-ui-build')!==BUILD){
+      localStorage.setItem('tawasol-ui-build',BUILD);
+      if(window.caches){caches.keys().then(function(keys){return Promise.all(keys.map(function(k){return caches.delete(k)}))}).catch(function(){})}
+      if('serviceWorker' in navigator){navigator.serviceWorker.getRegistrations().then(function(rs){rs.forEach(function(r){try{r.update()}catch(e){}})}).catch(function(){})}
+    }
+  }catch(e){}
+})();
+</script>
 </head>
 <body>
 
