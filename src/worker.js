@@ -636,11 +636,12 @@ export class SignalingRoom extends DurableObject {
 
       await this.ctx.storage.put(`user:${u.username}`,u);
 
-      // V13.40: profile-media updates become real feed posts, server-side.
+      // V13.41: profile-media updates become real feed posts and return their IDs.
       // This guarantees the post is created even if the browser refreshes immediately.
       const mediaPosts=[];
       if(avatarChanged)mediaPosts.push({text:"قام بتحديث صورته الشخصية.",image:u.avatar,kind:"profile_avatar"});
       if(coverChanged)mediaPosts.push({text:"قام بتحديث صورة الغلاف.",image:u.cover,kind:"profile_cover"});
+      const createdProfilePostIds=[];
       if(mediaPosts.length){
         const ids=await this.ctx.storage.get("postIds")||[];
         for(const item of mediaPosts){
@@ -648,11 +649,12 @@ export class SignalingRoom extends DurableObject {
           const post={id,author:u.username,text:item.text,image:item.image,profileMediaKind:item.kind,createdAt:Date.now(),likes:[],comments:[]};
           await this.ctx.storage.put(`post:${id}`,post);
           ids.push(id);
+          createdProfilePostIds.push(id);
         }
         await this.ctx.storage.put("postIds",ids.slice(-500));
       }
 
-      return j({ok:true,user:await this.publicUser(u.username),createdProfilePosts:mediaPosts.length});
+      return j({ok:true,user:await this.publicUser(u.username),createdProfilePosts:mediaPosts.length,createdProfilePostIds});
     }
 
     if(url.pathname==="/api/groups" && request.method==="POST"){
@@ -1775,7 +1777,7 @@ export default {
       return Response.json({
         ok:true,
         app:"تواصل العطا",
-        version:"V13.40-Complete-Mobile-Profile-Feed"
+        version:"V13.41-Mobile-Login-Profile-Post-Fix"
       });
     }
 

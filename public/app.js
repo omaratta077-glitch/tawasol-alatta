@@ -2732,9 +2732,25 @@ async function uploadOwnProfileImage(kind,file){
     me={...me,...d.user};
     renderProfile();
     await renderProfilePage(me.username);
-    await loadPosts().catch(()=>{});
-    // If the server created a profile-media post, refresh once more after profile rendering.
-    if(d.createdProfilePosts){ setTimeout(()=>loadPosts().catch(()=>{}),180); }
+
+    const createdIds=Array.isArray(d.createdProfilePostIds)?d.createdProfilePostIds:[];
+    if(d.createdProfilePosts || createdIds.length){
+      showPage("homePage");
+      await loadPosts();
+      await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+      const targetId=createdIds[createdIds.length-1];
+      if(targetId){
+        const post=[...document.querySelectorAll("[data-post]")].find(el=>String(el.dataset.post||"")===String(targetId));
+        if(post){
+          post.classList.add("notification-target-highlight");
+          post.scrollIntoView({behavior:"smooth",block:"center"});
+          setTimeout(()=>post.classList.remove("notification-target-highlight"),3200);
+        }
+      }
+      showInAppToast("تم النشر",isAvatar?"تم تحديث الصورة الشخصية ونشرها في الصفحة الرئيسية.":"تم تحديث صورة الغلاف ونشرها في الصفحة الرئيسية.");
+    }else{
+      await loadPosts().catch(()=>{});
+    }
   }catch(err){alert(err.message||"تعذر رفع الصورة");}
   finally{trigger?.classList.remove("profile-image-uploading");}
 }
