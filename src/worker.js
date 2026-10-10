@@ -1746,7 +1746,7 @@ export default {
       return Response.json({
         ok:true,
         app:"تواصل العطا",
-        version:"V13.35-Profile-Photo-Cover"
+        version:"V13.36-Auth-Profile-Fix"
       });
     }
 

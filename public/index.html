@@ -246,7 +246,7 @@ html.mobile-device #appView .premium-nav .atta-icon,html.mobile-device #appView 
 html.mobile-device #appView .premium-nav .nav-btn span,html.mobile-device #appView .mobile-bottom-nav .nav-btn span{font-size:16px!important;font-weight:900!important}
 
 /* Tiny build marker for testing only; unobtrusive at bottom */
-html.mobile-device body::after{content:"V13.35";position:fixed;left:4px;bottom:2px;z-index:99999;font-size:9px;color:#6f6f6f;opacity:.45;pointer-events:none}
+html.mobile-device body::after{content:"V13.36";position:fixed;left:4px;bottom:2px;z-index:99999;font-size:9px;color:#6f6f6f;opacity:.45;pointer-events:none}
 
 /* V13.35 profile photo + cover editor */
 .header-profile-avatar{object-fit:cover!important;border-radius:50%!important;border:2px solid #d8ab3a!important;background:#fff!important;box-shadow:0 0 0 2px rgba(216,171,58,.18)!important}
@@ -267,6 +267,12 @@ html.mobile-device body::after{content:"V13.35";position:fixed;left:4px;bottom:2
   .profile-photo-actions{grid-template-columns:1fr}
 }
 html.mobile-device #appView .header-profile-avatar{width:58px!important;height:58px!important}
+
+/* V13.36 — critical auth visibility fix. Hidden must always beat mobile display rules. */
+html.mobile-device #authView.hidden,
+html.mobile-device .auth-view.hidden{display:none!important;visibility:hidden!important;pointer-events:none!important}
+html.mobile-device #appView.hidden,
+html.mobile-device .app-shell.hidden{display:none!important;visibility:hidden!important;pointer-events:none!important}
 html.mobile-device #appView .profile-cover{height:210px!important}
 html.mobile-device #appView .profile-large-avatar{width:132px!important;height:132px!important}
 html.mobile-device #appView .profile-avatar-edit{width:50px!important;height:50px!important}
