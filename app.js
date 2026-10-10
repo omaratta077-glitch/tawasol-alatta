@@ -128,9 +128,14 @@ async function startAuthenticatedApp(sessionToken,user=null){
   if(!user){
     const d=await api(`/api/me?token=${encodeURIComponent(token)}`);
     user=d.user;
+  }else{
+    try{ const d=await api(`/api/me?token=${encodeURIComponent(token)}`); user={...user,...d.user}; }catch{}
   }
 
   me=user;
+  const canAdmin=me?.role==="super_admin" || me?.role==="moderator";
+  $("adminRailBtn")?.classList.toggle("hidden",!canAdmin);
+  $("adminMoreBtn")?.classList.toggle("hidden",!canAdmin);
   viewedProfileUsername=me.username;
   appSessionStarted=true;
   saveSession(token);
@@ -237,9 +242,28 @@ async function askNotifications(){
   }
 }
 
+function showInAppToast(title,body){
+  let host=document.getElementById("attaToastHost");
+  if(!host){
+    host=document.createElement("div");
+    host.id="attaToastHost";
+    host.className="atta-toast-host";
+    document.body.appendChild(host);
+  }
+  const toast=document.createElement("div");
+  toast.className="atta-toast";
+  toast.innerHTML=`<strong>${esc(title||"إشعار")}</strong><span>${esc(body||"")}</span>`;
+  host.appendChild(toast);
+  requestAnimationFrame(()=>toast.classList.add("show"));
+  setTimeout(()=>{toast.classList.remove("show");setTimeout(()=>toast.remove(),250)},4500);
+}
+
 function notify(title,body){
+  // Always show an in-app alert. Browser notifications are only a bonus because
+  // Chrome can block permission prompts that were not triggered by a user gesture.
+  showInAppToast(title,body);
   if("Notification" in window && Notification.permission==="granted"){
-    new Notification(title,{body});
+    try{new Notification(title,{body})}catch{}
   }
 }
 
@@ -307,7 +331,7 @@ function hasUsableLocalStream(type=currentCallType){
   return audio && (type!=="video" || video);
 }
 
-async function waitForIceGatheringComplete(peer,timeoutMs=9000){
+async function waitForIceGatheringComplete(peer,timeoutMs=3500){
   if(!peer || peer.iceGatheringState==="complete")return;
 
   await new Promise(resolve=>{
@@ -831,6 +855,10 @@ function renderProfile(){
   $("meUsername").textContent="@"+me.username;
   $("avatarImg").src=me.avatar||avatarFallback(me.displayName||me.username);
   if($("headerAvatar"))$("headerAvatar").src=me.avatar||avatarFallback(me.fullName||me.displayName||me.username);
+  if($("headerProfileName"))$("headerProfileName").textContent=me.fullName||me.displayName||me.username;
+  if($("headerProfileUsername"))$("headerProfileUsername").textContent="@"+me.username;
+  if($("homeAvatar"))$("homeAvatar").src=me.avatar||avatarFallback(me.fullName||me.displayName||me.username);
+  if($("profileAvatarLarge") && viewedProfileUsername===me.username)$("profileAvatarLarge").src=me.avatar||avatarFallback(me.fullName||me.displayName||me.username);
   if($("headerUserName"))$("headerUserName").textContent=me.fullName||me.displayName||me.username;
   if($("composerUserName"))$("composerUserName").textContent=me.fullName||me.displayName||me.username;
 }
@@ -1022,7 +1050,7 @@ async function loadConversation(username,{silent=false}={}){
 
 
 async function syncSocialState(){
-  if(!token || !me)return;
+  if(!token || !me || callState!=="idle" || pc)return;
 
   await Promise.allSettled([
     loadChatContacts(),
@@ -1034,7 +1062,7 @@ async function syncSocialState(){
 
 function startSocialSync(){
   clearInterval(syncTimer);
-  syncTimer=setInterval(syncSocialState,3000);
+  syncTimer=setInterval(syncSocialState,8000);
 }
 
 async function loadGroups(){
@@ -1091,8 +1119,8 @@ async function getMedia(type,{force=false}={}){
         audio:audioConstraints,
         video:{
           facingMode:{ideal:"user"},
-          width:{ideal:960},
-          height:{ideal:540},
+          width:{ideal:1280,max:1280},
+          height:{ideal:720,max:720},
           frameRate:{ideal:24,max:30}
         }
       };
@@ -1191,6 +1219,22 @@ async function ensurePeer(){
 
     if(track.kind==="audio")audioSender=sender;
     if(track.kind==="video")videoSender=sender;
+
+    // Keep calls responsive on mobile and slower connections.
+    try{
+      const params=sender.getParameters();
+      params.encodings=params.encodings?.length?params.encodings:[{}];
+      if(track.kind==="video"){
+        params.encodings[0].maxBitrate=1400000;
+        params.encodings[0].maxFramerate=24;
+        params.degradationPreference="balanced";
+      }else{
+        params.encodings[0].maxBitrate=48000;
+      }
+      await sender.setParameters(params);
+    }catch(err){
+      console.warn("media sender tuning skipped",err);
+    }
   }
 
   // We wait for complete ICE in offer/answer, so trickle ICE is only a bonus.
@@ -1215,11 +1259,22 @@ async function ensurePeer(){
     }
 
     const remoteVideo=$("remoteVideo");
+    const remoteAudio=$("remoteAudio");
+
+    // Keep remote sound on ONE element only. Using the same stream on both
+    // <video> and <audio> caused duplicated/silent audio on some Chrome/mobile combinations.
     remoteVideo.srcObject=remoteMediaStream;
     remoteVideo.playsInline=true;
     remoteVideo.autoplay=true;
-    remoteVideo.muted=false;
-    remoteVideo.volume=1;
+    remoteVideo.muted=true;
+
+    if(remoteAudio){
+      const remoteAudioTracks=remoteMediaStream.getAudioTracks();
+      remoteAudio.srcObject=remoteAudioTracks.length?new MediaStream(remoteAudioTracks):null;
+      remoteAudio.autoplay=true;
+      remoteAudio.volume=1;
+      remoteAudio.muted=false;
+    }
 
     const revealVideo=()=>{
       if(e.track.kind==="video"){
@@ -1233,16 +1288,22 @@ async function ensurePeer(){
     e.track.onunmute=async()=>{
       revealVideo();
       try{await remoteVideo.play()}catch{}
+      try{await remoteAudio?.play()}catch{}
     };
 
     revealVideo();
 
-    try{
-      await remoteVideo.play();
-      $("resumeRemoteMediaBtn")?.classList.add("hidden");
-    }catch(err){
-      console.warn("remote autoplay blocked",err);
+    const playback=[];
+    if(e.track.kind==="video")playback.push(remoteVideo.play());
+    if(remoteAudio?.srcObject)playback.push(remoteAudio.play());
+
+    const playbackResults=await Promise.allSettled(playback);
+    const blocked=playbackResults.some(r=>r.status==="rejected");
+    if(blocked){
+      console.warn("remote autoplay blocked",playbackResults);
       $("resumeRemoteMediaBtn")?.classList.remove("hidden");
+    }else{
+      $("resumeRemoteMediaBtn")?.classList.add("hidden");
     }
 
     if(e.track.kind==="audio" && currentCallType==="audio"){
@@ -1442,6 +1503,8 @@ async function teardownPeer(stopLocal=true){
 
   $("localVideo").srcObject=null;
   $("remoteVideo").srcObject=null;
+  if($("remoteAudio"))$("remoteAudio").srcObject=null;
+  $("resumeRemoteMediaBtn")?.classList.add("hidden");
 }
 
 async function hangup(notifyPeer=true){
@@ -1479,8 +1542,10 @@ async function shareScreen(){
 
 
 let postImageData="";
+let postVideoData="";
+let postVideoUrl="";
 
-const reactionEmoji={like:"👍",love:"❤️",haha:"😂",wow:"😮",sad:"😢"};
+const reactionEmoji={like:"👍",love:"❤️",haha:"😂",wow:"😮",sad:"😢",angry:"😡",dislike:"👎"};
 
 
 
@@ -1581,7 +1646,7 @@ async function playIncomingRing(){
 
   activeRingType="incoming";
   playIncomingPattern();
-  ringtoneTimer=setInterval(playIncomingPattern,2050);
+  ringtoneTimer=setInterval(playIncomingPattern,2450);
 
   if(!callAudioCtx){
     const audio=$("incomingRingAudio");
@@ -1602,7 +1667,7 @@ async function playOutgoingRing(){
 
   activeRingType="outgoing";
   playOutgoingPattern();
-  ringtoneTimer=setInterval(playOutgoingPattern,2450);
+  ringtoneTimer=setInterval(playOutgoingPattern,2800);
 
   if(!callAudioCtx){
     const audio=$("outgoingRingAudio");
@@ -1654,6 +1719,10 @@ async function setCallPeerIdentity(username){
 
 function showCallOverlay(peerName,stateText="مكالمة جارية"){
   callOverlayOpen=true;
+  const audioOnly=currentCallType==="audio";
+  $("callOverlay")?.classList.toggle("audio-only-call",audioOnly);
+  $("cameraBtn")?.classList.toggle("hidden",audioOnly);
+  $("localVideo")?.closest(".local-pip")?.classList.toggle("hidden",audioOnly);
   $("callOverlay").classList.remove("hidden");
   $("callStatusBar").classList.remove("hidden");
 
@@ -1677,6 +1746,62 @@ $("openCallViewBtn").onclick=()=>showCallOverlay(selectedUser||incomingFrom||"م
 
 
 
+
+function adminEscape(v){return String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
+function adminDate(v){try{return new Date(Number(v)||0).toLocaleString("ar-SA")}catch{return ""}}
+
+async function loadAdminDashboard(){
+  if(!me || !["super_admin","moderator"].includes(me.role))return;
+  try{
+    const d=await api(`/api/admin/summary?token=${encodeURIComponent(token)}`);
+    $("adminUsersCount").textContent=d.counts.users||0;
+    $("adminPostsCount").textContent=d.counts.posts||0;
+    $("adminReportsCount").textContent=d.counts.reports||0;
+    $("adminBannedCount").textContent=d.counts.banned||0;
+    $("adminRoleBadge").textContent=d.role==="super_admin"?"المدير الرئيسي":"مشرف";
+    await loadAdminUsers();
+  }catch(e){alert(e.message||"تعذر تحميل لوحة الإدارة")}
+}
+
+async function loadAdminUsers(){
+  const d=await api(`/api/admin/users?token=${encodeURIComponent(token)}`);
+  $("adminUsersList").innerHTML=d.users.length?d.users.map(u=>{
+    const owner=u.role==="super_admin", mod=u.role==="moderator";
+    return `<div class="admin-item"><div class="admin-item-main"><img src="${adminEscape(u.avatar||avatarFallback(u.displayName||u.username))}"><div class="admin-item-text"><strong>${adminEscape(u.displayName||u.username)}</strong><span>@${adminEscape(u.username)} · ${owner?'مدير رئيسي':mod?'مشرف':u.banned?'موقوف':'مستخدم'}</span></div></div><div class="admin-actions">${owner?'':`<button class="${u.banned?'gold':'danger'}" data-admin-action="${u.banned?'unban':'ban'}" data-user="${adminEscape(u.username)}">${u.banned?'فك الحظر':'حظر'}</button>${me.role==='super_admin'?`<button class="gold" data-admin-action="${mod?'remove_moderator':'make_moderator'}" data-user="${adminEscape(u.username)}">${mod?'إلغاء الإشراف':'تعيين مشرف'}</button>`:''}`}</div></div>`;
+  }).join(""):'<div class="admin-empty">لا يوجد مستخدمون</div>';
+}
+
+async function loadAdminPosts(){
+  const d=await api(`/api/admin/posts?token=${encodeURIComponent(token)}`);
+  $("adminPostsList").innerHTML=d.posts.length?d.posts.map(p=>`<div class="admin-item"><div class="admin-item-text"><strong>@${adminEscape(p.author)}</strong><span class="admin-post-text">${adminEscape(p.text|| (p.hasImage?'منشور صورة':'منشور'))}</span><span>${adminDate(p.createdAt)}</span></div><div class="admin-actions"><button class="danger" data-admin-action="delete_post" data-post="${adminEscape(p.id)}">حذف المنشور</button></div></div>`).join(""):'<div class="admin-empty">لا توجد منشورات</div>';
+}
+
+async function loadAdminReports(){
+  const d=await api(`/api/admin/reports?token=${encodeURIComponent(token)}`);
+  $("adminReportsList").innerHTML=d.reports.length?d.reports.map(r=>`<div class="admin-item"><div class="admin-item-text"><strong>بلاغ من @${adminEscape(r.reporter)}</strong><span>${adminEscape(r.targetType)} · ${adminEscape(r.reason||'بدون سبب')}</span><span>${adminDate(r.createdAt)} ${r.resolved?'· تمت المراجعة':''}</span></div><div class="admin-actions">${r.resolved?'':`<button class="gold" data-admin-action="resolve_report" data-report="${adminEscape(r.id)}">تمت المراجعة</button>`}</div></div>`).join(""):'<div class="admin-empty">لا توجد بلاغات</div>';
+}
+
+document.addEventListener("click",async e=>{
+  const tab=e.target.closest("[data-admin-tab]");
+  if(tab){
+    document.querySelectorAll("[data-admin-tab]").forEach(x=>x.classList.toggle("active",x===tab));
+    const name=tab.dataset.adminTab;
+    ["users","posts","reports"].forEach(x=>$("admin"+x[0].toUpperCase()+x.slice(1)+"Panel")?.classList.toggle("hidden",x!==name));
+    if(name==="users")await loadAdminUsers(); if(name==="posts")await loadAdminPosts(); if(name==="reports")await loadAdminReports();
+    return;
+  }
+  const btn=e.target.closest("[data-admin-action]"); if(!btn)return;
+  const action=btn.dataset.adminAction;
+  if((action==="ban"||action==="delete_post") && !confirm(action==="ban"?"هل تريد حظر هذا المستخدم؟":"هل تريد حذف هذا المنشور نهائيًا؟"))return;
+  btn.disabled=true;
+  try{
+    await api("/api/admin/action",{method:"POST",body:JSON.stringify({token,action,username:btn.dataset.user||"",postId:btn.dataset.post||"",reportId:btn.dataset.report||""})});
+    await loadAdminDashboard();
+    const active=document.querySelector("[data-admin-tab].active")?.dataset.adminTab;
+    if(active==="posts")await loadAdminPosts(); if(active==="reports")await loadAdminReports();
+  }catch(err){alert(err.message||"تعذر تنفيذ العملية")}finally{btn.disabled=false}
+});
+
 function showPage(pageId){
   document.querySelectorAll(".page").forEach(p=>p.classList.remove("active-page"));
   $(pageId).classList.add("active-page");
@@ -1684,12 +1809,14 @@ function showPage(pageId){
   document.querySelectorAll(".rail-btn").forEach(b=>b.classList.toggle("active",b.dataset.page===pageId));
 
   if(pageId==="homePage")loadPosts();
+  if(pageId==="friendsPage"){ loadFriendRequests().catch(()=>{}); if(me?.username)loadFriends(me.username).catch(()=>{}); }
+  if(pageId==="adminPage")loadAdminDashboard();
   if(pageId==="notificationsPage")loadNotifications();
   if(pageId==="profilePage"){
     if(!viewedProfileUsername)viewedProfileUsername=me?.username||"";
     renderProfilePage(viewedProfileUsername);
   }
-  if(pageId==="searchPage")loadExplore();
+  if(pageId==="searchPage")resetExploreSearch();
   if(pageId==="savedPage")loadSavedPostsPage();
   if(pageId==="messagesPage"){
     resetMessagesInbox();
@@ -1700,6 +1827,13 @@ function showPage(pageId){
 
 if($("headerSearchBtn")){
   $("headerSearchBtn").onclick=()=>{
+    showPage("searchPage");
+    setTimeout(()=>$("userSearchInput")?.focus(),50);
+  };
+}
+
+if($("mobileHeaderSearchBtn")){
+  $("mobileHeaderSearchBtn").onclick=()=>{
     showPage("searchPage");
     setTimeout(()=>$("userSearchInput")?.focus(),50);
   };
@@ -1836,10 +1970,12 @@ document.querySelectorAll("[data-top-page]").forEach(btn=>{
 });
 
 if($("headerFriendsBtn")){
-  $("headerFriendsBtn").onclick=()=>{
-    viewedProfileUsername=me?.username||"";
-    showPage("profilePage");
-    setTimeout(()=>$("friendRequestsSection")?.scrollIntoView({behavior:"smooth",block:"start"}),120);
+  $("headerFriendsBtn").onclick=()=>showPage("friendsPage");
+}
+if($("friendsFindPeopleBtn")){
+  $("friendsFindPeopleBtn").onclick=()=>{
+    showPage("searchPage");
+    setTimeout(()=>$("userSearchInput")?.focus(),80);
   };
 }
 
@@ -1872,7 +2008,42 @@ if($("postPollBtn")){
 }
 
 if($("postVideoBtn")){
-  $("postVideoBtn").onclick=()=>alert("شكل زر الفيديو جاهز؛ رفع الفيديو الكبير يحتاج تخزين ملفات منفصل حتى لا نثقل التطبيق.");
+  $("postVideoBtn").onclick=()=>$("postVideoInput")?.click();
+}
+
+if($("postVideoInput")){
+  $("postVideoInput").onchange=async e=>{
+    const f=e.target.files?.[0];
+    if(!f)return;
+    if(!String(f.type||"").startsWith("video/")){showInAppToast("ملف غير صالح","اختر ملف فيديو.");return;}
+    postVideoData="";postVideoUrl="";
+    const preview=$("postVideoPreview");
+    const wrap=$("postVideoPreviewWrap");
+    try{
+      // Prefer Cloudflare R2 when a MEDIA_BUCKET binding is configured.
+      const up=await fetch(`/api/media-upload?token=${encodeURIComponent(token)}&kind=video&name=${encodeURIComponent(f.name||"video")}`,{
+        method:"POST",headers:{"content-type":f.type||"application/octet-stream"},body:f
+      });
+      if(up.ok){
+        const d=await up.json();
+        postVideoUrl=String(d.url||"");
+        if(postVideoUrl){preview.src=postVideoUrl;wrap.classList.remove("hidden");showInAppToast("تم تجهيز الفيديو","جاهز للنشر.");return;}
+      }
+      // No R2 yet: allow a short/small video directly in Durable Object storage.
+      if(f.size>1100000){
+        wrap.classList.add("hidden");
+        showInAppToast("الفيديو كبير","الفيديوهات الكبيرة تحتاج تفعيل مخزن الوسائط R2 في Cloudflare. جرّب فيديو قصير أقل من 1 MB الآن.");
+        return;
+      }
+      const r=new FileReader();
+      r.onload=()=>{postVideoData=String(r.result||"");preview.src=postVideoData;wrap.classList.remove("hidden");showInAppToast("تم تجهيز الفيديو","جاهز للنشر.");};
+      r.readAsDataURL(f);
+    }catch(err){
+      if(f.size<=1100000){
+        const r=new FileReader();r.onload=()=>{postVideoData=String(r.result||"");preview.src=postVideoData;wrap.classList.remove("hidden");};r.readAsDataURL(f);
+      }else showInAppToast("تعذر تجهيز الفيديو",err?.message||"حاول فيديو أقصر.");
+    }
+  };
 }
 
 document.querySelectorAll(".nav-btn").forEach(btn=>{
@@ -1903,13 +2074,19 @@ async function renderProfilePage(username=me?.username){
     $("profileName").textContent=p.fullName||p.displayName||p.username;
     $("profileUsername").textContent="@"+p.username;
     $("profileBio").textContent=p.bio||"لا توجد نبذة بعد";
-    $("profileCover").style.backgroundImage=p.cover?`url("${p.cover}")`:"";
+    const coverImg=$("profileCoverImage");
+    if(coverImg){
+      if(p.cover){ coverImg.src=p.cover; coverImg.classList.remove("hidden"); }
+      else{ coverImg.removeAttribute("src"); coverImg.classList.add("hidden"); }
+    }
     $("friendsCount").textContent=d.friendCount||0;
 
     $("friendActionBtn").classList.toggle("hidden",self);
     $("messageProfileBtn").classList.toggle("hidden",self);
     $("myProfileBtn").classList.toggle("hidden",self);
     $("profileEditArea").classList.toggle("hidden",!self);
+    $("profileAvatarEditBtn")?.classList.toggle("hidden",!self);
+    $("profileCoverEditBtn")?.classList.toggle("hidden",!self);
     $("privateInfoCard").classList.toggle("hidden",!self);
     $("ownAccountActions")?.classList.toggle("hidden",!self);
     $("friendRequestsSection").classList.toggle("hidden",!self);
@@ -1931,8 +2108,60 @@ async function renderProfilePage(username=me?.username){
 
     $("profileMeta").innerHTML=p.country?`<div><span>الدولة</span><strong>${esc(p.country)}</strong></div>`:"";
     await loadFriends(username);
+    await loadProfilePosts(username);
   }catch(e){
     alert(e.message||"تعذر تحميل الملف الشخصي");
+  }
+}
+
+async function loadProfilePosts(username){
+  const listEl=$("profilePostsList");
+  const countEl=$("profilePostsCount");
+  if(!listEl)return;
+  listEl.innerHTML='<div class="profile-post-empty">جاري تحميل المنشورات...</div>';
+  try{
+    const d=await api(`/api/posts?token=${encodeURIComponent(token)}`);
+    const posts=(d.posts||[]).filter(p=>String(p.author||"").toLowerCase()===String(username||"").toLowerCase());
+    if(countEl)countEl.textContent=posts.length;
+    if(!posts.length){
+      listEl.innerHTML='<div class="profile-post-empty">لا توجد منشورات لهذا الحساب حتى الآن.</div>';
+      return;
+    }
+    listEl.innerHTML=posts.map(post=>{
+      const a=post.authorInfo||{username:post.author,displayName:post.author};
+      const avatar=a.avatar||avatarFallback(a.fullName||a.displayName||a.username);
+      const reactionCount=totalReactionsCount(post.reactionCounts||{});
+      const commentCount=post.commentCount||0;
+      return `<article class="profile-post-card" data-profile-post="${esc(post.id)}">
+        <button class="profile-post-head profile-link-button" data-open-profile="${esc(a.username)}">
+          <img src="${avatar}" alt="">
+          <span><strong>${esc(a.fullName||a.displayName||a.username)}</strong><small>@${esc(a.username)} • ${timeAgoAr(post.createdAt)}</small></span>
+        </button>
+        ${post.text?`<div class="profile-post-text">${esc(post.text)}</div>`:""}
+        ${post.image?`<img class="profile-post-image" loading="lazy" decoding="async" src="${post.image}" alt="صورة المنشور">`:""}
+        ${post.video?`<video class="profile-post-image post-video" controls playsinline preload="metadata" src="${post.video}"></video>`:""}
+        ${post.sharedPost?`<div class="shared-post-box"><div class="shared-post-head">@${esc(post.sharedPost.authorInfo?.username||post.sharedPost.author)}</div>${post.sharedPost.text?`<div>${esc(post.sharedPost.text)}</div>`:""}${post.sharedPost.image?`<img loading="lazy" decoding="async" src="${post.sharedPost.image}" class="shared-post-image" alt="">`:""}</div>`:""}
+        <div class="profile-post-footer"><div class="profile-post-stats"><span>♡ ${reactionCount}</span><span>💬 ${commentCount}</span></div><button class="profile-post-open" data-profile-post-open="${esc(post.id)}">عرض المنشور</button></div>
+      </article>`;
+    }).join("");
+    bindProfileLinks();
+    document.querySelectorAll("[data-profile-post-open]").forEach(btn=>{
+      btn.onclick=async()=>{
+        showPage("homePage");
+        await loadPosts();
+        await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+        const id=String(btn.dataset.profilePostOpen||"");
+        const post=[...document.querySelectorAll("[data-post]")].find(el=>String(el.dataset.post||"")===id);
+        if(post){
+          post.classList.add("notification-target-highlight");
+          post.scrollIntoView({behavior:"smooth",block:"center"});
+          setTimeout(()=>post.classList.remove("notification-target-highlight"),2600);
+        }
+      };
+    });
+  }catch(e){
+    if(countEl)countEl.textContent="0";
+    listEl.innerHTML=`<div class="profile-post-empty">${esc(e.message||"تعذر تحميل المنشورات")}</div>`;
   }
 }
 
@@ -1964,18 +2193,23 @@ async function runFriendAction(username,state){
 async function loadFriendRequests(){
   const d=await api(`/api/friend-requests?token=${encodeURIComponent(token)}`);
   const list=d.requests||[];
-  $("friendRequestsCount").textContent=list.length;
-  if($("headerFriendBadge")){
-    $("headerFriendBadge").textContent=list.length;
-    $("headerFriendBadge").classList.toggle("hidden",list.length===0);
-  }
-  $("friendRequestsList").innerHTML=list.length?list.map(r=>{
+  const markup=list.length?list.map(r=>{
     const u=r.user,a=u.avatar||avatarFallback(u.fullName||u.displayName||u.username);
     return `<div class="person-card">
       <button class="person-main" data-open-profile="${esc(u.username)}"><img src="${a}"><span><strong>${esc(u.fullName||u.displayName||u.username)}</strong><small>@${esc(u.username)}</small></span></button>
       <div class="person-actions"><button class="gold-mini" data-accept-friend="${esc(u.username)}">قبول</button><button class="dark-mini" data-decline-friend="${esc(u.username)}">رفض</button></div>
     </div>`;
   }).join(""):`<div class="empty-line">لا توجد طلبات صداقة جديدة.</div>`;
+
+  if($("friendRequestsCount"))$("friendRequestsCount").textContent=list.length;
+  if($("friendRequestsList"))$("friendRequestsList").innerHTML=markup;
+  if($("friendsPageRequestsCount"))$("friendsPageRequestsCount").textContent=list.length;
+  if($("friendsPageRequestsList"))$("friendsPageRequestsList").innerHTML=markup;
+
+  if($("headerFriendBadge")){
+    $("headerFriendBadge").textContent=list.length;
+    $("headerFriendBadge").classList.toggle("hidden",list.length===0);
+  }
   bindProfileLinks();
 
   document.querySelectorAll("[data-accept-friend]").forEach(b=>b.onclick=async()=>{
@@ -1991,11 +2225,16 @@ async function loadFriendRequests(){
 async function loadFriends(username){
   const d=await api(`/api/friends?token=${encodeURIComponent(token)}&username=${encodeURIComponent(username)}`);
   const list=d.friends||[];
-  $("friendsCount").textContent=list.length;
-  $("friendsList").innerHTML=list.length?list.map(u=>{
+  const markup=list.length?list.map(u=>{
     const a=u.avatar||avatarFallback(u.fullName||u.displayName||u.username);
     return `<button class="friend-card" data-open-profile="${esc(u.username)}"><img src="${a}"><span><strong>${esc(u.fullName||u.displayName||u.username)}</strong><small>@${esc(u.username)}</small></span></button>`;
   }).join(""):`<div class="empty-line">لا يوجد أصدقاء لعرضهم.</div>`;
+  if($("friendsCount"))$("friendsCount").textContent=list.length;
+  if($("friendsList"))$("friendsList").innerHTML=markup;
+  if(username===me?.username){
+    if($("friendsPageCount"))$("friendsPageCount").textContent=list.length;
+    if($("friendsPageList"))$("friendsPageList").innerHTML=markup;
+  }
   bindProfileLinks();
 }
 
@@ -2023,7 +2262,7 @@ async function loadPosts(){
   if(!token)return;
   try{
     const d=await api(`/api/posts?token=${encodeURIComponent(token)}`);
-    const posts=d.posts||[];
+    const posts=(d.posts||[]).slice(0,20);
 
     const shareCounts={};
     posts.forEach(p=>{
@@ -2065,12 +2304,13 @@ async function loadPosts(){
           <button class="post-menu-btn" type="button" aria-label="المزيد">${iconDots()}</button>
         </div>
         ${post.text?`<div class="post-text reference-post-text">${esc(post.text)}</div>`:""}
-        ${post.image?`<img class="post-image reference-post-image" src="${post.image}" alt="">`:""}
+        ${post.image?`<img class="post-image reference-post-image" loading="lazy" decoding="async" src="${post.image}" alt="">`:""}
+        ${post.video?`<video class="post-image reference-post-image post-video" controls playsinline preload="metadata" src="${post.video}"></video>`:""}
         ${post.sharedPost?`
         <div class="shared-post-box">
           <div class="shared-post-head">@${esc(post.sharedPost.authorInfo?.username||post.sharedPost.author)}</div>
           ${post.sharedPost.text?`<div>${esc(post.sharedPost.text)}</div>`:""}
-          ${post.sharedPost.image?`<img src="${post.sharedPost.image}" class="shared-post-image" alt="">`:""}
+          ${post.sharedPost.image?`<img loading="lazy" decoding="async" src="${post.sharedPost.image}" class="shared-post-image" alt="">`:""}
         </div>`:""}
         <div class="reference-post-footer">
           <div class="reference-post-side-actions">
@@ -2078,7 +2318,7 @@ async function loadPosts(){
             <button class="text-action-btn" data-share-post="${post.id}">${iconShare()}<span>مشاركة</span></button>
           </div>
           <div class="reference-post-stats">
-            <button class="stat-btn ${post.myReaction?"active":""}" data-react-main="${post.id}">${iconHeart()}<span>${likeCount}</span></button>
+            <button class="stat-btn ${post.myReaction?"active":""}" data-react-main="${post.id}" data-current-reaction="${esc(post.myReaction||"")}" title="إعجاب">${iconHeart()}<span>${likeCount}</span></button>
             <button class="stat-btn" data-comment-focus="${post.id}">${iconComment()}<span>${commentCount}</span></button>
             <button class="stat-btn" data-share-post="${post.id}">${iconRepeat()}<span>${shareCount}</span></button>
           </div>
@@ -2125,9 +2365,41 @@ async function loadPosts(){
     });
 
     document.querySelectorAll("[data-react-main]").forEach(btn=>{
-      btn.onclick=()=>{
+      // Normal click = Like / Unlike immediately. This keeps the main reaction usable
+      // on desktop and mobile instead of only opening a hidden picker.
+      btn.onclick=async()=>{
+        try{
+          const current=btn.dataset.currentReaction||"";
+          await api("/api/post-react",{method:"POST",body:JSON.stringify({
+            token,
+            postId:btn.dataset.reactMain,
+            reaction:"like",
+            remove:current==="like"
+          })});
+          await loadPosts();
+        }catch(e){alert(e.message)}
+      };
+
+      // Right click on desktop opens the full reaction picker.
+      btn.oncontextmenu=(e)=>{
+        e.preventDefault();
         document.querySelector(`[data-reaction-picker="${btn.dataset.reactMain}"]`)?.classList.toggle("hidden");
       };
+    });
+
+
+    document.querySelectorAll("[data-react-main]").forEach(btn=>{
+      let holdTimer=null;
+      btn.addEventListener("pointerdown",()=>{
+        holdTimer=setTimeout(()=>{
+          const picker=document.querySelector(`[data-reaction-picker="${btn.dataset.reactMain}"]`);
+          if(picker)picker.classList.remove("hidden");
+          holdTimer=null;
+        },550);
+      });
+      ["pointerup","pointercancel","pointerleave"].forEach(evt=>btn.addEventListener(evt,()=>{
+        if(holdTimer){clearTimeout(holdTimer);holdTimer=null;}
+      }));
     });
 
     document.querySelectorAll("[data-react]").forEach(btn=>{
@@ -2217,13 +2489,16 @@ $("postImageInput").onchange=e=>{
 
 $("publishPostBtn").onclick=async()=>{
   const text=$("postText").value.trim();
-  if(!text && !postImageData)return alert("اكتب منشورًا أو أضف صورة");
+  if(!text && !postImageData && !postVideoData && !postVideoUrl)return alert("اكتب منشورًا أو أضف صورة أو فيديو");
   try{
-    await api("/api/posts",{method:"POST",body:JSON.stringify({token,text,image:postImageData})});
+    await api("/api/posts",{method:"POST",body:JSON.stringify({token,text,image:postImageData,video:postVideoUrl||postVideoData})});
     $("postText").value="";
     $("postImageInput").value="";
-    postImageData="";
+    if($("postVideoInput"))$("postVideoInput").value="";
+    postImageData="";postVideoData="";postVideoUrl="";
     $("postImagePreviewWrap").classList.add("hidden");
+    $("postVideoPreviewWrap")?.classList.add("hidden");
+    if($("postVideoPreview"))$("postVideoPreview").removeAttribute("src");
     await loadPosts();
   }catch(e){alert(e.message)}
 };
@@ -2281,15 +2556,84 @@ async function searchUsers(){
 $("userSearchBtn").onclick=searchUsers;
 $("userSearchInput").onkeydown=e=>{if(e.key==="Enter")searchUsers()};
 
+async function openNotificationTarget(notification){
+  if(!notification)return;
+
+  try{
+    if(notification.id){
+      await api("/api/notifications/read-one",{
+        method:"POST",
+        body:JSON.stringify({token,notificationId:notification.id})
+      });
+    }
+  }catch(err){
+    console.warn("notification read update failed",err);
+  }
+
+  if(notification.postId){
+    showPage("homePage");
+    await loadPosts();
+    await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+    const post=document.querySelector(`[data-post="${CSS.escape(String(notification.postId))}"]`);
+    if(post){
+      post.classList.add("notification-target-highlight");
+      post.scrollIntoView({behavior:"smooth",block:"center"});
+      setTimeout(()=>post.classList.remove("notification-target-highlight"),2600);
+    }else{
+      showInAppToast("المنشور","تعذر العثور على المنشور؛ قد يكون حُذف.");
+    }
+    return;
+  }
+
+  if(notification.type==="friend-request"){
+    showPage("friendsPage");
+    return;
+  }
+
+  if(notification.from && ["friend-accepted","follow"].includes(notification.type)){
+    openUserProfile(notification.from);
+    return;
+  }
+}
+
 async function loadNotifications(){
   try{
     const d=await api(`/api/notifications?token=${encodeURIComponent(token)}`);
     const list=d.notifications||[];
 
     $("notificationsList").innerHTML=list.length?list.map(n=>{
-      const label=n.type==="like"?`أعجب @${esc(n.from)} بمنشورك`:n.type==="follow"?`بدأ @${esc(n.from)} بمتابعتك`:`علّق @${esc(n.from)} على منشورك${n.text?`: ${esc(n.text)}`:""}`;
-      return `<div class="notification-card ${n.read?"read":""}">${label}<small>${new Date(n.createdAt).toLocaleString("ar-SA")}</small></div>`;
+      const labels={
+        like:`أعجب @${esc(n.from)} بمنشورك`,
+        reaction:`تفاعل @${esc(n.from)} مع منشورك`,
+        follow:`بدأ @${esc(n.from)} بمتابعتك`,
+        "friend-request":`أرسل @${esc(n.from)} لك طلب صداقة`,
+        "friend-accepted":`قبل @${esc(n.from)} طلب الصداقة`,
+        share:`شارك @${esc(n.from)} منشورك`
+      };
+      const label=labels[n.type]||`علّق @${esc(n.from)} على منشورك${n.text?`: ${esc(n.text)}`:""}`;
+      const hint=n.postId?"اضغط لعرض المنشور":(n.type==="friend-request"?"اضغط لعرض طلبات الصداقة":(["friend-accepted","follow"].includes(n.type)?"اضغط لعرض الحساب":""));
+      return `<button type="button" class="notification-card smart-notification-card ${n.read?"read":""}" data-notification-id="${esc(n.id||"")}" data-notification-post="${esc(n.postId||"")}" data-notification-type="${esc(n.type||"")}" data-notification-from="${esc(n.from||"")}">
+        <span class="notification-main-text">${label}</span>
+        ${hint?`<span class="notification-action-hint">${hint} ←</span>`:""}
+        <small>${new Date(n.createdAt).toLocaleString("ar-SA")}</small>
+      </button>`;
     }).join(""):`<div class="empty-card">لا توجد إشعارات</div>`;
+
+    document.querySelectorAll("[data-notification-id]").forEach(btn=>{
+      btn.onclick=()=>openNotificationTarget({
+        id:btn.dataset.notificationId||"",
+        postId:btn.dataset.notificationPost||"",
+        type:btn.dataset.notificationType||"",
+        from:btn.dataset.notificationFrom||""
+      }).then(()=>loadNotifications().catch(()=>{}));
+    });
+
+    const unread=list.filter(n=>!n.read).length;
+    const badge=$("headerNotifyBadge");
+    if(badge){
+      badge.textContent=unread>99?"99+":String(unread);
+      badge.classList.toggle("hidden",unread===0);
+    }
   }catch(e){alert(e.message)}
 }
 
@@ -2308,7 +2652,7 @@ async function loadStories(){
     const d=await api(`/api/stories?token=${encodeURIComponent(token)}`);
     const stories=d.stories||[];
 
-    const renderStory=s=>{
+    const renderSideStory=s=>{
       const u=s.authorInfo||{username:s.author};
       const av=u.avatar||avatarFallback(u.displayName||u.username);
       return `<button class="story-item" data-story="${s.id}">
@@ -2317,10 +2661,29 @@ async function loadStories(){
       </button>`;
     };
 
+    const renderFeedStory=s=>{
+      const u=s.authorInfo||{username:s.author};
+      const av=u.avatar||avatarFallback(u.displayName||u.username);
+      const cover=s.media||av;
+      return `<button class="feed-story-card" data-story="${s.id}">
+        <img class="story-cover" src="${cover}" alt="">
+        <span class="story-shade"></span>
+        <img class="story-avatar" src="${av}" alt="">
+        <span class="story-name">${esc(u.displayName||u.username)}</span>
+      </button>`;
+    };
+
     if($("storiesStrip")){
-      $("storiesStrip").innerHTML=stories.length
-        ? stories.map(renderStory).join("")
-        : '<div class="story-empty">لا توجد حالات</div>';
+      const mine=me?.avatar||avatarFallback(me?.fullName||me?.displayName||me?.username||"أنت");
+      const add=`<button id="feedAddStoryBtn" class="feed-story-card feed-story-add" type="button">
+        <img class="story-add-photo" src="${mine}" alt="">
+        <span class="story-plus">+</span>
+        <span class="story-add-bottom">إضافة حالة</span>
+      </button>`;
+      $("storiesStrip").innerHTML=add+(stories.length
+        ? stories.map(renderFeedStory).join("")
+        : '<div class="story-empty">لا توجد حالات من الأصدقاء بعد.</div>');
+      if($("feedAddStoryBtn"))$("feedAddStoryBtn").onclick=()=>$("addStoryBtn")?.click();
     }
 
     if($("storiesStripSide")){
@@ -2328,7 +2691,7 @@ async function loadStories(){
         <span class="story-plus-icon">${uiIcon("plus")}</span><small>إضافة قصة</small>
       </button>`;
       $("storiesStripSide").innerHTML=add+(stories.length
-        ? stories.slice(0,5).map(renderStory).join("")
+        ? stories.slice(0,5).map(renderSideStory).join("")
         : '<div class="reference-side-empty">لا توجد قصص</div>');
       if($("sideAddStoryInline")){
         $("sideAddStoryInline").onclick=()=>$("addStoryBtn")?.click();
@@ -2354,11 +2717,98 @@ async function loadStories(){
     console.error(e);
   }
 }
+
 $("addStoryBtn").onclick=()=>$("storyModal").classList.remove("hidden");$("closeStoryModalBtn").onclick=()=>$("storyModal").classList.add("hidden");$("closeStoryViewer").onclick=()=>$("storyViewer").classList.add("hidden");
 $("storyMediaInput").onchange=e=>{const f=e.target.files?.[0];if(!f)return;const r=new FileReader();r.onload=()=>{storyMediaData=String(r.result||"");$("storyPreview").src=storyMediaData;$("storyPreview").classList.remove("hidden")};r.readAsDataURL(f)};
 $("publishStoryBtn").onclick=async()=>{const text=$("storyTextInput").value.trim();if(!text&&!storyMediaData)return alert("اكتب حالة أو أضف صورة");try{await api('/api/stories',{method:'POST',body:JSON.stringify({token,text,media:storyMediaData})});$("storyTextInput").value="";storyMediaData="";$("storyModal").classList.add("hidden");$("storyPreview").classList.add("hidden");loadStories()}catch(e){alert(e.message)}};
-$("coverInput").onchange=e=>{const f=e.target.files?.[0];if(!f)return;const r=new FileReader();r.onload=()=>{profileCoverData=String(r.result||"");$("profileCover").style.backgroundImage=`url("${profileCoverData}")`};r.readAsDataURL(f)};
-$("saveProfileBtn").onclick=async()=>{try{const body={token,bio:$("bioInput").value.trim(),accountPrivate:$("privateAccountInput").checked};if(profileCoverData)body.cover=profileCoverData;const d=await api('/api/profile',{method:'POST',body:JSON.stringify(body)});me={...me,...d.user};profileCoverData="";renderProfilePage()}catch(e){alert(e.message)}};
+async function compressProfileImage(file,{maxWidth,maxHeight,maxChars,quality=.86}){
+  const dataUrl=await new Promise((resolve,reject)=>{
+    const reader=new FileReader();
+    reader.onerror=()=>reject(new Error("تعذر قراءة الصورة"));
+    reader.onload=()=>resolve(String(reader.result||""));
+    reader.readAsDataURL(file);
+  });
+  const img=await new Promise((resolve,reject)=>{
+    const x=new Image();
+    x.onload=()=>resolve(x);
+    x.onerror=()=>reject(new Error("صيغة الصورة غير مدعومة"));
+    x.src=dataUrl;
+  });
+  let w=img.naturalWidth||img.width,h=img.naturalHeight||img.height;
+  const scale=Math.min(1,maxWidth/w,maxHeight/h);
+  w=Math.max(1,Math.round(w*scale));
+  h=Math.max(1,Math.round(h*scale));
+  let q=quality;
+  for(let pass=0;pass<7;pass++){
+    const canvas=document.createElement("canvas");
+    canvas.width=w; canvas.height=h;
+    const ctx=canvas.getContext("2d");
+    ctx.fillStyle="#111";ctx.fillRect(0,0,w,h);ctx.drawImage(img,0,0,w,h);
+    const out=canvas.toDataURL("image/jpeg",q);
+    if(out.length<=maxChars)return out;
+    q=Math.max(.52,q-.08);
+    if(pass>=3){w=Math.max(320,Math.round(w*.86));h=Math.max(220,Math.round(h*.86));}
+  }
+  const canvas=document.createElement("canvas");canvas.width=w;canvas.height=h;canvas.getContext("2d").drawImage(img,0,0,w,h);
+  return canvas.toDataURL("image/jpeg",.5);
+}
+
+async function uploadOwnProfileImage(kind,file){
+  if(!file)return;
+  const isAvatar=kind==="avatar";
+  const trigger=isAvatar?$("profileAvatarEditBtn"):$("profileCoverEditBtn");
+  try{
+    trigger?.classList.add("profile-image-uploading");
+    const data=await compressProfileImage(file,isAvatar
+      ?{maxWidth:520,maxHeight:520,maxChars:150000,quality:.88}
+      :{maxWidth:1400,maxHeight:700,maxChars:390000,quality:.82});
+    if(isAvatar){
+      $("profileAvatarLarge").src=data;
+      if($("headerAvatar"))$("headerAvatar").src=data;
+      if($("homeAvatar"))$("homeAvatar").src=data;
+    }else{
+      const coverImg=$("profileCoverImage");
+      if(coverImg){ coverImg.src=data; coverImg.classList.remove("hidden"); }
+    }
+    // V13.43: use only long-standing API routes for maximum deployment compatibility.
+    // 1) Update the user's profile media through /api/profile.
+    const profilePayload=kind==="avatar"?{token,avatar:data}:{token,cover:data};
+    const d=await api("/api/profile",{method:"POST",body:JSON.stringify(profilePayload)});
+    me={...me,...d.user};
+    renderProfile();
+    await renderProfilePage(me.username);
+
+    // 2) Publish a normal feed post through the existing /api/posts route.
+    const postText=isAvatar?"قام بتحديث صورته الشخصية.":"قام بتحديث صورة الغلاف.";
+    const posted=await api("/api/posts",{method:"POST",body:JSON.stringify({token,text:postText,image:data})});
+
+    showPage("homePage");
+    await loadPosts();
+    await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+    const targetId=String(posted?.post?.id||"");
+    if(targetId){
+      const post=[...document.querySelectorAll("[data-post]")].find(el=>String(el.dataset.post||"")===targetId);
+      if(post){
+        post.classList.add("notification-target-highlight");
+        post.scrollIntoView({behavior:"smooth",block:"center"});
+        setTimeout(()=>post.classList.remove("notification-target-highlight"),3600);
+      }
+    }
+    showInAppToast("تم النشر",isAvatar?"تم تحديث الصورة الشخصية ونشرها في الصفحة الرئيسية.":"تم تحديث صورة الغلاف ونشرها في الصفحة الرئيسية.");
+  }catch(err){alert(err.message||"تعذر رفع الصورة");}
+  finally{trigger?.classList.remove("profile-image-uploading");}
+}
+
+if($("profileAvatarEditBtn"))$("profileAvatarEditBtn").onclick=()=>$("profileAvatarInput")?.click();
+if($("profileAvatarEditListBtn"))$("profileAvatarEditListBtn").onclick=()=>$("profileAvatarInput")?.click();
+if($("profileCoverEditBtn"))$("profileCoverEditBtn").onclick=()=>$("coverInput")?.click();
+if($("profileCoverEditListBtn"))$("profileCoverEditListBtn").onclick=()=>$("coverInput")?.click();
+if($("profileAvatarLarge"))$("profileAvatarLarge").onclick=()=>{if(viewedProfileUsername===me?.username)$("profileAvatarInput")?.click()};
+
+if($("profileAvatarInput"))$("profileAvatarInput").onchange=async e=>{const f=e.target.files?.[0];e.target.value="";await uploadOwnProfileImage("avatar",f)};
+if($("coverInput"))$("coverInput").onchange=async e=>{const f=e.target.files?.[0];e.target.value="";await uploadOwnProfileImage("cover",f)};
+
+$("saveProfileBtn").onclick=async()=>{try{const body={token,bio:$("bioInput").value.trim(),accountPrivate:$("privateAccountInput").checked};const d=await api('/api/profile',{method:'POST',body:JSON.stringify(body)});me={...me,...d.user};renderProfile();renderProfilePage()}catch(e){alert(e.message)}};
 
 function readFileDataUrl(file){
   return new Promise((resolve,reject)=>{
@@ -2556,9 +3006,20 @@ $("recordVoiceBtn").onclick=async()=>{
 $("messageInput").addEventListener('input',()=>{if(!selectedUser)return;send({type:'typing',to:selectedUser,active:true});clearTimeout(typingTimer);typingTimer=setTimeout(()=>send({type:'typing',to:selectedUser,active:false}),900)});
 
 
-async function loadExplore(){
+function resetExploreSearch(){
+  const input=$("exploreSearchInput");
+  if(input)input.value="";
+  if($("exploreFeed"))$("exploreFeed").innerHTML='<div class="empty-card">اكتب كلمة في البحث لعرض المنشورات.</div>';
+}
+
+async function loadExplore(query=null){
+  const q=String(query ?? $("exploreSearchInput")?.value ?? "").trim();
+  if(!q){
+    if($("exploreFeed"))$("exploreFeed").innerHTML='<div class="empty-card">اكتب كلمة في البحث لعرض المنشورات.</div>';
+    return;
+  }
   try{
-    const d=await api(`/api/explore?token=${encodeURIComponent(token)}`);
+    const d=await api(`/api/explore?token=${encodeURIComponent(token)}&q=${encodeURIComponent(q)}`);
     const posts=d.posts||[];
 
     $("exploreFeed").innerHTML=posts.length?posts.map(p=>`
@@ -2569,7 +3030,7 @@ async function loadExplore(){
           <span>⭐ ${p.score||0}</span>
         </div>
       </article>
-    `).join(""):`<div class="empty-card">لا توجد منشورات للاستكشاف</div>`;
+    `).join(""):`<div class="empty-card">لا توجد منشورات مطابقة للبحث</div>`;
   }catch(e){
     $("exploreFeed").innerHTML=`<div class="empty-card">${esc(e.message)}</div>`;
   }
@@ -2590,18 +3051,30 @@ async function loadSavedPosts(){
   }catch(e){alert(e.message)}
 }
 
-$("refreshExploreBtn").onclick=loadExplore;
+$("refreshExploreBtn").onclick=()=>loadExplore();
+if($("exploreSearchBtn"))$("exploreSearchBtn").onclick=()=>loadExplore();
+if($("exploreSearchInput")){
+  let exploreSearchTimer=null;
+  $("exploreSearchInput").addEventListener("input",()=>{
+    clearTimeout(exploreSearchTimer);
+    const q=$("exploreSearchInput").value.trim();
+    if(!q){resetExploreSearch();return;}
+    exploreSearchTimer=setTimeout(()=>loadExplore(q),320);
+  });
+  $("exploreSearchInput").addEventListener("keydown",e=>{if(e.key==="Enter")loadExplore()});
+}
 $("loadSavedBtn").onclick=loadSavedPosts;
 
 
 
 async function loadDesktopSuggestions(){
-  if(!$("suggestionsList") || !token)return;
+  const targets=[$("suggestionsList"),$("mobileSuggestionsList")].filter(Boolean);
+  if(!targets.length || !token)return;
   try{
     const d=await api(`/api/users?token=${encodeURIComponent(token)}&q=`);
-    const users=(d.users||[]).filter(u=>u.username!==me?.username).slice(0,4);
+    const users=(d.users||[]).filter(u=>u.username!==me?.username && (!u.friendState || u.friendState==="none")).slice(0,6);
 
-    $("suggestionsList").innerHTML=users.length?users.map(u=>{
+    const html=users.length?users.map(u=>{
       const avatar=u.avatar||avatarFallback(u.fullName||u.displayName||u.username);
       return `<div class="reference-suggestion-row">
         <button class="reference-suggestion-user" data-open-profile="${esc(u.username)}">
@@ -2612,21 +3085,24 @@ async function loadDesktopSuggestions(){
       </div>`;
     }).join(""):`<div class="reference-side-empty">لا توجد اقتراحات الآن</div>`;
 
+    targets.forEach(el=>el.innerHTML=html);
     bindProfileLinks();
 
     document.querySelectorAll("[data-side-friend]").forEach(btn=>{
       btn.onclick=async()=>{
         try{
-          await api("/api/friend-request",{method:"POST",body:JSON.stringify({
-            token,username:btn.dataset.sideFriend
-          })});
-          btn.textContent="تم الإرسال";
-          btn.disabled=true;
+          const username=btn.dataset.sideFriend;
+          await api("/api/friend-request",{method:"POST",body:JSON.stringify({token,username})});
+          document.querySelectorAll(`[data-side-friend="${CSS.escape(username)}"]`).forEach(b=>{
+            b.textContent="تم الإرسال";
+            b.disabled=true;
+          });
+          setTimeout(()=>loadDesktopSuggestions().catch(()=>{}),250);
         }catch(e){alert(e.message)}
       };
     });
   }catch(e){
-    $("suggestionsList").innerHTML='<div class="reference-side-empty">تعذر تحميل الاقتراحات</div>';
+    targets.forEach(el=>el.innerHTML='<div class="reference-side-empty">تعذر تحميل الاقتراحات</div>');
   }
 }
 
@@ -2887,26 +3363,8 @@ $("resendVerificationBtn").onclick=async()=>{
 
 $("avatarInput").onchange=async e=>{
   const f=e.target.files?.[0];
-  if(!f)return;
-
-  const reader=new FileReader();
-
-  reader.onload=async()=>{
-    try{
-      const d=await api("/api/profile",{
-        method:"POST",
-        body:JSON.stringify({token,avatar:reader.result})
-      });
-      me=d.user;
-      renderProfile();
-      $("homeAvatar").src=me.avatar||avatarFallback(me.fullName||me.displayName||me.username);
-      renderProfilePage();
-    }catch(err){
-      alert(err.message);
-    }
-  };
-
-  reader.readAsDataURL(f);
+  e.target.value="";
+  await uploadOwnProfileImage("avatar",f);
 };
 
 $("newGroupBtn").onclick=async()=>{
@@ -3085,9 +3543,27 @@ $("muteBtn").onclick=()=>{
   $("muteBtn").classList.toggle("is-off",muted);
 };
 
-$("cameraBtn").onclick=()=>{
-  const tracks=localStream?.getVideoTracks()||[];
-  tracks.forEach(t=>t.enabled=!t.enabled);
+$("cameraBtn").onclick=async()=>{
+  // المكالمة الصوتية لا تفتح الكاميرا تلقائيًا. تشغيلها يدويًا يحولها لفيديو.
+  let tracks=localStream?.getVideoTracks()||[];
+  if(!tracks.length){
+    try{
+      const cam=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:"user"},width:{ideal:1280,max:1280},height:{ideal:720,max:720},frameRate:{ideal:24,max:30}},audio:false});
+      const track=cam.getVideoTracks()[0];
+      if(!track)return;
+      localStream.addTrack(track);
+      if(videoSender) await videoSender.replaceTrack(track);
+      else if(pc){ videoSender=pc.addTrack(track,localStream); }
+      currentCallType="video";
+      $("callOverlay")?.classList.remove("audio-only-call");
+      $("localVideo")?.closest(".local-pip")?.classList.remove("hidden");
+      $("localVideo").srcObject=localStream;
+      await $("localVideo").play().catch(()=>{});
+      tracks=[track];
+    }catch(err){ console.warn("Camera start failed",err); return; }
+  }else{
+    tracks.forEach(t=>t.enabled=!t.enabled);
+  }
   const off=tracks[0]?.enabled===false;
   setRoundCallButton("cameraBtn",off?"camera-off":"camera",off?"تشغيل الكاميرا":"إيقاف الكاميرا");
   $("cameraBtn").classList.toggle("is-off",off);
@@ -3098,9 +3574,14 @@ if($("resumeRemoteMediaBtn")){
   $("resumeRemoteMediaBtn").onclick=async()=>{
     try{
       const rv=$("remoteVideo");
-      rv.muted=false;
-      rv.volume=1;
-      await rv.play();
+      const ra=$("remoteAudio");
+      rv.muted=true;
+      await rv.play().catch(()=>{});
+      if(ra?.srcObject){
+        ra.muted=false;
+        ra.volume=1;
+        await ra.play();
+      }
       $("resumeRemoteMediaBtn").classList.add("hidden");
     }catch(err){
       console.warn("manual remote playback failed",err);
@@ -3122,22 +3603,23 @@ queueMicrotask(()=>{
   setVoiceRecordButton(false);
   restoreSavedLogin().catch(err=>console.warn("restore login failed",err));
 });
-})();
 
 
 // V13.8 — Google Identity Services (free verified-email signup/login).
 // Google checks email ownership. No verification code is sent or exposed.
 let googleWidgetStarted=false;
 async function setupGoogleSignIn(){
-  const hint=$("googleSetupHint");
-  const holder=$("googleSignInBtn");
+  const hint=document.getElementById("googleSetupHint");
+  const holder=document.getElementById("googleSignInBtn");
   if(!hint || !holder || googleWidgetStarted)return;
   try{
     const config=await api("/api/google-config");
     if(!config.enabled){
-      hint.textContent="لتفعيل التسجيل المجاني: أضف GOOGLE_CLIENT_ID في إعدادات Cloudflare.";
+      hint.textContent="";
+      hint.style.display="none";
       return;
     }
+    hint.style.display="";
     await new Promise((resolve,reject)=>{
       if(window.google?.accounts?.id)return resolve();
       const script=document.createElement("script");
@@ -3162,8 +3644,61 @@ async function setupGoogleSignIn(){
       type:"standard",theme:"filled_black",size:"large",shape:"pill",
       text:"continue_with",width:300,locale:"ar"
     });
-    hint.textContent="مجاني — لا يحتاج شراء دومين أو كود بريد.";
     googleWidgetStarted=true;
   }catch(e){hint.textContent=e.message||"تعذر تفعيل تسجيل Google";}
 }
 window.addEventListener("load",setupGoogleSignIn);
+
+})();
+
+
+/* ===== V13.28 Android/PWA install support ===== */
+(() => {
+  let deferredInstallPrompt = null;
+  const installBtn = document.getElementById("installAppBtn");
+
+  const isStandalone = () =>
+    window.matchMedia("(display-mode: standalone)").matches ||
+    window.navigator.standalone === true;
+
+  const refreshInstallButton = () => {
+    if (!installBtn) return;
+    if (isStandalone()) {
+      installBtn.classList.add("hidden");
+      return;
+    }
+    if (deferredInstallPrompt) installBtn.classList.remove("hidden");
+  };
+
+  window.addEventListener("beforeinstallprompt", (event) => {
+    event.preventDefault();
+    deferredInstallPrompt = event;
+    refreshInstallButton();
+  });
+
+  window.addEventListener("appinstalled", () => {
+    deferredInstallPrompt = null;
+    if (installBtn) installBtn.classList.add("hidden");
+  });
+
+  if (installBtn) {
+    installBtn.addEventListener("click", async () => {
+      if (!deferredInstallPrompt) {
+        alert("من Chrome على Android: افتح القائمة ⋮ ثم اختر «تثبيت التطبيق» أو «إضافة إلى الشاشة الرئيسية».");
+        return;
+      }
+      deferredInstallPrompt.prompt();
+      try { await deferredInstallPrompt.userChoice; } catch (_) {}
+      deferredInstallPrompt = null;
+      refreshInstallButton();
+    });
+  }
+
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("/sw.js?v=13.44", { scope: "/" }).catch(() => {});
+    });
+  }
+
+  refreshInstallButton();
+})();

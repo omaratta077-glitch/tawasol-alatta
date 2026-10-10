@@ -80,7 +80,30 @@ export class SignalingRoom extends DurableObject {
   }
 
   async session(token){
-    return token ? (await this.ctx.storage.get(`session:${token}`)||null) : null;
+    const session=token ? (await this.ctx.storage.get(`session:${token}`)||null) : null;
+    if(!session)return null;
+    const u=await this.user(session.username);
+    if(!u || u.banned)return null;
+    return session;
+  }
+
+  ownerUsername(){
+    return String(this.env.SUPER_ADMIN_USERNAME||"").trim().toLowerCase();
+  }
+
+  async roleFor(username){
+    const name=String(username||"").trim().toLowerCase();
+    if(name && name===this.ownerUsername())return "super_admin";
+    const moderators=await this.ctx.storage.get("moderators")||[];
+    return moderators.includes(name)?"moderator":"user";
+  }
+
+  async requireAdmin(token){
+    const session=await this.session(String(token||""));
+    if(!session)return {error:j({ok:false,error:"الجلسة منتهية"},401)};
+    const role=await this.roleFor(session.username);
+    if(role!=="super_admin" && role!=="moderator")return {error:j({ok:false,error:"غير مصرح لك بالدخول إلى لوحة الإدارة"},403)};
+    return {session,role};
   }
 
   normalizeRegistration(body={}){
@@ -212,6 +235,21 @@ export class SignalingRoom extends DurableObject {
       const clientId=String(this.env.GOOGLE_CLIENT_ID||"").trim();
       return j({ok:true,enabled:!!clientId,clientId});
     }
+    if(url.pathname==="/api/media-upload" && request.method==="POST"){
+      const s=await this.session(String(url.searchParams.get("token")||""));
+      if(!s)return j({ok:false,error:"الجلسة منتهية"},401);
+      if(!this.env.MEDIA_BUCKET)return j({ok:false,error:"MEDIA_BUCKET_NOT_CONFIGURED"},503);
+      const kind=String(url.searchParams.get("kind")||"file").replace(/[^a-z0-9_-]/gi,"").slice(0,20)||"file";
+      const supplied=String(url.searchParams.get("name")||"media");
+      const ext=(supplied.match(/\.([a-z0-9]{1,8})$/i)||[])[1]||"bin";
+      const key=`${kind}/${Date.now()}-${crypto.randomUUID()}.${ext.toLowerCase()}`;
+      const contentType=request.headers.get("content-type")||"application/octet-stream";
+      const len=Number(request.headers.get("content-length")||0);
+      if(len>50*1024*1024)return j({ok:false,error:"حجم الفيديو أكبر من 50 MB"},413);
+      await this.env.MEDIA_BUCKET.put(key,request.body,{httpMetadata:{contentType}});
+      return j({ok:true,url:`/media/${key}`});
+    }
+
     let body={};
     if(request.method!=="GET"){
       try{body=await request.json()}catch{}
@@ -527,7 +565,7 @@ export class SignalingRoom extends DurableObject {
     if(url.pathname==="/api/google-login" && request.method==="POST"){
       const clientId=String(this.env.GOOGLE_CLIENT_ID||"").trim();
       const credential=String(body.credential||"").trim();
-      if(!clientId)return j({ok:false,error:"تسجيل Google يحتاج إعداد GOOGLE_CLIENT_ID على Cloudflare"},503);
+      if(!clientId)return j({ok:false,error:"تسجيل Google غير متاح حالياً"},503);
       if(!credential || credential.length>10000)return j({ok:false,error:"بيانات Google غير صالحة"},400);
       let claims;
       try{
@@ -564,6 +602,8 @@ export class SignalingRoom extends DurableObject {
         await this.ctx.storage.put("usernames",[...new Set([...all,username])]);
         await this.ctx.storage.put(googleKey,username);
       }
+      const googleUser=await this.user(username);
+      if(googleUser?.banned)return j({ok:false,error:"تم إيقاف هذا الحساب بواسطة الإدارة"},403);
       const token=await this.createSession(username);
       return j({ok:true,token,user:await this.publicUser(username)});
     }
@@ -576,9 +616,47 @@ export class SignalingRoom extends DurableObject {
       if(!u || u.passwordHash!==await hashPassword(password)){
         return j({ok:false,error:"اسم المستخدم أو كلمة المرور غير صحيحة"},401);
       }
+      if(u.banned)return j({ok:false,error:"تم إيقاف هذا الحساب بواسطة الإدارة"},403);
 
       const token=await this.createSession(username);
       return j({ok:true,token,user:await this.publicUser(username)});
+    }
+
+    if(url.pathname==="/api/profile-media" && request.method==="POST"){
+      const s=await this.session(String(body.token||""));
+      if(!s)return j({ok:false,error:"الجلسة منتهية"},401);
+
+      const u=await this.user(s.username);
+      if(!u)return j({ok:false,error:"المستخدم غير موجود"},404);
+
+      const kind=String(body.kind||"");
+      const data=String(body.data||"");
+      if(!["avatar","cover"].includes(kind))return j({ok:false,error:"نوع الصورة غير صحيح"},400);
+      if(!data.startsWith("data:image/"))return j({ok:false,error:"ملف الصورة غير صحيح"},400);
+
+      const max=kind==="avatar"?250000:500000;
+      const image=data.slice(0,max);
+      if(kind==="avatar")u.avatar=image; else u.cover=image;
+      await this.ctx.storage.put(`user:${u.username}`,u);
+
+      // V13.42: every profile-photo/cover update creates a real feed post unconditionally.
+      const id=crypto.randomUUID();
+      const post={
+        id,
+        author:u.username,
+        text:kind==="avatar"?"قام بتحديث صورته الشخصية.":"قام بتحديث صورة الغلاف.",
+        image,
+        profileMediaKind:kind==="avatar"?"profile_avatar":"profile_cover",
+        createdAt:Date.now(),
+        likes:[],
+        comments:[]
+      };
+      await this.ctx.storage.put(`post:${id}`,post);
+      const ids=await this.ctx.storage.get("postIds")||[];
+      ids.push(id);
+      await this.ctx.storage.put("postIds",ids.slice(-500));
+
+      return j({ok:true,user:await this.publicUser(u.username),postId:id,post});
     }
 
     if(url.pathname==="/api/profile" && request.method==="POST"){
@@ -588,16 +666,47 @@ export class SignalingRoom extends DurableObject {
       const u=await this.user(s.username);
       if(!u)return j({ok:false,error:"المستخدم غير موجود"},404);
 
+      const previousAvatar=String(u.avatar||"");
+      const previousCover=String(u.cover||"");
+      let avatarChanged=false, coverChanged=false;
+
       if(typeof body.displayName==="string" && body.displayName.trim()){
         u.displayName=body.displayName.trim().slice(0,60);
       }
-      if(typeof body.avatar==="string")u.avatar=body.avatar.slice(0,250000);
-      if(typeof body.cover==="string")u.cover=body.cover.slice(0,500000);
+      if(typeof body.avatar==="string"){
+        const nextAvatar=body.avatar.slice(0,250000);
+        avatarChanged=!!nextAvatar && nextAvatar!==previousAvatar;
+        u.avatar=nextAvatar;
+      }
+      if(typeof body.cover==="string"){
+        const nextCover=body.cover.slice(0,500000);
+        coverChanged=!!nextCover && nextCover!==previousCover;
+        u.cover=nextCover;
+      }
       if(typeof body.bio==="string")u.bio=body.bio.slice(0,300);
       if(typeof body.accountPrivate==="boolean")u.accountPrivate=body.accountPrivate;
 
       await this.ctx.storage.put(`user:${u.username}`,u);
-      return j({ok:true,user:await this.publicUser(u.username)});
+
+      // V13.41: profile-media updates become real feed posts and return their IDs.
+      // This guarantees the post is created even if the browser refreshes immediately.
+      const mediaPosts=[];
+      if(avatarChanged)mediaPosts.push({text:"قام بتحديث صورته الشخصية.",image:u.avatar,kind:"profile_avatar"});
+      if(coverChanged)mediaPosts.push({text:"قام بتحديث صورة الغلاف.",image:u.cover,kind:"profile_cover"});
+      const createdProfilePostIds=[];
+      if(mediaPosts.length){
+        const ids=await this.ctx.storage.get("postIds")||[];
+        for(const item of mediaPosts){
+          const id=crypto.randomUUID();
+          const post={id,author:u.username,text:item.text,image:item.image,profileMediaKind:item.kind,createdAt:Date.now(),likes:[],comments:[]};
+          await this.ctx.storage.put(`post:${id}`,post);
+          ids.push(id);
+          createdProfilePostIds.push(id);
+        }
+        await this.ctx.storage.put("postIds",ids.slice(-500));
+      }
+
+      return j({ok:true,user:await this.publicUser(u.username),createdProfilePosts:mediaPosts.length,createdProfilePostIds});
     }
 
     if(url.pathname==="/api/groups" && request.method==="POST"){
@@ -737,7 +846,7 @@ export class SignalingRoom extends DurableObject {
         const u=await this.publicUser(name);
         if(!u)continue;
         if(!q || u.username.includes(q) || String(u.fullName||u.displayName||"").toLowerCase().includes(q)){
-          users.push(u);
+          users.push({...u,friendState:await this.friendState(s.username,u.username)});
         }
       }
 
@@ -750,8 +859,9 @@ export class SignalingRoom extends DurableObject {
 
       const text=String(body.text||"").trim().slice(0,5000);
       const image=String(body.image||"").slice(0,500000);
+      const video=String(body.video||"").slice(0,1750000);
 
-      if(!text && !image)return j({ok:false,error:"اكتب منشورًا أو أضف صورة"},400);
+      if(!text && !image && !video)return j({ok:false,error:"اكتب منشورًا أو أضف صورة أو فيديو"},400);
 
       const id=crypto.randomUUID();
       const post={
@@ -759,6 +869,7 @@ export class SignalingRoom extends DurableObject {
         author:s.username,
         text,
         image,
+        video,
         createdAt:Date.now(),
         likes:[],
         comments:[]
@@ -786,7 +897,7 @@ export class SignalingRoom extends DurableObject {
         const saved=await this.ctx.storage.get(`saved:${s.username}`)||[];
         const reactionCounts={};
         const reactions=p.reactions||{};
-        for(const key of ["like","love","haha","wow","sad"]){
+        for(const key of ["like","love","haha","wow","sad","angry","dislike"]){
           reactionCounts[key]=Array.isArray(reactions[key])?reactions[key].length:0;
         }
 
@@ -803,9 +914,11 @@ export class SignalingRoom extends DurableObject {
           }
         }
 
+        const authorInfo=await this.publicUser(p.author);
+
         posts.push({
           ...p,
-          authorInfo:await this.publicUser(p.author),
+          authorInfo,
           likeCount:(p.likes||[]).length,
           commentCount:(p.comments||[]).length,
           likedByMe:(p.likes||[]).includes(s.username),
@@ -906,6 +1019,18 @@ export class SignalingRoom extends DurableObject {
 
       const list=await this.ctx.storage.get(`notifications:${s.username}`)||[];
       for(const n of list)n.read=true;
+      await this.ctx.storage.put(`notifications:${s.username}`,list);
+      return j({ok:true});
+    }
+
+    if(url.pathname==="/api/notifications/read-one" && request.method==="POST"){
+      const s=await this.session(String(body.token||""));
+      if(!s)return j({ok:false,error:"الجلسة منتهية"},401);
+      const notificationId=String(body.notificationId||"");
+      if(!notificationId)return j({ok:false,error:"الإشعار غير صالح"},400);
+      const list=await this.ctx.storage.get(`notifications:${s.username}`)||[];
+      const item=list.find(n=>n.id===notificationId);
+      if(item)item.read=true;
       await this.ctx.storage.put(`notifications:${s.username}`,list);
       return j({ok:true});
     }
@@ -1053,7 +1178,7 @@ export class SignalingRoom extends DurableObject {
       const post=await this.ctx.storage.get(`post:${body.postId}`);
       if(!post)return j({ok:false,error:"المنشور غير موجود"},404);
 
-      const allowed=["like","love","haha","wow","sad"];
+      const allowed=["like","love","haha","wow","sad","angry","dislike"];
       const reaction=String(body.reaction||"like");
       if(!allowed.includes(reaction))return j({ok:false,error:"تفاعل غير صالح"},400);
 
@@ -1193,12 +1318,17 @@ export class SignalingRoom extends DurableObject {
       if(!s)return j({ok:false,error:"الجلسة منتهية"},401);
 
       const blocked=await this.ctx.storage.get(`blocked:${s.username}`)||[];
+      const q=String(url.searchParams.get("q")||"").trim().toLowerCase();
+      if(!q)return j({ok:true,posts:[]});
       const ids=await this.ctx.storage.get("postIds")||[];
       const posts=[];
 
       for(const id of ids){
         const p=await this.ctx.storage.get(`post:${id}`);
         if(!p || blocked.includes(p.author))continue;
+        const authorInfo=await this.publicUser(p.author);
+        const haystack=`${p.text||""} ${p.author||""} ${authorInfo?.fullName||authorInfo?.displayName||""}`.toLowerCase();
+        if(!haystack.includes(q))continue;
 
         const reactions=p.reactions||{};
         const reactionCount=Object.values(reactions).reduce((n,a)=>n+(Array.isArray(a)?a.length:0),0);
@@ -1270,8 +1400,86 @@ export class SignalingRoom extends DurableObject {
         bio:u.bio||"",
         cover:u.cover||"",
         accountPrivate:!!u.accountPrivate,
-        avatar:u.avatar||""
+        avatar:u.avatar||"",
+        role:await this.roleFor(u.username)
       }});
+    }
+
+    if(url.pathname==="/api/admin/summary" && request.method==="GET"){
+      const auth=await this.requireAdmin(url.searchParams.get("token")||"");
+      if(auth.error)return auth.error;
+      const usernames=await this.ctx.storage.get("usernames")||[];
+      const postIds=await this.ctx.storage.get("postIds")||[];
+      const reports=await this.ctx.storage.get("reports")||[];
+      let banned=0;
+      for(const name of usernames){ const u=await this.user(name); if(u?.banned)banned++; }
+      return j({ok:true,role:auth.role,owner:this.ownerUsername(),counts:{users:usernames.length,posts:postIds.length,reports:reports.filter(r=>!r.resolved).length,banned}});
+    }
+
+    if(url.pathname==="/api/admin/users" && request.method==="GET"){
+      const auth=await this.requireAdmin(url.searchParams.get("token")||"");
+      if(auth.error)return auth.error;
+      const usernames=await this.ctx.storage.get("usernames")||[];
+      const list=[];
+      for(const name of usernames){
+        const u=await this.user(name); if(!u)continue;
+        list.push({username:u.username,displayName:u.displayName||u.fullName||u.username,avatar:u.avatar||"",banned:!!u.banned,role:await this.roleFor(u.username),createdAt:u.createdAt||0});
+      }
+      list.sort((a,b)=>b.createdAt-a.createdAt);
+      return j({ok:true,users:list.slice(0,500)});
+    }
+
+    if(url.pathname==="/api/admin/reports" && request.method==="GET"){
+      const auth=await this.requireAdmin(url.searchParams.get("token")||"");
+      if(auth.error)return auth.error;
+      const reports=await this.ctx.storage.get("reports")||[];
+      return j({ok:true,reports:[...reports].reverse().slice(0,500)});
+    }
+
+    if(url.pathname==="/api/admin/posts" && request.method==="GET"){
+      const auth=await this.requireAdmin(url.searchParams.get("token")||"");
+      if(auth.error)return auth.error;
+      const ids=await this.ctx.storage.get("postIds")||[];
+      const posts=[];
+      for(const id of [...ids].reverse().slice(0,200)){ const p=await this.ctx.storage.get(`post:${id}`); if(p)posts.push({id:p.id,author:p.author,text:String(p.text||"").slice(0,180),createdAt:p.createdAt||0,hasImage:!!p.image}); }
+      return j({ok:true,posts});
+    }
+
+    if(url.pathname==="/api/admin/action" && request.method==="POST"){
+      const auth=await this.requireAdmin(body.token||"");
+      if(auth.error)return auth.error;
+      const action=String(body.action||"");
+      const target=String(body.username||"").trim().toLowerCase();
+      const owner=this.ownerUsername();
+
+      if(["ban","unban","make_moderator","remove_moderator"].includes(action)){
+        if(!target || !await this.user(target))return j({ok:false,error:"المستخدم غير موجود"},404);
+        if(target===owner)return j({ok:false,error:"لا يمكن تعديل صلاحيات أو إيقاف حساب المدير الرئيسي"},403);
+        if(["make_moderator","remove_moderator"].includes(action) && auth.role!=="super_admin")return j({ok:false,error:"هذه العملية للمدير الرئيسي فقط"},403);
+        const u=await this.user(target);
+        if(action==="ban" || action==="unban"){ u.banned=action==="ban"; u.bannedAt=u.banned?Date.now():0; u.bannedBy=u.banned?auth.session.username:""; await this.ctx.storage.put(`user:${target}`,u); }
+        if(action==="make_moderator" || action==="remove_moderator"){ let mods=await this.ctx.storage.get("moderators")||[]; mods=action==="make_moderator"?[...new Set([...mods,target])]:mods.filter(x=>x!==target); await this.ctx.storage.put("moderators",mods); }
+        return j({ok:true});
+      }
+
+      if(action==="delete_post"){
+        const id=String(body.postId||"");
+        if(!id)return j({ok:false,error:"المنشور غير محدد"},400);
+        await this.ctx.storage.delete(`post:${id}`);
+        const ids=await this.ctx.storage.get("postIds")||[];
+        await this.ctx.storage.put("postIds",ids.filter(x=>x!==id));
+        return j({ok:true});
+      }
+
+      if(action==="resolve_report"){
+        const id=String(body.reportId||"");
+        const reports=await this.ctx.storage.get("reports")||[];
+        const r=reports.find(x=>x.id===id); if(r){r.resolved=true;r.resolvedAt=Date.now();r.resolvedBy=auth.session.username;}
+        await this.ctx.storage.put("reports",reports);
+        return j({ok:true});
+      }
+
+      return j({ok:false,error:"إجراء إداري غير صالح"},400);
     }
 
     if(url.pathname==="/api/friend-request" && request.method==="POST"){
@@ -1623,7 +1831,7 @@ export default {
       return Response.json({
         ok:true,
         app:"تواصل العطا",
-        version:"V13.9-Privacy-Terms"
+        version:"V13.49-Android-TWA-Ready"
       });
     }
 
@@ -1633,6 +1841,18 @@ export default {
 
     if(url.pathname==="/terms" || url.pathname==="/terms/"){
       return env.ASSETS.fetch(new Request(new URL("/terms.html", url.origin), request));
+    }
+
+    if(url.pathname.startsWith("/media/")){
+      if(!env.MEDIA_BUCKET)return new Response("Media storage is not configured",{status:404});
+      const key=decodeURIComponent(url.pathname.slice("/media/".length));
+      const obj=await env.MEDIA_BUCKET.get(key);
+      if(!obj)return new Response("Not found",{status:404});
+      const headers=new Headers();
+      obj.writeHttpMetadata(headers);
+      headers.set("etag",obj.httpEtag);
+      headers.set("cache-control","public, max-age=31536000, immutable");
+      return new Response(obj.body,{headers});
     }
 
     if(url.pathname==="/ws" || url.pathname.startsWith("/api/")){

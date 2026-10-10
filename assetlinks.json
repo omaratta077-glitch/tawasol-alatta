@@ -1,0 +1,10 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.alatta.tawasol",
+      "sha256_cert_fingerprints": ["FE:3D:0A:9C:70:F7:9B:C3:58:39:84:8E:A3:6E:87:1F:9D:70:B9:52:2E:6A:1A:B9:37:31:17:E6:57:B2:52:F5"]
+    }
+  }
+]
