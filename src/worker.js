@@ -614,46 +614,45 @@ export class SignalingRoom extends DurableObject {
       const u=await this.user(s.username);
       if(!u)return j({ok:false,error:"المستخدم غير موجود"},404);
 
+      const previousAvatar=String(u.avatar||"");
+      const previousCover=String(u.cover||"");
+      let avatarChanged=false, coverChanged=false;
+
       if(typeof body.displayName==="string" && body.displayName.trim()){
         u.displayName=body.displayName.trim().slice(0,60);
       }
-      const oldAvatar=String(u.avatar||"");
-      const oldCover=String(u.cover||"");
-      let avatarChanged=false,coverChanged=false;
       if(typeof body.avatar==="string"){
-        const next=body.avatar.slice(0,250000);
-        avatarChanged=!!next && next!==oldAvatar;
-        u.avatar=next;
+        const nextAvatar=body.avatar.slice(0,250000);
+        avatarChanged=!!nextAvatar && nextAvatar!==previousAvatar;
+        u.avatar=nextAvatar;
       }
       if(typeof body.cover==="string"){
-        const next=body.cover.slice(0,500000);
-        coverChanged=!!next && next!==oldCover;
-        u.cover=next;
+        const nextCover=body.cover.slice(0,500000);
+        coverChanged=!!nextCover && nextCover!==previousCover;
+        u.cover=nextCover;
       }
       if(typeof body.bio==="string")u.bio=body.bio.slice(0,300);
       if(typeof body.accountPrivate==="boolean")u.accountPrivate=body.accountPrivate;
 
       await this.ctx.storage.put(`user:${u.username}`,u);
 
-      // Facebook-like profile media updates: publish a normal feed post automatically.
-      const publishProfileMediaPost=async(type,image)=>{
-        if(!image)return;
-        const id=crypto.randomUUID();
-        const post={
-          id,author:u.username,
-          text:type==="avatar"?"حدّث صورته الشخصية":"حدّث صورة الغلاف",
-          image,profileUpdateType:type,
-          createdAt:Date.now(),likes:[],comments:[]
-        };
-        await this.ctx.storage.put(`post:${id}`,post);
+      // V13.40: profile-media updates become real feed posts, server-side.
+      // This guarantees the post is created even if the browser refreshes immediately.
+      const mediaPosts=[];
+      if(avatarChanged)mediaPosts.push({text:"قام بتحديث صورته الشخصية.",image:u.avatar,kind:"profile_avatar"});
+      if(coverChanged)mediaPosts.push({text:"قام بتحديث صورة الغلاف.",image:u.cover,kind:"profile_cover"});
+      if(mediaPosts.length){
         const ids=await this.ctx.storage.get("postIds")||[];
-        ids.push(id);
+        for(const item of mediaPosts){
+          const id=crypto.randomUUID();
+          const post={id,author:u.username,text:item.text,image:item.image,profileMediaKind:item.kind,createdAt:Date.now(),likes:[],comments:[]};
+          await this.ctx.storage.put(`post:${id}`,post);
+          ids.push(id);
+        }
         await this.ctx.storage.put("postIds",ids.slice(-500));
-      };
-      if(avatarChanged)await publishProfileMediaPost("avatar",u.avatar);
-      if(coverChanged)await publishProfileMediaPost("cover",u.cover);
+      }
 
-      return j({ok:true,user:await this.publicUser(u.username)});
+      return j({ok:true,user:await this.publicUser(u.username),createdProfilePosts:mediaPosts.length});
     }
 
     if(url.pathname==="/api/groups" && request.method==="POST"){
@@ -1776,7 +1775,7 @@ export default {
       return Response.json({
         ok:true,
         app:"تواصل العطا",
-        version:"V13.38-Complete-Mobile-Review"
+        version:"V13.40-Complete-Mobile-Profile-Feed"
       });
     }
 
