@@ -938,6 +938,18 @@ export class SignalingRoom extends DurableObject {
       return j({ok:true});
     }
 
+    if(url.pathname==="/api/notifications/read-one" && request.method==="POST"){
+      const s=await this.session(String(body.token||""));
+      if(!s)return j({ok:false,error:"الجلسة منتهية"},401);
+      const notificationId=String(body.notificationId||"");
+      if(!notificationId)return j({ok:false,error:"الإشعار غير صالح"},400);
+      const list=await this.ctx.storage.get(`notifications:${s.username}`)||[];
+      const item=list.find(n=>n.id===notificationId);
+      if(item)item.read=true;
+      await this.ctx.storage.put(`notifications:${s.username}`,list);
+      return j({ok:true});
+    }
+
 
 
     if(url.pathname==="/api/follow" && request.method==="POST"){
@@ -1734,7 +1746,7 @@ export default {
       return Response.json({
         ok:true,
         app:"تواصل العطا",
-        version:"V13.32-Friends-Stories"
+        version:"V13.33-Large-Mobile-Notifications"
       });
     }
 

@@ -2453,6 +2453,46 @@ async function searchUsers(){
 $("userSearchBtn").onclick=searchUsers;
 $("userSearchInput").onkeydown=e=>{if(e.key==="Enter")searchUsers()};
 
+async function openNotificationTarget(notification){
+  if(!notification)return;
+
+  try{
+    if(notification.id){
+      await api("/api/notifications/read-one",{
+        method:"POST",
+        body:JSON.stringify({token,notificationId:notification.id})
+      });
+    }
+  }catch(err){
+    console.warn("notification read update failed",err);
+  }
+
+  if(notification.postId){
+    showPage("homePage");
+    await loadPosts();
+    await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+    const post=document.querySelector(`[data-post="${CSS.escape(String(notification.postId))}"]`);
+    if(post){
+      post.classList.add("notification-target-highlight");
+      post.scrollIntoView({behavior:"smooth",block:"center"});
+      setTimeout(()=>post.classList.remove("notification-target-highlight"),2600);
+    }else{
+      showInAppToast("المنشور","تعذر العثور على المنشور؛ قد يكون حُذف.");
+    }
+    return;
+  }
+
+  if(notification.type==="friend-request"){
+    showPage("friendsPage");
+    return;
+  }
+
+  if(notification.from && ["friend-accepted","follow"].includes(notification.type)){
+    openUserProfile(notification.from);
+    return;
+  }
+}
+
 async function loadNotifications(){
   try{
     const d=await api(`/api/notifications?token=${encodeURIComponent(token)}`);
@@ -2468,8 +2508,22 @@ async function loadNotifications(){
         share:`شارك @${esc(n.from)} منشورك`
       };
       const label=labels[n.type]||`علّق @${esc(n.from)} على منشورك${n.text?`: ${esc(n.text)}`:""}`;
-      return `<div class="notification-card ${n.read?"read":""}">${label}<small>${new Date(n.createdAt).toLocaleString("ar-SA")}</small></div>`;
+      const hint=n.postId?"اضغط لعرض المنشور":(n.type==="friend-request"?"اضغط لعرض طلبات الصداقة":(["friend-accepted","follow"].includes(n.type)?"اضغط لعرض الحساب":""));
+      return `<button type="button" class="notification-card smart-notification-card ${n.read?"read":""}" data-notification-id="${esc(n.id||"")}" data-notification-post="${esc(n.postId||"")}" data-notification-type="${esc(n.type||"")}" data-notification-from="${esc(n.from||"")}">
+        <span class="notification-main-text">${label}</span>
+        ${hint?`<span class="notification-action-hint">${hint} ←</span>`:""}
+        <small>${new Date(n.createdAt).toLocaleString("ar-SA")}</small>
+      </button>`;
     }).join(""):`<div class="empty-card">لا توجد إشعارات</div>`;
+
+    document.querySelectorAll("[data-notification-id]").forEach(btn=>{
+      btn.onclick=()=>openNotificationTarget({
+        id:btn.dataset.notificationId||"",
+        postId:btn.dataset.notificationPost||"",
+        type:btn.dataset.notificationType||"",
+        from:btn.dataset.notificationFrom||""
+      }).then(()=>loadNotifications().catch(()=>{}));
+    });
 
     const unread=list.filter(n=>!n.read).length;
     const badge=$("headerNotifyBadge");

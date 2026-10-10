@@ -4408,3 +4408,99 @@ body.chat-fullscreen-open .mobile-bottom-nav{
 .friends-find-btn svg{width:20px;height:20px}
 .friends-page-card{background:#0b1013;border:1px solid rgba(214,173,69,.34);border-radius:16px;padding:15px;margin-bottom:14px}
 .feed-story-card{cursor:pointer}
+
+
+/* ===== V13.33 LARGE MOBILE UI — deliberately much larger, Facebook-like readability ===== */
+@media (max-width:999px){
+  html,body{font-size:20px!important;line-height:1.65!important;-webkit-text-size-adjust:100%!important;text-size-adjust:100%!important}
+  #appView{font-size:20px!important}
+  #appView .social-main{padding:12px 0 112px!important}
+  #appView #homePage,#appView #friendsPage,#appView #searchPage,#appView #messagesPage,#appView #notificationsPage,#appView #profilePage,#appView #savedPage,#appView #adminPage{width:100%!important;max-width:100%!important}
+
+  /* top bar */
+  #appView .premium-header{height:84px!important;padding:0 8px!important}
+  #appView .reference-mini-logo{width:52px!important;height:52px!important}
+  #appView .reference-header-brand strong{font-size:18px!important}
+  #appView .reference-header-brand small{font-size:10px!important}
+  #appView .header-icon-btn,#appView .mobile-header-search-btn{width:50px!important;height:50px!important;min-width:50px!important;border-radius:13px!important}
+  #appView .header-icon-btn .atta-icon,#appView .header-icon-btn svg,#appView .mobile-header-search-btn .atta-icon,#appView .mobile-header-search-btn svg{width:34px!important;height:34px!important}
+  #appView .header-mini-badge{min-width:24px!important;height:24px!important;line-height:24px!important;font-size:14px!important;font-weight:900!important}
+
+  /* stories */
+  #appView .mobile-status-section{margin:0 8px 13px!important;padding:11px 9px 12px!important;min-height:0!important}
+  #appView .mobile-status-head strong{font-size:21px!important}
+  #appView .mobile-status-head button{font-size:16px!important;min-height:40px!important}
+  #appView .feed-story-card{flex-basis:118px!important;width:118px!important;height:184px!important}
+  #appView .feed-story-card .story-avatar{width:44px!important;height:44px!important}
+  #appView .feed-story-card .story-name,#appView .feed-story-add .story-add-bottom{font-size:15px!important}
+
+  /* suggestions and composer */
+  #appView .mobile-friends-suggestions,#appView .reference-composer{margin-left:8px!important;margin-right:8px!important}
+  #appView .reference-card-title strong,#appView .mobile-friends-suggestions .reference-card-title{font-size:19px!important}
+  #appView .reference-suggestion-user img{width:56px!important;height:56px!important}
+  #appView .reference-suggestion-user strong,#appView .person-main strong,#appView .friend-card strong{font-size:18px!important}
+  #appView .reference-suggestion-user small,#appView .person-main small,#appView .friend-card small{font-size:15px!important}
+  #appView .mobile-friends-suggestions .reference-friend-btn{height:46px!important;font-size:16px!important}
+  #appView .reference-composer-avatar{width:60px!important;height:60px!important}
+  #appView .reference-composer-name{font-size:21px!important}
+  #appView .reference-composer textarea{font-size:21px!important;min-height:108px!important;padding:16px!important}
+  #appView .reference-tool-btn,#appView .reference-publish-btn{height:50px!important;font-size:16px!important;font-weight:900!important}
+  #appView .reference-tool-btn svg,#appView .reference-publish-btn svg{width:25px!important;height:25px!important}
+
+  /* feed cards */
+  #appView .reference-post-card,#appView .post-card{margin:0 0 13px!important;padding:16px 0 13px!important;border-radius:0!important}
+  #appView .reference-post-header{padding:0 14px!important;gap:12px!important}
+  #appView .reference-post-head .avatar{width:62px!important;height:62px!important}
+  #appView .reference-post-meta strong{font-size:22px!important;line-height:1.3!important;font-weight:900!important}
+  #appView .reference-post-meta small,#appView .post-head small{font-size:16.5px!important;line-height:1.5!important;color:#E0E5E8!important}
+  #appView .globe-inline .atta-icon,#appView .globe-inline svg{width:20px!important;height:20px!important}
+  #appView .post-menu-btn{width:48px!important;height:48px!important}
+  #appView .post-menu-btn .atta-icon,#appView .post-menu-btn svg{width:30px!important;height:30px!important}
+  #appView .reference-post-text,#appView .post-text{font-size:22px!important;line-height:1.75!important;padding:13px 15px 17px!important}
+  #appView .reference-post-image,#appView .post-image{width:100%!important;max-height:none!important;object-fit:contain!important;border-radius:0!important}
+
+  /* interaction row */
+  #appView .reference-post-footer{padding:13px 12px 10px!important}
+  #appView .stat-btn,#appView .text-action-btn{min-height:54px!important;gap:8px!important;padding:0 7px!important}
+  #appView .stat-btn span,#appView .text-action-btn span{font-size:18px!important;font-weight:900!important}
+  #appView .stat-btn .atta-icon,#appView .text-action-btn .atta-icon,#appView .stat-btn svg,#appView .text-action-btn svg{width:34px!important;height:34px!important}
+  #appView .reaction-summary{font-size:16px!important}
+
+  /* comments */
+  #appView .comment-row{font-size:18px!important;line-height:1.65!important;padding:12px 13px!important}
+  #appView .comment-reply{font-size:17px!important}
+  #appView .reply-open-btn{font-size:15px!important}
+  #appView .comment-compose input,#appView .reply-compose input{height:54px!important;font-size:18px!important;padding:0 15px!important}
+  #appView .comment-compose button,#appView .reply-compose button{height:50px!important;font-size:17px!important;padding:0 17px!important}
+
+  /* notifications */
+  #appView .page-title h2{font-size:25px!important}
+  #appView .page-title button{font-size:15px!important;min-height:42px!important}
+  #appView .smart-notification-card{width:calc(100% - 16px)!important;margin:0 8px 12px!important;text-align:right!important;cursor:pointer!important;align-items:flex-start!important;border-radius:15px!important;padding:16px!important}
+  #appView .notification-main-text{font-size:19px!important;line-height:1.65!important;color:#fff!important;font-weight:800!important}
+  #appView .notification-action-hint{font-size:16px!important;color:#f1cb66!important;font-weight:900!important}
+  #appView .smart-notification-card small{font-size:15px!important}
+
+  /* bottom navigation */
+  #appView .premium-nav,#appView .mobile-bottom-nav{width:calc(100% - 12px)!important;max-width:none!important;height:84px!important;min-height:84px!important;grid-template-columns:repeat(5,1fr)!important;padding:5px!important}
+  #appView .premium-nav .nav-btn,#appView .mobile-bottom-nav .nav-btn{height:72px!important;min-height:72px!important;width:auto!important}
+  #appView .premium-nav .atta-icon,#appView .mobile-bottom-nav .atta-icon{width:34px!important;height:34px!important}
+  #appView .premium-nav .nav-btn span,#appView .mobile-bottom-nav .nav-btn span{font-size:14px!important;font-weight:900!important}
+  #appView .premium-nav .nav-btn[data-page="profilePage"]{display:none!important}
+}
+
+@media (max-width:390px){
+  #appView .reference-header-brand>div{display:none!important}
+  #appView .reference-mini-logo{width:48px!important;height:48px!important}
+  #appView .header-icon-btn,#appView .mobile-header-search-btn{width:47px!important;height:47px!important;min-width:47px!important}
+  #appView .header-icon-btn .atta-icon,#appView .header-icon-btn svg{width:32px!important;height:32px!important}
+  #appView .reference-post-meta strong{font-size:21px!important}
+  #appView .reference-post-meta small{font-size:16px!important}
+  #appView .reference-post-text,#appView .post-text{font-size:21px!important}
+  #appView .stat-btn span,#appView .text-action-btn span{font-size:17px!important}
+}
+
+.notification-target-highlight{outline:3px solid #E1B84C!important;box-shadow:0 0 0 4px rgba(225,184,76,.18),0 0 36px rgba(225,184,76,.34)!important;transition:box-shadow .25s ease,outline-color .25s ease!important}
+.smart-notification-card{appearance:none;background:var(--panel)!important;color:inherit;border:1px solid #242A2F;display:flex;flex-direction:column;gap:5px}
+.smart-notification-card:hover{border-color:#D6AD45!important}
+.notification-action-hint{color:#d6ad45;font-weight:800}

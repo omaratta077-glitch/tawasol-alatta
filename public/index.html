@@ -20,7 +20,7 @@
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
 <link rel="icon" href="logo.svg" type="image/svg+xml">
-<link rel="stylesheet" href="style.css?v=13.32">
+<link rel="stylesheet" href="style.css?v=13.33">
 
 <style id="v1331-mobile-force">
 /* V13.31: mobile sizing is intentionally inline so it cannot be lost behind an old CSS rule. */
@@ -55,7 +55,7 @@
   #appView .premium-nav .atta-icon,#appView .mobile-bottom-nav .atta-icon{width:30px!important;height:30px!important}
   #appView .premium-nav .nav-btn span,#appView .mobile-bottom-nav .nav-btn span{font-size:13px!important;font-weight:800!important}
 }
-/* V13.32: dedicated friends page + Facebook-like mobile status cards */
+/* V13.33: dedicated friends page + Facebook-like mobile status cards */
 @media (max-width:999px){
   #appView #headerFriendsBtn{order:2!important;background:rgba(216,171,58,.08)!important;border:1px solid rgba(216,171,58,.34)!important}
   #appView #headerFriendsBtn::after{content:"الأصدقاء";position:absolute;top:48px;font-size:10px;color:#f0cb65;white-space:nowrap}
@@ -96,7 +96,7 @@
 </style>
 <script>
 (function(){
-  var BUILD='13.32';
+  var BUILD='13.33';
   try{
     if(localStorage.getItem('tawasol-ui-build')!==BUILD){
       localStorage.setItem('tawasol-ui-build',BUILD);
@@ -106,6 +106,20 @@
   }catch(e){}
 })();
 </script>
+
+<style id="v1333-critical-mobile-scale">
+@media(max-width:999px){
+  #appView .reference-post-meta strong{font-size:22px!important}
+  #appView .reference-post-meta small{font-size:16.5px!important}
+  #appView .reference-post-text,#appView .post-text{font-size:22px!important;line-height:1.75!important}
+  #appView .reference-post-head .avatar{width:62px!important;height:62px!important}
+  #appView .stat-btn span,#appView .text-action-btn span{font-size:18px!important}
+  #appView .stat-btn svg,#appView .text-action-btn svg{width:34px!important;height:34px!important}
+  #appView .header-icon-btn,#appView .mobile-header-search-btn{width:50px!important;height:50px!important;min-width:50px!important}
+  #appView .header-icon-btn svg,#appView .mobile-header-search-btn svg{width:34px!important;height:34px!important}
+  #appView .comment-row{font-size:18px!important}
+}
+</style>
 </head>
 <body>
 
@@ -696,8 +710,8 @@
 </div>
 
 <script src="config.js"></script>
-<script src="icons.js?v=13.32"></script>
-<script src="app.js?v=13.32"></script>
+<script src="icons.js?v=13.33"></script>
+<script src="app.js?v=13.33"></script>
 
 <audio id="incomingRingAudio" src="audio/incoming-ring.wav" preload="auto" loop></audio>
 <audio id="outgoingRingAudio" src="audio/outgoing-ring.wav" preload="auto" loop></audio>
