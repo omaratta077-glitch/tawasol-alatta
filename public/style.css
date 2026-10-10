@@ -855,6 +855,9 @@ input::placeholder{
 
 /* لا تجعل بطاقة الدخول تمتد مع الصفحة بعد تسجيل الدخول */
 @media(max-width:600px){
+  .auth-view.hidden{
+    display:none !important;
+  }
 
   .atta-login-card{
     background:#0e1114 !important;
@@ -1749,6 +1752,7 @@ button:active{
   }
   .reference-header-brand{display:flex;align-items:center;gap:8px}
   .reference-mini-logo{width:40px;height:40px;border-radius:50%}
+  .reference-header-brand>div{display:flex;flex-direction:column}
   .reference-header-brand strong{font-size:14px;color:var(--r-gold2)}
   .reference-header-brand small{font-size:7px;letter-spacing:1.5px;color:#6F6240}
   .reference-header-actions{display:flex;gap:4px;justify-self:end}
@@ -4208,6 +4212,7 @@ body.chat-fullscreen-open .mobile-bottom-nav{
   .reference-header-brand strong{font-size:17px!important;line-height:1.15!important}
   .reference-header-brand small{font-size:10px!important;letter-spacing:1.2px!important;margin-top:3px!important}
   .reference-header-actions{gap:7px!important}
+  .header-icon-btn{width:46px!important;height:46px!important}
   .header-icon-btn .atta-icon,.header-icon-btn svg{width:26px!important;height:26px!important}
   .header-mini-badge{min-width:21px!important;height:21px!important;padding:0 5px!important;font-size:12px!important;top:-1px!important;right:-2px!important}
 
@@ -4314,6 +4319,7 @@ body.chat-fullscreen-open .mobile-bottom-nav{
 
 @media (max-width:390px){
   .reference-post-meta strong{font-size:17px!important}
+  .reference-post-meta small{font-size:13px!important}
   .reference-post-text{font-size:17px!important}
   .stat-btn span,.text-action-btn span{font-size:14px!important}
   .premium-nav .atta-icon,.mobile-bottom-nav .atta-icon{width:26px!important;height:26px!important}
@@ -4332,6 +4338,7 @@ body.chat-fullscreen-open .mobile-bottom-nav{
   .premium-header{height:78px!important;padding:0 8px!important}
   .reference-header-inner{width:100%!important;grid-template-columns:auto 1fr!important;gap:6px!important;padding:0 4px!important}
   .reference-header-brand{gap:7px!important;min-width:0!important}
+  .reference-mini-logo{width:48px!important;height:48px!important}
   .reference-header-brand strong{font-size:17px!important;line-height:1.1!important}
   .reference-header-brand small{font-size:10px!important}
   .reference-header-actions{display:flex!important;align-items:center!important;gap:4px!important;justify-self:end!important}
@@ -4339,6 +4346,7 @@ body.chat-fullscreen-open .mobile-bottom-nav{
   .header-icon-btn .atta-icon,.header-icon-btn svg{width:29px!important;height:29px!important}
   .header-mini-badge{min-width:22px!important;height:22px!important;font-size:13px!important;padding:0 5px!important;line-height:22px!important}
   .mobile-header-search-btn{display:grid!important}
+  .reference-search{display:none!important}
 
   .social-main{padding:12px 8px 104px!important}
   .reference-composer,.composer-card{padding:15px 12px!important;border-radius:18px!important}
@@ -4384,6 +4392,7 @@ body.chat-fullscreen-open .mobile-bottom-nav{
   .premium-nav .nav-btn span,.mobile-bottom-nav .nav-btn span{font-size:13px!important}
 }
 @media (max-width:430px){
+  .reference-header-brand strong{font-size:15px!important}
   .reference-header-brand small{font-size:9px!important}
   .reference-mini-logo{width:44px!important;height:44px!important}
   .header-icon-btn{width:43px!important;height:43px!important;min-width:43px!important}
@@ -4708,4 +4717,4 @@ html.mobile-device .round-call-btn{width:84px!important;height:84px!important}
 html.mobile-device .round-call-btn .round-icon,html.mobile-device .round-call-btn svg{width:38px!important;height:38px!important}
 html.mobile-device .round-call-btn small{font-size:17px!important}
 
-/* V13.48: auth sizing lives in index.html final mobile block. */
+/* V13.47: auth sizing lives in index.html final mobile block. */
