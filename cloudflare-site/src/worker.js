@@ -235,6 +235,21 @@ export class SignalingRoom extends DurableObject {
       const clientId=String(this.env.GOOGLE_CLIENT_ID||"").trim();
       return j({ok:true,enabled:!!clientId,clientId});
     }
+    if(url.pathname==="/api/media-upload" && request.method==="POST"){
+      const s=await this.session(String(url.searchParams.get("token")||""));
+      if(!s)return j({ok:false,error:"الجلسة منتهية"},401);
+      if(!this.env.MEDIA_BUCKET)return j({ok:false,error:"MEDIA_BUCKET_NOT_CONFIGURED"},503);
+      const kind=String(url.searchParams.get("kind")||"file").replace(/[^a-z0-9_-]/gi,"").slice(0,20)||"file";
+      const supplied=String(url.searchParams.get("name")||"media");
+      const ext=(supplied.match(/\.([a-z0-9]{1,8})$/i)||[])[1]||"bin";
+      const key=`${kind}/${Date.now()}-${crypto.randomUUID()}.${ext.toLowerCase()}`;
+      const contentType=request.headers.get("content-type")||"application/octet-stream";
+      const len=Number(request.headers.get("content-length")||0);
+      if(len>50*1024*1024)return j({ok:false,error:"حجم الفيديو أكبر من 50 MB"},413);
+      await this.env.MEDIA_BUCKET.put(key,request.body,{httpMetadata:{contentType}});
+      return j({ok:true,url:`/media/${key}`});
+    }
+
     let body={};
     if(request.method!=="GET"){
       try{body=await request.json()}catch{}
@@ -607,6 +622,43 @@ export class SignalingRoom extends DurableObject {
       return j({ok:true,token,user:await this.publicUser(username)});
     }
 
+    if(url.pathname==="/api/profile-media" && request.method==="POST"){
+      const s=await this.session(String(body.token||""));
+      if(!s)return j({ok:false,error:"الجلسة منتهية"},401);
+
+      const u=await this.user(s.username);
+      if(!u)return j({ok:false,error:"المستخدم غير موجود"},404);
+
+      const kind=String(body.kind||"");
+      const data=String(body.data||"");
+      if(!["avatar","cover"].includes(kind))return j({ok:false,error:"نوع الصورة غير صحيح"},400);
+      if(!data.startsWith("data:image/"))return j({ok:false,error:"ملف الصورة غير صحيح"},400);
+
+      const max=kind==="avatar"?250000:500000;
+      const image=data.slice(0,max);
+      if(kind==="avatar")u.avatar=image; else u.cover=image;
+      await this.ctx.storage.put(`user:${u.username}`,u);
+
+      // V13.42: every profile-photo/cover update creates a real feed post unconditionally.
+      const id=crypto.randomUUID();
+      const post={
+        id,
+        author:u.username,
+        text:kind==="avatar"?"قام بتحديث صورته الشخصية.":"قام بتحديث صورة الغلاف.",
+        image,
+        profileMediaKind:kind==="avatar"?"profile_avatar":"profile_cover",
+        createdAt:Date.now(),
+        likes:[],
+        comments:[]
+      };
+      await this.ctx.storage.put(`post:${id}`,post);
+      const ids=await this.ctx.storage.get("postIds")||[];
+      ids.push(id);
+      await this.ctx.storage.put("postIds",ids.slice(-500));
+
+      return j({ok:true,user:await this.publicUser(u.username),postId:id,post});
+    }
+
     if(url.pathname==="/api/profile" && request.method==="POST"){
       const s=await this.session(String(body.token||""));
       if(!s)return j({ok:false,error:"الجلسة منتهية"},401);
@@ -614,16 +666,47 @@ export class SignalingRoom extends DurableObject {
       const u=await this.user(s.username);
       if(!u)return j({ok:false,error:"المستخدم غير موجود"},404);
 
+      const previousAvatar=String(u.avatar||"");
+      const previousCover=String(u.cover||"");
+      let avatarChanged=false, coverChanged=false;
+
       if(typeof body.displayName==="string" && body.displayName.trim()){
         u.displayName=body.displayName.trim().slice(0,60);
       }
-      if(typeof body.avatar==="string")u.avatar=body.avatar.slice(0,250000);
-      if(typeof body.cover==="string")u.cover=body.cover.slice(0,500000);
+      if(typeof body.avatar==="string"){
+        const nextAvatar=body.avatar.slice(0,250000);
+        avatarChanged=!!nextAvatar && nextAvatar!==previousAvatar;
+        u.avatar=nextAvatar;
+      }
+      if(typeof body.cover==="string"){
+        const nextCover=body.cover.slice(0,500000);
+        coverChanged=!!nextCover && nextCover!==previousCover;
+        u.cover=nextCover;
+      }
       if(typeof body.bio==="string")u.bio=body.bio.slice(0,300);
       if(typeof body.accountPrivate==="boolean")u.accountPrivate=body.accountPrivate;
 
       await this.ctx.storage.put(`user:${u.username}`,u);
-      return j({ok:true,user:await this.publicUser(u.username)});
+
+      // V13.41: profile-media updates become real feed posts and return their IDs.
+      // This guarantees the post is created even if the browser refreshes immediately.
+      const mediaPosts=[];
+      if(avatarChanged)mediaPosts.push({text:"قام بتحديث صورته الشخصية.",image:u.avatar,kind:"profile_avatar"});
+      if(coverChanged)mediaPosts.push({text:"قام بتحديث صورة الغلاف.",image:u.cover,kind:"profile_cover"});
+      const createdProfilePostIds=[];
+      if(mediaPosts.length){
+        const ids=await this.ctx.storage.get("postIds")||[];
+        for(const item of mediaPosts){
+          const id=crypto.randomUUID();
+          const post={id,author:u.username,text:item.text,image:item.image,profileMediaKind:item.kind,createdAt:Date.now(),likes:[],comments:[]};
+          await this.ctx.storage.put(`post:${id}`,post);
+          ids.push(id);
+          createdProfilePostIds.push(id);
+        }
+        await this.ctx.storage.put("postIds",ids.slice(-500));
+      }
+
+      return j({ok:true,user:await this.publicUser(u.username),createdProfilePosts:mediaPosts.length,createdProfilePostIds});
     }
 
     if(url.pathname==="/api/groups" && request.method==="POST"){
@@ -776,8 +859,9 @@ export class SignalingRoom extends DurableObject {
 
       const text=String(body.text||"").trim().slice(0,5000);
       const image=String(body.image||"").slice(0,500000);
+      const video=String(body.video||"").slice(0,1750000);
 
-      if(!text && !image)return j({ok:false,error:"اكتب منشورًا أو أضف صورة"},400);
+      if(!text && !image && !video)return j({ok:false,error:"اكتب منشورًا أو أضف صورة أو فيديو"},400);
 
       const id=crypto.randomUUID();
       const post={
@@ -785,6 +869,7 @@ export class SignalingRoom extends DurableObject {
         author:s.username,
         text,
         image,
+        video,
         createdAt:Date.now(),
         likes:[],
         comments:[]
@@ -934,6 +1019,18 @@ export class SignalingRoom extends DurableObject {
 
       const list=await this.ctx.storage.get(`notifications:${s.username}`)||[];
       for(const n of list)n.read=true;
+      await this.ctx.storage.put(`notifications:${s.username}`,list);
+      return j({ok:true});
+    }
+
+    if(url.pathname==="/api/notifications/read-one" && request.method==="POST"){
+      const s=await this.session(String(body.token||""));
+      if(!s)return j({ok:false,error:"الجلسة منتهية"},401);
+      const notificationId=String(body.notificationId||"");
+      if(!notificationId)return j({ok:false,error:"الإشعار غير صالح"},400);
+      const list=await this.ctx.storage.get(`notifications:${s.username}`)||[];
+      const item=list.find(n=>n.id===notificationId);
+      if(item)item.read=true;
       await this.ctx.storage.put(`notifications:${s.username}`,list);
       return j({ok:true});
     }
@@ -1729,32 +1826,12 @@ export class SignalingRoom extends DurableObject {
 export default {
   async fetch(request,env){
     const url=new URL(request.url);
-if(url.pathname==="/.well-known/assetlinks.json"){
-  return new Response(JSON.stringify([
-    {
-      relation:[
-        "delegate_permission/common.handle_all_urls"
-      ],
-      target:{
-        namespace:"android_app",
-        package_name:"com.alatta.tawasol",
-        sha256_cert_fingerprints:[
-          "A8:20:B8:C9:3B:46:CD:DC:ED:3D:A4:65:33:80:77:4F:1F:B1:1C:5B:36:FE:F5:6D:72:60:F1:35:55:65:B8:24"
-        ]
-      }
-    }
-  ]),{
-    status:200,
-    headers:{
-      "Content-Type":"application/json; charset=utf-8"
-    }
-  });
-}
+
     if(url.pathname==="/health"){
       return Response.json({
         ok:true,
         app:"تواصل العطا",
-        version:"V13.27-Super-Admin"
+        version:"V13.51-Restored-Full"
       });
     }
 
@@ -1764,6 +1841,18 @@ if(url.pathname==="/.well-known/assetlinks.json"){
 
     if(url.pathname==="/terms" || url.pathname==="/terms/"){
       return env.ASSETS.fetch(new Request(new URL("/terms.html", url.origin), request));
+    }
+
+    if(url.pathname.startsWith("/media/")){
+      if(!env.MEDIA_BUCKET)return new Response("Media storage is not configured",{status:404});
+      const key=decodeURIComponent(url.pathname.slice("/media/".length));
+      const obj=await env.MEDIA_BUCKET.get(key);
+      if(!obj)return new Response("Not found",{status:404});
+      const headers=new Headers();
+      obj.writeHttpMetadata(headers);
+      headers.set("etag",obj.httpEtag);
+      headers.set("cache-control","public, max-age=31536000, immutable");
+      return new Response(obj.body,{headers});
     }
 
     if(url.pathname==="/ws" || url.pathname.startsWith("/api/")){
