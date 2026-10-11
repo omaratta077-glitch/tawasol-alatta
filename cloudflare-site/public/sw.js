@@ -1,4 +1,4 @@
-const CACHE="tawasol-alatta-v13-61";
+const CACHE="tawasol-alatta-v13-62";
 const STATIC_RE=/\.(?:css|js|png|jpg|jpeg|webp|svg|ico|wav|mp3|woff2?)$/i;
 
 self.addEventListener("install",event=>{
@@ -18,7 +18,7 @@ self.addEventListener("fetch",event=>{
   if(r.method!=="GET")return;
   const u=new URL(r.url);
   if(u.origin!==self.location.origin)return;
-  if(u.pathname.startsWith("/api/")||u.pathname==="/ws"||u.pathname.startsWith("/media/")||u.pathname.startsWith("/media-local/"))return;
+  if(u.pathname.startsWith("/api/")||u.pathname==="/ws"||u.pathname.startsWith("/media/"))return;
 
   if(STATIC_RE.test(u.pathname)){
     event.respondWith((async()=>{

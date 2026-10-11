@@ -2021,44 +2021,32 @@ if($("postVideoInput")){
     const f=e.target.files?.[0];
     if(!f)return;
     if(!String(f.type||"").startsWith("video/")){showInAppToast("ملف غير صالح","اختر ملف فيديو.");return;}
-    // Cloudflare Free requests are capped at 100 MB, so keep a small safety margin.
-    if(f.size>95*1024*1024){
-      e.target.value="";
-      showInAppToast("الفيديو كبير جدًا","الحد الأقصى للفيديو 95 MB.");
-      return;
-    }
     postVideoData="";postVideoUrl="";
     const preview=$("postVideoPreview");
     const wrap=$("postVideoPreviewWrap");
-    wrap?.classList.add("hidden");
-    showInAppToast("جاري رفع الفيديو",`${Math.max(1,Math.round(f.size/1024/1024))} MB`);
     try{
+      // Prefer Cloudflare R2 when a MEDIA_BUCKET binding is configured.
       const up=await fetch(`/api/media-upload?token=${encodeURIComponent(token)}&kind=video&name=${encodeURIComponent(f.name||"video")}`,{
         method:"POST",headers:{"content-type":f.type||"application/octet-stream"},body:f
       });
-      let d={};
-      try{d=await up.json();}catch{}
       if(up.ok){
+        const d=await up.json();
         postVideoUrl=String(d.url||"");
-        if(postVideoUrl){
-          preview.src=postVideoUrl;
-          wrap.classList.remove("hidden");
-          showInAppToast("تم تجهيز الفيديو","جاهز للنشر.");
-          return;
-        }
+        if(postVideoUrl){preview.src=postVideoUrl;wrap.classList.remove("hidden");showInAppToast("تم تجهيز الفيديو","جاهز للنشر.");return;}
       }
-      // Emergency fallback for very small files only. Larger videos are stored
-      // by the Worker as chunked binary media when R2 is not configured.
-      if(f.size<=1100000){
-        const r=new FileReader();
-        r.onload=()=>{postVideoData=String(r.result||"");preview.src=postVideoData;wrap.classList.remove("hidden");showInAppToast("تم تجهيز الفيديو","جاهز للنشر.");};
-        r.readAsDataURL(f);
+      // No R2 yet: allow a short/small video directly in Durable Object storage.
+      if(f.size>1100000){
+        wrap.classList.add("hidden");
+        showInAppToast("الفيديو كبير","الفيديوهات الكبيرة تحتاج تفعيل مخزن الوسائط R2 في Cloudflare. جرّب فيديو قصير أقل من 1 MB الآن.");
         return;
       }
-      throw new Error(d.error||"تعذر رفع الفيديو");
+      const r=new FileReader();
+      r.onload=()=>{postVideoData=String(r.result||"");preview.src=postVideoData;wrap.classList.remove("hidden");showInAppToast("تم تجهيز الفيديو","جاهز للنشر.");};
+      r.readAsDataURL(f);
     }catch(err){
-      wrap?.classList.add("hidden");
-      showInAppToast("تعذر تجهيز الفيديو",err?.message||"حاول مرة أخرى.");
+      if(f.size<=1100000){
+        const r=new FileReader();r.onload=()=>{postVideoData=String(r.result||"");preview.src=postVideoData;wrap.classList.remove("hidden");};r.readAsDataURL(f);
+      }else showInAppToast("تعذر تجهيز الفيديو",err?.message||"حاول فيديو أقصر.");
     }
   };
 }
@@ -2158,22 +2146,10 @@ async function loadProfilePosts(username){
         ${post.image?`<img class="profile-post-image" loading="lazy" decoding="async" src="${post.image}" alt="صورة المنشور">`:""}
         ${post.video?`<video class="profile-post-image post-video" controls playsinline preload="metadata" src="${post.video}"></video>`:""}
         ${post.sharedPost?`<div class="shared-post-box"><div class="shared-post-head">@${esc(post.sharedPost.authorInfo?.username||post.sharedPost.author)}</div>${post.sharedPost.text?`<div>${esc(post.sharedPost.text)}</div>`:""}${post.sharedPost.image?`<img loading="lazy" decoding="async" src="${post.sharedPost.image}" class="shared-post-image" alt="">`:""}</div>`:""}
-        <div class="profile-post-footer"><div class="profile-post-stats"><span>♡ ${reactionCount}</span><span>💬 ${commentCount}</span></div><div class="profile-post-actions">${String(post.author||"").toLowerCase()===String(me?.username||"").toLowerCase()?`<button class="dark-outline" data-profile-post-delete="${esc(post.id)}">حذف</button>`:""}<button class="profile-post-open" data-profile-post-open="${esc(post.id)}">عرض المنشور</button></div></div>
+        <div class="profile-post-footer"><div class="profile-post-stats"><span>♡ ${reactionCount}</span><span>💬 ${commentCount}</span></div><button class="profile-post-open" data-profile-post-open="${esc(post.id)}">عرض المنشور</button></div>
       </article>`;
     }).join("");
     bindProfileLinks();
-    document.querySelectorAll("[data-profile-post-delete]").forEach(btn=>{
-      btn.onclick=async()=>{
-        const postId=String(btn.dataset.profilePostDelete||"");
-        if(!postId || !confirm("هل تريد حذف هذا المنشور نهائيًا؟"))return;
-        try{
-          await api("/api/post-delete",{method:"POST",body:JSON.stringify({token,postId})});
-          showInAppToast("تم حذف المنشور","تم الحذف بنجاح.");
-          await loadProfilePosts(username);
-        }catch(e){alert(e.message||"تعذر حذف المنشور")}
-      };
-    });
-
     document.querySelectorAll("[data-profile-post-open]").forEach(btn=>{
       btn.onclick=async()=>{
         showPage("homePage");
@@ -2304,6 +2280,7 @@ async function loadPosts(){
       const likeCount=totalReactionsCount(post.reactionCounts||{});
       const commentCount=post.commentCount||0;
       const shareCount=shareCounts[post.id]||0;
+      const isMine=String(post.author||"").toLowerCase()===String(me?.username||"").toLowerCase();
       const comments=(post.comments||[]).slice(-5).map(c=>{
         const replies=(c.replies||[]).map(r=>`
           <div class="comment-reply"><strong>@${esc(r.author)}</strong> ${esc(r.text)}</div>
@@ -2330,7 +2307,12 @@ async function loadPosts(){
               <small>@${esc(a.username)} <i>•</i> ${timeAgoAr(post.createdAt)} <span class="globe-inline">${iconGlobe()}</span></small>
             </span>
           </button>
-          <button class="post-menu-btn" type="button" aria-label="المزيد" data-post-menu="${post.id}" data-post-author="${esc(post.author)}">${iconDots()}</button>
+          <div class="post-menu-wrap">
+            <button class="post-menu-btn" type="button" aria-label="المزيد" data-post-menu="${post.id}">${iconDots()}</button>
+            <div class="post-options-menu hidden" data-post-options="${post.id}">
+              ${isMine?`<button class="post-option-delete" type="button" data-delete-post="${post.id}">حذف المنشور</button>`:`<button type="button" data-report-post="${post.id}">الإبلاغ عن المنشور</button>`}
+            </div>
+          </div>
         </div>
         ${post.text?`<div class="post-text reference-post-text">${esc(post.text)}</div>`:""}
         ${post.image?`<img class="post-image reference-post-image" loading="lazy" decoding="async" src="${post.image}" alt="">`:""}
@@ -2366,6 +2348,32 @@ async function loadPosts(){
     }).join(""):`<div class="empty-card">لا توجد منشورات بعد.</div>`;
 
     bindProfileLinks();
+
+    document.querySelectorAll("[data-post-menu]").forEach(btn=>{
+      btn.onclick=(e)=>{
+        e.stopPropagation();
+        const id=String(btn.dataset.postMenu||"");
+        const menu=document.querySelector(`[data-post-options="${id}"]`);
+        document.querySelectorAll(".post-options-menu").forEach(m=>{if(m!==menu)m.classList.add("hidden")});
+        menu?.classList.toggle("hidden");
+      };
+    });
+
+    document.querySelectorAll("[data-delete-post]").forEach(btn=>{
+      btn.onclick=async(e)=>{
+        e.stopPropagation();
+        const postId=String(btn.dataset.deletePost||"");
+        if(!postId || !confirm("هل تريد حذف هذا المنشور نهائيًا؟"))return;
+        try{
+          await api("/api/post-delete",{method:"POST",body:JSON.stringify({token,postId})});
+          showInAppToast("تم حذف المنشور","تم حذف المنشور بنجاح.");
+          await loadPosts();
+          if(viewedProfileUsername && String(viewedProfileUsername).toLowerCase()===String(me?.username||"").toLowerCase()){
+            loadProfilePosts(viewedProfileUsername).catch(()=>{});
+          }
+        }catch(err){alert(err.message||"تعذر حذف المنشور")}
+      };
+    });
 
     document.querySelectorAll("[data-like]").forEach(btn=>{
       btn.onclick=async()=>{
@@ -2441,32 +2449,6 @@ async function loadPosts(){
           })});
           await loadPosts();
         }catch(e){alert(e.message)}
-      };
-    });
-
-    document.querySelectorAll("[data-post-menu]").forEach(btn=>{
-      btn.onclick=async()=>{
-        const postId=String(btn.dataset.postMenu||"");
-        const author=String(btn.dataset.postAuthor||"").toLowerCase();
-        const mine=String(me?.username||"").toLowerCase()===author;
-        if(mine){
-          if(!confirm("هل تريد حذف هذا المنشور نهائيًا؟"))return;
-          try{
-            await api("/api/post-delete",{method:"POST",body:JSON.stringify({token,postId})});
-            showInAppToast("تم حذف المنشور","تم الحذف بنجاح.");
-            await loadPosts();
-            if(viewedProfileUsername && String(viewedProfileUsername).toLowerCase()===String(me?.username||"").toLowerCase()){
-              loadProfilePosts(viewedProfileUsername).catch(()=>{});
-            }
-          }catch(e){alert(e.message||"تعذر حذف المنشور")}
-          return;
-        }
-        const reason=prompt("سبب الإبلاغ عن المنشور:");
-        if(!reason)return;
-        try{
-          await api("/api/report",{method:"POST",body:JSON.stringify({token,targetType:"post",targetId:postId,reason})});
-          showInAppToast("تم إرسال البلاغ","سنراجع المنشور.");
-        }catch(e){alert(e.message||"تعذر إرسال البلاغ")}
       };
     });
 

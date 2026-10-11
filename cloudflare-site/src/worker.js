@@ -238,89 +238,16 @@ export class SignalingRoom extends DurableObject {
     if(url.pathname==="/api/media-upload" && request.method==="POST"){
       const s=await this.session(String(url.searchParams.get("token")||""));
       if(!s)return j({ok:false,error:"الجلسة منتهية"},401);
+      if(!this.env.MEDIA_BUCKET)return j({ok:false,error:"MEDIA_BUCKET_NOT_CONFIGURED"},503);
       const kind=String(url.searchParams.get("kind")||"file").replace(/[^a-z0-9_-]/gi,"").slice(0,20)||"file";
       const supplied=String(url.searchParams.get("name")||"media");
       const ext=(supplied.match(/\.([a-z0-9]{1,8})$/i)||[])[1]||"bin";
+      const key=`${kind}/${Date.now()}-${crypto.randomUUID()}.${ext.toLowerCase()}`;
       const contentType=request.headers.get("content-type")||"application/octet-stream";
       const len=Number(request.headers.get("content-length")||0);
-      const R2_MAX=95*1024*1024;
-      const LOCAL_MAX=40*1024*1024;
-
-      if(len>R2_MAX)return j({ok:false,error:"الحد الأقصى للفيديو 95 MB"},413);
-
-      // If an R2 bucket is connected, use it and allow videos up to 95 MB.
-      if(this.env.MEDIA_BUCKET){
-        const key=`${kind}/${Date.now()}-${crypto.randomUUID()}.${ext.toLowerCase()}`;
-        await this.env.MEDIA_BUCKET.put(key,request.body,{httpMetadata:{contentType}});
-        return j({ok:true,url:`/media/${key}`,storage:"r2"});
-      }
-
-      // No R2 binding: store videos in Durable Object storage as <=1.5 MB chunks.
-      // This raises the practical built-in limit from ~1 MB to 40 MB without
-      // requiring any extra Cloudflare setup.
-      if(len>LOCAL_MAX)return j({ok:false,error:"الحد الأقصى بدون R2 هو 40 MB"},413);
-      const buf=await request.arrayBuffer();
-      if(buf.byteLength>LOCAL_MAX)return j({ok:false,error:"الحد الأقصى بدون R2 هو 40 MB"},413);
-      if(!buf.byteLength)return j({ok:false,error:"ملف الفيديو فارغ"},400);
-
-      const mediaId=crypto.randomUUID();
-      const chunkSize=1536*1024;
-      const bytes=new Uint8Array(buf);
-      const chunks=Math.ceil(bytes.byteLength/chunkSize);
-      for(let i=0;i<chunks;i++){
-        const start=i*chunkSize;
-        const end=Math.min(bytes.byteLength,start+chunkSize);
-        const part=bytes.slice(start,end).buffer;
-        await this.ctx.storage.put(`mediaChunk:${mediaId}:${i}`,part);
-      }
-      await this.ctx.storage.put(`mediaMeta:${mediaId}`,{
-        id:mediaId,kind,name:supplied,contentType,size:bytes.byteLength,
-        chunkSize,chunks,createdAt:Date.now(),owner:s.username
-      });
-      return j({ok:true,url:`/media-local/${mediaId}`,storage:"durable",size:bytes.byteLength});
-    }
-
-    if(url.pathname.startsWith("/media-local/") && (request.method==="GET" || request.method==="HEAD")){
-      const mediaId=decodeURIComponent(url.pathname.slice("/media-local/".length)).replace(/[^a-z0-9-]/gi,"");
-      const meta=await this.ctx.storage.get(`mediaMeta:${mediaId}`);
-      if(!meta)return new Response("Not found",{status:404});
-
-      const size=Number(meta.size||0);
-      const chunkSize=Number(meta.chunkSize||1536*1024);
-      let start=0,end=Math.max(0,size-1),status=200;
-      const range=request.headers.get("range")||"";
-      const m=range.match(/^bytes=(\d*)-(\d*)$/i);
-      if(m){
-        if(m[1])start=Math.min(size-1,Math.max(0,Number(m[1])));
-        if(m[2])end=Math.min(size-1,Math.max(start,Number(m[2])));
-        status=206;
-      }
-      const length=Math.max(0,end-start+1);
-      const headers=new Headers({
-        "content-type":meta.contentType||"video/mp4",
-        "accept-ranges":"bytes",
-        "cache-control":"public, max-age=31536000, immutable",
-        "content-length":String(length)
-      });
-      if(status===206)headers.set("content-range",`bytes ${start}-${end}/${size}`);
-      if(request.method==="HEAD")return new Response(null,{status,headers});
-
-      const first=Math.floor(start/chunkSize);
-      const last=Math.floor(end/chunkSize);
-      const out=new Uint8Array(length);
-      let offset=0;
-      for(let i=first;i<=last;i++){
-        const raw=await this.ctx.storage.get(`mediaChunk:${mediaId}:${i}`);
-        if(!raw)return new Response("Media chunk missing",{status:500});
-        const part=raw instanceof ArrayBuffer?new Uint8Array(raw):new Uint8Array(raw?.buffer||raw);
-        const chunkStart=i*chunkSize;
-        const from=Math.max(0,start-chunkStart);
-        const to=Math.min(part.byteLength,end-chunkStart+1);
-        const slice=part.slice(from,to);
-        out.set(slice,offset);
-        offset+=slice.byteLength;
-      }
-      return new Response(out,{status,headers});
+      if(len>50*1024*1024)return j({ok:false,error:"حجم الفيديو أكبر من 50 MB"},413);
+      await this.env.MEDIA_BUCKET.put(key,request.body,{httpMetadata:{contentType}});
+      return j({ok:true,url:`/media/${key}`});
     }
 
     let body={};
@@ -967,17 +894,6 @@ export class SignalingRoom extends DurableObject {
       const role=await this.roleFor(session.username);
       const canDelete=String(post.author||"").toLowerCase()===String(session.username||"").toLowerCase() || role==="super_admin" || role==="moderator";
       if(!canDelete)return j({ok:false,error:"يمكنك حذف منشوراتك فقط"},403);
-
-      // Delete locally chunked media when the deleted post owns it.
-      const localPrefix="/media-local/";
-      if(String(post.video||"").startsWith(localPrefix)){
-        const mediaId=String(post.video).slice(localPrefix.length).replace(/[^a-z0-9-]/gi,"");
-        const meta=await this.ctx.storage.get(`mediaMeta:${mediaId}`);
-        if(meta && (!meta.owner || meta.owner===post.author)){
-          for(let i=0;i<Number(meta.chunks||0);i++)await this.ctx.storage.delete(`mediaChunk:${mediaId}:${i}`);
-          await this.ctx.storage.delete(`mediaMeta:${mediaId}`);
-        }
-      }
 
       await this.ctx.storage.delete(`post:${id}`);
       const ids=await this.ctx.storage.get("postIds")||[];
@@ -1934,7 +1850,7 @@ export default {
       return Response.json({
         ok:true,
         app:"تواصل العطا",
-        version:"V13.61"
+        version:"V13.62-Stable60-PostMenuDelete"
       });
     }
 
@@ -1958,7 +1874,7 @@ export default {
       return new Response(obj.body,{headers});
     }
 
-    if(url.pathname==="/ws" || url.pathname.startsWith("/api/") || url.pathname.startsWith("/media-local/")){
+    if(url.pathname==="/ws" || url.pathname.startsWith("/api/")){
       const id=env.SIGNALING.idFromName("global-room");
       return env.SIGNALING.get(id).fetch(request);
     }
