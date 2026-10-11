@@ -17,6 +17,7 @@
 })();
 </script>
 <title>تواصل العطا | رسائل ومكالمات وأصدقاء</title>
+<!-- V13.64: Stable V13.60 + mobile scale only -->
 <meta name="description" content="تواصل العطا: منصة عربية للتواصل مع الأصدقاء، الرسائل، والمكالمات الصوتية والمرئية عبر الويب وتطبيق Android.">
 <meta name="robots" content="index,follow,max-image-preview:large">
 <link rel="canonical" href="https://tawasol-alatta.omaratta077-4fd.workers.dev/">
@@ -183,6 +184,245 @@ html.mobile-device .call-peer-avatar{width:64px!important;height:64px!important}
 html.mobile-device .round-call-btn{width:84px!important;height:84px!important}
 html.mobile-device .round-call-btn .round-icon,html.mobile-device .round-call-btn svg{width:38px!important;height:38px!important}
 html.mobile-device .round-call-btn small{font-size:17px!important}
+
+/* =========================================================
+   V13.64 — STABLE V13.60 + FACEBOOK-LIKE MOBILE SCALE ONLY
+   لا تغيير في الألوان أو الوظائف أو التحميل أو بنية الصفحات.
+   فقط تكبير القراءة والمسافات والعناصر على الهاتف.
+   ========================================================= */
+
+/* تكبير عام بدون تغيير التخطيط */
+html.mobile-device,html.mobile-device body{
+  font-size:24px!important;
+}
+html.mobile-device #appView{
+  font-size:24px!important;
+}
+html.mobile-device #appView button,
+html.mobile-device #appView input,
+html.mobile-device #appView textarea,
+html.mobile-device #appView select{
+  font-size:inherit;
+}
+
+/* الهيدر */
+html.mobile-device #appView .premium-header{
+  height:102px!important;
+  min-height:102px!important;
+}
+html.mobile-device #appView .header-icon-btn,
+html.mobile-device #appView .mobile-header-search-btn{
+  width:64px!important;
+  height:64px!important;
+  min-width:64px!important;
+}
+html.mobile-device #appView .header-icon-btn svg,
+html.mobile-device #appView .mobile-header-search-btn svg,
+html.mobile-device #appView .header-icon-btn .atta-icon{
+  width:42px!important;
+  height:42px!important;
+}
+html.mobile-device #brandProfileBtn .header-profile-avatar{
+  width:68px!important;
+  height:68px!important;
+  flex:0 0 68px!important;
+}
+html.mobile-device #brandProfileBtn #headerProfileName{font-size:23px!important}
+html.mobile-device #brandProfileBtn #headerProfileUsername{font-size:17px!important}
+
+/* المساحة العامة مثل تطبيقات السوشيال */
+html.mobile-device #appView .social-main{
+  padding:14px 0 134px!important;
+}
+html.mobile-device #appView .mobile-status-section,
+html.mobile-device #appView .mobile-friends-suggestions,
+html.mobile-device #appView .reference-composer,
+html.mobile-device #appView .friends-page-card,
+html.mobile-device #appView .friend-section{
+  margin-bottom:18px!important;
+}
+
+/* الحالات */
+html.mobile-device #appView .mobile-status-head strong{font-size:30px!important}
+html.mobile-device #appView .mobile-status-head button{font-size:23px!important;min-height:54px!important}
+html.mobile-device #appView .feed-story-card{
+  flex:0 0 158px!important;
+  width:158px!important;
+  height:240px!important;
+}
+html.mobile-device #appView .feed-story-card .story-avatar{width:60px!important;height:60px!important}
+html.mobile-device #appView .feed-story-card .story-name,
+html.mobile-device #appView .feed-story-add .story-add-bottom{font-size:22px!important}
+
+/* اقتراحات الأصدقاء */
+html.mobile-device #appView .reference-card-title strong{font-size:28px!important}
+html.mobile-device #appView .reference-suggestion-user strong,
+html.mobile-device #appView .person-main strong,
+html.mobile-device #appView .friend-card strong{font-size:25px!important}
+html.mobile-device #appView .reference-suggestion-user small,
+html.mobile-device #appView .person-main small,
+html.mobile-device #appView .friend-card small{font-size:20px!important}
+html.mobile-device #appView .reference-suggestion-user img,
+html.mobile-device #appView .person-main img,
+html.mobile-device #appView .friend-card img{width:76px!important;height:76px!important}
+html.mobile-device #appView .reference-friend-btn{min-height:62px!important;font-size:23px!important;padding:0 20px!important}
+
+/* إنشاء منشور */
+html.mobile-device #appView .reference-composer{
+  padding:20px 16px!important;
+}
+html.mobile-device #appView .reference-composer-avatar{width:80px!important;height:80px!important}
+html.mobile-device #appView .reference-composer-name{font-size:30px!important}
+html.mobile-device #appView .reference-composer textarea{
+  min-height:150px!important;
+  font-size:30px!important;
+  line-height:1.55!important;
+  padding:20px!important;
+}
+html.mobile-device #appView .reference-tool-btn,
+html.mobile-device #appView .reference-publish-btn{
+  min-height:70px!important;
+  height:70px!important;
+  font-size:23px!important;
+}
+html.mobile-device #appView .reference-tool-btn svg,
+html.mobile-device #appView .reference-publish-btn svg{width:35px!important;height:35px!important}
+
+/* المنشورات — خط ومسافات شبيهة بفيسبوك */
+html.mobile-device #appView .reference-post-card,
+html.mobile-device #appView .post-card{
+  margin-bottom:20px!important;
+  padding:22px 0 18px!important;
+}
+html.mobile-device #appView .reference-post-header{padding:0 18px!important;gap:16px!important}
+html.mobile-device #appView .reference-post-head .avatar,
+html.mobile-device #appView .post-head .avatar{
+  width:86px!important;
+  height:86px!important;
+  min-width:86px!important;
+}
+html.mobile-device #appView .reference-post-meta strong,
+html.mobile-device #appView .post-head strong{
+  font-size:32px!important;
+  line-height:1.25!important;
+}
+html.mobile-device #appView .reference-post-meta small,
+html.mobile-device #appView .post-head small{
+  font-size:22px!important;
+  line-height:1.45!important;
+}
+html.mobile-device #appView .reference-post-text,
+html.mobile-device #appView .post-text{
+  font-size:31px!important;
+  line-height:1.65!important;
+  padding:20px 18px 24px!important;
+}
+html.mobile-device #appView .reference-post-footer{padding:18px 14px 14px!important}
+html.mobile-device #appView .stat-btn,
+html.mobile-device #appView .text-action-btn{min-height:72px!important;gap:11px!important}
+html.mobile-device #appView .stat-btn span,
+html.mobile-device #appView .text-action-btn span{font-size:25px!important}
+html.mobile-device #appView .stat-btn svg,
+html.mobile-device #appView .text-action-btn svg,
+html.mobile-device #appView .stat-btn .atta-icon,
+html.mobile-device #appView .text-action-btn .atta-icon{width:44px!important;height:44px!important}
+html.mobile-device #appView .reaction-summary{font-size:22px!important}
+
+/* التعليقات */
+html.mobile-device #appView .comment-row{font-size:25px!important;line-height:1.65!important;padding:17px 18px!important}
+html.mobile-device #appView .comment-reply{font-size:23px!important}
+html.mobile-device #appView .reply-open-btn{font-size:21px!important}
+html.mobile-device #appView .comment-compose input,
+html.mobile-device #appView .reply-compose input{
+  height:70px!important;
+  min-height:70px!important;
+  font-size:24px!important;
+}
+html.mobile-device #appView .comment-compose button,
+html.mobile-device #appView .reply-compose button{
+  height:66px!important;
+  min-height:66px!important;
+  font-size:23px!important;
+}
+
+/* الصفحات العامة / الإشعارات / البحث */
+html.mobile-device #appView .page-title h2,
+html.mobile-device #appView .friends-page-title h2,
+html.mobile-device #appView .admin-head h2{font-size:34px!important}
+html.mobile-device #appView .page-title h3,
+html.mobile-device #appView .section-bar h3{font-size:29px!important}
+html.mobile-device #appView .page-title button,
+html.mobile-device #appView .friends-find-btn{font-size:22px!important;min-height:58px!important}
+html.mobile-device #appView .smart-notification-card,
+html.mobile-device #appView .notification-card{padding:22px!important}
+html.mobile-device #appView .notification-main-text,
+html.mobile-device #appView .notification-card{font-size:26px!important;line-height:1.6!important}
+html.mobile-device #appView .notification-action-hint{font-size:23px!important}
+html.mobile-device #appView .smart-notification-card small,
+html.mobile-device #appView .notification-card small{font-size:20px!important}
+html.mobile-device #appView .search-input,
+html.mobile-device #appView input[type="search"]{height:70px!important;font-size:24px!important}
+
+/* الملف الشخصي */
+html.mobile-device #appView .profile-cover{height:285px!important;min-height:285px!important}
+html.mobile-device #appView .profile-large-avatar{width:154px!important;height:154px!important}
+html.mobile-device #appView .profile-title-block h2{font-size:34px!important}
+html.mobile-device #appView #profileUsername{font-size:22px!important}
+html.mobile-device #appView .profile-bio{font-size:24px!important}
+html.mobile-device #appView .profile-edit-top textarea{font-size:24px!important}
+html.mobile-device #appView .profile-edit-top button{min-height:62px!important;font-size:22px!important}
+html.mobile-device #appView .profile-post-head img{width:76px!important;height:76px!important}
+html.mobile-device #appView .profile-post-head strong{font-size:27px!important}
+html.mobile-device #appView .profile-post-head small{font-size:20px!important}
+html.mobile-device #appView .profile-post-text{font-size:27px!important}
+
+/* الرسائل */
+html.mobile-device #appView .chat-contact-avatar{width:76px!important;height:76px!important}
+html.mobile-device #appView .chat-contact strong,
+html.mobile-device #appView .conversation-title strong{font-size:26px!important}
+html.mobile-device #appView .chat-contact small,
+html.mobile-device #appView .conversation-title small{font-size:20px!important}
+html.mobile-device #appView .message-bubble{font-size:24px!important;line-height:1.6!important;padding:15px 18px!important}
+html.mobile-device #appView .chat-input,
+html.mobile-device #appView .message-input{font-size:23px!important;min-height:66px!important}
+
+/* شريط التنقل السفلي */
+html.mobile-device #appView .premium-nav,
+html.mobile-device #appView .mobile-bottom-nav{
+  height:110px!important;
+  min-height:110px!important;
+}
+html.mobile-device #appView .premium-nav .nav-btn,
+html.mobile-device #appView .mobile-bottom-nav .nav-btn{
+  height:96px!important;
+  min-height:96px!important;
+}
+html.mobile-device #appView .premium-nav .atta-icon,
+html.mobile-device #appView .mobile-bottom-nav .atta-icon{width:46px!important;height:46px!important}
+html.mobile-device #appView .premium-nav .nav-btn span,
+html.mobile-device #appView .mobile-bottom-nav .nav-btn span{font-size:20px!important}
+
+/* شاشة الدخول: نفس V13.60، فقط تكبير المحتوى */
+html.mobile-device .atta-login-card input,
+html.mobile-device .atta-login-card select{
+  min-height:clamp(66px,7.8dvh,84px)!important;
+  height:clamp(66px,7.8dvh,84px)!important;
+  padding-inline:24px!important;
+  font-size:clamp(21px,2.7dvh,27px)!important;
+}
+html.mobile-device .atta-login-card input::placeholder{
+  font-size:clamp(20px,2.5dvh,25px)!important;
+}
+html.mobile-device .atta-login-button,
+html.mobile-device .atta-create-button{
+  min-height:clamp(64px,7.2dvh,78px)!important;
+  height:clamp(64px,7.2dvh,78px)!important;
+  font-size:clamp(23px,2.9dvh,29px)!important;
+}
+html.mobile-device .atta-forgot-button{font-size:clamp(22px,2.8dvh,28px)!important}
+html.mobile-device .google-signin-section{font-size:clamp(16px,2.1dvh,21px)!important}
+html.mobile-device .atta-footer-brand{font-size:clamp(22px,2.8dvh,28px)!important}
+
 
 /* Login styles moved to style.css — V13.59 login-only update */
 </style>
