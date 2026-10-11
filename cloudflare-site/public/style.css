@@ -4860,3 +4860,23 @@ html.mobile-device .atta-login-card{
   #authView .atta-login-button{height:52px!important;min-height:52px!important;font-size:18px!important}
   #authView .atta-create-button{height:48px!important;min-height:48px!important;font-size:16px!important}
 }
+
+
+/* V13.65 AUTH HEIGHT FIX — scoped to login, overriding legacy mobile full-height rules */
+html body #authView.auth-view {min-height:100dvh!important;height:auto!important;overflow-x:hidden!important;overflow-y:auto!important;}
+html body #authView .atta-login-shell {height:auto!important;min-height:100dvh!important;display:flex!important;flex-direction:column!important;align-items:center!important;justify-content:center!important;padding:24px 12px!important;overflow:visible!important;}
+html body #authView .atta-login-card,
+html.mobile-device body #authView .atta-login-card {width:min(420px,100%)!important;max-width:420px!important;min-width:0!important;height:auto!important;min-height:0!important;max-height:none!important;flex:0 0 auto!important;display:flex!important;flex-direction:column!important;justify-content:flex-start!important;align-items:stretch!important;gap:0!important;margin:0 auto!important;padding:22px 18px 24px!important;box-sizing:border-box!important;}
+html body #authView .atta-login-brand,html.mobile-device body #authView .atta-login-brand{margin:0 0 20px!important;flex:0 0 auto!important;}
+html body #authView .atta-language{margin:0 0 10px!important;flex:0 0 auto!important;}
+html body #authView #authMainFields,html body #authView .google-signin-section,html body #authView .atta-footer-brand{flex:0 0 auto!important;}
+html body #authView .atta-login-card input,html.mobile-device body #authView .atta-login-card input,
+html body #authView .atta-login-card select,html.mobile-device body #authView .atta-login-card select{height:52px!important;min-height:52px!important;font-size:16px!important;margin-bottom:10px!important;}
+html body #authView .atta-login-button,html.mobile-device body #authView .atta-login-button{height:52px!important;min-height:52px!important;font-size:18px!important;}
+html body #authView .atta-forgot-button,html.mobile-device body #authView .atta-forgot-button{margin:12px auto 16px!important;min-height:36px!important;font-size:16px!important;}
+html body #authView .atta-create-button,html.mobile-device body #authView .atta-create-button{height:48px!important;min-height:48px!important;font-size:16px!important;margin:0 auto!important;}
+html body #authView .atta-footer-brand,html.mobile-device body #authView .atta-footer-brand{margin-top:20px!important;font-size:15px!important;}
+html body #authView .atta-login-logo,html.mobile-device body #authView .atta-login-logo{width:86px!important;height:86px!important;}
+html body #authView .google-signin-section,html.mobile-device body #authView .google-signin-section{margin:12px 0 6px!important;}
+html body #authView .atta-download-strip{display:none!important;}
+@media(max-height:700px){html body #authView .atta-login-shell{justify-content:flex-start!important;}}
