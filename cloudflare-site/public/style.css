@@ -4833,3 +4833,30 @@ html.mobile-device .atta-login-card{
   -webkit-backdrop-filter:none !important;
   backdrop-filter:none !important;
 }
+
+/* ===== AL-ATTA Facebook-inspired login layout | black & gold =====
+   Scoped to authentication only; no JavaScript or app pages changed. */
+#authView.auth-view{background:#080a0c!important;min-height:100dvh!important}
+#authView .atta-login-shell{width:100%!important;min-height:100dvh!important;display:flex!important;align-items:center!important;justify-content:center!important;padding:24px 16px!important;box-sizing:border-box!important}
+#authView .atta-login-card{width:min(420px,100%)!important;max-width:420px!important;margin:0 auto!important;padding:25px 22px 23px!important;border:1px solid rgba(214,173,69,.32)!important;border-radius:16px!important;background:#101315!important;box-shadow:0 12px 36px #0006!important;box-sizing:border-box!important;text-align:center!important}
+#authView .atta-language{margin:0 0 10px!important;font-size:12px!important}
+#authView .atta-login-brand{margin:0 0 22px!important;gap:4px!important}
+#authView .atta-login-logo{width:88px!important;height:88px!important}
+#authView .atta-login-brand-name{font-size:12px!important;letter-spacing:3px!important}
+#authView .atta-login-card input,#authView .atta-login-card select{box-sizing:border-box!important;width:100%!important;height:54px!important;min-height:54px!important;margin:0 0 12px!important;padding:0 15px!important;border:1px solid #635536!important;border-radius:9px!important;background:#0c0f11!important;color:#f5ecd7!important;font-size:16px!important;box-shadow:none!important;text-align:right!important}
+#authView .atta-login-card input::placeholder{color:#a49c8d!important;font-size:14px!important}
+#authView .atta-login-card input:focus,#authView .atta-login-card select:focus{border-color:#e1b950!important;box-shadow:0 0 0 2px #d6ad4530!important}
+#authView .atta-login-button{width:100%!important;height:52px!important;min-height:52px!important;margin:2px 0 0!important;border-radius:9px!important;background:linear-gradient(110deg,#aa791a,#e6b949)!important;color:#171109!important;font-size:18px!important;font-weight:800!important}
+#authView .google-signin-section{margin:13px 0 8px!important;font-size:12px!important}
+#authView .google-signin-btn{display:flex!important;justify-content:center!important;align-items:center!important;max-width:100%!important}
+#authView .atta-forgot-button{display:block!important;margin:14px auto 18px!important;min-height:32px!important;color:#e4bd63!important;font-size:15px!important}
+#authView .atta-create-button{width:100%!important;max-width:260px!important;height:48px!important;min-height:48px!important;margin:0 auto!important;border-radius:9px!important;font-size:16px!important}
+#authView .atta-footer-brand{margin-top:24px!important;font-size:15px!important}
+@media(max-width:600px){
+  #authView .atta-login-shell{justify-content:flex-start!important;padding:24px 16px!important}
+  #authView .atta-login-card{width:100%!important;max-width:420px!important;margin:0 auto!important;padding:22px 16px 20px!important;border-radius:14px!important}
+  #authView .atta-login-logo{width:82px!important;height:82px!important}
+  #authView .atta-login-card input,#authView .atta-login-card select{height:52px!important;min-height:52px!important;font-size:16px!important}
+  #authView .atta-login-button{height:52px!important;min-height:52px!important;font-size:18px!important}
+  #authView .atta-create-button{height:48px!important;min-height:48px!important;font-size:16px!important}
+}
