@@ -149,17 +149,22 @@ async function startAuthenticatedApp(sessionToken,user=null){
 
   ensureTurnIceServers().catch(()=>{});
 
+  // V13.60: show the main feed first, then load secondary panels gradually.
   connect();
   startCallSignalPolling();
-  loadGroups();
   resetMessagesInbox();
-  loadChatContacts();
   loadPosts();
-  loadStories();
-  loadDesktopSuggestions();
-  loadFriendRequests().catch(()=>{});
-  startSocialSync();
-  askNotifications();
+
+  const deferStartup=(fn,delay)=>setTimeout(()=>{
+    try{ Promise.resolve(fn()).catch(()=>{}); }catch{}
+  },delay);
+
+  deferStartup(loadStories,120);
+  deferStartup(loadDesktopSuggestions,240);
+  deferStartup(loadGroups,360);
+  deferStartup(loadChatContacts,480);
+  deferStartup(loadFriendRequests,600);
+  deferStartup(()=>{ startSocialSync(); askNotifications(); },750);
 }
 
 async function restoreSavedLogin(){
@@ -2120,7 +2125,7 @@ async function loadProfilePosts(username){
   if(!listEl)return;
   listEl.innerHTML='<div class="profile-post-empty">جاري تحميل المنشورات...</div>';
   try{
-    const d=await api(`/api/posts?token=${encodeURIComponent(token)}`);
+    const d=await api(`/api/posts?token=${encodeURIComponent(token)}&limit=20`);
     const posts=(d.posts||[]).filter(p=>String(p.author||"").toLowerCase()===String(username||"").toLowerCase());
     if(countEl)countEl.textContent=posts.length;
     if(!posts.length){
@@ -2261,7 +2266,7 @@ $("friendsStatBtn").onclick=()=>$("friendsSection").scrollIntoView({behavior:"sm
 async function loadPosts(){
   if(!token)return;
   try{
-    const d=await api(`/api/posts?token=${encodeURIComponent(token)}`);
+    const d=await api(`/api/posts?token=${encodeURIComponent(token)}&limit=20`);
     const posts=(d.posts||[]).slice(0,20);
 
     const shareCounts={};
@@ -3696,7 +3701,7 @@ window.addEventListener("load",setupGoogleSignIn);
 
   if ("serviceWorker" in navigator) {
     window.addEventListener("load", () => {
-      navigator.serviceWorker.register("/sw.js?v=13.44", { scope: "/" }).catch(() => {});
+      navigator.serviceWorker.register("/sw.js?v=13.60", { scope: "/" }).catch(() => {});
     });
   }
 

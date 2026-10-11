@@ -890,11 +890,13 @@ export class SignalingRoom extends DurableObject {
 
       const ids=await this.ctx.storage.get("postIds")||[];
       const posts=[];
+      const requestedLimit=Number(url.searchParams.get("limit")||0);
+      const limit=Number.isFinite(requestedLimit)&&requestedLimit>0?Math.min(50,Math.floor(requestedLimit)):ids.length;
+      const saved=await this.ctx.storage.get(`saved:${s.username}`)||[];
 
-      for(const id of [...ids].reverse()){
+      for(const id of [...ids].reverse().slice(0,limit)){
         const p=await this.ctx.storage.get(`post:${id}`);
         if(!p)continue;
-        const saved=await this.ctx.storage.get(`saved:${s.username}`)||[];
         const reactionCounts={};
         const reactions=p.reactions||{};
         for(const key of ["like","love","haha","wow","sad","angry","dislike"]){
