@@ -4807,3 +4807,159 @@ html.mobile-device .round-call-btn small{font-size:17px!important}
     font-size:26px !important;
   }
 }
+
+
+/* =========================================================
+   V13.58 — ANDROID APP SCALE + PERFORMANCE + GOOGLE CENTER
+   The Android TWA can report a desktop-like CSS viewport. These rules use
+   html.mobile-device so the whole application stays large and readable.
+   ========================================================= */
+html.mobile-device .google-signin-section,
+html.mobile-device .google-signin-btn{
+  width:100% !important;
+  max-width:100% !important;
+  box-sizing:border-box !important;
+}
+html.mobile-device .google-signin-btn{
+  display:flex !important;
+  align-items:center !important;
+  justify-content:center !important;
+  overflow:visible !important;
+}
+html.mobile-device .google-signin-btn > div,
+html.mobile-device .google-signin-btn iframe{
+  margin-left:auto !important;
+  margin-right:auto !important;
+}
+
+/* Lighter rendering on Android: blur is expensive inside a TWA. */
+html.mobile-device .premium-header,
+html.mobile-device .atta-login-card{
+  -webkit-backdrop-filter:none !important;
+  backdrop-filter:none !important;
+}
+html.mobile-device *{
+  -webkit-tap-highlight-color:transparent;
+}
+
+/* Global app size — applies even when Android reports >999 CSS pixels. */
+html.mobile-device #appView{
+  width:100vw !important;
+  max-width:100vw !important;
+  overflow-x:hidden !important;
+  font-size:24px !important;
+  line-height:1.65 !important;
+}
+html.mobile-device #appView .social-main{
+  width:100% !important;
+  max-width:100% !important;
+  padding:14px 0 126px !important;
+}
+html.mobile-device #appView #homePage,
+html.mobile-device #appView #friendsPage,
+html.mobile-device #appView #searchPage,
+html.mobile-device #appView #messagesPage,
+html.mobile-device #appView #notificationsPage,
+html.mobile-device #appView #profilePage,
+html.mobile-device #appView #savedPage,
+html.mobile-device #appView #adminPage{
+  width:100% !important;
+  max-width:100% !important;
+}
+
+/* Header */
+html.mobile-device #appView .premium-header{height:104px !important;padding:0 12px !important}
+html.mobile-device #appView .reference-header-inner{width:100% !important;max-width:none !important;gap:10px !important}
+html.mobile-device #appView .reference-mini-logo{width:66px !important;height:66px !important}
+html.mobile-device #appView .reference-header-brand strong{font-size:25px !important}
+html.mobile-device #appView .reference-header-brand small{font-size:16px !important}
+html.mobile-device #appView .header-icon-btn,
+html.mobile-device #appView .mobile-header-search-btn{width:64px !important;height:64px !important;min-width:64px !important}
+html.mobile-device #appView .header-icon-btn svg,
+html.mobile-device #appView .mobile-header-search-btn svg{width:40px !important;height:40px !important}
+html.mobile-device #appView .header-mini-badge{min-width:29px !important;height:29px !important;line-height:29px !important;font-size:17px !important}
+
+/* Stories / suggestions / composer */
+html.mobile-device #appView .mobile-status-section,
+html.mobile-device #appView .mobile-friends-suggestions,
+html.mobile-device #appView .reference-composer{margin-left:10px !important;margin-right:10px !important}
+html.mobile-device #appView .mobile-status-head strong,
+html.mobile-device #appView .reference-card-title strong{font-size:26px !important}
+html.mobile-device #appView .feed-story-card{flex-basis:138px !important;width:138px !important;height:210px !important}
+html.mobile-device #appView .feed-story-card .story-avatar{width:54px !important;height:54px !important}
+html.mobile-device #appView .feed-story-card .story-name,
+html.mobile-device #appView .feed-story-add .story-add-bottom{font-size:18px !important}
+html.mobile-device #appView .reference-suggestion-user img{width:70px !important;height:70px !important}
+html.mobile-device #appView .reference-suggestion-user strong,
+html.mobile-device #appView .person-main strong,
+html.mobile-device #appView .friend-card strong{font-size:23px !important}
+html.mobile-device #appView .reference-suggestion-user small,
+html.mobile-device #appView .person-main small,
+html.mobile-device #appView .friend-card small{font-size:19px !important}
+html.mobile-device #appView .reference-composer-avatar{width:72px !important;height:72px !important}
+html.mobile-device #appView .reference-composer-name{font-size:26px !important}
+html.mobile-device #appView .reference-composer textarea{font-size:25px !important;min-height:128px !important;line-height:1.6 !important}
+html.mobile-device #appView .reference-tool-btn,
+html.mobile-device #appView .reference-publish-btn{height:60px !important;font-size:20px !important}
+html.mobile-device #appView .reference-tool-btn svg,
+html.mobile-device #appView .reference-publish-btn svg{width:31px !important;height:31px !important}
+
+/* Feed */
+html.mobile-device #appView .reference-post-card,
+html.mobile-device #appView .post-card{width:100% !important;margin:0 0 16px !important;padding:19px 0 16px !important;border-radius:0 !important}
+html.mobile-device #appView .reference-post-header{padding:0 17px !important;gap:14px !important}
+html.mobile-device #appView .reference-post-head .avatar{width:76px !important;height:76px !important}
+html.mobile-device #appView .reference-post-meta strong{font-size:27px !important;line-height:1.3 !important}
+html.mobile-device #appView .reference-post-meta small,
+html.mobile-device #appView .post-head small{font-size:20px !important;line-height:1.5 !important}
+html.mobile-device #appView .post-menu-btn{width:58px !important;height:58px !important}
+html.mobile-device #appView .post-menu-btn svg{width:36px !important;height:36px !important}
+html.mobile-device #appView .reference-post-text,
+html.mobile-device #appView .post-text{font-size:27px !important;line-height:1.72 !important;padding:16px 18px 20px !important}
+html.mobile-device #appView .reference-post-image,
+html.mobile-device #appView .post-image{width:100% !important;max-height:none !important;object-fit:contain !important}
+html.mobile-device #appView .reference-post-footer{padding:15px 14px 12px !important}
+html.mobile-device #appView .stat-btn,
+html.mobile-device #appView .text-action-btn{min-height:64px !important;gap:9px !important;padding:0 9px !important}
+html.mobile-device #appView .stat-btn span,
+html.mobile-device #appView .text-action-btn span{font-size:22px !important}
+html.mobile-device #appView .stat-btn svg,
+html.mobile-device #appView .text-action-btn svg{width:40px !important;height:40px !important}
+html.mobile-device #appView .reaction-summary{font-size:20px !important}
+html.mobile-device #appView .comment-row{font-size:22px !important;line-height:1.65 !important;padding:14px 15px !important}
+html.mobile-device #appView .comment-reply{font-size:21px !important}
+html.mobile-device #appView .comment-compose input,
+html.mobile-device #appView .reply-compose input{height:64px !important;font-size:22px !important}
+html.mobile-device #appView .comment-compose button,
+html.mobile-device #appView .reply-compose button{height:60px !important;font-size:21px !important}
+
+/* Friends, notifications, profile, messages and forms */
+html.mobile-device #appView input,
+html.mobile-device #appView select,
+html.mobile-device #appView textarea,
+html.mobile-device #appView button{font-size:max(20px,1em)}
+html.mobile-device #appView .notification-card,
+html.mobile-device #appView .smart-notification-card{font-size:24px !important;line-height:1.65 !important;padding:20px !important}
+html.mobile-device #appView .notification-card small{font-size:19px !important}
+html.mobile-device #appView .message-bubble{font-size:24px !important;line-height:1.6 !important;padding:15px 18px !important}
+html.mobile-device #appView .chat-contact-avatar{width:76px !important;height:76px !important}
+html.mobile-device #appView .chat-contact strong,
+html.mobile-device #appView .conversation-title strong{font-size:26px !important}
+html.mobile-device #appView .chat-contact small,
+html.mobile-device #appView .conversation-title small{font-size:20px !important}
+html.mobile-device #appView .profile-title-block h2{font-size:34px !important}
+html.mobile-device #appView #profileUsername{font-size:23px !important}
+html.mobile-device #appView .profile-bio{font-size:25px !important;line-height:1.65 !important}
+html.mobile-device #appView .empty-card{font-size:23px !important;min-height:100px !important;padding:24px !important}
+
+/* Bottom navigation */
+html.mobile-device #appView .premium-nav,
+html.mobile-device #appView .mobile-bottom-nav{width:calc(100% - 8px) !important;max-width:none !important;height:116px !important;min-height:116px !important}
+html.mobile-device #appView .premium-nav .nav-btn,
+html.mobile-device #appView .mobile-bottom-nav .nav-btn{height:100px !important;min-height:100px !important}
+html.mobile-device #appView .premium-nav .atta-icon,
+html.mobile-device #appView .mobile-bottom-nav .atta-icon,
+html.mobile-device #appView .premium-nav svg,
+html.mobile-device #appView .mobile-bottom-nav svg{width:46px !important;height:46px !important}
+html.mobile-device #appView .premium-nav .nav-btn span,
+html.mobile-device #appView .mobile-bottom-nav .nav-btn span{font-size:20px !important;font-weight:900 !important}

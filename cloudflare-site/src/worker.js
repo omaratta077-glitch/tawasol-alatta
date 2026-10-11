@@ -888,13 +888,21 @@ export class SignalingRoom extends DurableObject {
       const s=await this.session(url.searchParams.get("token")||"");
       if(!s)return j({ok:false,error:"الجلسة منتهية"},401);
 
+      // V13.58: the old route read every stored post sequentially before the
+      // home screen could render. Read only the newest requested posts and do
+      // the independent storage lookups in parallel.
+      const requestedLimit=Number(url.searchParams.get("limit")||20);
+      const limit=Math.max(1,Math.min(100,Number.isFinite(requestedLimit)?requestedLimit:20));
       const ids=await this.ctx.storage.get("postIds")||[];
-      const posts=[];
+      const recentIds=[...ids].reverse().slice(0,limit);
+      const [saved,rawPosts]=await Promise.all([
+        this.ctx.storage.get(`saved:${s.username}`).then(v=>v||[]),
+        Promise.all(recentIds.map(id=>this.ctx.storage.get(`post:${id}`)))
+      ]);
 
-      for(const id of [...ids].reverse()){
-        const p=await this.ctx.storage.get(`post:${id}`);
+      const posts=[];
+      for(const p of rawPosts){
         if(!p)continue;
-        const saved=await this.ctx.storage.get(`saved:${s.username}`)||[];
         const reactionCounts={};
         const reactions=p.reactions||{};
         for(const key of ["like","love","haha","wow","sad","angry","dislike"]){
@@ -906,15 +914,14 @@ export class SignalingRoom extends DurableObject {
           if((reactions[key]||[]).includes(s.username)){myReaction=key;break;}
         }
 
+        const [authorInfo,original]=await Promise.all([
+          this.publicUser(p.author),
+          p.sharedPostId ? this.ctx.storage.get(`post:${p.sharedPostId}`) : Promise.resolve(null)
+        ]);
         let sharedPost=null;
-        if(p.sharedPostId){
-          const original=await this.ctx.storage.get(`post:${p.sharedPostId}`);
-          if(original){
-            sharedPost={...original,authorInfo:await this.publicUser(original.author)};
-          }
+        if(original){
+          sharedPost={...original,authorInfo:await this.publicUser(original.author)};
         }
-
-        const authorInfo=await this.publicUser(p.author);
 
         posts.push({
           ...p,

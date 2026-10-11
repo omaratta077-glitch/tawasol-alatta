@@ -149,17 +149,24 @@ async function startAuthenticatedApp(sessionToken,user=null){
 
   ensureTurnIceServers().catch(()=>{});
 
+  // V13.58: show the home feed first, then load secondary sections without
+  // making the first screen wait for many simultaneous requests.
   connect();
   startCallSignalPolling();
-  loadGroups();
   resetMessagesInbox();
-  loadChatContacts();
   loadPosts();
-  loadStories();
-  loadDesktopSuggestions();
-  loadFriendRequests().catch(()=>{});
-  startSocialSync();
-  askNotifications();
+
+  setTimeout(()=>{
+    Promise.allSettled([
+      loadStories(),
+      loadDesktopSuggestions(),
+      loadGroups(),
+      loadChatContacts(),
+      loadFriendRequests()
+    ]);
+    startSocialSync();
+    askNotifications();
+  },250);
 }
 
 async function restoreSavedLogin(){
@@ -1062,7 +1069,7 @@ async function syncSocialState(){
 
 function startSocialSync(){
   clearInterval(syncTimer);
-  syncTimer=setInterval(syncSocialState,8000);
+  syncTimer=setInterval(syncSocialState,12000);
 }
 
 async function loadGroups(){
@@ -2120,7 +2127,7 @@ async function loadProfilePosts(username){
   if(!listEl)return;
   listEl.innerHTML='<div class="profile-post-empty">جاري تحميل المنشورات...</div>';
   try{
-    const d=await api(`/api/posts?token=${encodeURIComponent(token)}`);
+    const d=await api(`/api/posts?token=${encodeURIComponent(token)}&limit=100`);
     const posts=(d.posts||[]).filter(p=>String(p.author||"").toLowerCase()===String(username||"").toLowerCase());
     if(countEl)countEl.textContent=posts.length;
     if(!posts.length){
@@ -2261,8 +2268,8 @@ $("friendsStatBtn").onclick=()=>$("friendsSection").scrollIntoView({behavior:"sm
 async function loadPosts(){
   if(!token)return;
   try{
-    const d=await api(`/api/posts?token=${encodeURIComponent(token)}`);
-    const posts=(d.posts||[]).slice(0,20);
+    const d=await api(`/api/posts?token=${encodeURIComponent(token)}&limit=20`);
+    const posts=d.posts||[];
 
     const shareCounts={};
     posts.forEach(p=>{
@@ -3640,9 +3647,14 @@ async function setupGoogleSignIn(){
         }catch(e){hint.textContent=e.message||"تعذر تسجيل الدخول بواسطة Google";}
       }
     });
+    const googleButtonWidth=Math.max(240,Math.min(400,Math.floor(holder.getBoundingClientRect().width||320)));
+    holder.style.display="flex";
+    holder.style.justifyContent="center";
+    holder.style.alignItems="center";
+    holder.style.width="100%";
     window.google.accounts.id.renderButton(holder,{
       type:"standard",theme:"filled_black",size:"large",shape:"pill",
-      text:"continue_with",width:300,locale:"ar"
+      text:"continue_with",width:googleButtonWidth,locale:"ar"
     });
     googleWidgetStarted=true;
   }catch(e){hint.textContent=e.message||"تعذر تفعيل تسجيل Google";}
@@ -3696,7 +3708,7 @@ window.addEventListener("load",setupGoogleSignIn);
 
   if ("serviceWorker" in navigator) {
     window.addEventListener("load", () => {
-      navigator.serviceWorker.register("/sw.js?v=13.44", { scope: "/" }).catch(() => {});
+      navigator.serviceWorker.register("/sw.js?v=13.58", { scope: "/" }).catch(() => {});
     });
   }
 
