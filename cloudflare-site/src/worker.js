@@ -884,23 +884,6 @@ export class SignalingRoom extends DurableObject {
       return j({ok:true,post});
     }
 
-    if(url.pathname==="/api/post-delete" && request.method==="POST"){
-      const session=await this.session(String(body.token||""));
-      if(!session)return j({ok:false,error:"الجلسة منتهية"},401);
-      const id=String(body.postId||"").trim();
-      if(!id)return j({ok:false,error:"المنشور غير محدد"},400);
-      const post=await this.ctx.storage.get(`post:${id}`);
-      if(!post)return j({ok:false,error:"المنشور غير موجود"},404);
-      const role=await this.roleFor(session.username);
-      const canDelete=String(post.author||"").toLowerCase()===String(session.username||"").toLowerCase() || role==="super_admin" || role==="moderator";
-      if(!canDelete)return j({ok:false,error:"يمكنك حذف منشوراتك فقط"},403);
-
-      await this.ctx.storage.delete(`post:${id}`);
-      const ids=await this.ctx.storage.get("postIds")||[];
-      await this.ctx.storage.put("postIds",ids.filter(x=>x!==id));
-      return j({ok:true,deleted:id});
-    }
-
     if(url.pathname==="/api/posts" && request.method==="GET"){
       const s=await this.session(url.searchParams.get("token")||"");
       if(!s)return j({ok:false,error:"الجلسة منتهية"},401);
@@ -1850,7 +1833,7 @@ export default {
       return Response.json({
         ok:true,
         app:"تواصل العطا",
-        version:"V13.62-Stable60-PostMenuDelete"
+        version:"V13.51-Restored-Full"
       });
     }
 

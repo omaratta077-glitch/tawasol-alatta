@@ -2280,7 +2280,6 @@ async function loadPosts(){
       const likeCount=totalReactionsCount(post.reactionCounts||{});
       const commentCount=post.commentCount||0;
       const shareCount=shareCounts[post.id]||0;
-      const isMine=String(post.author||"").toLowerCase()===String(me?.username||"").toLowerCase();
       const comments=(post.comments||[]).slice(-5).map(c=>{
         const replies=(c.replies||[]).map(r=>`
           <div class="comment-reply"><strong>@${esc(r.author)}</strong> ${esc(r.text)}</div>
@@ -2307,12 +2306,7 @@ async function loadPosts(){
               <small>@${esc(a.username)} <i>•</i> ${timeAgoAr(post.createdAt)} <span class="globe-inline">${iconGlobe()}</span></small>
             </span>
           </button>
-          <div class="post-menu-wrap">
-            <button class="post-menu-btn" type="button" aria-label="المزيد" data-post-menu="${post.id}">${iconDots()}</button>
-            <div class="post-options-menu hidden" data-post-options="${post.id}">
-              ${isMine?`<button class="post-option-delete" type="button" data-delete-post="${post.id}">حذف المنشور</button>`:`<button type="button" data-report-post="${post.id}">الإبلاغ عن المنشور</button>`}
-            </div>
-          </div>
+          <button class="post-menu-btn" type="button" aria-label="المزيد">${iconDots()}</button>
         </div>
         ${post.text?`<div class="post-text reference-post-text">${esc(post.text)}</div>`:""}
         ${post.image?`<img class="post-image reference-post-image" loading="lazy" decoding="async" src="${post.image}" alt="">`:""}
@@ -2348,32 +2342,6 @@ async function loadPosts(){
     }).join(""):`<div class="empty-card">لا توجد منشورات بعد.</div>`;
 
     bindProfileLinks();
-
-    document.querySelectorAll("[data-post-menu]").forEach(btn=>{
-      btn.onclick=(e)=>{
-        e.stopPropagation();
-        const id=String(btn.dataset.postMenu||"");
-        const menu=document.querySelector(`[data-post-options="${id}"]`);
-        document.querySelectorAll(".post-options-menu").forEach(m=>{if(m!==menu)m.classList.add("hidden")});
-        menu?.classList.toggle("hidden");
-      };
-    });
-
-    document.querySelectorAll("[data-delete-post]").forEach(btn=>{
-      btn.onclick=async(e)=>{
-        e.stopPropagation();
-        const postId=String(btn.dataset.deletePost||"");
-        if(!postId || !confirm("هل تريد حذف هذا المنشور نهائيًا؟"))return;
-        try{
-          await api("/api/post-delete",{method:"POST",body:JSON.stringify({token,postId})});
-          showInAppToast("تم حذف المنشور","تم حذف المنشور بنجاح.");
-          await loadPosts();
-          if(viewedProfileUsername && String(viewedProfileUsername).toLowerCase()===String(me?.username||"").toLowerCase()){
-            loadProfilePosts(viewedProfileUsername).catch(()=>{});
-          }
-        }catch(err){alert(err.message||"تعذر حذف المنشور")}
-      };
-    });
 
     document.querySelectorAll("[data-like]").forEach(btn=>{
       btn.onclick=async()=>{

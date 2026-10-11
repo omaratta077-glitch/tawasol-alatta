@@ -1,4 +1,4 @@
-const CACHE="tawasol-alatta-v13-62";
+const CACHE="tawasol-alatta-v13-60";
 const STATIC_RE=/\.(?:css|js|png|jpg|jpeg|webp|svg|ico|wav|mp3|woff2?)$/i;
 
 self.addEventListener("install",event=>{
