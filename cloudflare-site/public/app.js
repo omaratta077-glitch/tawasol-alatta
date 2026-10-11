@@ -855,6 +855,10 @@ function renderProfile(){
   $("meUsername").textContent="@"+me.username;
   $("avatarImg").src=me.avatar||avatarFallback(me.displayName||me.username);
   if($("headerAvatar"))$("headerAvatar").src=me.avatar||avatarFallback(me.fullName||me.displayName||me.username);
+  if($("headerProfileName"))$("headerProfileName").textContent=me.fullName||me.displayName||me.username;
+  if($("headerProfileUsername"))$("headerProfileUsername").textContent="@"+me.username;
+  if($("homeAvatar"))$("homeAvatar").src=me.avatar||avatarFallback(me.fullName||me.displayName||me.username);
+  if($("profileAvatarLarge") && viewedProfileUsername===me.username)$("profileAvatarLarge").src=me.avatar||avatarFallback(me.fullName||me.displayName||me.username);
   if($("headerUserName"))$("headerUserName").textContent=me.fullName||me.displayName||me.username;
   if($("composerUserName"))$("composerUserName").textContent=me.fullName||me.displayName||me.username;
 }
@@ -1538,6 +1542,8 @@ async function shareScreen(){
 
 
 let postImageData="";
+let postVideoData="";
+let postVideoUrl="";
 
 const reactionEmoji={like:"👍",love:"❤️",haha:"😂",wow:"😮",sad:"😢",angry:"😡",dislike:"👎"};
 
@@ -1803,6 +1809,7 @@ function showPage(pageId){
   document.querySelectorAll(".rail-btn").forEach(b=>b.classList.toggle("active",b.dataset.page===pageId));
 
   if(pageId==="homePage")loadPosts();
+  if(pageId==="friendsPage"){ loadFriendRequests().catch(()=>{}); if(me?.username)loadFriends(me.username).catch(()=>{}); }
   if(pageId==="adminPage")loadAdminDashboard();
   if(pageId==="notificationsPage")loadNotifications();
   if(pageId==="profilePage"){
@@ -1820,6 +1827,13 @@ function showPage(pageId){
 
 if($("headerSearchBtn")){
   $("headerSearchBtn").onclick=()=>{
+    showPage("searchPage");
+    setTimeout(()=>$("userSearchInput")?.focus(),50);
+  };
+}
+
+if($("mobileHeaderSearchBtn")){
+  $("mobileHeaderSearchBtn").onclick=()=>{
     showPage("searchPage");
     setTimeout(()=>$("userSearchInput")?.focus(),50);
   };
@@ -1956,10 +1970,12 @@ document.querySelectorAll("[data-top-page]").forEach(btn=>{
 });
 
 if($("headerFriendsBtn")){
-  $("headerFriendsBtn").onclick=()=>{
-    viewedProfileUsername=me?.username||"";
-    showPage("profilePage");
-    setTimeout(()=>$("friendRequestsSection")?.scrollIntoView({behavior:"smooth",block:"start"}),120);
+  $("headerFriendsBtn").onclick=()=>showPage("friendsPage");
+}
+if($("friendsFindPeopleBtn")){
+  $("friendsFindPeopleBtn").onclick=()=>{
+    showPage("searchPage");
+    setTimeout(()=>$("userSearchInput")?.focus(),80);
   };
 }
 
@@ -1992,7 +2008,42 @@ if($("postPollBtn")){
 }
 
 if($("postVideoBtn")){
-  $("postVideoBtn").onclick=()=>alert("شكل زر الفيديو جاهز؛ رفع الفيديو الكبير يحتاج تخزين ملفات منفصل حتى لا نثقل التطبيق.");
+  $("postVideoBtn").onclick=()=>$("postVideoInput")?.click();
+}
+
+if($("postVideoInput")){
+  $("postVideoInput").onchange=async e=>{
+    const f=e.target.files?.[0];
+    if(!f)return;
+    if(!String(f.type||"").startsWith("video/")){showInAppToast("ملف غير صالح","اختر ملف فيديو.");return;}
+    postVideoData="";postVideoUrl="";
+    const preview=$("postVideoPreview");
+    const wrap=$("postVideoPreviewWrap");
+    try{
+      // Prefer Cloudflare R2 when a MEDIA_BUCKET binding is configured.
+      const up=await fetch(`/api/media-upload?token=${encodeURIComponent(token)}&kind=video&name=${encodeURIComponent(f.name||"video")}`,{
+        method:"POST",headers:{"content-type":f.type||"application/octet-stream"},body:f
+      });
+      if(up.ok){
+        const d=await up.json();
+        postVideoUrl=String(d.url||"");
+        if(postVideoUrl){preview.src=postVideoUrl;wrap.classList.remove("hidden");showInAppToast("تم تجهيز الفيديو","جاهز للنشر.");return;}
+      }
+      // No R2 yet: allow a short/small video directly in Durable Object storage.
+      if(f.size>1100000){
+        wrap.classList.add("hidden");
+        showInAppToast("الفيديو كبير","الفيديوهات الكبيرة تحتاج تفعيل مخزن الوسائط R2 في Cloudflare. جرّب فيديو قصير أقل من 1 MB الآن.");
+        return;
+      }
+      const r=new FileReader();
+      r.onload=()=>{postVideoData=String(r.result||"");preview.src=postVideoData;wrap.classList.remove("hidden");showInAppToast("تم تجهيز الفيديو","جاهز للنشر.");};
+      r.readAsDataURL(f);
+    }catch(err){
+      if(f.size<=1100000){
+        const r=new FileReader();r.onload=()=>{postVideoData=String(r.result||"");preview.src=postVideoData;wrap.classList.remove("hidden");};r.readAsDataURL(f);
+      }else showInAppToast("تعذر تجهيز الفيديو",err?.message||"حاول فيديو أقصر.");
+    }
+  };
 }
 
 document.querySelectorAll(".nav-btn").forEach(btn=>{
@@ -2023,13 +2074,19 @@ async function renderProfilePage(username=me?.username){
     $("profileName").textContent=p.fullName||p.displayName||p.username;
     $("profileUsername").textContent="@"+p.username;
     $("profileBio").textContent=p.bio||"لا توجد نبذة بعد";
-    $("profileCover").style.backgroundImage=p.cover?`url("${p.cover}")`:"";
+    const coverImg=$("profileCoverImage");
+    if(coverImg){
+      if(p.cover){ coverImg.src=p.cover; coverImg.classList.remove("hidden"); }
+      else{ coverImg.removeAttribute("src"); coverImg.classList.add("hidden"); }
+    }
     $("friendsCount").textContent=d.friendCount||0;
 
     $("friendActionBtn").classList.toggle("hidden",self);
     $("messageProfileBtn").classList.toggle("hidden",self);
     $("myProfileBtn").classList.toggle("hidden",self);
     $("profileEditArea").classList.toggle("hidden",!self);
+    $("profileAvatarEditBtn")?.classList.toggle("hidden",!self);
+    $("profileCoverEditBtn")?.classList.toggle("hidden",!self);
     $("privateInfoCard").classList.toggle("hidden",!self);
     $("ownAccountActions")?.classList.toggle("hidden",!self);
     $("friendRequestsSection").classList.toggle("hidden",!self);
@@ -2051,8 +2108,60 @@ async function renderProfilePage(username=me?.username){
 
     $("profileMeta").innerHTML=p.country?`<div><span>الدولة</span><strong>${esc(p.country)}</strong></div>`:"";
     await loadFriends(username);
+    await loadProfilePosts(username);
   }catch(e){
     alert(e.message||"تعذر تحميل الملف الشخصي");
+  }
+}
+
+async function loadProfilePosts(username){
+  const listEl=$("profilePostsList");
+  const countEl=$("profilePostsCount");
+  if(!listEl)return;
+  listEl.innerHTML='<div class="profile-post-empty">جاري تحميل المنشورات...</div>';
+  try{
+    const d=await api(`/api/posts?token=${encodeURIComponent(token)}`);
+    const posts=(d.posts||[]).filter(p=>String(p.author||"").toLowerCase()===String(username||"").toLowerCase());
+    if(countEl)countEl.textContent=posts.length;
+    if(!posts.length){
+      listEl.innerHTML='<div class="profile-post-empty">لا توجد منشورات لهذا الحساب حتى الآن.</div>';
+      return;
+    }
+    listEl.innerHTML=posts.map(post=>{
+      const a=post.authorInfo||{username:post.author,displayName:post.author};
+      const avatar=a.avatar||avatarFallback(a.fullName||a.displayName||a.username);
+      const reactionCount=totalReactionsCount(post.reactionCounts||{});
+      const commentCount=post.commentCount||0;
+      return `<article class="profile-post-card" data-profile-post="${esc(post.id)}">
+        <button class="profile-post-head profile-link-button" data-open-profile="${esc(a.username)}">
+          <img src="${avatar}" alt="">
+          <span><strong>${esc(a.fullName||a.displayName||a.username)}</strong><small>@${esc(a.username)} • ${timeAgoAr(post.createdAt)}</small></span>
+        </button>
+        ${post.text?`<div class="profile-post-text">${esc(post.text)}</div>`:""}
+        ${post.image?`<img class="profile-post-image" loading="lazy" decoding="async" src="${post.image}" alt="صورة المنشور">`:""}
+        ${post.video?`<video class="profile-post-image post-video" controls playsinline preload="metadata" src="${post.video}"></video>`:""}
+        ${post.sharedPost?`<div class="shared-post-box"><div class="shared-post-head">@${esc(post.sharedPost.authorInfo?.username||post.sharedPost.author)}</div>${post.sharedPost.text?`<div>${esc(post.sharedPost.text)}</div>`:""}${post.sharedPost.image?`<img loading="lazy" decoding="async" src="${post.sharedPost.image}" class="shared-post-image" alt="">`:""}</div>`:""}
+        <div class="profile-post-footer"><div class="profile-post-stats"><span>♡ ${reactionCount}</span><span>💬 ${commentCount}</span></div><button class="profile-post-open" data-profile-post-open="${esc(post.id)}">عرض المنشور</button></div>
+      </article>`;
+    }).join("");
+    bindProfileLinks();
+    document.querySelectorAll("[data-profile-post-open]").forEach(btn=>{
+      btn.onclick=async()=>{
+        showPage("homePage");
+        await loadPosts();
+        await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+        const id=String(btn.dataset.profilePostOpen||"");
+        const post=[...document.querySelectorAll("[data-post]")].find(el=>String(el.dataset.post||"")===id);
+        if(post){
+          post.classList.add("notification-target-highlight");
+          post.scrollIntoView({behavior:"smooth",block:"center"});
+          setTimeout(()=>post.classList.remove("notification-target-highlight"),2600);
+        }
+      };
+    });
+  }catch(e){
+    if(countEl)countEl.textContent="0";
+    listEl.innerHTML=`<div class="profile-post-empty">${esc(e.message||"تعذر تحميل المنشورات")}</div>`;
   }
 }
 
@@ -2084,18 +2193,23 @@ async function runFriendAction(username,state){
 async function loadFriendRequests(){
   const d=await api(`/api/friend-requests?token=${encodeURIComponent(token)}`);
   const list=d.requests||[];
-  $("friendRequestsCount").textContent=list.length;
-  if($("headerFriendBadge")){
-    $("headerFriendBadge").textContent=list.length;
-    $("headerFriendBadge").classList.toggle("hidden",list.length===0);
-  }
-  $("friendRequestsList").innerHTML=list.length?list.map(r=>{
+  const markup=list.length?list.map(r=>{
     const u=r.user,a=u.avatar||avatarFallback(u.fullName||u.displayName||u.username);
     return `<div class="person-card">
       <button class="person-main" data-open-profile="${esc(u.username)}"><img src="${a}"><span><strong>${esc(u.fullName||u.displayName||u.username)}</strong><small>@${esc(u.username)}</small></span></button>
       <div class="person-actions"><button class="gold-mini" data-accept-friend="${esc(u.username)}">قبول</button><button class="dark-mini" data-decline-friend="${esc(u.username)}">رفض</button></div>
     </div>`;
   }).join(""):`<div class="empty-line">لا توجد طلبات صداقة جديدة.</div>`;
+
+  if($("friendRequestsCount"))$("friendRequestsCount").textContent=list.length;
+  if($("friendRequestsList"))$("friendRequestsList").innerHTML=markup;
+  if($("friendsPageRequestsCount"))$("friendsPageRequestsCount").textContent=list.length;
+  if($("friendsPageRequestsList"))$("friendsPageRequestsList").innerHTML=markup;
+
+  if($("headerFriendBadge")){
+    $("headerFriendBadge").textContent=list.length;
+    $("headerFriendBadge").classList.toggle("hidden",list.length===0);
+  }
   bindProfileLinks();
 
   document.querySelectorAll("[data-accept-friend]").forEach(b=>b.onclick=async()=>{
@@ -2111,11 +2225,16 @@ async function loadFriendRequests(){
 async function loadFriends(username){
   const d=await api(`/api/friends?token=${encodeURIComponent(token)}&username=${encodeURIComponent(username)}`);
   const list=d.friends||[];
-  $("friendsCount").textContent=list.length;
-  $("friendsList").innerHTML=list.length?list.map(u=>{
+  const markup=list.length?list.map(u=>{
     const a=u.avatar||avatarFallback(u.fullName||u.displayName||u.username);
     return `<button class="friend-card" data-open-profile="${esc(u.username)}"><img src="${a}"><span><strong>${esc(u.fullName||u.displayName||u.username)}</strong><small>@${esc(u.username)}</small></span></button>`;
   }).join(""):`<div class="empty-line">لا يوجد أصدقاء لعرضهم.</div>`;
+  if($("friendsCount"))$("friendsCount").textContent=list.length;
+  if($("friendsList"))$("friendsList").innerHTML=markup;
+  if(username===me?.username){
+    if($("friendsPageCount"))$("friendsPageCount").textContent=list.length;
+    if($("friendsPageList"))$("friendsPageList").innerHTML=markup;
+  }
   bindProfileLinks();
 }
 
@@ -2143,7 +2262,7 @@ async function loadPosts(){
   if(!token)return;
   try{
     const d=await api(`/api/posts?token=${encodeURIComponent(token)}`);
-    const posts=d.posts||[];
+    const posts=(d.posts||[]).slice(0,20);
 
     const shareCounts={};
     posts.forEach(p=>{
@@ -2185,12 +2304,13 @@ async function loadPosts(){
           <button class="post-menu-btn" type="button" aria-label="المزيد">${iconDots()}</button>
         </div>
         ${post.text?`<div class="post-text reference-post-text">${esc(post.text)}</div>`:""}
-        ${post.image?`<img class="post-image reference-post-image" src="${post.image}" alt="">`:""}
+        ${post.image?`<img class="post-image reference-post-image" loading="lazy" decoding="async" src="${post.image}" alt="">`:""}
+        ${post.video?`<video class="post-image reference-post-image post-video" controls playsinline preload="metadata" src="${post.video}"></video>`:""}
         ${post.sharedPost?`
         <div class="shared-post-box">
           <div class="shared-post-head">@${esc(post.sharedPost.authorInfo?.username||post.sharedPost.author)}</div>
           ${post.sharedPost.text?`<div>${esc(post.sharedPost.text)}</div>`:""}
-          ${post.sharedPost.image?`<img src="${post.sharedPost.image}" class="shared-post-image" alt="">`:""}
+          ${post.sharedPost.image?`<img loading="lazy" decoding="async" src="${post.sharedPost.image}" class="shared-post-image" alt="">`:""}
         </div>`:""}
         <div class="reference-post-footer">
           <div class="reference-post-side-actions">
@@ -2369,13 +2489,16 @@ $("postImageInput").onchange=e=>{
 
 $("publishPostBtn").onclick=async()=>{
   const text=$("postText").value.trim();
-  if(!text && !postImageData)return alert("اكتب منشورًا أو أضف صورة");
+  if(!text && !postImageData && !postVideoData && !postVideoUrl)return alert("اكتب منشورًا أو أضف صورة أو فيديو");
   try{
-    await api("/api/posts",{method:"POST",body:JSON.stringify({token,text,image:postImageData})});
+    await api("/api/posts",{method:"POST",body:JSON.stringify({token,text,image:postImageData,video:postVideoUrl||postVideoData})});
     $("postText").value="";
     $("postImageInput").value="";
-    postImageData="";
+    if($("postVideoInput"))$("postVideoInput").value="";
+    postImageData="";postVideoData="";postVideoUrl="";
     $("postImagePreviewWrap").classList.add("hidden");
+    $("postVideoPreviewWrap")?.classList.add("hidden");
+    if($("postVideoPreview"))$("postVideoPreview").removeAttribute("src");
     await loadPosts();
   }catch(e){alert(e.message)}
 };
@@ -2433,6 +2556,46 @@ async function searchUsers(){
 $("userSearchBtn").onclick=searchUsers;
 $("userSearchInput").onkeydown=e=>{if(e.key==="Enter")searchUsers()};
 
+async function openNotificationTarget(notification){
+  if(!notification)return;
+
+  try{
+    if(notification.id){
+      await api("/api/notifications/read-one",{
+        method:"POST",
+        body:JSON.stringify({token,notificationId:notification.id})
+      });
+    }
+  }catch(err){
+    console.warn("notification read update failed",err);
+  }
+
+  if(notification.postId){
+    showPage("homePage");
+    await loadPosts();
+    await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+    const post=document.querySelector(`[data-post="${CSS.escape(String(notification.postId))}"]`);
+    if(post){
+      post.classList.add("notification-target-highlight");
+      post.scrollIntoView({behavior:"smooth",block:"center"});
+      setTimeout(()=>post.classList.remove("notification-target-highlight"),2600);
+    }else{
+      showInAppToast("المنشور","تعذر العثور على المنشور؛ قد يكون حُذف.");
+    }
+    return;
+  }
+
+  if(notification.type==="friend-request"){
+    showPage("friendsPage");
+    return;
+  }
+
+  if(notification.from && ["friend-accepted","follow"].includes(notification.type)){
+    openUserProfile(notification.from);
+    return;
+  }
+}
+
 async function loadNotifications(){
   try{
     const d=await api(`/api/notifications?token=${encodeURIComponent(token)}`);
@@ -2448,8 +2611,22 @@ async function loadNotifications(){
         share:`شارك @${esc(n.from)} منشورك`
       };
       const label=labels[n.type]||`علّق @${esc(n.from)} على منشورك${n.text?`: ${esc(n.text)}`:""}`;
-      return `<div class="notification-card ${n.read?"read":""}">${label}<small>${new Date(n.createdAt).toLocaleString("ar-SA")}</small></div>`;
+      const hint=n.postId?"اضغط لعرض المنشور":(n.type==="friend-request"?"اضغط لعرض طلبات الصداقة":(["friend-accepted","follow"].includes(n.type)?"اضغط لعرض الحساب":""));
+      return `<button type="button" class="notification-card smart-notification-card ${n.read?"read":""}" data-notification-id="${esc(n.id||"")}" data-notification-post="${esc(n.postId||"")}" data-notification-type="${esc(n.type||"")}" data-notification-from="${esc(n.from||"")}">
+        <span class="notification-main-text">${label}</span>
+        ${hint?`<span class="notification-action-hint">${hint} ←</span>`:""}
+        <small>${new Date(n.createdAt).toLocaleString("ar-SA")}</small>
+      </button>`;
     }).join(""):`<div class="empty-card">لا توجد إشعارات</div>`;
+
+    document.querySelectorAll("[data-notification-id]").forEach(btn=>{
+      btn.onclick=()=>openNotificationTarget({
+        id:btn.dataset.notificationId||"",
+        postId:btn.dataset.notificationPost||"",
+        type:btn.dataset.notificationType||"",
+        from:btn.dataset.notificationFrom||""
+      }).then(()=>loadNotifications().catch(()=>{}));
+    });
 
     const unread=list.filter(n=>!n.read).length;
     const badge=$("headerNotifyBadge");
@@ -2475,7 +2652,7 @@ async function loadStories(){
     const d=await api(`/api/stories?token=${encodeURIComponent(token)}`);
     const stories=d.stories||[];
 
-    const renderStory=s=>{
+    const renderSideStory=s=>{
       const u=s.authorInfo||{username:s.author};
       const av=u.avatar||avatarFallback(u.displayName||u.username);
       return `<button class="story-item" data-story="${s.id}">
@@ -2484,10 +2661,29 @@ async function loadStories(){
       </button>`;
     };
 
+    const renderFeedStory=s=>{
+      const u=s.authorInfo||{username:s.author};
+      const av=u.avatar||avatarFallback(u.displayName||u.username);
+      const cover=s.media||av;
+      return `<button class="feed-story-card" data-story="${s.id}">
+        <img class="story-cover" src="${cover}" alt="">
+        <span class="story-shade"></span>
+        <img class="story-avatar" src="${av}" alt="">
+        <span class="story-name">${esc(u.displayName||u.username)}</span>
+      </button>`;
+    };
+
     if($("storiesStrip")){
-      $("storiesStrip").innerHTML=stories.length
-        ? stories.map(renderStory).join("")
-        : '<div class="story-empty">لا توجد حالات</div>';
+      const mine=me?.avatar||avatarFallback(me?.fullName||me?.displayName||me?.username||"أنت");
+      const add=`<button id="feedAddStoryBtn" class="feed-story-card feed-story-add" type="button">
+        <img class="story-add-photo" src="${mine}" alt="">
+        <span class="story-plus">+</span>
+        <span class="story-add-bottom">إضافة حالة</span>
+      </button>`;
+      $("storiesStrip").innerHTML=add+(stories.length
+        ? stories.map(renderFeedStory).join("")
+        : '<div class="story-empty">لا توجد حالات من الأصدقاء بعد.</div>');
+      if($("feedAddStoryBtn"))$("feedAddStoryBtn").onclick=()=>$("addStoryBtn")?.click();
     }
 
     if($("storiesStripSide")){
@@ -2495,7 +2691,7 @@ async function loadStories(){
         <span class="story-plus-icon">${uiIcon("plus")}</span><small>إضافة قصة</small>
       </button>`;
       $("storiesStripSide").innerHTML=add+(stories.length
-        ? stories.slice(0,5).map(renderStory).join("")
+        ? stories.slice(0,5).map(renderSideStory).join("")
         : '<div class="reference-side-empty">لا توجد قصص</div>');
       if($("sideAddStoryInline")){
         $("sideAddStoryInline").onclick=()=>$("addStoryBtn")?.click();
@@ -2521,11 +2717,98 @@ async function loadStories(){
     console.error(e);
   }
 }
+
 $("addStoryBtn").onclick=()=>$("storyModal").classList.remove("hidden");$("closeStoryModalBtn").onclick=()=>$("storyModal").classList.add("hidden");$("closeStoryViewer").onclick=()=>$("storyViewer").classList.add("hidden");
 $("storyMediaInput").onchange=e=>{const f=e.target.files?.[0];if(!f)return;const r=new FileReader();r.onload=()=>{storyMediaData=String(r.result||"");$("storyPreview").src=storyMediaData;$("storyPreview").classList.remove("hidden")};r.readAsDataURL(f)};
 $("publishStoryBtn").onclick=async()=>{const text=$("storyTextInput").value.trim();if(!text&&!storyMediaData)return alert("اكتب حالة أو أضف صورة");try{await api('/api/stories',{method:'POST',body:JSON.stringify({token,text,media:storyMediaData})});$("storyTextInput").value="";storyMediaData="";$("storyModal").classList.add("hidden");$("storyPreview").classList.add("hidden");loadStories()}catch(e){alert(e.message)}};
-$("coverInput").onchange=e=>{const f=e.target.files?.[0];if(!f)return;const r=new FileReader();r.onload=()=>{profileCoverData=String(r.result||"");$("profileCover").style.backgroundImage=`url("${profileCoverData}")`};r.readAsDataURL(f)};
-$("saveProfileBtn").onclick=async()=>{try{const body={token,bio:$("bioInput").value.trim(),accountPrivate:$("privateAccountInput").checked};if(profileCoverData)body.cover=profileCoverData;const d=await api('/api/profile',{method:'POST',body:JSON.stringify(body)});me={...me,...d.user};profileCoverData="";renderProfilePage()}catch(e){alert(e.message)}};
+async function compressProfileImage(file,{maxWidth,maxHeight,maxChars,quality=.86}){
+  const dataUrl=await new Promise((resolve,reject)=>{
+    const reader=new FileReader();
+    reader.onerror=()=>reject(new Error("تعذر قراءة الصورة"));
+    reader.onload=()=>resolve(String(reader.result||""));
+    reader.readAsDataURL(file);
+  });
+  const img=await new Promise((resolve,reject)=>{
+    const x=new Image();
+    x.onload=()=>resolve(x);
+    x.onerror=()=>reject(new Error("صيغة الصورة غير مدعومة"));
+    x.src=dataUrl;
+  });
+  let w=img.naturalWidth||img.width,h=img.naturalHeight||img.height;
+  const scale=Math.min(1,maxWidth/w,maxHeight/h);
+  w=Math.max(1,Math.round(w*scale));
+  h=Math.max(1,Math.round(h*scale));
+  let q=quality;
+  for(let pass=0;pass<7;pass++){
+    const canvas=document.createElement("canvas");
+    canvas.width=w; canvas.height=h;
+    const ctx=canvas.getContext("2d");
+    ctx.fillStyle="#111";ctx.fillRect(0,0,w,h);ctx.drawImage(img,0,0,w,h);
+    const out=canvas.toDataURL("image/jpeg",q);
+    if(out.length<=maxChars)return out;
+    q=Math.max(.52,q-.08);
+    if(pass>=3){w=Math.max(320,Math.round(w*.86));h=Math.max(220,Math.round(h*.86));}
+  }
+  const canvas=document.createElement("canvas");canvas.width=w;canvas.height=h;canvas.getContext("2d").drawImage(img,0,0,w,h);
+  return canvas.toDataURL("image/jpeg",.5);
+}
+
+async function uploadOwnProfileImage(kind,file){
+  if(!file)return;
+  const isAvatar=kind==="avatar";
+  const trigger=isAvatar?$("profileAvatarEditBtn"):$("profileCoverEditBtn");
+  try{
+    trigger?.classList.add("profile-image-uploading");
+    const data=await compressProfileImage(file,isAvatar
+      ?{maxWidth:520,maxHeight:520,maxChars:150000,quality:.88}
+      :{maxWidth:1400,maxHeight:700,maxChars:390000,quality:.82});
+    if(isAvatar){
+      $("profileAvatarLarge").src=data;
+      if($("headerAvatar"))$("headerAvatar").src=data;
+      if($("homeAvatar"))$("homeAvatar").src=data;
+    }else{
+      const coverImg=$("profileCoverImage");
+      if(coverImg){ coverImg.src=data; coverImg.classList.remove("hidden"); }
+    }
+    // V13.43: use only long-standing API routes for maximum deployment compatibility.
+    // 1) Update the user's profile media through /api/profile.
+    const profilePayload=kind==="avatar"?{token,avatar:data}:{token,cover:data};
+    const d=await api("/api/profile",{method:"POST",body:JSON.stringify(profilePayload)});
+    me={...me,...d.user};
+    renderProfile();
+    await renderProfilePage(me.username);
+
+    // 2) Publish a normal feed post through the existing /api/posts route.
+    const postText=isAvatar?"قام بتحديث صورته الشخصية.":"قام بتحديث صورة الغلاف.";
+    const posted=await api("/api/posts",{method:"POST",body:JSON.stringify({token,text:postText,image:data})});
+
+    showPage("homePage");
+    await loadPosts();
+    await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+    const targetId=String(posted?.post?.id||"");
+    if(targetId){
+      const post=[...document.querySelectorAll("[data-post]")].find(el=>String(el.dataset.post||"")===targetId);
+      if(post){
+        post.classList.add("notification-target-highlight");
+        post.scrollIntoView({behavior:"smooth",block:"center"});
+        setTimeout(()=>post.classList.remove("notification-target-highlight"),3600);
+      }
+    }
+    showInAppToast("تم النشر",isAvatar?"تم تحديث الصورة الشخصية ونشرها في الصفحة الرئيسية.":"تم تحديث صورة الغلاف ونشرها في الصفحة الرئيسية.");
+  }catch(err){alert(err.message||"تعذر رفع الصورة");}
+  finally{trigger?.classList.remove("profile-image-uploading");}
+}
+
+if($("profileAvatarEditBtn"))$("profileAvatarEditBtn").onclick=()=>$("profileAvatarInput")?.click();
+if($("profileAvatarEditListBtn"))$("profileAvatarEditListBtn").onclick=()=>$("profileAvatarInput")?.click();
+if($("profileCoverEditBtn"))$("profileCoverEditBtn").onclick=()=>$("coverInput")?.click();
+if($("profileCoverEditListBtn"))$("profileCoverEditListBtn").onclick=()=>$("coverInput")?.click();
+if($("profileAvatarLarge"))$("profileAvatarLarge").onclick=()=>{if(viewedProfileUsername===me?.username)$("profileAvatarInput")?.click()};
+
+if($("profileAvatarInput"))$("profileAvatarInput").onchange=async e=>{const f=e.target.files?.[0];e.target.value="";await uploadOwnProfileImage("avatar",f)};
+if($("coverInput"))$("coverInput").onchange=async e=>{const f=e.target.files?.[0];e.target.value="";await uploadOwnProfileImage("cover",f)};
+
+$("saveProfileBtn").onclick=async()=>{try{const body={token,bio:$("bioInput").value.trim(),accountPrivate:$("privateAccountInput").checked};const d=await api('/api/profile',{method:'POST',body:JSON.stringify(body)});me={...me,...d.user};renderProfile();renderProfilePage()}catch(e){alert(e.message)}};
 
 function readFileDataUrl(file){
   return new Promise((resolve,reject)=>{
@@ -3080,26 +3363,8 @@ $("resendVerificationBtn").onclick=async()=>{
 
 $("avatarInput").onchange=async e=>{
   const f=e.target.files?.[0];
-  if(!f)return;
-
-  const reader=new FileReader();
-
-  reader.onload=async()=>{
-    try{
-      const d=await api("/api/profile",{
-        method:"POST",
-        body:JSON.stringify({token,avatar:reader.result})
-      });
-      me=d.user;
-      renderProfile();
-      $("homeAvatar").src=me.avatar||avatarFallback(me.fullName||me.displayName||me.username);
-      renderProfilePage();
-    }catch(err){
-      alert(err.message);
-    }
-  };
-
-  reader.readAsDataURL(f);
+  e.target.value="";
+  await uploadOwnProfileImage("avatar",f);
 };
 
 $("newGroupBtn").onclick=async()=>{
@@ -3384,4 +3649,56 @@ async function setupGoogleSignIn(){
 }
 window.addEventListener("load",setupGoogleSignIn);
 
+})();
+
+
+/* ===== V13.28 Android/PWA install support ===== */
+(() => {
+  let deferredInstallPrompt = null;
+  const installBtn = document.getElementById("installAppBtn");
+
+  const isStandalone = () =>
+    window.matchMedia("(display-mode: standalone)").matches ||
+    window.navigator.standalone === true;
+
+  const refreshInstallButton = () => {
+    if (!installBtn) return;
+    if (isStandalone()) {
+      installBtn.classList.add("hidden");
+      return;
+    }
+    if (deferredInstallPrompt) installBtn.classList.remove("hidden");
+  };
+
+  window.addEventListener("beforeinstallprompt", (event) => {
+    event.preventDefault();
+    deferredInstallPrompt = event;
+    refreshInstallButton();
+  });
+
+  window.addEventListener("appinstalled", () => {
+    deferredInstallPrompt = null;
+    if (installBtn) installBtn.classList.add("hidden");
+  });
+
+  if (installBtn) {
+    installBtn.addEventListener("click", async () => {
+      if (!deferredInstallPrompt) {
+        alert("من Chrome على Android: افتح القائمة ⋮ ثم اختر «تثبيت التطبيق» أو «إضافة إلى الشاشة الرئيسية».");
+        return;
+      }
+      deferredInstallPrompt.prompt();
+      try { await deferredInstallPrompt.userChoice; } catch (_) {}
+      deferredInstallPrompt = null;
+      refreshInstallButton();
+    });
+  }
+
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("/sw.js?v=13.44", { scope: "/" }).catch(() => {});
+    });
+  }
+
+  refreshInstallButton();
 })();
