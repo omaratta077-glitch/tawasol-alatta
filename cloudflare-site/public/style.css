@@ -4880,3 +4880,84 @@ html body #authView .atta-login-logo,html.mobile-device body #authView .atta-log
 html body #authView .google-signin-section,html.mobile-device body #authView .google-signin-section{margin:12px 0 6px!important;}
 html body #authView .atta-download-strip{display:none!important;}
 @media(max-height:700px){html body #authView .atta-login-shell{justify-content:flex-start!important;}}
+
+
+/* V13.66 — Facebook mobile screen geometry, AL-ATTA branding.
+   Authentication view only; no functional changes. */
+@media (max-width: 600px) {
+ html body #authView.auth-view {
+   min-height:100svh!important; height:auto!important;
+   background:#080a0c!important; overflow-y:auto!important;
+ }
+ html body #authView .atta-login-shell {
+   display:block!important; width:100%!important; max-width:none!important;
+   height:auto!important; min-height:100svh!important;
+   margin:0!important; padding:0!important; overflow:visible!important;
+ }
+ html body #authView .atta-login-card,
+ html.mobile-device body #authView .atta-login-card {
+   display:flex!important; flex-direction:column!important; align-items:stretch!important;
+   justify-content:flex-start!important; gap:0!important;
+   width:100%!important; max-width:none!important;
+   min-height:100svh!important; height:auto!important; max-height:none!important;
+   margin:0!important;
+   padding:calc(env(safe-area-inset-top, 0px) + 18px) 20px calc(env(safe-area-inset-bottom, 0px) + 22px)!important;
+   border:0!important; border-radius:0!important;
+   box-shadow:none!important; background:#080a0c!important;
+   box-sizing:border-box!important;
+ }
+ html body #authView .atta-language {
+   flex:0 0 auto!important; text-align:center!important;
+   margin:0!important; padding:0!important;
+   color:#c7b28a!important; font-size:13px!important;
+ }
+ html body #authView .atta-login-brand,
+ html.mobile-device body #authView .atta-login-brand {
+   flex:0 0 auto!important; margin:clamp(34px,8svh,84px) auto clamp(32px,7svh,72px)!important;
+   display:flex!important; flex-direction:column!important; align-items:center!important;
+ }
+ html body #authView .atta-login-logo,
+ html.mobile-device body #authView .atta-login-logo {
+   width:76px!important; height:76px!important; object-fit:contain!important;
+ }
+ html body #authView .atta-login-brand-name {font-size:13px!important; letter-spacing:3px!important;}
+ html body #authView .auth-tabs {display:none!important;}
+ html body #authView #authMainFields {flex:0 0 auto!important; width:100%!important;}
+ html body #authView .atta-login-card input,
+ html.mobile-device body #authView .atta-login-card input,
+ html body #authView .atta-login-card select {
+   height:55px!important; min-height:55px!important; margin:0 0 12px!important;
+   border-radius:12px!important; padding:0 16px!important;
+   background:#111417!important; font-size:16px!important;
+ }
+ html body #authView .atta-login-button,
+ html.mobile-device body #authView .atta-login-button {
+   height:51px!important; min-height:51px!important; border-radius:24px!important;
+   font-size:17px!important; margin:3px 0 0!important;
+ }
+ html body #authView .atta-forgot-button,
+ html.mobile-device body #authView .atta-forgot-button {
+   min-height:42px!important; margin:12px auto 10px!important;
+   font-size:15px!important; font-weight:700!important;
+ }
+ html body #authView .google-signin-section,
+ html.mobile-device body #authView .google-signin-section {
+   margin:12px 0 2px!important; font-size:12px!important;
+ }
+ html body #authView .atta-create-button,
+ html.mobile-device body #authView .atta-create-button {
+   flex:0 0 auto!important; width:100%!important; max-width:none!important;
+   height:50px!important; min-height:50px!important; margin-top:auto!important;
+   border-radius:24px!important; font-size:16px!important;
+ }
+ html body #authView #authMsg {flex:0 0 auto!important;}
+ html body #authView .atta-footer-brand,
+ html.mobile-device body #authView .atta-footer-brand {
+   flex:0 0 auto!important; margin:18px auto 0!important; font-size:14px!important;
+ }
+ /* On short devices, preserve readability instead of clipping the form. */
+ @media (max-height:700px) {
+   html body #authView .atta-login-brand {margin-top:22px!important;margin-bottom:22px!important;}
+   html body #authView .atta-create-button {margin-top:28px!important;}
+ }
+}
