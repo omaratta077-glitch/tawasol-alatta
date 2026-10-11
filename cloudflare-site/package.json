@@ -1,6 +1,6 @@
 {
   "name": "tawasol-alatta",
-  "version": "13.51.0",
+  "version": "13.56.0",
   "private": true,
   "scripts": {
     "deploy": "wrangler deploy"
