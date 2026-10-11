@@ -4,7 +4,7 @@
 body{margin:0;font-family:Tahoma,Arial,sans-serif;background:var(--bg);color:#1a252e}
 .hidden{display:none!important}
 button,input{font:inherit}
-.auth-view{min-height:100vh;display:grid;place-items:center;background:linear-gradient(135deg,#173c5d,#2d6791)}
+
 .auth-card{width:min(390px,92vw);background:#fff;padding:30px;border-radius:18px;text-align:center;box-shadow:0 20px 60px #0004}
 .logo{width:76px;height:76px;border-radius:50%;display:grid;place-items:center;background:#111;color:var(--gold);font-size:44px;font-weight:bold;margin:auto}
 .auth-tabs{display:flex;margin:16px 0}
@@ -374,7 +374,7 @@ textarea,input,select{background:#0b0e11!important;color:#f0f0f0!important;borde
 .profile-edit-grid{max-width:none!important;margin:12px 28px!important;padding:15px!important;background:#0a0d0f;border:1px solid #23292e;border-radius:14px}.premium-upload{width:max-content!important;color:#d0b66d!important;background:#15191d!important}.profile-link-button{width:100%;border:0;background:transparent;color:inherit;text-align:right;display:flex!important;align-items:center;gap:10px}.profile-link-button span{display:flex;flex-direction:column}
 .search-box button,.page-title button,.small-btn{background:#14181c!important;color:#d6bd78!important;border:1px solid rgba(214,173,69,.27)!important}
 .call-overlay-header,.call-bottom-sheet{border-color:rgba(214,173,69,.18)}.round-icon{background:#15191d!important;border-color:rgba(214,173,69,.25)!important}.call-peer-avatar,.remote-empty-avatar-img,.local-pip{border-color:rgba(214,173,69,.5)!important}
-.auth-view{background:radial-gradient(circle at 50% 16%,rgba(214,173,69,.14),transparent 28%),#070809!important}.auth-card{background:#101316!important;color:#fff;border:1px solid rgba(214,173,69,.3)}.auth-card .logo{background-image:url("logo-premium.png")!important;background-size:cover!important;color:transparent!important}
+.auth-card{background:#101316!important;color:#fff;border:1px solid rgba(214,173,69,.3)}.auth-card .logo{background-image:url("logo-premium.png")!important;background-size:cover!important;color:transparent!important}
 @media(max-width:700px){.premium-header{height:64px!important;padding:0 10px!important}.brand-logo{width:39px;height:39px}.brand-copy strong{font-size:14px}.header-user-name{display:none}.premium-nav{bottom:6px!important;width:304px!important;height:57px!important;grid-template-columns:repeat(5,57px)!important;gap:2px}.nav-btn{width:57px!important;height:47px!important}.profile-cover{height:145px!important}.profile-top-row{flex-direction:column;align-items:center;text-align:center;padding:0 12px;margin-top:-51px}.profile-large-avatar{width:105px!important;height:105px!important}.profile-title-block{text-align:center}.profile-title-block h2{font-size:21px}.profile-main-actions{justify-content:center;padding:13px 12px 5px}.profile-friend-stat{display:flex;width:max-content;margin:9px auto 16px}.friend-section,.private-info-card,.profile-edit-grid{margin-left:9px!important;margin-right:9px!important}.people-list{grid-template-columns:1fr}}
 
 /* V10.1 FULL GOLD OVERRIDES */
@@ -394,199 +394,49 @@ textarea,input,select{background:rgba(255,247,215,.72)!important;color:#17130A!i
 .messages-layout{background:linear-gradient(135deg,#DDB650,#B78222)!important;border-color:#7d5915!important}.chat-sidebar{background:linear-gradient(180deg,#DDB650,#BA8724)!important;color:#17130A!important}.chat-main,.topbar,.controls,.composer{background:rgba(255,243,198,.28)!important;border-color:#8c681d!important}.bubble{background:rgba(255,246,215,.78)!important;color:#17130A!important;border-color:#90691c!important}.bubble.mine{background:rgba(110,77,12,.82)!important;color:#fff2c2!important;border-color:#4b3306!important}.chat-attach-btn{background:rgba(255,246,214,.44)!important;border-color:#7d5916!important;color:#17130A!important}
 .explore-card{background:#c89732!important;border-color:#7d5915!important}.explore-text{background:linear-gradient(135deg,#B17F20,#E4BF5C)!important;color:#17130A!important}
 .call-overlay{background:radial-gradient(circle at center,#8f681b 0,#5a3e0c 48%,#2f2006 100%)!important}.call-stage{background:radial-gradient(circle at center,#a47922 0,#67480f 56%,#302006 100%)!important}.call-overlay-header{background:linear-gradient(to bottom,rgba(70,45,4,.72),rgba(70,45,4,0))!important}.call-bottom-sheet{background:linear-gradient(to top,rgba(59,38,3,.92),rgba(59,38,3,.24))!important}.round-icon{background:rgba(231,195,95,.20)!important;border-color:rgba(243,215,122,.55)!important}.call-status-bar{background:#e6c15e!important;border-color:#7b5814!important;color:#17130A!important}.call-status-bar button{background:#6b4a0b!important;color:#fff2c0!important}
-.auth-view{background:radial-gradient(circle at 50% 18%,rgba(255,250,226,.28),transparent 28%),linear-gradient(160deg,#E0B956,#A97A1D)!important}.auth-card{background:linear-gradient(145deg,#E7C562,#C8952E)!important;color:#17130A!important;border-color:#765317!important}.auth-tabs button{background:rgba(255,246,214,.38)!important;color:#17130A!important;border-color:#846019!important}.auth-tabs button.active{background:#69490c!important;color:#fff2c2!important}.modal{background:rgba(60,39,3,.60)!important}.modal-card{background:linear-gradient(145deg,#E6C15F,#BF8D28)!important;color:#17130A!important;border:1px solid #735114!important}
+.auth-card{background:linear-gradient(145deg,#E7C562,#C8952E)!important;color:#17130A!important;border-color:#765317!important}.auth-tabs button{background:rgba(255,246,214,.38)!important;color:#17130A!important;border-color:#846019!important}.auth-tabs button.active{background:#69490c!important;color:#fff2c2!important}.modal{background:rgba(60,39,3,.60)!important}.modal-card{background:linear-gradient(145deg,#E6C15F,#BF8D28)!important;color:#17130A!important;border:1px solid #735114!important}
 ::-webkit-scrollbar-track{background:#B88627}::-webkit-scrollbar-thumb{background:#705014;border-radius:999px}
 
 /* ===== V10.2 AL-ATTA GOLD LOGIN ===== */
-.auth-view{
-  min-height:100vh!important;
-  display:block!important;
-  background:
-    radial-gradient(circle at 50% 0%, rgba(255,250,224,.52), transparent 28%),
-    linear-gradient(180deg,#E8C65E 0%,#D6AA3D 48%,#B98524 100%)!important;
-  color:#17130A!important;
-  padding:0!important;
-}
 
-.atta-login-shell{
-  min-height:100vh;
-  width:100%;
-  display:flex;
-  flex-direction:column;
-}
 
-.atta-download-strip{
-  min-height:58px;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  gap:12px;
-  padding:10px 18px;
-  background:rgba(255,247,218,.52);
-  border-bottom:1px solid rgba(87,61,12,.24);
-  color:#5A400C;
-  font-size:13px;
-  text-align:center;
-}
 
-.download-mark{
-  width:34px;
-  height:34px;
-  display:grid;
-  place-items:center;
-  border:2px solid #6E4D0D;
-  border-radius:10px;
-  font-size:22px;
-  line-height:1;
-}
 
-.atta-login-card{
-  width:min(440px,92vw);
-  margin:auto;
-  padding:24px 20px 28px;
-  text-align:center;
-  background:rgba(255,247,219,.78)!important;
-  border:1px solid rgba(104,74,15,.34)!important;
-  border-radius:22px!important;
-  box-shadow:0 20px 50px rgba(73,47,4,.22)!important;
-  backdrop-filter:blur(8px);
-}
 
-.atta-language{
-  color:#705922;
-  font-size:13px;
-  margin-bottom:18px;
-}
 
-.atta-login-brand{
-  display:flex;
-  flex-direction:column;
-  align-items:center;
-  gap:8px;
-  margin-bottom:22px;
-}
 
-.atta-login-logo{
-  width:92px;
-  height:92px;
-  object-fit:contain;
-  filter:drop-shadow(0 9px 16px rgba(92,59,4,.25));
-}
 
-.atta-login-brand-name{
-  color:#5C410C;
-  letter-spacing:3px;
-  font-size:12px;
-  font-weight:700;
-}
 
-.atta-login-card .auth-tabs{
-  display:none!important;
-}
 
-.atta-login-card input,
-.atta-login-card select{
-  width:100%!important;
-  min-height:54px!important;
-  margin-bottom:12px!important;
-  padding:0 16px!important;
-  border-radius:16px!important;
-  background:rgba(255,253,245,.82)!important;
-  color:#18130A!important;
-  border:1px solid #A77A20!important;
-  font-size:14px!important;
-  text-align:right;
-}
 
-.atta-login-card input::placeholder{
-  color:#7B6A43!important;
-}
 
-.atta-login-button{
-  width:100%;
-  height:52px;
-  margin-top:4px;
-  border:0;
-  border-radius:16px;
-  background:linear-gradient(135deg,#6B490B,#9B711D)!important;
-  color:#FFF4C7!important;
-  font-weight:800;
-  font-size:16px;
-  cursor:pointer;
-  box-shadow:0 7px 18px rgba(78,51,5,.22);
-}
 
-.atta-login-button:hover{
-  filter:brightness(1.07);
-}
 
-.atta-forgot-button{
-  border:0;
-  background:transparent;
-  color:#60430B;
-  font-weight:700;
-  margin:18px auto 22px;
-  cursor:pointer;
-}
 
-.atta-create-button{
-  width:100%;
-  height:50px;
-  border-radius:16px;
-  background:rgba(255,251,235,.62);
-  border:2px solid #745113;
-  color:#5B3E0A;
-  font-weight:800;
-  cursor:pointer;
-}
 
-.atta-footer-brand{
-  margin-top:30px;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  gap:12px;
-  color:#5C400B;
-  font-size:18px;
-}
 
-.atta-footer-brand span{
-  width:48px;
-  height:1px;
-  background:#7C5814;
-}
 
-.atta-login-card .error{
-  color:#7B1D16!important;
-  margin-top:10px;
-}
 
-@media(max-width:600px){
-  .atta-download-strip{
-    font-size:12px;
-    min-height:52px;
-  }
 
-  .atta-login-card{
-    width:100%;
-    max-width:none;
-    min-height:calc(100vh - 52px);
-    margin:0;
-    border-radius:0!important;
-    border-left:0!important;
-    border-right:0!important;
-    display:flex;
-    flex-direction:column;
-    justify-content:center;
-    padding:20px 18px 28px;
-    background:rgba(255,246,209,.78)!important;
-  }
 
-  .atta-login-logo{
-    width:84px;
-    height:84px;
-  }
-}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 /* ===== V10.3 BLACK BODY FIX ===== */
@@ -595,9 +445,7 @@ textarea,input,select{background:rgba(255,247,215,.72)!important;color:#17130A!i
 .hidden{
   display:none !important;
 }
-.auth-view.hidden{
-  display:none !important;
-}
+
 .app-shell.hidden{
   display:none !important;
 }
@@ -681,26 +529,9 @@ input::placeholder{
 }
 
 /* الأزرار */
-.primary,
-.action-btn,
-.gold-action,
-.gold-mini,
-.search-box button,
-.page-title button,
-.small-btn,
-.atta-login-button{
-  background:linear-gradient(135deg,#C99E38,#E0BA59) !important;
-  color:#0a0a0a !important;
-  border:1px solid #F0CF73 !important;
-}
 
-.dark-outline,
-.dark-mini,
-.atta-create-button{
-  background:#0d1013 !important;
-  color:#F0CF73 !important;
-  border:1px solid #D6AD45 !important;
-}
+
+
 
 /* Bottom nav */
 .premium-nav,
@@ -792,74 +623,31 @@ input::placeholder{
 }
 
 /* شاشة الدخول تبقى منفصلة ومظبوطة */
-.auth-view{
-  min-height:100vh !important;
-  background:
-    radial-gradient(circle at 50% 12%, rgba(214,173,69,.14), transparent 30%),
-    #050607 !important;
-  color:#f4f4f4 !important;
-}
 
-.atta-login-shell{
-  min-height:100vh;
-  background:transparent !important;
-}
 
-.atta-download-strip{
-  background:#0a0d10 !important;
-  border-bottom:1px solid #D6AD45 !important;
-  color:#F0CF73 !important;
-}
 
-.atta-login-card{
-  background:#0e1114 !important;
-  color:#f4f4f4 !important;
-  border:1px solid #D6AD45 !important;
-  box-shadow:0 20px 50px #000a !important;
-}
 
-.atta-language{
-  color:#b6a374 !important;
-}
 
-.atta-login-brand-name{
-  color:#F0CF73 !important;
-}
 
-.atta-login-card input,
-.atta-login-card select{
-  background:#090c0f !important;
-  color:#f5f5f5 !important;
-  border:1px solid #D6AD45 !important;
-}
 
-.atta-login-card input::placeholder{
-  color:#898989 !important;
-}
 
-.atta-forgot-button{
-  color:#F0CF73 !important;
-}
 
-.atta-footer-brand{
-  color:#F0CF73 !important;
-}
-.atta-footer-brand span{
-  background:#D6AD45 !important;
-}
 
-.download-mark{
-  border-color:#D6AD45 !important;
-  color:#F0CF73 !important;
-}
+
+
+
+
+
+
+
+
+
+
+
+
 
 /* لا تجعل بطاقة الدخول تمتد مع الصفحة بعد تسجيل الدخول */
-@media(max-width:600px){
 
-  .atta-login-card{
-    background:#0e1114 !important;
-  }
-}
 
 /* ===== V11 PREMIUM SOCIAL UI ===== */
 :root{
@@ -1150,16 +938,7 @@ button:active{
   transform:translateY(1px);
 }
 
-.primary,.action-btn,.gold-action,.gold-mini,
-.search-box button,.page-title button,.small-btn,
-.atta-login-button,#publishPostBtn,#sendBtn{
-  background:linear-gradient(135deg,#C99C34,#F0CB68)!important;
-  color:#080909!important;
-  border:1px solid #F3D77A!important;
-  border-radius:10px!important;
-  font-weight:800!important;
-  box-shadow:0 6px 14px rgba(214,173,69,.11);
-}
+
 
 .primary:hover,.action-btn:hover,.gold-action:hover,.gold-mini:hover,
 #publishPostBtn:hover,#sendBtn:hover{
@@ -1336,22 +1115,11 @@ button:active{
 }
 
 /* login */
-.auth-view{
-  background:
-    radial-gradient(circle at 50% 14%,rgba(214,173,69,.13),transparent 30%),
-    #040506!important;
-}
 
-.atta-login-card{
-  background:linear-gradient(145deg,#111518,#090B0D)!important;
-  border:1px solid rgba(214,173,69,.55)!important;
-}
 
-.atta-login-logo{
-  border-radius:50%;
-  border:1px solid rgba(214,173,69,.62);
-  box-shadow:0 0 22px rgba(214,173,69,.16);
-}
+
+
+
 
 /* small screens */
 @media(max-width:760px){
@@ -2458,15 +2226,7 @@ button{
 button:not(.post-menu-btn):not(.stat-btn):not(.text-action-btn):not(.nav-btn):not(.rail-btn):not(.header-icon-btn):not(.reference-search):not(.reference-suggestion-user):not(.profile-link-button):not(.person-main):not(.friend-card):not(.story-item):not(.side-add-story){
   border-color:#E6B94E!important;
 }
-.primary,.action-btn,.gold-action,.gold-mini,.small-btn,.search-box button,.page-title button,
-.reference-publish-btn,.rail-primary-btn,.reference-add-story,.comment-compose button,.reply-compose button,
-#sendBtn,.atta-login-button,.reference-friend-btn{
-  background:linear-gradient(135deg,#BF8D23 0%,#E6B94E 48%,#F5D66F 100%)!important;
-  color:#080808!important;
-  border:1px solid #F5D66F!important;
-  box-shadow:0 8px 20px rgba(230,185,78,.17)!important;
-  border-radius:12px!important;
-}
+
 .dark-outline,.dark-mini,.reference-tool-btn,.chat-attach-btn,.upload-label,.call-top-btn,.round-icon{
   background:#0B1115!important;
   color:#F5D66F!important;
@@ -3261,21 +3021,7 @@ html,body{
 }
 
 /* primary gold buttons */
-.primary,.action-btn,.gold-action,.gold-mini,.reference-publish-btn,
-#sendBtn,.comment-compose button,.reply-compose button,.atta-login-button,
-.reference-friend-btn{
-  position:relative;
-  overflow:hidden;
-  background:
-    linear-gradient(135deg,#8C6113 0%,#C9911F 26%,#F4CD62 58%,#AE7718 100%)!important;
-  color:#090909!important;
-  border:1px solid #FFE18A!important;
-  box-shadow:
-    inset 0 1px 0 rgba(255,249,218,.54),
-    inset 0 -1px 0 rgba(101,63,5,.55),
-    0 7px 17px rgba(0,0,0,.32),
-    0 0 13px rgba(233,187,74,.15)!important;
-}
+
 .primary:hover,.action-btn:hover,.gold-action:hover,.gold-mini:hover,
 .reference-publish-btn:hover,#sendBtn:hover,.comment-compose button:hover{
   filter:brightness(1.08) saturate(1.05);
@@ -3957,9 +3703,9 @@ body.chat-fullscreen-open .mobile-bottom-nav{
 }
 
 /* V13.8 — free Google verified signup */
-.google-signin-section{margin:14px 0 12px;text-align:center}
+
 .google-divider{color:#dfb954;font-size:13px;margin:0 0 12px}
-.google-signin-btn{display:flex;justify-content:center;min-height:42px}
+
 .google-setup-hint{font-size:12px;color:#cfbd8a;line-height:1.7;margin:8px 0 0}
 
 
@@ -4168,31 +3914,11 @@ body.chat-fullscreen-open .mobile-bottom-nav{
 
 
 /* ===== V13.28 Android/PWA ===== */
-.install-app-btn{
-  appearance:none;
-  border:1px solid rgba(255,205,75,.62);
-  background:linear-gradient(180deg,#f2c94c,#c99b22);
-  color:#111;
-  font-weight:800;
-  border-radius:999px;
-  padding:7px 14px;
-  min-height:36px;
-  cursor:pointer;
-  white-space:nowrap;
-}
-.install-app-btn:active{transform:scale(.98)}
-@media (max-width:700px){
-  .atta-download-strip{
-    gap:8px;
-    flex-wrap:wrap;
-  }
-  .install-app-btn{
-    font-size:13px;
-    padding:7px 12px;
-  }
-}
+
+
+
 @media (display-mode: standalone){
-  .atta-download-strip{display:none!important}
+  
   body{overscroll-behavior-y:contain}
 }
 
@@ -4709,3 +4435,242 @@ html.mobile-device .round-call-btn .round-icon,html.mobile-device .round-call-bt
 html.mobile-device .round-call-btn small{font-size:17px!important}
 
 /* V13.48: auth sizing lives in index.html final mobile block. */
+
+/* =========================================================
+   V13.53 — AL-ATTA LOGIN — ONE CLEAN SOURCE ONLY
+   نفس شكل المرجع: كارت أسود بإطار ذهبي يملأ شاشة الهاتف تقريباً
+   ========================================================= */
+.auth-view{
+  min-height:100vh!important;
+  min-height:100dvh!important;
+  width:100%!important;
+  margin:0!important;
+  padding:0!important;
+  display:block!important;
+  background:#050708!important;
+  color:#f4f4f4!important;
+}
+
+.atta-login-shell{
+  min-height:100vh!important;
+  min-height:100dvh!important;
+  width:100%!important;
+  display:flex!important;
+  flex-direction:column!important;
+  align-items:center!important;
+  justify-content:center!important;
+  box-sizing:border-box!important;
+  padding:12px!important;
+  background:
+    radial-gradient(circle at 50% 8%,rgba(214,173,69,.08),transparent 28%),
+    #050708!important;
+}
+
+.atta-download-strip{
+  width:100%!important;
+  min-height:48px!important;
+  display:flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  gap:10px!important;
+  padding:8px 14px!important;
+  box-sizing:border-box!important;
+  background:#0a0d10!important;
+  border-bottom:1px solid rgba(214,173,69,.72)!important;
+  color:#f0cf73!important;
+  font-size:13px!important;
+  text-align:center!important;
+}
+
+.download-mark{
+  width:32px!important;
+  height:32px!important;
+  display:grid!important;
+  place-items:center!important;
+  border:1px solid #d6ad45!important;
+  border-radius:9px!important;
+  color:#f0cf73!important;
+}
+
+.atta-login-card{
+  width:min(440px,calc(100vw - 20px))!important;
+  max-width:440px!important;
+  min-width:0!important;
+  height:auto!important;
+  min-height:0!important;
+  margin:auto!important;
+  padding:26px 20px 28px!important;
+  box-sizing:border-box!important;
+  display:block!important;
+  text-align:center!important;
+  background:linear-gradient(145deg,#111518,#090b0d)!important;
+  color:#f4f4f4!important;
+  border:1px solid rgba(214,173,69,.82)!important;
+  border-radius:20px!important;
+  box-shadow:0 18px 42px rgba(0,0,0,.46)!important;
+}
+
+.atta-language{
+  margin:0 0 18px!important;
+  color:#b6a374!important;
+  font-size:13px!important;
+}
+
+.atta-login-brand{
+  display:flex!important;
+  flex-direction:column!important;
+  align-items:center!important;
+  gap:8px!important;
+  margin:0 0 24px!important;
+}
+
+.atta-login-logo{
+  width:108px!important;
+  height:108px!important;
+  object-fit:contain!important;
+  border-radius:50%!important;
+  border:1px solid rgba(214,173,69,.62)!important;
+  box-shadow:0 0 22px rgba(214,173,69,.16)!important;
+}
+
+.atta-login-brand-name{
+  color:#f0cf73!important;
+  letter-spacing:3px!important;
+  font-size:13px!important;
+  font-weight:800!important;
+}
+
+.atta-login-card .auth-tabs{
+  display:none!important;
+}
+
+.atta-login-card input,
+.atta-login-card select{
+  width:100%!important;
+  height:56px!important;
+  min-height:56px!important;
+  margin:0 0 12px!important;
+  padding:0 16px!important;
+  box-sizing:border-box!important;
+  border:1px solid #d6ad45!important;
+  border-radius:15px!important;
+  background:#090c0f!important;
+  color:#f5f5f5!important;
+  font-size:16px!important;
+  line-height:1.25!important;
+  text-align:right!important;
+}
+
+.atta-login-card input::placeholder{
+  color:#898989!important;
+  font-size:15px!important;
+}
+
+.atta-login-button{
+  width:100%!important;
+  height:52px!important;
+  min-height:52px!important;
+  margin:4px 0 0!important;
+  border:0!important;
+  border-radius:13px!important;
+  background:linear-gradient(135deg,#b27a10,#f1c85d,#c98e1e)!important;
+  color:#090909!important;
+  font-size:19px!important;
+  font-weight:900!important;
+  cursor:pointer!important;
+}
+
+.google-signin-section{
+  margin:17px 0 10px!important;
+  color:#f0cf73!important;
+  font-size:13px!important;
+}
+
+.google-signin-btn{
+  min-height:46px!important;
+  font-size:13px!important;
+}
+
+.atta-forgot-button{
+  min-height:42px!important;
+  margin:18px auto 20px!important;
+  border:0!important;
+  background:transparent!important;
+  color:#f0cf73!important;
+  font-size:18px!important;
+  font-weight:800!important;
+  cursor:pointer!important;
+}
+
+.atta-create-button{
+  width:100%!important;
+  height:52px!important;
+  min-height:52px!important;
+  border:1px solid #d6ad45!important;
+  border-radius:14px!important;
+  background:#0b0e10!important;
+  color:#f0cf73!important;
+  font-size:18px!important;
+  font-weight:900!important;
+  cursor:pointer!important;
+}
+
+.atta-login-card .error{
+  margin:10px 0 0!important;
+  color:#b42b2b!important;
+  font-size:13px!important;
+}
+
+.atta-footer-brand{
+  margin:28px 0 0!important;
+  display:flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  gap:12px!important;
+  color:#f0cf73!important;
+  font-size:18px!important;
+}
+
+.atta-footer-brand span{
+  width:48px!important;
+  height:1px!important;
+  background:#d6ad45!important;
+}
+
+/* الهاتف/TWA: لا نعتمد على mobile-device فقط.
+   هذا يعالج حتى لو Android أعطى CSS viewport شبيه بسطح المكتب. */
+@media (max-width:760px), (hover:none) and (pointer:coarse){
+  .atta-download-strip{
+    display:none!important;
+  }
+
+  .atta-login-shell{
+    justify-content:flex-start!important;
+    padding:6px 5px!important;
+  }
+
+  .atta-login-card{
+    width:calc(100vw - 10px)!important;
+    max-width:none!important;
+    margin:0 auto!important;
+    padding:26px 20px 28px!important;
+    border-radius:20px!important;
+  }
+
+  .atta-login-logo{
+    width:108px!important;
+    height:108px!important;
+  }
+
+  .atta-login-card input,
+  .atta-login-card select{
+    height:56px!important;
+    min-height:56px!important;
+    font-size:16px!important;
+  }
+
+  .atta-login-button,
+  .atta-create-button{
+    min-height:52px!important;
+  }
+}
