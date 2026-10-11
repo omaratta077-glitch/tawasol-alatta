@@ -4701,3 +4701,109 @@ html.mobile-device .round-call-btn small{font-size:17px!important}
     height:96px !important;
   }
 }
+
+/* =========================================================
+   V13.57 — PHONE FALLBACK WHEN ANDROID REPORTS A DESKTOP-SIZE CSS VIEWPORT
+   Uses the already-detected html.mobile-device class, so the login cannot
+   fall back to the 440px desktop card on a real phone.
+   ========================================================= */
+@media (min-width:701px){
+  html.mobile-device .auth-view{
+    width:100vw !important;
+    min-height:100dvh !important;
+    overflow:hidden !important;
+    background:#050607 !important;
+  }
+
+  html.mobile-device .atta-login-shell{
+    width:100vw !important;
+    min-height:100dvh !important;
+    padding:6px 5px !important;
+    justify-content:center !important;
+    background:#050607 !important;
+  }
+
+  html.mobile-device .atta-download-strip{
+    display:none !important;
+  }
+
+  html.mobile-device .atta-login-card{
+    width:calc(100vw - 10px) !important;
+    max-width:none !important;
+    min-width:0 !important;
+    min-height:calc(100dvh - 12px) !important;
+    margin:0 !important;
+    padding:34px 30px 36px !important;
+    display:flex !important;
+    flex-direction:column !important;
+    justify-content:center !important;
+    border-radius:20px !important;
+  }
+
+  html.mobile-device .atta-language{
+    margin-bottom:24px !important;
+    font-size:20px !important;
+  }
+
+  html.mobile-device .atta-login-brand{
+    gap:10px !important;
+    margin-bottom:30px !important;
+  }
+
+  html.mobile-device .atta-login-logo{
+    width:150px !important;
+    height:150px !important;
+  }
+
+  html.mobile-device .atta-login-brand-name{
+    font-size:20px !important;
+    letter-spacing:4px !important;
+  }
+
+  html.mobile-device .atta-login-card input,
+  html.mobile-device .atta-login-card select{
+    height:82px !important;
+    min-height:82px !important;
+    margin-bottom:18px !important;
+    padding:0 24px !important;
+    border-radius:20px !important;
+    font-size:24px !important;
+  }
+
+  html.mobile-device .atta-login-card input::placeholder{
+    font-size:22px !important;
+  }
+
+  html.mobile-device .atta-login-button,
+  html.mobile-device .atta-create-button{
+    height:76px !important;
+    min-height:76px !important;
+    border-radius:18px !important;
+    font-size:27px !important;
+  }
+
+  html.mobile-device .google-signin-section{
+    margin:24px 0 15px !important;
+    font-size:20px !important;
+  }
+
+  html.mobile-device .google-signin-btn{
+    min-height:66px !important;
+    font-size:20px !important;
+  }
+
+  html.mobile-device .atta-forgot-button{
+    min-height:58px !important;
+    margin:25px auto 28px !important;
+    font-size:26px !important;
+  }
+
+  html.mobile-device .atta-login-card .error{
+    font-size:19px !important;
+  }
+
+  html.mobile-device .atta-footer-brand{
+    margin-top:34px !important;
+    font-size:26px !important;
+  }
+}
