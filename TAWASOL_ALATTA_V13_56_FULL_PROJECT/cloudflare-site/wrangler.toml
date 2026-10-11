@@ -1,0 +1,19 @@
+name = "tawasol-alatta"
+main = "src/worker.js"
+compatibility_date = "2026-10-01"
+
+[vars]
+# Google OAuth Client ID is public (not a secret).
+GOOGLE_CLIENT_ID = "892140625911-rgln2915nsojaftmuvkst46m1kepetk3.apps.googleusercontent.com"
+
+[assets]
+directory = "./public"
+binding = "ASSETS"
+
+[[durable_objects.bindings]]
+name = "SIGNALING"
+class_name = "SignalingRoom"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["SignalingRoom"]
