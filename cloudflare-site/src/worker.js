@@ -1729,7 +1729,27 @@ export class SignalingRoom extends DurableObject {
 export default {
   async fetch(request,env){
     const url=new URL(request.url);
-
+if(url.pathname==="/.well-known/assetlinks.json"){
+  return new Response(JSON.stringify([
+    {
+      relation:[
+        "delegate_permission/common.handle_all_urls"
+      ],
+      target:{
+        namespace:"android_app",
+        package_name:"com.alatta.tawasol",
+        sha256_cert_fingerprints:[
+          "A8:20:B8:C9:3B:46:CD:DC:ED:3D:A4:65:33:80:77:4F:1F:B1:1C:5B:36:FE:F5:6D:72:60:F1:35:55:65:B8:24"
+        ]
+      }
+    }
+  ]),{
+    status:200,
+    headers:{
+      "Content-Type":"application/json; charset=utf-8"
+    }
+  });
+}
     if(url.pathname==="/health"){
       return Response.json({
         ok:true,
