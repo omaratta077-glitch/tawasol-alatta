@@ -888,21 +888,13 @@ export class SignalingRoom extends DurableObject {
       const s=await this.session(url.searchParams.get("token")||"");
       if(!s)return j({ok:false,error:"الجلسة منتهية"},401);
 
-      // V13.58: the old route read every stored post sequentially before the
-      // home screen could render. Read only the newest requested posts and do
-      // the independent storage lookups in parallel.
-      const requestedLimit=Number(url.searchParams.get("limit")||20);
-      const limit=Math.max(1,Math.min(100,Number.isFinite(requestedLimit)?requestedLimit:20));
       const ids=await this.ctx.storage.get("postIds")||[];
-      const recentIds=[...ids].reverse().slice(0,limit);
-      const [saved,rawPosts]=await Promise.all([
-        this.ctx.storage.get(`saved:${s.username}`).then(v=>v||[]),
-        Promise.all(recentIds.map(id=>this.ctx.storage.get(`post:${id}`)))
-      ]);
-
       const posts=[];
-      for(const p of rawPosts){
+
+      for(const id of [...ids].reverse()){
+        const p=await this.ctx.storage.get(`post:${id}`);
         if(!p)continue;
+        const saved=await this.ctx.storage.get(`saved:${s.username}`)||[];
         const reactionCounts={};
         const reactions=p.reactions||{};
         for(const key of ["like","love","haha","wow","sad","angry","dislike"]){
@@ -914,14 +906,15 @@ export class SignalingRoom extends DurableObject {
           if((reactions[key]||[]).includes(s.username)){myReaction=key;break;}
         }
 
-        const [authorInfo,original]=await Promise.all([
-          this.publicUser(p.author),
-          p.sharedPostId ? this.ctx.storage.get(`post:${p.sharedPostId}`) : Promise.resolve(null)
-        ]);
         let sharedPost=null;
-        if(original){
-          sharedPost={...original,authorInfo:await this.publicUser(original.author)};
+        if(p.sharedPostId){
+          const original=await this.ctx.storage.get(`post:${p.sharedPostId}`);
+          if(original){
+            sharedPost={...original,authorInfo:await this.publicUser(original.author)};
+          }
         }
+
+        const authorInfo=await this.publicUser(p.author);
 
         posts.push({
           ...p,
@@ -1833,30 +1826,6 @@ export class SignalingRoom extends DurableObject {
 export default {
   async fetch(request,env){
     const url=new URL(request.url);
-
-    // Android TWA verification - Digital Asset Links
-    if(url.pathname==="/.well-known/assetlinks.json"){
-      return new Response(JSON.stringify([
-        {
-          relation:[
-            "delegate_permission/common.handle_all_urls"
-          ],
-          target:{
-            namespace:"android_app",
-            package_name:"com.alatta.tawasol",
-            sha256_cert_fingerprints:[
-              "A8:20:B8:C9:3B:46:CD:DC:ED:3D:A4:65:33:80:77:4F:1F:B1:1C:5B:36:FE:F5:6D:72:60:F1:35:55:65:B8:24"
-            ]
-          }
-        }
-      ]),{
-        status:200,
-        headers:{
-          "Content-Type":"application/json; charset=utf-8",
-          "Cache-Control":"public, max-age=3600"
-        }
-      });
-    }
 
     if(url.pathname==="/health"){
       return Response.json({
