@@ -59,7 +59,7 @@ async function ensureTurnIceServers(force=false){
     turnCredentialTtlMs=Number(d.ttl||86400)*1000;
     turnReady=true;
 
-    console.log("TURN enabled",d.provider||"cloudflare",rtcConfig.iceServers);
+    console.log("TURN enabled",d.provider||"cloudflare");
 
     return true;
   }catch(err){
@@ -336,7 +336,7 @@ function hasUsableLocalStream(type=currentCallType){
   return audio && (type!=="video" || video);
 }
 
-async function waitForIceGatheringComplete(peer,timeoutMs=3500){
+async function waitForIceGatheringComplete(peer,timeoutMs=1500){
   if(!peer || peer.iceGatheringState==="complete")return;
 
   await new Promise(resolve=>{
@@ -637,7 +637,7 @@ function startCallSignalPolling(){
 
   // First check immediately, then keep checking quickly enough for ringing.
   pollCallSignals();
-  callSignalPollTimer=setInterval(pollCallSignals,800);
+  callSignalPollTimer=setInterval(pollCallSignals,2000);
 }
 
 function connect(){
@@ -1126,7 +1126,7 @@ async function getMedia(type,{force=false}={}){
           facingMode:{ideal:"user"},
           width:{ideal:1280,max:1280},
           height:{ideal:720,max:720},
-          frameRate:{ideal:24,max:30}
+          frameRate:{ideal:24,max:24}
         }
       };
 
@@ -1204,8 +1204,11 @@ async function flushPendingIce(){
 async function ensurePeer(){
   if(pc)return pc;
 
-  const turnOk=await ensureTurnIceServers();
-  const stream=await getMedia(currentCallType);
+  // Prepare relay credentials and local media concurrently to reduce setup latency.
+  const [turnOk,stream]=await Promise.all([
+    ensureTurnIceServers(),
+    getMedia(currentCallType)
+  ]);
 
   pendingIceCandidates=[];
   videoSender=null;
@@ -1415,8 +1418,11 @@ async function requestCall(type){
   setCallState("preparing",peer,callId);
 
   try{
-    const turnOk=await ensureTurnIceServers();
-    await getMedia(type);
+    // Microphone/camera permission and TURN setup can run in parallel.
+    const [turnOk]=await Promise.all([
+      ensureTurnIceServers(),
+      getMedia(type)
+    ]);
 
     const empty=document.querySelector(".remote-empty-state");
     if(empty)empty.style.display="grid";
