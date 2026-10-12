@@ -235,18 +235,42 @@ export class SignalingRoom extends DurableObject {
       return j({ok:true,enabled:!!clientId,clientId});
     }
     if(url.pathname==="/api/media-upload" && request.method==="POST"){
-      const s=await this.session(String(url.searchParams.get("token")||""));
-      if(!s)return j({ok:false,error:"الجلسة منتهية"},401);
+      const session=await this.session(String(url.searchParams.get("token")||""));
+      if(!session)return j({ok:false,error:"الجلسة منتهية"},401);
       if(!this.env.MEDIA_BUCKET)return j({ok:false,error:"MEDIA_BUCKET_NOT_CONFIGURED"},503);
-      const kind=String(url.searchParams.get("kind")||"file").replace(/[^a-z0-9_-]/gi,"").slice(0,20)||"file";
+
+      const kind=String(url.searchParams.get("kind")||"file").toLowerCase();
+      const allowedKinds=new Set(["image","video","audio","file","avatar","cover","story"]);
+      if(!allowedKinds.has(kind))return j({ok:false,error:"نوع الملف غير مدعوم"},400);
+      const contentType=String(request.headers.get("content-type")||"").split(";")[0].trim().toLowerCase();
+      const accepted=contentType.startsWith("image/") || contentType.startsWith("video/") ||
+        contentType.startsWith("audio/") || contentType==="application/pdf";
+      if(!accepted)return j({ok:false,error:"صيغة الملف غير مدعومة"},415);
+      if(kind==="video" && !contentType.startsWith("video/"))return j({ok:false,error:"اختر ملف فيديو"},415);
+      if(["image","avatar","cover"].includes(kind) && !contentType.startsWith("image/"))return j({ok:false,error:"اختر ملف صورة"},415);
+      const maxBytes=50*1024*1024;
+      const declaredLength=Number(request.headers.get("content-length")||0);
+      if(declaredLength>maxBytes)return j({ok:false,error:"حجم الملف أكبر من 50 MB"},413);
+      if(!request.body)return j({ok:false,error:"الملف فارغ"},400);
+
       const supplied=String(url.searchParams.get("name")||"media");
       const ext=(supplied.match(/\.([a-z0-9]{1,8})$/i)||[])[1]||"bin";
       const key=`${kind}/${Date.now()}-${crypto.randomUUID()}.${ext.toLowerCase()}`;
-      const contentType=request.headers.get("content-type")||"application/octet-stream";
-      const len=Number(request.headers.get("content-length")||0);
-      if(len>50*1024*1024)return j({ok:false,error:"حجم الفيديو أكبر من 50 MB"},413);
-      await this.env.MEDIA_BUCKET.put(key,request.body,{httpMetadata:{contentType}});
-      return j({ok:true,url:`/media/${key}`});
+      try{
+        // R2 stores the binary stream; no base64 conversion or Durable Object storage.
+        const object=await this.env.MEDIA_BUCKET.put(key,request.body,{
+          httpMetadata:{contentType},
+          customMetadata:{owner:session.username}
+        });
+        if(object.size>maxBytes){
+          await this.env.MEDIA_BUCKET.delete(key);
+          return j({ok:false,error:"حجم الملف أكبر من 50 MB"},413);
+        }
+        return j({ok:true,url:`/media/${key}`,size:object.size,contentType});
+      }catch(err){
+        console.error("R2 upload failed",err);
+        return j({ok:false,error:"تعذر رفع الملف. حاول مرة أخرى"},502);
+      }
     }
 
     let body={};
@@ -857,8 +881,22 @@ export class SignalingRoom extends DurableObject {
       if(!s)return j({ok:false,error:"الجلسة منتهية"},401);
 
       const text=String(body.text||"").trim().slice(0,5000);
-      const image=String(body.image||"").slice(0,500000);
-      const video=String(body.video||"").slice(0,1750000);
+      // Keep legacy small inline images/videos, but store new large media as R2 URLs.
+      const mediaValue=(value,legacyLimit)=>{
+        const raw=String(value||"");
+        if(raw.startsWith("/media/")){
+          const key=raw.slice(7);
+          if(key.length<=300 && /^[a-z0-9_-]+\/[a-z0-9._-]+$/i.test(key))return raw;
+          return null;
+        }
+        if(raw.startsWith("data:image/") || raw.startsWith("data:video/")){
+          return raw.length<=legacyLimit?raw:null;
+        }
+        return raw===""?"":null;
+      };
+      const image=mediaValue(body.image,500000);
+      const video=mediaValue(body.video,1750000);
+      if(image===null || video===null)return j({ok:false,error:"ارفع الصورة أو الفيديو إلى R2 أولاً، ثم أرسل رابط /media/ الناتج"},413);
 
       if(!text && !image && !video)return j({ok:false,error:"اكتب منشورًا أو أضف صورة أو فيديو"},400);
 
