@@ -1,5 +1,0 @@
-User-agent: *
-Allow: /
-Disallow: /api/
-Disallow: /ws
-Sitemap: https://tawasol-alatta.omaratta077-4fd.workers.dev/sitemap.xml
