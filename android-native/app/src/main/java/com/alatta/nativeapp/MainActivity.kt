@@ -19,6 +19,11 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
+import coil.compose.AsyncImage
+import android.widget.VideoView
+import android.widget.MediaController
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.LayoutDirection
 import kotlinx.coroutines.Dispatchers
@@ -54,7 +59,49 @@ private fun request(path: String, body: JSONObject? = null): JSONObject {
     } finally { connection.disconnect() }
 }
 
-private data class Post(val author: String, val text: String)
+private data class Post(val author: String, val text: String, val image: String, val video: String)
+
+private fun mediaUrl(value: String): String = when {
+    value.startsWith("/media/") -> BASE + value
+    value.startsWith("https://") -> value
+    value.startsWith("data:image/") -> value
+    else -> ""
+}
+
+@Composable
+private fun PostMedia(post: Post) {
+    val image = mediaUrl(post.image)
+    val video = mediaUrl(post.video)
+    if (image.isNotBlank()) {
+        Spacer(Modifier.height(10.dp))
+        AsyncImage(
+            model = image,
+            contentDescription = "صورة المنشور",
+            modifier = Modifier.fillMaxWidth().heightIn(min = 160.dp, max = 420.dp),
+            contentScale = ContentScale.Fit
+        )
+    }
+    if (video.isNotBlank()) {
+        Spacer(Modifier.height(10.dp))
+        AndroidView(
+            factory = { context ->
+                VideoView(context).apply {
+                    setMediaController(MediaController(context))
+                    setVideoPath(video)
+                    seekTo(100)
+                }
+            },
+            update = { view -> if (view.tag != video) {
+                view.tag = video
+                view.setVideoPath(video)
+                view.seekTo(100)
+            } },
+            modifier = Modifier.fillMaxWidth().height(240.dp)
+        )
+    } else if (post.video.isNotBlank()) {
+        Text("هذا الفيديو بصيغة قديمة غير مدعومة حاليًا", color = Color.LightGray)
+    }
+}
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -87,7 +134,7 @@ private fun AlAttaApp() {
                 posts = (0 until (arr?.length() ?: 0)).map { i ->
                     val obj = arr!!.optJSONObject(i) ?: JSONObject()
                     Post(obj.optJSONObject("authorInfo")?.optString("displayName")
-                        ?.takeIf { it.isNotBlank() } ?: obj.optString("author", "مستخدم"), obj.optString("text"))
+                        ?.takeIf { it.isNotBlank() } ?: obj.optString("author", "مستخدم"), obj.optString("text"), obj.optString("image"), obj.optString("video"))
                 }
             } catch (e: Exception) { error = e.message ?: "تعذر تحميل المنشورات" }
             finally { busy = false }
@@ -142,7 +189,8 @@ private fun AlAttaApp() {
                             Column(Modifier.fillMaxWidth().background(Panel, RoundedCornerShape(14.dp)).padding(16.dp)) {
                                 Text(post.author, color = Gold, fontWeight = FontWeight.Bold)
                                 Spacer(Modifier.height(8.dp))
-                                Text(post.text, color = Color.White)
+                                if (post.text.isNotBlank()) Text(post.text, color = Color.White)
+                                PostMedia(post)
                             }
                         }
                     }
