@@ -4671,139 +4671,19 @@ html body #authView .atta-download-strip{display:none!important;}
  }
 }
 
-
-/* ===== V13.67 MOBILE PROFILE + BOTTOM NAV FIX =====
-   Higher specificity than legacy V13.60 inline mobile rules.
-   Keep desktop, login, messaging and calls unchanged. */
-@media (max-width: 700px) {
-  html, body { max-width:100%; overflow-x:hidden!important; }
-  html.mobile-device body #appView,
-  html body #appView { width:100%!important; max-width:100vw!important; overflow-x:clip!important; }
-  html.mobile-device body #appView #profilePage,
-  html body #appView #profilePage {
-    min-width:0!important; max-width:100%!important; overflow-x:clip!important;
-  }
-  html.mobile-device body #appView #profilePage *,
-  html body #appView #profilePage * { box-sizing:border-box; }
-  html.mobile-device body #appView .profile-card-large,
-  html body #appView .profile-card-large {
-    width:100%!important; max-width:100%!important; min-width:0!important;
-    padding:14px 12px 22px!important; overflow:hidden!important;
-  }
-  html.mobile-device body #appView .profile-cover,
-  html body #appView .profile-cover { height:125px!important; }
-  html.mobile-device body #appView .profile-top-row,
-  html body #appView .profile-top-row {
-    width:100%!important; max-width:100%!important; min-width:0!important;
-    margin-top:-48px!important; padding:0 12px!important;
-    display:flex!important; flex-direction:column!important;
-    align-items:center!important; gap:10px!important;
-  }
-  html.mobile-device body #appView .profile-large-avatar,
-  html body #appView .profile-large-avatar {
-    width:104px!important; height:104px!important;
-    min-width:104px!important; min-height:104px!important;
-    max-width:104px!important; max-height:104px!important;
-    object-fit:cover!important;
-  }
-  html.mobile-device body #appView .profile-title-block,
-  html body #appView .profile-title-block {
-    width:100%!important; max-width:100%!important; min-width:0!important;
-    flex:0 1 auto!important; padding:0 8px!important; text-align:center!important;
-    overflow-wrap:anywhere!important; word-break:break-word!important;
-  }
-  html.mobile-device body #appView .profile-title-block h2,
-  html body #appView .profile-title-block h2 {
-    font-size:23px!important; line-height:1.35!important;
-    max-width:100%!important; margin:6px auto!important;
-    overflow-wrap:anywhere!important; word-break:break-word!important;
-  }
-  html.mobile-device body #appView #profileUsername,
-  html body #appView #profileUsername {
-    display:block!important; max-width:100%!important;
-    font-size:13px!important; line-height:1.5!important;
-    overflow-wrap:anywhere!important; word-break:break-all!important;
-    white-space:normal!important; text-align:center!important;
-  }
-  html.mobile-device body #appView .profile-bio,
-  html body #appView .profile-bio {
-    max-width:100%!important; padding:0 12px!important;
-    font-size:15px!important; line-height:1.6!important;
-    overflow-wrap:anywhere!important; word-break:break-word!important;
-  }
-  html.mobile-device body #appView .profile-main-actions,
-  html body #appView .profile-main-actions {
-    max-width:100%!important; padding:12px 10px!important;
-    flex-wrap:wrap!important; justify-content:center!important;
-  }
-  html.mobile-device body #appView .premium-nav,
-  html.mobile-device body #appView .mobile-bottom-nav,
-  html body #appView .premium-nav,
-  html body #appView .mobile-bottom-nav {
-    position:fixed!important; left:50%!important; right:auto!important;
-    transform:translateX(-50%)!important;
-    bottom:max(6px, env(safe-area-inset-bottom))!important;
-    width:calc(100% - 16px)!important; max-width:390px!important;
-    min-width:0!important; height:64px!important; min-height:64px!important;
-    display:grid!important; grid-template-columns:repeat(5,minmax(0,1fr))!important;
-    gap:2px!important; padding:4px!important;
-    border-radius:16px!important; z-index:90!important;
-  }
-  html.mobile-device body #appView .premium-nav .nav-btn,
-  html.mobile-device body #appView .mobile-bottom-nav .nav-btn,
-  html body #appView .premium-nav .nav-btn,
-  html body #appView .mobile-bottom-nav .nav-btn {
-    width:100%!important; min-width:0!important;
-    height:54px!important; min-height:54px!important;
-    padding:3px 1px!important; gap:2px!important;
-    display:flex!important; flex-direction:column!important;
-    justify-content:center!important; align-items:center!important;
-    overflow:hidden!important;
-  }
-  html.mobile-device body #appView .premium-nav .atta-icon,
-  html.mobile-device body #appView .mobile-bottom-nav .atta-icon,
-  html body #appView .premium-nav .atta-icon,
-  html body #appView .mobile-bottom-nav .atta-icon {
-    width:22px!important; height:22px!important;
-    min-width:22px!important; min-height:22px!important;
-    flex-shrink:0!important;
-  }
-  html.mobile-device body #appView .premium-nav .nav-btn span,
-  html.mobile-device body #appView .mobile-bottom-nav .nav-btn span,
-  html body #appView .premium-nav .nav-btn span,
-  html body #appView .mobile-bottom-nav .nav-btn span {
-    font-size:10px!important; line-height:1.15!important;
-    font-weight:700!important; max-width:100%!important;
-    white-space:nowrap!important; overflow:hidden!important;
-    text-overflow:ellipsis!important;
-  }
-  html.mobile-device body #appView .app-shell,
-  html body #appView .app-shell { padding-bottom:90px!important; }
-}
-
-
-/* V13.68 — Compact profile and reliable vertical scrolling */
-@media(max-width:700px){
- html,html body{height:auto!important;min-height:100%!important;overflow-y:auto!important;overscroll-behavior-y:auto!important;touch-action:pan-y pinch-zoom!important}
- html.mobile-device body #appView,html body #appView{height:auto!important;min-height:100dvh!important;overflow-y:visible!important;touch-action:pan-y!important}
- html.mobile-device body #appView .app-shell,html body #appView .app-shell{height:auto!important;min-height:100dvh!important;overflow-y:visible!important;padding-bottom:96px!important}
- html.mobile-device body #appView .social-main,html body #appView .social-main{height:auto!important;min-height:0!important;overflow-y:visible!important}
- html.mobile-device body #appView #profilePage,html body #appView #profilePage{width:100%!important;min-width:0!important;max-width:100%!important;overflow-x:clip!important;overflow-y:visible!important}
- html.mobile-device body #appView #profilePage .profile-card-large,html body #appView #profilePage .profile-card-large{width:100%!important;min-width:0!important;max-width:100%!important;padding:0 0 14px!important;margin:0 auto 12px!important;overflow:visible!important;border-radius:0!important}
- html.mobile-device body #appView #profilePage .profile-cover,html body #appView #profilePage .profile-cover{height:112px!important;min-height:112px!important;max-height:112px!important;width:100%!important;overflow:hidden!important}
- html.mobile-device body #appView #profilePage .profile-cover-image,html body #appView #profilePage .profile-cover-image{width:100%!important;height:100%!important;object-fit:cover!important;object-position:center!important}
- html.mobile-device body #appView #profilePage .profile-top-row,html body #appView #profilePage .profile-top-row{width:100%!important;min-width:0!important;max-width:100%!important;margin:-38px 0 0!important;padding:0 12px!important;display:flex!important;flex-direction:column!important;align-items:center!important;gap:5px!important;position:relative!important}
- html.mobile-device body #appView #profilePage .profile-large-avatar,html body #appView #profilePage .profile-large-avatar{width:82px!important;height:82px!important;min-width:82px!important;min-height:82px!important;max-width:82px!important;max-height:82px!important;object-fit:cover!important;border-width:3px!important}
- html.mobile-device body #appView #profilePage .profile-title-block,html body #appView #profilePage .profile-title-block{min-width:0!important;max-width:100%!important;width:100%!important;padding:0 8px!important;margin:0!important;text-align:center!important;overflow:hidden!important}
- html.mobile-device body #appView #profilePage .profile-title-block h2,html body #appView #profilePage .profile-title-block h2{font-size:20px!important;line-height:1.3!important;margin:4px 0!important;white-space:normal!important;overflow-wrap:anywhere!important}
- html.mobile-device body #appView #profilePage #profileUsername,html body #appView #profilePage #profileUsername{display:block!important;width:100%!important;max-width:100%!important;font-size:12px!important;line-height:1.4!important;white-space:normal!important;overflow-wrap:anywhere!important;word-break:break-all!important;letter-spacing:0!important}
- html.mobile-device body #appView #profilePage .profile-bio,html body #appView #profilePage .profile-bio{font-size:13px!important;line-height:1.5!important;margin:7px auto!important;padding:0 12px!important;max-width:100%!important;overflow-wrap:anywhere!important}
- html.mobile-device body #appView #profilePage .profile-main-actions,html body #appView #profilePage .profile-main-actions{padding:8px 10px!important;gap:7px!important;justify-content:center!important}
- html.mobile-device body #appView #profilePage .profile-friend-stat,html body #appView #profilePage .profile-friend-stat{margin:6px auto 10px!important;padding:6px 14px!important}
- html.mobile-device body #appView #profilePage .profile-friend-stat strong,html body #appView #profilePage .profile-friend-stat strong{font-size:19px!important}
- html.mobile-device body #appView #profilePage .profile-friend-stat span,html body #appView #profilePage .profile-friend-stat span{font-size:11px!important}
- html.mobile-device body #appView .premium-nav,html body #appView .premium-nav{height:62px!important;min-height:62px!important;max-height:62px!important;width:calc(100% - 16px)!important;max-width:390px!important;bottom:max(6px,env(safe-area-inset-bottom))!important;grid-template-columns:repeat(5,minmax(0,1fr))!important}
- html.mobile-device body #appView .premium-nav .nav-btn,html body #appView .premium-nav .nav-btn{height:50px!important;min-height:50px!important;max-height:50px!important}
- html.mobile-device body #appView .premium-nav .nav-btn span,html body #appView .premium-nav .nav-btn span{font-size:10px!important}
- html.mobile-device body #appView .premium-nav .atta-icon,html body #appView .premium-nav .atta-icon{width:21px!important;height:21px!important}
-}
+/* AL-ATTA YouTube section — header icon and responsive overlay */
+.atta-youtube-button{color:#e9bd52!important;flex-shrink:0!important}
+.atta-youtube-overlay{position:fixed;inset:0;z-index:999999;background:rgba(0,0,0,.86);display:flex;align-items:center;justify-content:center;padding:12px;direction:rtl}
+.atta-youtube-overlay[hidden]{display:none!important}
+.atta-youtube-panel{width:min(100%,820px);max-height:94dvh;overflow:auto;background:#0c1014;border:1px solid #c9a448;border-radius:18px;color:#f6f3e9;padding:18px;box-shadow:0 16px 50px #000a}
+.atta-youtube-heading{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px}
+.atta-youtube-heading h2{margin:0;font-size:21px;color:#e9bd52}
+.atta-youtube-close{background:#222;border:1px solid #ac8b3a;border-radius:10px;color:#fff;font-size:24px;width:42px;height:42px;cursor:pointer}
+.atta-youtube-form{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+.atta-youtube-form input{flex:1;min-width:180px;background:#171d23;color:white;border:1px solid #7c6639;border-radius:10px;padding:12px;font-size:16px;direction:ltr}
+.atta-youtube-form button{background:#e9bd52;color:#141414;border:0;border-radius:10px;padding:11px 18px;font-weight:800;cursor:pointer}
+.atta-youtube-frame{aspect-ratio:16/9;background:#000;border-radius:12px;overflow:hidden}
+.atta-youtube-frame iframe{width:100%;height:100%;border:0;display:block}
+.atta-youtube-note{font-size:13px;color:#c4c8ca;line-height:1.8;margin:12px 0 0}
+.atta-youtube-error{color:#ffaaa0;min-height:1.5em;font-size:14px}
+@media(max-width:700px){.atta-youtube-overlay{padding:5px}.atta-youtube-panel{padding:12px;max-height:95dvh}.atta-youtube-button{width:42px!important;min-width:42px!important;height:48px!important}.atta-youtube-button svg{width:26px!important;height:26px!important}.reference-header-actions{gap:2px!important}}
