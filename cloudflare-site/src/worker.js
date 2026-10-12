@@ -73,6 +73,15 @@ export class SignalingRoom extends DurableObject {
     return "none";
   }
 
+  async blockedUsers(username){
+    return await this.ctx.storage.get(`blocked:${username}`)||[];
+  }
+
+  async isBlockedBetween(a,b){
+    if(!a || !b)return false;
+    return (await this.blockedUsers(a)).includes(b) || (await this.blockedUsers(b)).includes(a);
+  }
+
   async createSession(username){
     const token=crypto.randomUUID()+crypto.randomUUID();
     await this.ctx.storage.put(`session:${token}`,{username,createdAt:Date.now()});
@@ -790,6 +799,7 @@ export class SignalingRoom extends DurableObject {
       if(!to)return j({ok:false,error:"المستخدم المطلوب غير محدد"},400);
       if(!allowed.has(type))return j({ok:false,error:"إشارة مكالمة غير صالحة"},400);
       if(!await this.user(to))return j({ok:false,error:"المستخدم غير موجود"},404);
+      if(await this.isBlockedBetween(s.username,to))return j({ok:false,error:"لا يمكن المراسلة بسبب الحظر"},403);
 
       const now=Date.now();
       const event={
@@ -919,6 +929,22 @@ export class SignalingRoom extends DurableObject {
       await this.ctx.storage.put("postIds",ids.slice(-500));
 
       return j({ok:true,post});
+    }
+
+    if(url.pathname==="/api/post-delete" && request.method==="POST"){
+      const s=await this.session(String(body.token||""));
+      if(!s)return j({ok:false,error:"الجلسة منتهية"},401);
+      const id=String(body.postId||"");
+      if(!id)return j({ok:false,error:"المنشور غير محدد"},400);
+      const post=await this.ctx.storage.get(`post:${id}`);
+      if(!post)return j({ok:false,error:"المنشور غير موجود"},404);
+      const actor=await this.user(s.username);
+      const isAdmin=actor?.role==="super_admin" || actor?.role==="moderator" || s.username===this.ownerUsername();
+      if(post.author!==s.username && !isAdmin)return j({ok:false,error:"غير مسموح لك بحذف هذا المنشور"},403);
+      await this.ctx.storage.delete(`post:${id}`);
+      const ids=await this.ctx.storage.get("postIds")||[];
+      await this.ctx.storage.put("postIds",ids.filter(x=>x!==id));
+      return j({ok:true});
     }
 
     if(url.pathname==="/api/posts" && request.method==="GET"){
@@ -1082,6 +1108,7 @@ export class SignalingRoom extends DurableObject {
       const target=String(body.username||"").trim().toLowerCase();
       if(!target || target===s.username)return j({ok:false,error:"مستخدم غير صالح"},400);
       if(!await this.user(target))return j({ok:false,error:"المستخدم غير موجود"},404);
+      if(await this.isBlockedBetween(s.username,target))return j({ok:false,error:"لا يمكن إرسال طلب صداقة بسبب الحظر"},403);
       const following=await this.ctx.storage.get(`following:${s.username}`)||[];
       const followers=await this.ctx.storage.get(`followers:${target}`)||[];
       const exists=following.includes(target);
@@ -1105,12 +1132,15 @@ export class SignalingRoom extends DurableObject {
       const username=String(url.searchParams.get("username")||s.username).trim().toLowerCase();
       const u=await this.publicUser(username);
       if(!u)return j({ok:false,error:"المستخدم غير موجود"},404);
+      if(username!==s.username && (await this.blockedUsers(username)).includes(s.username))return j({ok:false,error:"هذا الملف الشخصي غير متاح"},403);
 
       return j({
         ok:true,
         user:u,
         friendCount:(await this.friends(username)).length,
-        friendState:await this.friendState(s.username,username)
+        friendState:await this.friendState(s.username,username),
+        blockedByMe:(await this.blockedUsers(s.username)).includes(username),
+        blockRestricted:await this.isBlockedBetween(s.username,username)
       });
     }
 
@@ -1140,6 +1170,27 @@ export class SignalingRoom extends DurableObject {
       return j({ok:true,stories});
     }
 
+
+    if(url.pathname==="/api/personal-block" && request.method==="POST"){
+      const s=await this.session(String(body.token||""));
+      if(!s)return j({ok:false,error:"الجلسة منتهية"},401);
+      const target=String(body.username||"").trim().toLowerCase();
+      const action=String(body.action||"");
+      if(!target || target===s.username)return j({ok:false,error:"لا يمكنك حظر حسابك"},400);
+      if(!await this.user(target))return j({ok:false,error:"المستخدم غير موجود"},404);
+      if(!["block","unblock"].includes(action))return j({ok:false,error:"إجراء غير صالح"},400);
+      let list=await this.blockedUsers(s.username);
+      list=action==="block" ? [...new Set([...list,target])] : list.filter(x=>x!==target);
+      await this.ctx.storage.put(`blocked:${s.username}`,list);
+      if(action==="block"){
+        for(const [a,b] of [[s.username,target],[target,s.username]]){
+          await this.ctx.storage.put(`friends:${a}`,(await this.friends(a)).filter(x=>x!==b));
+          await this.ctx.storage.put(`friendIncoming:${a}`,(await this.incomingFriendRequests(a)).filter(x=>x.from!==b));
+          await this.ctx.storage.put(`friendOutgoing:${a}`,(await this.outgoingFriendRequests(a)).filter(x=>x.to!==b));
+        }
+      }
+      return j({ok:true,blocked:action==="block"});
+    }
 
     if(url.pathname==="/api/message-send" && request.method==="POST"){
       const s=await this.session(String(body.token||""));
@@ -1563,6 +1614,7 @@ export class SignalingRoom extends DurableObject {
       if(!s)return j({ok:false,error:"الجلسة منتهية"},401);
       const other=String(body.username||"").trim().toLowerCase();
       const action=String(body.action||"");
+      if(await this.isBlockedBetween(s.username,other))return j({ok:false,error:"لا يمكن تنفيذ طلب الصداقة بسبب الحظر"},403);
 
       let myIn=await this.incomingFriendRequests(s.username);
       let myOut=await this.outgoingFriendRequests(s.username);
@@ -1650,6 +1702,7 @@ export class SignalingRoom extends DurableObject {
       const username=String(url.searchParams.get("username")||s.username).trim().toLowerCase();
       const result=[];
       for(const name of await this.friends(username)){
+        if(await this.isBlockedBetween(username,name))continue;
         const u=await this.publicUser(name);
         if(u)result.push(u);
       }
@@ -1776,6 +1829,10 @@ export class SignalingRoom extends DurableObject {
       }
       if(!await this.user(to)){
         this.send(ws,{type:"error",message:"المستخدم غير موجود"});
+        return;
+      }
+      if(await this.isBlockedBetween(from,to)){
+        this.send(ws,{type:"error",message:"لا يمكن المراسلة بسبب الحظر"});
         return;
       }
 
