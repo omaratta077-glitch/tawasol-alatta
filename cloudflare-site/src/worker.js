@@ -1906,6 +1906,53 @@ export default {
       return new Response(obj.body,{headers});
     }
 
+    // YouTube Data API requests are server-side. Never expose YOUTUBE_API_KEY.
+    if(url.pathname==="/api/youtube" && request.method==="GET"){
+      const key=String(env.YOUTUBE_API_KEY||"").trim();
+      if(!key)return Response.json({ok:false,error:"مفتاح YouTube غير مُعد"},{status:503});
+      const query=(url.searchParams.get("q")||"").trim().slice(0,100);
+      const pageToken=(url.searchParams.get("pageToken")||"").trim();
+      if(pageToken && !/^[A-Za-z0-9_-]{1,100}$/.test(pageToken))return Response.json({ok:false,error:"صفحة غير صالحة"},{status:400});
+      const mode=query?"search":"popular";
+      const params=new URLSearchParams({key,part:query?"snippet":"snippet,statistics",maxResults:"12",regionCode:"SA"});
+      let endpoint;
+      if(query){
+        params.set("q",query);params.set("type","video");params.set("videoEmbeddable","true");params.set("safeSearch","moderate");
+        endpoint="https://www.googleapis.com/youtube/v3/search";
+      }else{
+        params.set("chart","mostPopular");endpoint="https://www.googleapis.com/youtube/v3/videos";
+      }
+      if(pageToken)params.set("pageToken",pageToken);
+      const cacheUrl=new URL(url.origin+"/youtube-api-cache");
+      cacheUrl.searchParams.set("mode",mode);cacheUrl.searchParams.set("q",query.toLowerCase());cacheUrl.searchParams.set("pageToken",pageToken);
+      const cacheKey=new Request(cacheUrl.toString());
+      const cache=caches.default;
+      const hit=await cache.match(cacheKey);
+      if(hit)return hit;
+      try{
+        const response=await fetch(endpoint+"?"+params.toString(),{headers:{accept:"application/json"}});
+        const data=await response.json();
+        if(!response.ok){
+          console.warn("YouTube API error",response.status,data?.error?.status);
+          return Response.json({ok:false,error:response.status===403?"حصة يوتيوب انتهت أو المفتاح غير مصرح له":"تعذر تحميل فيديوهات يوتيوب"},{status:response.status===403?429:502});
+        }
+        const items=(data.items||[]).map(v=>({
+          id:query?v.id?.videoId:v.id,
+          title:v.snippet?.title||"فيديو",
+          channel:v.snippet?.channelTitle||"",
+          thumbnail:v.snippet?.thumbnails?.medium?.url||v.snippet?.thumbnails?.default?.url||"",
+          publishedAt:v.snippet?.publishedAt||""
+        })).filter(v=>/^[A-Za-z0-9_-]{11}$/.test(v.id||""));
+        const result=Response.json({ok:true,items,nextPageToken:data.nextPageToken||""},{headers:{"Cache-Control":"public, max-age=600"}});
+        // Cache is per Cloudflare edge; search still costs 100 YouTube quota units on cache miss.
+        await cache.put(cacheKey,result.clone());
+        return result;
+      }catch(e){
+        console.error("YouTube fetch error",e);
+        return Response.json({ok:false,error:"تعذر الاتصال بيوتيوب"},{status:502});
+      }
+    }
+
     if(url.pathname==="/ws" || url.pathname.startsWith("/api/")){
       const id=env.SIGNALING.idFromName("global-room");
       return env.SIGNALING.get(id).fetch(request);
