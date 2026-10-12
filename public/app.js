@@ -59,7 +59,7 @@ async function ensureTurnIceServers(force=false){
     turnCredentialTtlMs=Number(d.ttl||86400)*1000;
     turnReady=true;
 
-    console.log("TURN enabled",d.provider||"cloudflare",rtcConfig.iceServers);
+    console.log("TURN enabled",d.provider||"cloudflare");
 
     return true;
   }catch(err){
@@ -149,17 +149,22 @@ async function startAuthenticatedApp(sessionToken,user=null){
 
   ensureTurnIceServers().catch(()=>{});
 
+  // V13.60: show the main feed first, then load secondary panels gradually.
   connect();
   startCallSignalPolling();
-  loadGroups();
   resetMessagesInbox();
-  loadChatContacts();
   loadPosts();
-  loadStories();
-  loadDesktopSuggestions();
-  loadFriendRequests().catch(()=>{});
-  startSocialSync();
-  askNotifications();
+
+  const deferStartup=(fn,delay)=>setTimeout(()=>{
+    try{ Promise.resolve(fn()).catch(()=>{}); }catch{}
+  },delay);
+
+  deferStartup(loadStories,120);
+  deferStartup(loadDesktopSuggestions,240);
+  deferStartup(loadGroups,360);
+  deferStartup(loadChatContacts,480);
+  deferStartup(loadFriendRequests,600);
+  deferStartup(()=>{ startSocialSync(); askNotifications(); },750);
 }
 
 async function restoreSavedLogin(){
@@ -331,7 +336,7 @@ function hasUsableLocalStream(type=currentCallType){
   return audio && (type!=="video" || video);
 }
 
-async function waitForIceGatheringComplete(peer,timeoutMs=3500){
+async function waitForIceGatheringComplete(peer,timeoutMs=1500){
   if(!peer || peer.iceGatheringState==="complete")return;
 
   await new Promise(resolve=>{
@@ -632,7 +637,7 @@ function startCallSignalPolling(){
 
   // First check immediately, then keep checking quickly enough for ringing.
   pollCallSignals();
-  callSignalPollTimer=setInterval(pollCallSignals,800);
+  callSignalPollTimer=setInterval(pollCallSignals,2000);
 }
 
 function connect(){
@@ -1121,7 +1126,7 @@ async function getMedia(type,{force=false}={}){
           facingMode:{ideal:"user"},
           width:{ideal:1280,max:1280},
           height:{ideal:720,max:720},
-          frameRate:{ideal:24,max:30}
+          frameRate:{ideal:24,max:24}
         }
       };
 
@@ -1199,8 +1204,11 @@ async function flushPendingIce(){
 async function ensurePeer(){
   if(pc)return pc;
 
-  const turnOk=await ensureTurnIceServers();
-  const stream=await getMedia(currentCallType);
+  // Prepare relay credentials and local media concurrently to reduce setup latency.
+  const [turnOk,stream]=await Promise.all([
+    ensureTurnIceServers(),
+    getMedia(currentCallType)
+  ]);
 
   pendingIceCandidates=[];
   videoSender=null;
@@ -1410,8 +1418,11 @@ async function requestCall(type){
   setCallState("preparing",peer,callId);
 
   try{
-    const turnOk=await ensureTurnIceServers();
-    await getMedia(type);
+    // Microphone/camera permission and TURN setup can run in parallel.
+    const [turnOk]=await Promise.all([
+      ensureTurnIceServers(),
+      getMedia(type)
+    ]);
 
     const empty=document.querySelector(".remote-empty-state");
     if(empty)empty.style.display="grid";
@@ -1544,6 +1555,7 @@ async function shareScreen(){
 let postImageData="";
 let postVideoData="";
 let postVideoUrl="";
+let postVideoUploading=false;
 
 const reactionEmoji={like:"👍",love:"❤️",haha:"😂",wow:"😮",sad:"😢",angry:"😡",dislike:"👎"};
 
@@ -2015,33 +2027,65 @@ if($("postVideoInput")){
   $("postVideoInput").onchange=async e=>{
     const f=e.target.files?.[0];
     if(!f)return;
-    if(!String(f.type||"").startsWith("video/")){showInAppToast("ملف غير صالح","اختر ملف فيديو.");return;}
-    postVideoData="";postVideoUrl="";
     const preview=$("postVideoPreview");
     const wrap=$("postVideoPreviewWrap");
+    const publishBtn=$("publishPostBtn");
+    postVideoData="";
+    postVideoUrl="";
+    wrap?.classList.add("hidden");
+    preview?.removeAttribute("src");
+    if(!String(f.type||"").startsWith("video/")){
+      showInAppToast("ملف غير صالح","اختر ملف فيديو مدعومًا.");
+      e.target.value="";
+      return;
+    }
+    if(f.size>50*1024*1024){
+      showInAppToast("الفيديو كبير","الحد الأقصى للفيديو 50 MB.");
+      e.target.value="";
+      return;
+    }
+    if(postVideoUploading)return;
+    postVideoUploading=true;
+    if(publishBtn)publishBtn.disabled=true;
+    showInAppToast("جاري رفع الفيديو","انتظر حتى يكتمل الرفع قبل النشر.");
     try{
-      // Prefer Cloudflare R2 when a MEDIA_BUCKET binding is configured.
-      const up=await fetch(`/api/media-upload?token=${encodeURIComponent(token)}&kind=video&name=${encodeURIComponent(f.name||"video")}`,{
-        method:"POST",headers:{"content-type":f.type||"application/octet-stream"},body:f
+      const up=await fetch(`/api/media-upload?token=${encodeURIComponent(token)}&kind=video&name=${encodeURIComponent(f.name||"video.mp4")}`,{
+        method:"POST",
+        headers:{"content-type":f.type||"application/octet-stream"},
+        body:f
       });
-      if(up.ok){
-        const d=await up.json();
-        postVideoUrl=String(d.url||"");
-        if(postVideoUrl){preview.src=postVideoUrl;wrap.classList.remove("hidden");showInAppToast("تم تجهيز الفيديو","جاهز للنشر.");return;}
+      const d=await up.json().catch(()=>({}));
+      if(!up.ok || !d.url){
+        if(d.error==="MEDIA_BUCKET_NOT_CONFIGURED")throw new Error("مخزن R2 غير مربوط بالتطبيق. تأكد من MEDIA_BUCKET ثم أعد النشر.");
+        throw new Error(d.error||`فشل رفع الفيديو (HTTP ${up.status})`);
       }
-      // No R2 yet: allow a short/small video directly in Durable Object storage.
-      if(f.size>1100000){
-        wrap.classList.add("hidden");
-        showInAppToast("الفيديو كبير","الفيديوهات الكبيرة تحتاج تفعيل مخزن الوسائط R2 في Cloudflare. جرّب فيديو قصير أقل من 1 MB الآن.");
-        return;
-      }
-      const r=new FileReader();
-      r.onload=()=>{postVideoData=String(r.result||"");preview.src=postVideoData;wrap.classList.remove("hidden");showInAppToast("تم تجهيز الفيديو","جاهز للنشر.");};
-      r.readAsDataURL(f);
+      postVideoUrl=String(d.url);
+      if(preview)preview.src=postVideoUrl;
+      wrap?.classList.remove("hidden");
+      showInAppToast("تم رفع الفيديو","الفيديو جاهز للنشر.");
     }catch(err){
+      console.error("Video upload failed",err);
+      // Keep the existing small-video fallback only when R2 is unavailable.
       if(f.size<=1100000){
-        const r=new FileReader();r.onload=()=>{postVideoData=String(r.result||"");preview.src=postVideoData;wrap.classList.remove("hidden");};r.readAsDataURL(f);
-      }else showInAppToast("تعذر تجهيز الفيديو",err?.message||"حاول فيديو أقصر.");
+        try{
+          const data=await new Promise((resolve,reject)=>{
+            const reader=new FileReader();
+            reader.onload=()=>resolve(String(reader.result||""));
+            reader.onerror=()=>reject(new Error("تعذر قراءة الفيديو"));
+            reader.readAsDataURL(f);
+          });
+          postVideoData=data;
+          if(preview)preview.src=data;
+          wrap?.classList.remove("hidden");
+          showInAppToast("تم تجهيز فيديو صغير","سيتم نشره بالطريقة القديمة.");
+        }catch(readErr){showInAppToast("تعذر تجهيز الفيديو",readErr.message);}
+      }else{
+        showInAppToast("تعذر رفع الفيديو",err?.message||"حاول مرة أخرى.");
+        e.target.value="";
+      }
+    }finally{
+      postVideoUploading=false;
+      if(publishBtn)publishBtn.disabled=false;
     }
   };
 }
@@ -2120,7 +2164,7 @@ async function loadProfilePosts(username){
   if(!listEl)return;
   listEl.innerHTML='<div class="profile-post-empty">جاري تحميل المنشورات...</div>';
   try{
-    const d=await api(`/api/posts?token=${encodeURIComponent(token)}`);
+    const d=await api(`/api/posts?token=${encodeURIComponent(token)}&limit=20`);
     const posts=(d.posts||[]).filter(p=>String(p.author||"").toLowerCase()===String(username||"").toLowerCase());
     if(countEl)countEl.textContent=posts.length;
     if(!posts.length){
@@ -2261,7 +2305,7 @@ $("friendsStatBtn").onclick=()=>$("friendsSection").scrollIntoView({behavior:"sm
 async function loadPosts(){
   if(!token)return;
   try{
-    const d=await api(`/api/posts?token=${encodeURIComponent(token)}`);
+    const d=await api(`/api/posts?token=${encodeURIComponent(token)}&limit=20`);
     const posts=(d.posts||[]).slice(0,20);
 
     const shareCounts={};
@@ -2488,6 +2532,7 @@ $("postImageInput").onchange=e=>{
 };
 
 $("publishPostBtn").onclick=async()=>{
+  if(postVideoUploading)return alert("انتظر حتى يكتمل رفع الفيديو أولاً");
   const text=$("postText").value.trim();
   if(!text && !postImageData && !postVideoData && !postVideoUrl)return alert("اكتب منشورًا أو أضف صورة أو فيديو");
   try{
@@ -3696,7 +3741,7 @@ window.addEventListener("load",setupGoogleSignIn);
 
   if ("serviceWorker" in navigator) {
     window.addEventListener("load", () => {
-      navigator.serviceWorker.register("/sw.js?v=13.44", { scope: "/" }).catch(() => {});
+      navigator.serviceWorker.register("/sw.js?v=13.60", { scope: "/" }).catch(() => {});
     });
   }
 
