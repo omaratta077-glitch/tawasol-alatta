@@ -2113,27 +2113,6 @@ async function renderProfilePage(username=me?.username){
     const p=d.user;
     const self=username===me.username;
     viewedFriendState=d.friendState||"none";
-    let personalBlockBtn=$("personalBlockBtn");
-    if(!personalBlockBtn){
-      personalBlockBtn=document.createElement("button");
-      personalBlockBtn.id="personalBlockBtn";
-      personalBlockBtn.className="dark-outline";
-      $("messageProfileBtn").insertAdjacentElement("afterend",personalBlockBtn);
-      personalBlockBtn.onclick=async()=>{
-        const username=viewedProfileUsername;
-        const blocked=personalBlockBtn.dataset.blocked==="true";
-        if(!confirm(blocked?"إلغاء حظر هذا الشخص؟":"حظر هذا الشخص؟ سيتم إلغاء الصداقة ومنع الرسائل وطلبات الصداقة."))return;
-        try{
-          await api("/api/personal-block",{method:"POST",body:JSON.stringify({token,username,action:blocked?"unblock":"block"})});
-          await renderProfilePage(username);
-          await loadChatContacts();
-        }catch(err){alert(err.message||"تعذر تغيير الحظر")}
-      };
-    }
-    personalBlockBtn.classList.toggle("hidden",username===me.username);
-    personalBlockBtn.dataset.blocked=String(!!d.blockedByMe);
-    personalBlockBtn.textContent=d.blockedByMe?"إلغاء الحظر":"حظر الشخص";
-
 
     $("profileAvatarLarge").src=p.avatar||avatarFallback(p.fullName||p.displayName||p.username);
     $("profileName").textContent=p.fullName||p.displayName||p.username;
@@ -2146,8 +2125,8 @@ async function renderProfilePage(username=me?.username){
     }
     $("friendsCount").textContent=d.friendCount||0;
 
-    $("friendActionBtn").classList.toggle("hidden",self||!!d.blockRestricted);
-    $("messageProfileBtn").classList.toggle("hidden",self||!!d.blockRestricted);
+    $("friendActionBtn").classList.toggle("hidden",self);
+    $("messageProfileBtn").classList.toggle("hidden",self);
     $("myProfileBtn").classList.toggle("hidden",self);
     $("profileEditArea").classList.toggle("hidden",!self);
     $("profileAvatarEditBtn")?.classList.toggle("hidden",!self);
@@ -2366,13 +2345,7 @@ async function loadPosts(){
               <small>@${esc(a.username)} <i>•</i> ${timeAgoAr(post.createdAt)} <span class="globe-inline">${iconGlobe()}</span></small>
             </span>
           </button>
-          ${(post.author===me?.username || me?.role==="super_admin" || me?.role==="moderator") ? `
-          <div class="post-owner-menu" style="position:relative">
-            <button class="post-menu-btn" type="button" data-post-menu="${esc(post.id)}" aria-label="خيارات المنشور" aria-expanded="false">${iconDots()}</button>
-            <div class="hidden" data-post-menu-panel="${esc(post.id)}" style="position:absolute;left:0;top:100%;z-index:20;background:var(--card-bg,#fff);color:var(--text-color,#222);border:1px solid #aaa;border-radius:10px;padding:6px;min-width:150px;box-shadow:0 5px 18px #0002">
-              <button type="button" data-delete-post="${esc(post.id)}" style="width:100%;padding:9px 12px;text-align:right;color:#c62828;background:transparent;border:0;cursor:pointer">حذف المنشور</button>
-            </div>
-          </div>` : ""}
+          <button class="post-menu-btn" type="button" aria-label="المزيد">${iconDots()}</button>
         </div>
         ${post.text?`<div class="post-text reference-post-text">${esc(post.text)}</div>`:""}
         ${post.image?`<img class="post-image reference-post-image" loading="lazy" decoding="async" src="${post.image}" alt="">`:""}
@@ -2408,25 +2381,6 @@ async function loadPosts(){
     }).join(""):`<div class="empty-card">لا توجد منشورات بعد.</div>`;
 
     bindProfileLinks();
-
-    document.querySelectorAll("[data-post-menu]").forEach(btn=>{
-      btn.onclick=()=>{
-        const panel=[...document.querySelectorAll("[data-post-menu-panel]")].find(el=>el.dataset.postMenuPanel===btn.dataset.postMenu);
-        document.querySelectorAll("[data-post-menu-panel]").forEach(el=>{if(el!==panel)el.classList.add("hidden")});
-        panel?.classList.toggle("hidden");
-        btn.setAttribute("aria-expanded",String(!panel?.classList.contains("hidden")));
-      };
-    });
-    document.querySelectorAll("[data-delete-post]").forEach(btn=>{
-      btn.onclick=async()=>{
-        if(!confirm("هل تريد حذف هذا المنشور نهائيًا؟"))return;
-        btn.disabled=true;
-        try{
-          await api("/api/post-delete",{method:"POST",body:JSON.stringify({token,postId:btn.dataset.deletePost})});
-          await loadPosts();
-        }catch(err){alert(err.message||"تعذر حذف المنشور");btn.disabled=false;}
-      };
-    });
 
     document.querySelectorAll("[data-like]").forEach(btn=>{
       btn.onclick=async()=>{
