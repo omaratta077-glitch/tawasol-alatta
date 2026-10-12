@@ -222,7 +222,6 @@ export class SignalingRoom extends DurableObject {
         ok:true,
         diagnostics:{
           resendApiKeyConfigured:!!resend,
-          resendApiKeyLength:resend.length,
           resendApiKeyLooksValid:resend.startsWith("re_"),
           turnKeyIdConfigured:!!turnId,
           turnKeyApiTokenConfigured:!!turnToken
@@ -1733,7 +1732,14 @@ export class SignalingRoom extends DurableObject {
 
     if(msg.type==="chat"){
       const to=String(msg.to||"").trim().toLowerCase();
-      if(!to)return;
+      if(!to || to===from){
+        this.send(ws,{type:"error",message:"مستلم الرسالة غير صالح"});
+        return;
+      }
+      if(!await this.user(to)){
+        this.send(ws,{type:"error",message:"المستخدم غير موجود"});
+        return;
+      }
 
       const target=this.findUser(to);
       const mediaRaw=String(msg.media||"");
@@ -1746,7 +1752,7 @@ export class SignalingRoom extends DurableObject {
         id:crypto.randomUUID(),
         from,
         to,
-        text:String(msg.text||""),
+        text:String(msg.text||"").slice(0,6000),
         media:mediaRaw,
         mediaType:String(msg.mediaType||"text"),
         ts:Date.now(),
@@ -1833,7 +1839,7 @@ export default {
       return Response.json({
         ok:true,
         app:"تواصل العطا",
-        version:"V13.51-Restored-Full"
+        version:"V13.70-Reviewed"
       });
     }
 
@@ -1847,7 +1853,12 @@ export default {
 
     if(url.pathname.startsWith("/media/")){
       if(!env.MEDIA_BUCKET)return new Response("Media storage is not configured",{status:404});
-      const key=decodeURIComponent(url.pathname.slice("/media/".length));
+      let key;
+      try{key=decodeURIComponent(url.pathname.slice("/media/".length));}
+      catch{return new Response("Invalid media path",{status:400});}
+      if(!key || key.includes("..") || key.includes("\\") || key.startsWith("/")){
+        return new Response("Invalid media path",{status:400});
+      }
       const obj=await env.MEDIA_BUCKET.get(key);
       if(!obj)return new Response("Not found",{status:404});
       const headers=new Headers();
