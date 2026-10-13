@@ -23,6 +23,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.draw.offset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
@@ -114,27 +115,22 @@ internal fun PremiumHeader(
         // Two icons on the right of YouTube, two on the left; the YouTube icon
         // remains in the TOP bar and is never substituted for Home at bottom.
         PremiumTopItem("search", "استكشاف", current, onNavigate)
-        PremiumTopItem("users", "الأصدقاء", current, onNavigate)
-        Box(
-            Modifier.size(43.dp)
-                .shadow(6.dp, RoundedCornerShape(12.dp), ambientColor = PremiumGold.copy(alpha = .22f))
-                .border(1.dp, PremiumGold.copy(alpha = .8f), RoundedCornerShape(12.dp))
-                .background(if (current == "يوتيوب") PremiumGold.copy(alpha = .22f) else PremiumPanel,
-                    RoundedCornerShape(12.dp))
-                .clickable { onNavigate("يوتيوب") },
-            contentAlignment = Alignment.Center
-        ) {
-            SiteIcon("youtube", tint = PremiumGoldLight, size = 26.dp)
+        // YouTube remains in the header but without a large surrounding square.
+        // Friends only appears in the bottom navigation.
+        Box(Modifier.size(37.dp).clickable { onNavigate("يوتيوب") }, contentAlignment = Alignment.Center) {
+            SiteIcon("youtube", tint = if (current == "يوتيوب") PremiumGoldLight else PremiumGold, size = 27.dp)
         }
         PremiumTopItem("message-circle", "الرسائل", current, onNavigate)
         Box(Modifier.size(38.dp), contentAlignment = Alignment.Center) {
             PremiumTopItem("bell", "الإشعارات", current, onNavigate)
             if (unreadNotifications > 0) {
-                Box(Modifier.align(Alignment.TopStart)
+                // Tiny unread counter anchored to the LOWER edge of the bell.
+                Box(Modifier.align(Alignment.BottomStart).offset(x = (-1).dp, y = 2.dp)
+                    .sizeIn(minWidth = 15.dp, minHeight = 15.dp)
                     .background(PremiumGold, CircleShape)
-                    .padding(horizontal = 4.dp, vertical = 1.dp)) {
+                    .padding(horizontal = 3.dp), contentAlignment = Alignment.Center) {
                     Text(unreadNotifications.coerceAtMost(99).toString(),
-                        fontSize = 9.sp, color = PremiumBackground, fontWeight = FontWeight.Bold)
+                        fontSize = 9.sp, lineHeight = 10.sp, color = PremiumBackground, fontWeight = FontWeight.Bold)
                 }
             }
         }

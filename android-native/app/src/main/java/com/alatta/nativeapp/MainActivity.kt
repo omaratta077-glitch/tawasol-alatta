@@ -5,9 +5,12 @@ import android.net.Uri
 import android.os.Bundle
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.webkit.WebChromeClient
+import android.content.ActivityNotFoundException
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.compose.BackHandler
+import androidx.lifecycle.lifecycleScope
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.*
@@ -41,8 +44,13 @@ import androidx.media3.common.MediaItem
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
 import coil.compose.AsyncImage
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import androidx.credentials.CredentialManager
+import androidx.credentials.GetCredentialRequest
+import com.google.android.libraries.identity.googleid.GetSignInWithGoogleOption
+import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
@@ -139,14 +147,38 @@ class MainActivity : ComponentActivity() {
     DisposableEffect(player) { onDispose { player.release() } }
     AndroidView(factory = { PlayerView(it).apply { this.player = player; useController = true } }, modifier = Modifier.fillMaxWidth().height(240.dp))
 }
+private fun openYouTube(context: android.content.Context, id: String) {
+    if (!Regex("[A-Za-z0-9_-]{11}").matches(id)) return
+    val link = Uri.parse("https://www.youtube.com/watch?v=$id")
+    try {
+        context.startActivity(Intent(Intent.ACTION_VIEW, link).addCategory(Intent.CATEGORY_BROWSABLE))
+    } catch (_: ActivityNotFoundException) {
+        // No installed handler; the native player remains accessible above.
+    }
+}
+
 @Composable private fun YouTubePlayer(id: String) {
     // YouTube's official embeddable iframe is isolated to the video player; all app screens are native Compose.
-    AndroidView(factory = { ctx -> WebView(ctx).apply {
-        settings.javaScriptEnabled = true
-        settings.domStorageEnabled = true
-        webViewClient = WebViewClient()
-        loadDataWithBaseURL("https://www.youtube.com", """<html><body style='margin:0;background:black'><iframe width='100%' height='100%' src='https://www.youtube-nocookie.com/embed/$id?playsinline=1' frameborder='0' allow='autoplay; encrypted-media; picture-in-picture' allowfullscreen></iframe></body></html>""", "text/html", "UTF-8", null)
-    } }, modifier = Modifier.fillMaxWidth().height(230.dp))
+    val safeId = id.takeIf { Regex("[A-Za-z0-9_-]{11}").matches(it) } ?: return
+    val ctx = LocalContext.current
+    Column {
+        AndroidView(factory = { viewContext -> WebView(viewContext).apply {
+            settings.javaScriptEnabled = true
+            settings.domStorageEnabled = true
+            settings.mediaPlaybackRequiresUserGesture = false
+            webChromeClient = WebChromeClient()
+            webViewClient = WebViewClient()
+            // Use a valid HTTPS page origin so the embedded player receives referrer information.
+            val html = """<!DOCTYPE html><html><head><meta name='viewport' content='width=device-width,initial-scale=1'></head><body style='margin:0;background:#000'><iframe style='position:absolute;inset:0;width:100%;height:100%;border:0' src='https://www.youtube.com/embed/$safeId?playsinline=1&origin=https%3A%2F%2Ftawasol-alatta.omaratta077-4fd.workers.dev' referrerpolicy='strict-origin-when-cross-origin' allow='accelerometer;autoplay;encrypted-media;gyroscope;picture-in-picture' allowfullscreen></iframe></body></html>"""
+            loadDataWithBaseURL("$BASE/youtube-player", html, "text/html", "UTF-8", null)
+        } }, modifier = Modifier.fillMaxWidth().height(235.dp))
+        // Some videos disallow embedding. Always give users a working YouTube fallback.
+        TextButton(onClick = { openYouTube(ctx, safeId) }) {
+            SiteIcon("youtube", size = 20.dp)
+            Spacer(Modifier.width(6.dp))
+            Text("فتح الفيديو في يوتيوب", color = GoldLight)
+        }
+    }
 }
 @Composable private fun Avatar(url: String, label: String) {
     if (media(url).isNotBlank()) AsyncImage(model = media(url), contentDescription = label, modifier = Modifier.size(42.dp).border(1.dp, Gold, CircleShape).clip(CircleShape), contentScale = ContentScale.Crop)
@@ -160,6 +192,21 @@ class MainActivity : ComponentActivity() {
     var token by remember { mutableStateOf(prefs.getString("token", "") ?: "") }
     var username by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
+    var authMode by remember { mutableStateOf("login") }
+    var regName by remember { mutableStateOf("") }
+    var regUsername by remember { mutableStateOf("") }
+    var regAge by remember { mutableStateOf("") }
+    var regPhone by remember { mutableStateOf("") }
+    var regEmail by remember { mutableStateOf("") }
+    var regCountry by remember { mutableStateOf("") }
+    var regGender by remember { mutableStateOf("") }
+    var regPass by remember { mutableStateOf("") }
+    var regConfirm by remember { mutableStateOf("") }
+    var verificationId by remember { mutableStateOf("") }
+    var verificationDelivery by remember { mutableStateOf("") }
+    var verificationCode by remember { mutableStateOf("") }
+    var googleEnabled by remember { mutableStateOf(false) }
+    var googleClientId by remember { mutableStateOf("") }
     var displayName by remember { mutableStateOf(prefs.getString("name", "") ?: "") }
     var myUsername by remember { mutableStateOf(prefs.getString("username", "") ?: "") }
     var tab by remember { mutableStateOf("الرئيسية") }
@@ -191,13 +238,28 @@ class MainActivity : ComponentActivity() {
     var youtubeItems by remember { mutableStateOf(emptyList<JSONObject>()) }
     var youtubeId by remember { mutableStateOf("") }
     var profileBio by remember { mutableStateOf("") }
-    val scope = rememberCoroutineScope()
+    // An Activity-scoped job is not cancelled just because login or a tab leaves composition.
+    val scope = (ctx as ComponentActivity).lifecycleScope
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         pickedUri = uri
         pickedMime = uri?.let { ctx.contentResolver.getType(it) } ?: ""
     }
     fun task(block: suspend () -> Unit) {
-        scope.launch { busy = true; error = ""; try { block() } catch (e: Exception) { error = e.message ?: "تعذر إتمام العملية" } finally { busy = false } }
+        scope.launch {
+            busy = true; error = ""
+            try { block() }
+            catch (cancelled: CancellationException) { throw cancelled }
+            catch (e: Exception) { error = e.message ?: "تعذر إتمام العملية" }
+            finally { busy = false }
+        }
+    }
+    fun applySession(result: JSONObject, fallbackName: String) {
+        token = result.getString("token")
+        val u = result.optJSONObject("user") ?: JSONObject()
+        displayName = u.name().ifBlank { fallbackName }
+        myUsername = u.optString("username", fallbackName).lowercase()
+        prefs.edit().putString("token", token).putString("name", displayName).putString("username", myUsername).apply()
+        password = ""; regPass = ""; regConfirm = ""; authMode = "login"; tab = "الرئيسية"
     }
     suspend fun get(path: String): JSONObject = withContext(Dispatchers.IO) { api("$path${if ('?' in path) "&" else "?"}token=${enc(token)}") }
     suspend fun post(path: String, data: JSONObject): JSONObject = withContext(Dispatchers.IO) { api(path, data.put("token", token)) }
@@ -270,45 +332,131 @@ class MainActivity : ComponentActivity() {
             confirmButton = { TextButton(onClick = { selectedStory = null }) { Text("إغلاق") } }
         )
     }
-    LaunchedEffect(token, tab) { if (token.isNotBlank()) { try { load(tab) } catch (e: Exception) { error = e.message ?: "تعذر التحميل" } } }
+    LaunchedEffect(token, tab) {
+        if (token.isNotBlank()) {
+            try { load(tab) }
+            catch (cancelled: CancellationException) { throw cancelled }
+            catch (e: Exception) { error = e.message ?: "تعذر التحميل" }
+        }
+    }
+    LaunchedEffect(Unit) {
+        try {
+            val conf = withContext(Dispatchers.IO) { api("/api/google-config") }
+            googleEnabled = conf.optBoolean("enabled")
+            googleClientId = conf.optString("clientId")
+        } catch (cancelled: CancellationException) { throw cancelled }
+        catch (_: Exception) { googleEnabled = false }
+    }
 
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
         MaterialTheme(colorScheme = darkColorScheme(primary = Gold, background = Black, surface = Panel, onSurface = White, onBackground = White)) {
             Column(Modifier.fillMaxSize().background(Black).safeDrawingPadding()) {
                 if (token.isBlank()) {
+                    // Scroll only the authentication screen; Android navigation remains unobstructed.
                     Column(
-                        Modifier.fillMaxWidth().background(Brush.verticalGradient(listOf(Color(0xFF0B0D0F), Black)))
-                            .border(0.5.dp, Border).padding(vertical = 18.dp),
+                        Modifier.fillMaxSize().verticalScroll(rememberScrollState())
+                            .padding(horizontal = 22.dp, vertical = 22.dp),
+                        verticalArrangement = Arrangement.spacedBy(13.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        Image(painterResource(R.drawable.logo_premium), "شعار تواصل العطا", Modifier.size(74.dp).clip(CircleShape))
-                        Text("العطا", color = GoldLight, fontSize = 27.sp, fontWeight = FontWeight.ExtraBold)
-                        Text("AL-ATTA", color = GoldLight.copy(alpha = .8f), fontSize = 13.sp, letterSpacing = 3.sp)
-                    }
-                } else {
-                    PremiumHeader(
-                        current = tab,
-                        unreadNotifications = notifications.count { !it.optBoolean("read", false) },
-                        onNavigate = ::navigate
-                    )
-                    PremiumSearchBar { navigate("استكشاف") }
-                }
-                if (token.isBlank()) {
-                    Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        SectionTitle("تسجيل الدخول")
-                        OutlinedTextField(username, { username = it }, label = { Text("اسم المستخدم أو البريد أو الهاتف") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                        OutlinedTextField(password, { password = it }, label = { Text("كلمة المرور") }, visualTransformation = PasswordVisualTransformation(), singleLine = true, modifier = Modifier.fillMaxWidth())
-                        GoldButton("دخول", !busy && username.isNotBlank() && password.isNotBlank()) {
-                            task {
-                                val result = withContext(Dispatchers.IO) { api("/api/login", JSONObject().put("username", username.trim()).put("password", password)) }
-                                token = result.getString("token")
-                                val u = result.optJSONObject("user") ?: JSONObject()
-                                displayName = u.name().ifBlank { username }
-                                myUsername = u.optString("username", username).lowercase()
-                                prefs.edit().putString("token", token).putString("name", displayName).putString("username", myUsername).apply()
-                                password = ""; tab = "الرئيسية"
+                        Image(painterResource(R.drawable.logo_premium), "شعار العطا",
+                            Modifier.size(98.dp).clip(CircleShape))
+                        Text("AL-ATTA", color = GoldLight, fontSize = 18.sp,
+                            fontWeight = FontWeight.SemiBold, letterSpacing = 4.sp)
+                        Spacer(Modifier.height(8.dp))
+                        if (authMode == "login") {
+                            PremiumAuthTextField(username, { username = it }, "رقم الهاتف أو البريد الإلكتروني أو اسم المستخدم")
+                            PremiumAuthTextField(password, { password = it }, "كلمة السر", password = true)
+                            PremiumAuthGoldButton("تسجيل الدخول", !busy && username.isNotBlank() && password.isNotBlank()) {
+                                task {
+                                    val result = withContext(Dispatchers.IO) {
+                                        api("/api/login", JSONObject().put("username", username.trim()).put("password", password))
+                                    }
+                                    applySession(result, username.trim())
+                                }
                             }
+                            Text("أو أنشئ حسابًا مجانًا ببريد Google المؤكد", color = GoldLight,
+                                fontSize = 12.sp, textAlign = TextAlign.Center)
+                            if (googleEnabled && googleClientId.isNotBlank()) {
+                                PremiumGoogleButton(!busy) {
+                                    task {
+                                        // Explicit Google button flow (not a silent credential prompt).
+                                        val option = GetSignInWithGoogleOption.Builder(googleClientId).build()
+                                        val request = GetCredentialRequest.Builder().addCredentialOption(option).build()
+                                        val credential = CredentialManager.create(ctx).getCredential(ctx, request).credential
+                                        require(credential.type == GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL) {
+                                            "تعذر الحصول على بيانات حساب Google"
+                                        }
+                                        val idToken = GoogleIdTokenCredential.createFrom(credential.data).idToken
+                                        val result = withContext(Dispatchers.IO) {
+                                            api("/api/google-login", JSONObject().put("credential", idToken))
+                                        }
+                                        applySession(result, username.ifBlank { "Google" })
+                                    }
+                                }
+                            } else {
+                                Text("تسجيل Google غير مفعّل من إعدادات السيرفر", color = Muted, fontSize = 11.sp)
+                            }
+                            TextButton(onClick = { authMode = "forgot" }) {
+                                Text("هل نسيت كلمة السر؟", color = GoldLight, fontWeight = FontWeight.Bold)
+                            }
+                            PremiumAuthOutlineButton("إنشاء حساب جديد") { authMode = "register"; error = "" }
+                        } else if (authMode == "register") {
+                            Text("إنشاء حساب جديد", color = GoldLight, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                            PremiumAuthTextField(regName, { regName = it }, "الاسم الكامل")
+                            PremiumAuthTextField(regUsername, { regUsername = it }, "اسم المستخدم")
+                            PremiumAuthTextField(regAge, { regAge = it }, "العمر")
+                            PremiumAuthTextField(regPhone, { regPhone = it }, "رقم الهاتف (اختياري)")
+                            PremiumAuthTextField(regEmail, { regEmail = it }, "البريد الإلكتروني لاستقبال كود التأكيد")
+                            PremiumAuthTextField(regGender, { regGender = it }, "النوع (اختياري)")
+                            PremiumAuthTextField(regCountry, { regCountry = it }, "الدولة (اختياري)")
+                            PremiumAuthTextField(regPass, { regPass = it }, "كلمة المرور", password = true)
+                            PremiumAuthTextField(regConfirm, { regConfirm = it }, "تأكيد كلمة المرور", password = true)
+                            PremiumAuthGoldButton("إرسال كود التأكيد", !busy && regName.isNotBlank() && regUsername.isNotBlank() && regEmail.isNotBlank() && regPass.isNotBlank()) {
+                                task {
+                                    val body = JSONObject()
+                                        .put("fullName", regName.trim()).put("username", regUsername.trim())
+                                        .put("age", regAge.toIntOrNull() ?: 0).put("phone", regPhone.trim())
+                                        .put("email", regEmail.trim()).put("gender", regGender.trim())
+                                        .put("country", regCountry.trim()).put("password", regPass)
+                                        .put("confirmPassword", regConfirm)
+                                    val result = withContext(Dispatchers.IO) { api("/api/register-request", body) }
+                                    verificationId = result.getString("verificationId")
+                                    verificationDelivery = result.optString("delivery", regEmail)
+                                    authMode = "verify"
+                                }
+                            }
+                            PremiumAuthOutlineButton("العودة لتسجيل الدخول") { authMode = "login"; error = "" }
+                        } else if (authMode == "verify") {
+                            Text("تأكيد البريد الإلكتروني", color = GoldLight, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                            Text("أرسلنا كودًا من 6 أرقام إلى $verificationDelivery", color = Muted,
+                                fontSize = 13.sp, textAlign = TextAlign.Center)
+                            PremiumAuthTextField(verificationCode, { verificationCode = it.filter(Char::isDigit).take(6) }, "كود التأكيد")
+                            PremiumAuthGoldButton("تأكيد وإنشاء الحساب", !busy && verificationCode.length == 6) {
+                                task {
+                                    val result = withContext(Dispatchers.IO) {
+                                        api("/api/register-verify", JSONObject().put("verificationId", verificationId).put("code", verificationCode))
+                                    }
+                                    applySession(result, regUsername)
+                                }
+                            }
+                            TextButton(onClick = {
+                                task {
+                                    withContext(Dispatchers.IO) { api("/api/register-resend", JSONObject().put("verificationId", verificationId)) }
+                                    featureMessage = "تم إرسال كود جديد إلى بريدك الإلكتروني"
+                                }
+                            }) { Text("إعادة إرسال الكود", color = GoldLight) }
+                            PremiumAuthOutlineButton("الرجوع") { authMode = "register" }
+                        } else {
+                            Text("استعادة كلمة السر", color = GoldLight, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                            Text("خاصية إعادة تعيين كلمة المرور غير متوفرة حاليًا على سيرفر الموقع. لن نطلب منك كلمة مرور أو نعرض زرًا لا يعمل.",
+                                color = Muted, textAlign = TextAlign.Center)
+                            PremiumAuthOutlineButton("العودة لتسجيل الدخول") { authMode = "login"; error = "" }
                         }
+                        HorizontalDivider(color = Border.copy(alpha = .7f))
+                        Text("العطا", color = GoldLight, fontSize = 14.sp)
+                        if (busy) LinearProgressIndicator(modifier = Modifier.fillMaxWidth(), color = Gold)
+                        if (error.isNotBlank()) Text(error, color = Color(0xFFFF8888), textAlign = TextAlign.Center)
                     }
                 } else {
                     if (tab != "الرئيسية") {
@@ -499,7 +647,14 @@ class MainActivity : ComponentActivity() {
                                 AsyncImage(v.optString("thumbnail"), "صورة الفيديو", Modifier.fillMaxWidth().height(160.dp), contentScale = ContentScale.Crop)
                                 Text(v.optString("title"), color = GoldLight, fontWeight = FontWeight.Bold)
                                 Text(v.optString("channel"), color = Color.LightGray)
-                                GoldButton("تشغيل") { youtubeId = v.optString("id") }
+                                // Default: reliable playback in the YouTube app or browser.
+                                GoldButton("تشغيل الفيديو") { openYouTube(ctx, v.optString("id")) }
+                                // Optional embedded playback can be blocked by video restrictions.
+                                TextButton(onClick = { youtubeId = v.optString("id") }) {
+                                    SiteIcon("youtube", size = 19.dp)
+                                    Spacer(Modifier.width(5.dp))
+                                    Text("تجربة المشغّل داخل التطبيق", color = GoldLight)
+                                }
                             } }
                         }
                         "الملف" -> LazyColumn(Modifier.weight(1f).padding(8.dp)) {
@@ -517,8 +672,10 @@ class MainActivity : ComponentActivity() {
                     }
                     PremiumBottomNav(tab, ::navigate)
                 }
-                if (busy) LinearProgressIndicator(modifier = Modifier.fillMaxWidth(), color = Gold)
-                if (error.isNotBlank()) Text(error, color = Color(0xFFFF8B8B), modifier = Modifier.padding(12.dp))
+                if (token.isNotBlank()) {
+                    if (busy) LinearProgressIndicator(modifier = Modifier.fillMaxWidth(), color = Gold)
+                    if (error.isNotBlank()) Text(error, color = Color(0xFFFF8B8B), modifier = Modifier.padding(12.dp))
+                }
             }
         }
     }

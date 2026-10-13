@@ -2,7 +2,7 @@ plugins { id("com.android.application"); id("org.jetbrains.kotlin.android"); id(
 android {
     namespace = "com.alatta.nativeapp"
     compileSdk = 35
-    defaultConfig { applicationId = "com.alatta.nativeapp"; minSdk = 26; targetSdk = 35; versionCode = 101; versionName = "1.0.1" }
+    defaultConfig { applicationId = "com.alatta.nativeapp"; minSdk = 26; targetSdk = 35; versionCode = 102; versionName = "1.0.2" }
     signingConfigs {
         create("officialRelease") {
             val storePath = System.getenv("ALATTA_KEYSTORE_PATH")
@@ -33,4 +33,12 @@ dependencies {
     implementation("io.coil-kt:coil-compose:2.7.0")
     implementation("androidx.media3:media3-exoplayer:1.5.1")
     implementation("androidx.media3:media3-ui:1.5.1")
+}
+
+// Google Credential Manager: retrieves an Android ID token for the existing /api/google-login endpoint.
+dependencies {
+    implementation("androidx.credentials:credentials:1.3.0")
+    implementation("androidx.credentials:credentials-play-services-auth:1.3.0")
+    implementation("com.google.android.libraries.identity.googleid:googleid:1.1.1")
+    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
 }
