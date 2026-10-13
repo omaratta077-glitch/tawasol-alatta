@@ -126,26 +126,10 @@ private fun upload(token: String, uri: Uri, mime: String, filename: String, byte
 }
 
 class MainActivity : ComponentActivity() {
-    var incomingGoogleUri by mutableStateOf<Uri?>(null)
-        private set
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        incomingGoogleUri = intent?.data?.takeIf {
-            it.scheme == GoogleWebBridge.SCHEME && it.host == GoogleWebBridge.HOST
-        }
         setContent { NativeApp() }
     }
-
-    override fun onNewIntent(intent: Intent) {
-        super.onNewIntent(intent)
-        setIntent(intent)
-        incomingGoogleUri = intent.data?.takeIf {
-            it.scheme == GoogleWebBridge.SCHEME && it.host == GoogleWebBridge.HOST
-        }
-    }
-
-    fun consumeGoogleRedirect() { incomingGoogleUri = null }
 }
 
 @Composable private fun GoldButton(text: String, enabled: Boolean = true, onClick: () -> Unit) {
@@ -308,14 +292,32 @@ private fun openYouTube(context: android.content.Context, id: String) {
         resetPassword = ""; resetConfirm = ""; authMode = "login"; tab = "الرئيسية"
     }
     fun chooseGoogle(signup: Boolean) {
-        // Use the existing working GOOGLE WEB LOGIN on the site in a real browser.
-        // We deliberately do not use a WebView for Google's login screen.
-        try {
-            if (!googleEnabled) throw IllegalStateException("ربط Google غير مفعّل على الموقع الآن.")
-            GoogleWebBridge.begin(ctx, signup)
-            error = ""
-        } catch (e: Exception) {
-            error = e.message ?: "تعذّر فتح Google في المتصفح"
+        if (busy) return
+        if (!googleEnabled || googleClientId.isBlank()) {
+            error = "تسجيل Google غير مُفعّل على الموقع. راجع GOOGLE_CLIENT_ID في Cloudflare."
+            return
+        }
+        task {
+            // Native Google account picker shown over this Activity. No Chrome or WebView.
+            // The existing Cloudflare /api/google-login still verifies the ID token.
+            val pickedToken = GoogleNativeSignIn.pickAccount(ctx as ComponentActivity, googleClientId)
+                ?: return@task // User intentionally closed the account picker.
+            if (signup) {
+                val claims = googleTokenDetails(pickedToken) // UI preview only; server verifies.
+                googleIdToken = pickedToken
+                googleEmail = claims.optString("email")
+                googleName = claims.optString("name").ifBlank { claims.optString("given_name") }
+                googleAge = ""
+                googleCity = ""
+                authMode = "googleProfile"
+            } else {
+                val result = withContext(Dispatchers.IO) {
+                    api("/api/google-login", JSONObject()
+                        .put("credential", pickedToken)
+                        .put("signupFlow", "android-login"))
+                }
+                applySession(result, "Google")
+            }
         }
     }
     suspend fun get(path: String): JSONObject = withContext(Dispatchers.IO) { api("$path${if ('?' in path) "&" else "?"}token=${enc(token)}") }
@@ -439,38 +441,6 @@ private fun openYouTube(context: android.content.Context, id: String) {
         }
     }
 
-    // A one-time, state-bound callback from Chrome (never an ID token in a deep link).
-    val googleRedirect = (ctx as MainActivity).incomingGoogleUri
-    LaunchedEffect(googleRedirect) {
-        val redirect = googleRedirect ?: return@LaunchedEffect
-        (ctx as MainActivity).consumeGoogleRedirect()
-        try {
-            val handoff = GoogleWebBridge.takeHandoff(ctx, redirect) ?: return@LaunchedEffect
-            task {
-                val exchange = withContext(Dispatchers.IO) {
-                    api("/api/android-google-bridge/exchange", JSONObject()
-                        .put("code", handoff.code).put("verifier", handoff.verifier))
-                }
-                val googleToken = exchange.getString("credential")
-                if (handoff.mode == "signup") {
-                    val claims = googleTokenDetails(googleToken)
-                    googleIdToken = googleToken
-                    googleEmail = claims.optString("email")
-                    googleName = claims.optString("name").ifBlank { claims.optString("given_name") }
-                    googleAge = ""
-                    googleCity = ""
-                    authMode = "googleProfile"
-                } else {
-                    val result = withContext(Dispatchers.IO) {
-                        api("/api/google-login", JSONObject()
-                            .put("credential", googleToken).put("signupFlow", "android-login"))
-                    }
-                    applySession(result, "Google")
-                }
-            }
-        } catch (e: Exception) { error = e.message ?: "تعذّر إكمال الدخول بجوجل" }
-    }
-
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
         MaterialTheme(colorScheme = darkColorScheme(primary = Gold, background = Black, surface = Panel, onSurface = White, onBackground = White)) {
             Column(Modifier.fillMaxSize().background(Black).safeDrawingPadding()) {
@@ -498,12 +468,12 @@ private fun openYouTube(context: android.content.Context, id: String) {
                                     applySession(result, username.trim())
                                 }
                             }
-                            Text("أو اختر حساب Google من موقع العطا الآمن", color = GoldLight,
+                            Text("أو اختر حساب Google من داخل التطبيق", color = GoldLight,
                                 fontSize = 12.sp, textAlign = TextAlign.Center)
                             PremiumGoogleButton(enabled = !busy && googleEnabled, label = "الدخول بحساب Google") {
                                 chooseGoogle(false)
                             }
-                            if (!googleEnabled) Text("يستخدم تسجيل Google الموجود بالفعل على موقع العطا، من خلال المتصفح.", color = Muted, fontSize = 11.sp)
+                            if (!googleEnabled) Text("يتطلب Google Play Services وإعداد OAuth لتطبيق Android.", color = Muted, fontSize = 11.sp)
                             TextButton(onClick = { authMode = "forgot" }) {
                                 Text("هل نسيت كلمة السر؟", color = GoldLight, fontWeight = FontWeight.Bold)
                             }
@@ -513,7 +483,7 @@ private fun openYouTube(context: android.content.Context, id: String) {
                             PremiumGoogleButton(enabled = !busy && googleEnabled, label = "إنشاء حساب عن طريق Google") {
                                 chooseGoogle(true)
                             }
-                            if (!googleEnabled) Text("سيُفتح Google في المتصفح ثم يعود بك إلى التطبيق", color = Muted, fontSize = 11.sp)
+                            if (!googleEnabled) Text("سيظهر اختيار حساب Google مباشرة داخل التطبيق", color = Muted, fontSize = 11.sp)
                             Text("أو أنشئ حسابًا بالبريد الإلكتروني", color = GoldLight, fontSize = 13.sp)
                             PremiumAuthTextField(regName, { regName = it }, "الاسم الكامل")
                             PremiumAuthTextField(regUsername, { regUsername = it }, "اسم المستخدم")
