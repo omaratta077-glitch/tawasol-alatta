@@ -6,6 +6,7 @@ import androidx.credentials.CustomCredential
 import androidx.credentials.GetCredentialRequest
 import androidx.credentials.exceptions.GetCredentialCancellationException
 import androidx.credentials.exceptions.NoCredentialException
+import androidx.credentials.exceptions.GetCredentialException
 import com.google.android.libraries.identity.googleid.GetGoogleIdOption
 import com.google.android.libraries.identity.googleid.GetSignInWithGoogleOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
@@ -69,11 +70,14 @@ internal object GoogleNativeSignIn {
         return token
     }
 
-    private fun nativeError(cause: Exception): IllegalStateException = IllegalStateException(
-        "تعذّر فتح اختيار حساب Google. تأكد من تحديث خدمات Google Play، " +
-            "وإضافة Android OAuth (com.alatta.nativeapp + SHA-1 لتوقيع Release) " +
-            "في نفس مشروع Google Cloud الخاص بالموقع. " +
-            "لو أغلقت نافذة Google، حاول مرة أخرى.",
-        cause
-    )
+    private fun nativeError(cause: Exception): IllegalStateException {
+        val failureType = (cause as? GetCredentialException)?.type
+            ?.substringAfterLast('.')?.take(90).orEmpty()
+        val detail = if (failureType.isNotBlank()) " ($failureType)" else ""
+        return IllegalStateException(
+            "تعذّر فتح قائمة حسابات Google$detail. حدّث خدمات Google Play، " +
+                "وتأكد من Android OAuth وSHA-1 الرسمي في نفس مشروع الموقع.",
+            cause
+        )
+    }
 }
