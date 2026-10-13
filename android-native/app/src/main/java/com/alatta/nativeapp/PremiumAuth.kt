@@ -83,14 +83,14 @@ internal fun PremiumAuthOutlineButton(label: String, onClick: () -> Unit) {
 @Composable
 internal fun PremiumGoogleButton(enabled: Boolean = true, label: String = "المواصلة باستخدام Google", onClick: () -> Unit) {
     OutlinedButton(onClick = onClick, enabled = enabled,
-        modifier = Modifier.fillMaxWidth().height(54.dp), shape = RoundedCornerShape(28.dp),
+        modifier = Modifier.fillMaxWidth().height(47.dp), shape = RoundedCornerShape(24.dp),
         border = BorderStroke(1.dp, Color(0xFF555960)),
         colors = ButtonDefaults.outlinedButtonColors(containerColor = Color(0xFF202124), contentColor = Color.White)) {
-        Box(Modifier.size(28.dp).background(Color.White, CircleShape), contentAlignment = Alignment.Center) {
+        Box(Modifier.size(23.dp).background(Color.White, CircleShape), contentAlignment = Alignment.Center) {
             Image(painter = androidx.compose.ui.res.painterResource(R.drawable.google_g_mark),
-                contentDescription = "Google", modifier = Modifier.size(23.dp))
+                contentDescription = "Google", modifier = Modifier.size(18.dp))
         }
-        Spacer(Modifier.width(12.dp))
+        Spacer(Modifier.width(9.dp))
         Text(label, fontSize = 14.sp, fontWeight = FontWeight.Medium)
     }
 }

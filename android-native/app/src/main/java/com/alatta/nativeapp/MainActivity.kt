@@ -4,7 +4,6 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.util.Base64
-import androidx.credentials.exceptions.GetCredentialException
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.webkit.WebChromeClient
@@ -18,6 +17,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -52,10 +52,6 @@ import coil.compose.AsyncImage
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import androidx.credentials.CredentialManager
-import androidx.credentials.GetCredentialRequest
-import com.google.android.libraries.identity.googleid.GetSignInWithGoogleOption
-import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
@@ -130,10 +126,26 @@ private fun upload(token: String, uri: Uri, mime: String, filename: String, byte
 }
 
 class MainActivity : ComponentActivity() {
+    var incomingGoogleUri by mutableStateOf<Uri?>(null)
+        private set
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        incomingGoogleUri = intent?.data?.takeIf {
+            it.scheme == GoogleWebBridge.SCHEME && it.host == GoogleWebBridge.HOST
+        }
         setContent { NativeApp() }
     }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        incomingGoogleUri = intent.data?.takeIf {
+            it.scheme == GoogleWebBridge.SCHEME && it.host == GoogleWebBridge.HOST
+        }
+    }
+
+    fun consumeGoogleRedirect() { incomingGoogleUri = null }
 }
 
 @Composable private fun GoldButton(text: String, enabled: Boolean = true, onClick: () -> Unit) {
@@ -170,25 +182,30 @@ private fun openYouTube(context: android.content.Context, id: String) {
 }
 
 @Composable private fun YouTubePlayer(id: String) {
-    // YouTube's official embeddable iframe is isolated to the video player; all app screens are native Compose.
+    // The player document is served by OUR Cloudflare domain, exactly as on the website.
+    // YouTube receives a real HTTPS referrer, unlike loadDataWithBaseURL/inline HTML.
     val safeId = id.takeIf { Regex("[A-Za-z0-9_-]{11}").matches(it) } ?: return
     val ctx = LocalContext.current
-    Column {
-        AndroidView(factory = { viewContext -> WebView(viewContext).apply {
+    val player = remember(safeId) {
+        WebView(ctx).apply {
             settings.javaScriptEnabled = true
             settings.domStorageEnabled = true
-            settings.mediaPlaybackRequiresUserGesture = false
+            settings.mediaPlaybackRequiresUserGesture = true
+            settings.allowFileAccess = false
+            settings.allowContentAccess = false
             webChromeClient = WebChromeClient()
             webViewClient = WebViewClient()
-            // Use a valid HTTPS page origin so the embedded player receives referrer information.
-            val html = """<!DOCTYPE html><html><head><meta name='viewport' content='width=device-width,initial-scale=1'></head><body style='margin:0;background:#000'><iframe style='position:absolute;inset:0;width:100%;height:100%;border:0' src='https://www.youtube.com/embed/$safeId?playsinline=1&origin=https%3A%2F%2Ftawasol-alatta.omaratta077-4fd.workers.dev' referrerpolicy='strict-origin-when-cross-origin' allow='accelerometer;autoplay;encrypted-media;gyroscope;picture-in-picture' allowfullscreen></iframe></body></html>"""
-            loadDataWithBaseURL("$BASE/youtube-player", html, "text/html", "UTF-8", null)
-        } }, modifier = Modifier.fillMaxWidth().height(235.dp))
-        // Some videos disallow embedding. Always give users a working YouTube fallback.
+            loadUrl("$BASE/native-youtube-player.html?id=$safeId")
+        }
+    }
+    DisposableEffect(player) {
+        onDispose { player.stopLoading(); player.loadUrl("about:blank"); player.destroy() }
+    }
+    Column {
+        AndroidView(factory = { player }, modifier = Modifier.fillMaxWidth().height(235.dp))
+        Text("المشغّل الرسمي داخل تواصل العطا. اضغط تشغيل على الفيديو.", color = Muted, fontSize = 11.sp)
         TextButton(onClick = { openYouTube(ctx, safeId) }) {
-            SiteIcon("youtube", size = 20.dp)
-            Spacer(Modifier.width(6.dp))
-            Text("فتح الفيديو في يوتيوب", color = GoldLight)
+            Text("فتح على يوتيوب فقط إذا رفض صاحب الفيديو تضمينه", color = GoldLight, fontSize = 12.sp)
         }
     }
 }
@@ -264,6 +281,7 @@ private fun openYouTube(context: android.content.Context, id: String) {
     var youtubeSearch by remember { mutableStateOf("") }
     var youtubeItems by remember { mutableStateOf(emptyList<JSONObject>()) }
     var youtubeId by remember { mutableStateOf("") }
+    val youtubeListState = rememberLazyListState()
     var profileBio by remember { mutableStateOf("") }
     // An Activity-scoped job is not cancelled just because login or a tab leaves composition.
     val scope = (ctx as ComponentActivity).lifecycleScope
@@ -290,35 +308,14 @@ private fun openYouTube(context: android.content.Context, id: String) {
         resetPassword = ""; resetConfirm = ""; authMode = "login"; tab = "الرئيسية"
     }
     fun chooseGoogle(signup: Boolean) {
-        task {
-            if (!googleEnabled || googleClientId.isBlank()) {
-                throw IllegalStateException("تسجيل Google يحتاج تفعيل GOOGLE_CLIENT_ID في إعدادات Cloudflare وإضافة بصمة SHA-1 لتطبيق أندرويد في Google Cloud.")
-            }
-            val idToken = try {
-                val option = GetSignInWithGoogleOption.Builder(googleClientId).build()
-                val request = GetCredentialRequest.Builder().addCredentialOption(option).build()
-                val credential = CredentialManager.create(ctx).getCredential(ctx, request).credential
-                require(credential.type == GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL) {
-                    "لم يرجع Google بيانات حساب صالحة"
-                }
-                GoogleIdTokenCredential.createFrom(credential.data).idToken
-            } catch (e: GetCredentialException) {
-                throw IllegalStateException("تعذّر اختيار حساب Google. تأكد من إعداد OAuth لأندرويد وبصمة SHA-1 وتوافر خدمات Google Play على الهاتف. (${e.type})")
-            }
-            if (signup) {
-                val details = googleTokenDetails(idToken)
-                googleIdToken = idToken
-                googleEmail = details.optString("email")
-                googleName = details.optString("name").ifBlank { details.optString("given_name") }
-                googleAge = ""
-                googleCity = ""
-                authMode = "googleProfile"
-            } else {
-                val result = withContext(Dispatchers.IO) {
-                    api("/api/google-login", JSONObject().put("credential", idToken).put("signupFlow", "android-login"))
-                }
-                applySession(result, "Google")
-            }
+        // Use the existing working GOOGLE WEB LOGIN on the site in a real browser.
+        // We deliberately do not use a WebView for Google's login screen.
+        try {
+            if (!googleEnabled) throw IllegalStateException("ربط Google غير مفعّل على الموقع الآن.")
+            GoogleWebBridge.begin(ctx, signup)
+            error = ""
+        } catch (e: Exception) {
+            error = e.message ?: "تعذّر فتح Google في المتصفح"
         }
     }
     suspend fun get(path: String): JSONObject = withContext(Dispatchers.IO) { api("$path${if ('?' in path) "&" else "?"}token=${enc(token)}") }
@@ -436,6 +433,44 @@ private fun openYouTube(context: android.content.Context, id: String) {
         catch (_: Exception) { googleEnabled = false }
     }
 
+    LaunchedEffect(youtubeId, tab) {
+        if (tab == "يوتيوب" && youtubeId.isNotBlank()) {
+            youtubeListState.animateScrollToItem(1)
+        }
+    }
+
+    // A one-time, state-bound callback from Chrome (never an ID token in a deep link).
+    val googleRedirect = (ctx as MainActivity).incomingGoogleUri
+    LaunchedEffect(googleRedirect) {
+        val redirect = googleRedirect ?: return@LaunchedEffect
+        (ctx as MainActivity).consumeGoogleRedirect()
+        try {
+            val handoff = GoogleWebBridge.takeHandoff(ctx, redirect) ?: return@LaunchedEffect
+            task {
+                val exchange = withContext(Dispatchers.IO) {
+                    api("/api/android-google-bridge/exchange", JSONObject()
+                        .put("code", handoff.code).put("verifier", handoff.verifier))
+                }
+                val googleToken = exchange.getString("credential")
+                if (handoff.mode == "signup") {
+                    val claims = googleTokenDetails(googleToken)
+                    googleIdToken = googleToken
+                    googleEmail = claims.optString("email")
+                    googleName = claims.optString("name").ifBlank { claims.optString("given_name") }
+                    googleAge = ""
+                    googleCity = ""
+                    authMode = "googleProfile"
+                } else {
+                    val result = withContext(Dispatchers.IO) {
+                        api("/api/google-login", JSONObject()
+                            .put("credential", googleToken).put("signupFlow", "android-login"))
+                    }
+                    applySession(result, "Google")
+                }
+            }
+        } catch (e: Exception) { error = e.message ?: "تعذّر إكمال الدخول بجوجل" }
+    }
+
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
         MaterialTheme(colorScheme = darkColorScheme(primary = Gold, background = Black, surface = Panel, onSurface = White, onBackground = White)) {
             Column(Modifier.fillMaxSize().background(Black).safeDrawingPadding()) {
@@ -463,12 +498,12 @@ private fun openYouTube(context: android.content.Context, id: String) {
                                     applySession(result, username.trim())
                                 }
                             }
-                            Text("أو سجّل الدخول بحساب Google الموجود لديك", color = GoldLight,
+                            Text("أو اختر حساب Google من موقع العطا الآمن", color = GoldLight,
                                 fontSize = 12.sp, textAlign = TextAlign.Center)
                             PremiumGoogleButton(enabled = !busy && googleEnabled, label = "الدخول بحساب Google") {
                                 chooseGoogle(false)
                             }
-                            if (!googleEnabled) Text("خدمة Google تحتاج إعداد OAuth وGOOGLE_CLIENT_ID على السيرفر", color = Muted, fontSize = 11.sp)
+                            if (!googleEnabled) Text("يستخدم تسجيل Google الموجود بالفعل على موقع العطا، من خلال المتصفح.", color = Muted, fontSize = 11.sp)
                             TextButton(onClick = { authMode = "forgot" }) {
                                 Text("هل نسيت كلمة السر؟", color = GoldLight, fontWeight = FontWeight.Bold)
                             }
@@ -478,7 +513,7 @@ private fun openYouTube(context: android.content.Context, id: String) {
                             PremiumGoogleButton(enabled = !busy && googleEnabled, label = "إنشاء حساب عن طريق Google") {
                                 chooseGoogle(true)
                             }
-                            if (!googleEnabled) Text("يلزم تفعيل تسجيل Google في Cloudflare وGoogle Cloud قبل استخدامه", color = Muted, fontSize = 11.sp)
+                            if (!googleEnabled) Text("سيُفتح Google في المتصفح ثم يعود بك إلى التطبيق", color = Muted, fontSize = 11.sp)
                             Text("أو أنشئ حسابًا بالبريد الإلكتروني", color = GoldLight, fontSize = 13.sp)
                             PremiumAuthTextField(regName, { regName = it }, "الاسم الكامل")
                             PremiumAuthTextField(regUsername, { regUsername = it }, "اسم المستخدم")
@@ -783,20 +818,15 @@ private fun openYouTube(context: android.content.Context, id: String) {
                                 Text("الأعضاء: ${g.optJSONArray("members")?.length() ?: 0}", color = Color.LightGray)
                             } }
                         }
-                        "يوتيوب" -> LazyColumn(Modifier.weight(1f).padding(8.dp)) {
+                        "يوتيوب" -> LazyColumn(Modifier.weight(1f).padding(8.dp), state = youtubeListState) {
                             item { SectionTitle("يوتيوب داخل تواصل العطا"); OutlinedTextField(youtubeSearch, { youtubeSearch = it }, label = { Text("ابحث عن فيديو") }, modifier = Modifier.fillMaxWidth()); GoldButton("بحث") { refresh() } }
                             if (youtubeId.isNotBlank()) item { CardBox { YouTubePlayer(youtubeId); TextButton(onClick = { youtubeId = "" }) { Text("إغلاق المشغل") } } }
                             items(youtubeItems) { v -> CardBox {
                                 AsyncImage(v.optString("thumbnail"), "صورة الفيديو", Modifier.fillMaxWidth().height(160.dp), contentScale = ContentScale.Crop)
                                 Text(v.optString("title"), color = GoldLight, fontWeight = FontWeight.Bold)
                                 Text(v.optString("channel"), color = Color.LightGray)
-                                // Default: reliable playback in the YouTube app or browser.
-                                GoldButton("تشغيل الفيديو") { openYouTube(ctx, v.optString("id")) }
-                                // Optional embedded playback can be blocked by video restrictions.
-                                TextButton(onClick = { youtubeId = v.optString("id") }) {
-                                    SiteIcon("youtube", size = 19.dp)
-                                    Spacer(Modifier.width(5.dp))
-                                    Text("تجربة المشغّل داخل التطبيق", color = GoldLight)
+                                GoldButton("▶ تشغيل داخل التطبيق") {
+                                    youtubeId = v.optString("id")
                                 }
                             } }
                         }
