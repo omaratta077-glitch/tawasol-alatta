@@ -21,6 +21,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -115,12 +116,12 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable private fun GoldButton(text: String, enabled: Boolean = true, onClick: () -> Unit) {
-    Button(onClick = onClick, enabled = enabled, colors = ButtonDefaults.buttonColors(containerColor = Gold, contentColor = Black), shape = RoundedCornerShape(13.dp), modifier = Modifier.shadow(4.dp, RoundedCornerShape(13.dp))) {
-        Text(text, fontWeight = FontWeight.Bold)
+    Button(onClick = onClick, enabled = enabled, colors = ButtonDefaults.buttonColors(containerColor = Gold, contentColor = Black), shape = RoundedCornerShape(12.dp), modifier = Modifier.shadow(7.dp, RoundedCornerShape(12.dp), ambientColor = Gold.copy(alpha = .35f), spotColor = Gold.copy(alpha = .30f)).heightIn(min = 42.dp)) {
+        Text(text, fontWeight = FontWeight.Bold, fontSize = 13.sp, maxLines = 1)
     }
 }
 @Composable private fun SectionTitle(text: String) {
-    Text(text, color = GoldLight, fontSize = 20.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 9.dp))
+    Text(text, color = GoldLight, fontSize = 20.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 7.dp))
 }
 @Composable private fun CardBox(content: @Composable ColumnScope.() -> Unit) {
     Column(
@@ -128,7 +129,7 @@ class MainActivity : ComponentActivity() {
             .shadow(12.dp, RoundedCornerShape(15.dp))
             .border(1.dp, Border.copy(alpha = .55f), RoundedCornerShape(15.dp))
             .background(Brush.linearGradient(listOf(Color(0xFF0A0F12), Color(0xFF070B0E))), RoundedCornerShape(15.dp))
-            .padding(13.dp), content = content
+            .padding(12.dp), content = content
     )
 }
 @Composable private fun NativeVideo(url: String) {
@@ -217,13 +218,13 @@ class MainActivity : ComponentActivity() {
                         .shadow(10.dp)
                         .background(Brush.verticalGradient(listOf(Color(0xFF080B0E), Color(0xFF050709))))
                         .border(width = 0.5.dp, color = Gold.copy(alpha = .5f))
-                        .padding(top = 18.dp, bottom = 10.dp),
+                        .padding(top = 9.dp, bottom = 8.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
-                        Image(painter = painterResource(R.drawable.logo_premium), contentDescription = "شعار تواصل العطا", modifier = Modifier.size(48.dp))
-                        Spacer(Modifier.width(10.dp))
-                        Text("تواصل العطا", color = GoldLight, fontSize = 25.sp, fontWeight = FontWeight.ExtraBold)
+                        Image(painter = painterResource(R.drawable.logo_premium), contentDescription = "شعار تواصل العطا", modifier = Modifier.size(42.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("تواصل العطا", color = GoldLight, fontSize = 23.sp, fontWeight = FontWeight.ExtraBold)
                     }
                     Text("AL-ATTA", color = GoldLight.copy(alpha = .75f), fontSize = 11.sp, letterSpacing = 2.sp)
                 }
@@ -245,11 +246,19 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                 } else {
-                    ScrollableTabRow(selectedTabIndex = listOf("الرئيسية", "استكشاف", "الأصدقاء", "الرسائل", "الإشعارات", "المجموعات", "يوتيوب", "المحفوظات", "الملف").indexOf(tab).coerceAtLeast(0), edgePadding = 8.dp, containerColor = Panel, contentColor = GoldLight) {
-                        listOf("الرئيسية", "استكشاف", "الأصدقاء", "الرسائل", "الإشعارات", "المجموعات", "يوتيوب", "المحفوظات", "الملف").forEach { name -> Tab(selected = tab == name, onClick = { tab = name }, text = { Text(name, fontSize = 12.sp) }) }
+                    // Compact gold navigation, with native touch targets and no clipped labels.
+                    ScrollableTabRow(
+                        selectedTabIndex = listOf("الرئيسية", "استكشاف", "الأصدقاء", "الرسائل", "الإشعارات", "المجموعات", "يوتيوب", "المحفوظات", "الملف").indexOf(tab).coerceAtLeast(0),
+                        edgePadding = 4.dp, containerColor = Black, contentColor = GoldLight,
+                        divider = { HorizontalDivider(color = Border.copy(alpha = .65f)) }
+                    ) {
+                        listOf("الرئيسية", "استكشاف", "الأصدقاء", "الرسائل", "الإشعارات", "المجموعات", "يوتيوب", "المحفوظات", "الملف").forEach { name ->
+                            Tab(selected = tab == name, onClick = { tab = name }, modifier = Modifier.height(46.dp),
+                                text = { Text(name, fontSize = 12.sp, maxLines = 1, color = if (tab == name) GoldLight else Muted) })
+                        }
                     }
                     Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text("مرحبًا، $displayName", color = GoldLight, modifier = Modifier.weight(1f), maxLines = 1)
+                        Text("مرحبًا، $displayName", color = GoldLight, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis, fontSize = 13.sp)
                         TextButton(onClick = { refresh() }) { Text("تحديث") }
                         TextButton(onClick = {
                             token = ""; posts = emptyList(); prefs.edit().clear().apply()
@@ -263,10 +272,10 @@ class MainActivity : ComponentActivity() {
                                         SectionTitle("بم تفكر؟")
                                         OutlinedTextField(draft, { draft = it }, modifier = Modifier.fillMaxWidth(), placeholder = { Text("اكتب منشورًا...") }, minLines = 2)
                                         pickedUri?.let { Text("مرفق: ${it.lastPathSegment ?: "ملف"}", color = GoldLight) }
-                                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                            OutlinedButton(onClick = { picker.launch("image/*") }) { Text("صورة") }
-                                            OutlinedButton(onClick = { picker.launch("video/*") }) { Text("فيديو") }
-                                            GoldButton("نشر", !busy && (draft.isNotBlank() || pickedUri != null)) {
+                                        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                                            OutlinedButton(onClick = { picker.launch("image/*") }, contentPadding = PaddingValues(horizontal = 12.dp, vertical = 3.dp), shape = RoundedCornerShape(9.dp)) { Text("▧ صورة", fontSize = 12.sp, maxLines = 1) }
+                                            OutlinedButton(onClick = { picker.launch("video/*") }, contentPadding = PaddingValues(horizontal = 12.dp, vertical = 3.dp), shape = RoundedCornerShape(9.dp)) { Text("▷ فيديو", fontSize = 12.sp, maxLines = 1) }
+                                            GoldButton("➤ نشر", !busy && (draft.isNotBlank() || pickedUri != null)) {
                                                 task {
                                                     var image = ""; var video = ""
                                                     pickedUri?.let { uri ->
@@ -317,11 +326,11 @@ class MainActivity : ComponentActivity() {
                                     if (video.isNotBlank()) NativeVideo(video)
                                     p.optJSONObject("sharedPost")?.let { shared -> Text("مشاركة: ${shared.optString("text")}", color = GoldLight) }
                                     Text("${p.optInt("likeCount")} إعجاب  •  ${p.optInt("commentCount")} تعليق", color = Color.LightGray, fontSize = 12.sp)
-                                    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-                                        TextButton(onClick = { task { post("/api/post-like", JSONObject().put("postId", postId)); load(tab) } }) { Text(if (p.optBoolean("likedByMe")) "♥ أعجبني" else "♡ إعجاب") }
-                                        TextButton(onClick = { showComments = !showComments }) { Text("تعليق") }
-                                        TextButton(onClick = { task { post("/api/post-save", JSONObject().put("postId", postId)); load(tab) } }) { Text(if (p.optBoolean("savedByMe")) "محفوظ ✓" else "حفظ") }
-                                        TextButton(onClick = { task { post("/api/post-share", JSONObject().put("postId", postId).put("text", "")); load(tab) } }) { Text("مشاركة") }
+                                    Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(0.dp)) {
+                                        TextButton(contentPadding = PaddingValues(horizontal = 8.dp), onClick = { task { post("/api/post-like", JSONObject().put("postId", postId)); load(tab) } }) { Text(if (p.optBoolean("likedByMe")) "♥ ${p.optInt("likeCount")}" else "♡ ${p.optInt("likeCount")}", fontSize = 13.sp, maxLines = 1) }
+                                        TextButton(contentPadding = PaddingValues(horizontal = 8.dp), onClick = { showComments = !showComments }) { Text("▢ ${p.optInt("commentCount")}", fontSize = 13.sp, maxLines = 1) }
+                                        TextButton(contentPadding = PaddingValues(horizontal = 8.dp), onClick = { task { post("/api/post-save", JSONObject().put("postId", postId)); load(tab) } }) { Text(if (p.optBoolean("savedByMe")) "▣ محفوظ" else "♧ حفظ", fontSize = 13.sp, maxLines = 1) }
+                                        TextButton(contentPadding = PaddingValues(horizontal = 8.dp), onClick = { task { post("/api/post-share", JSONObject().put("postId", postId).put("text", "")); load(tab) } }) { Text("↗ مشاركة", fontSize = 13.sp, maxLines = 1) }
                                     }
                                     Row(Modifier.horizontalScroll(rememberScrollState())) {
                                         listOf("love" to "❤️", "haha" to "😂", "wow" to "😮", "sad" to "😢", "angry" to "😡").forEach { (reaction, emoji) ->
