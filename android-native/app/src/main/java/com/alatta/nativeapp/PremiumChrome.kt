@@ -1,6 +1,7 @@
 package com.alatta.nativeapp
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -11,9 +12,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
-import androidx.compose.foundation.layout.offset
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -24,6 +25,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
+import androidx.compose.foundation.layout.offset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
@@ -104,21 +106,21 @@ internal fun PremiumHeader(
         // RTL: first child is positioned on the right. Brand icon is only
         // slightly bigger than the notification icons, as requested.
         Row(
-            Modifier.width(84.dp).clickable { onNavigate("الرئيسية") },
+            Modifier.width(96.dp).clickable { onNavigate("الرئيسية") },
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(5.dp)
         ) {
-            Image(painterResource(R.drawable.logo_premium), "شعار العطا", Modifier.size(33.dp).clip(CircleShape))
-            Text("العطا", color = PremiumGoldLight, fontWeight = FontWeight.Bold,
-                fontSize = 15.sp, maxLines = 1)
+            Image(painterResource(R.drawable.logo_premium), "شعار العطا", Modifier.size(34.dp).clip(CircleShape))
+            Text("AL-ATTA", color = PremiumGoldLight, fontWeight = FontWeight.Bold,
+                fontSize = 13.sp, maxLines = 1)
         }
         // Two icons on the right of YouTube, two on the left; the YouTube icon
         // remains in the TOP bar and is never substituted for Home at bottom.
         PremiumTopItem("search", "استكشاف", current, onNavigate)
         // YouTube remains in the header but without a large surrounding square.
         // Friends only appears in the bottom navigation.
-        Box(Modifier.size(37.dp).clickable { onNavigate("يوتيوب") }, contentAlignment = Alignment.Center) {
-            SiteIcon("youtube", tint = if (current == "يوتيوب") PremiumGoldLight else PremiumGold, size = 27.dp)
+        Box(Modifier.size(35.dp).clickable { onNavigate("يوتيوب") }, contentAlignment = Alignment.Center) {
+            SiteIcon("youtube", tint = if (current == "يوتيوب") PremiumGoldLight else PremiumGold, size = 25.dp)
         }
         PremiumTopItem("message-circle", "الرسائل", current, onNavigate)
         Box(Modifier.size(38.dp), contentAlignment = Alignment.Center) {
@@ -139,8 +141,11 @@ internal fun PremiumHeader(
 
 @Composable
 private fun PremiumTopItem(name: String, destination: String, current: String, go: (String) -> Unit) {
+    val glow = rememberInfiniteTransition(label = "top-icon-glow")
+    val intensity by glow.animateFloat(initialValue = .08f, targetValue = .24f,
+        animationSpec = infiniteRepeatable(tween(1300), repeatMode = RepeatMode.Reverse), label = "gold-glow")
     Box(Modifier.size(38.dp)
-        .background(if (current == destination) PremiumGold.copy(alpha = .12f) else Color.Transparent,
+        .background(if (current == destination) PremiumGold.copy(alpha = intensity) else Color.Transparent,
             RoundedCornerShape(10.dp))
         .clickable { go(destination) }, contentAlignment = Alignment.Center) {
         SiteIcon(name, tint = if (current == destination) PremiumGoldLight else PremiumGold, size = 23.dp)

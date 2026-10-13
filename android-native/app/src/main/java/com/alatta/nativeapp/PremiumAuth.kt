@@ -1,6 +1,10 @@
 package com.alatta.nativeapp
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.animation.core.*
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -10,6 +14,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
@@ -44,7 +49,22 @@ internal fun PremiumAuthTextField(value: String, onChange: (String) -> Unit, hin
 
 @Composable
 internal fun PremiumAuthGoldButton(label: String, enabled: Boolean, onClick: () -> Unit) {
-    Button(onClick = onClick, enabled = enabled, modifier = Modifier.fillMaxWidth().height(54.dp),
+    val shine = rememberInfiniteTransition(label = "gold-button-shine")
+    val progress by shine.animateFloat(
+        initialValue = -0.4f, targetValue = 1.4f,
+        animationSpec = infiniteRepeatable(animation = tween(3000, easing = LinearEasing), repeatMode = RepeatMode.Restart),
+        label = "button-glimmer"
+    )
+    Button(onClick = onClick, enabled = enabled,
+        modifier = Modifier.fillMaxWidth().height(54.dp).clip(RoundedCornerShape(18.dp))
+            .drawWithContent {
+                drawContent()
+                if (enabled) {
+                    val x = size.width * progress
+                    drawLine(color = Color.White.copy(alpha = .22f),
+                        start = Offset(x - 44f, 0f), end = Offset(x + 44f, size.height), strokeWidth = 28f)
+                }
+            },
         shape = RoundedCornerShape(18.dp),
         colors = ButtonDefaults.buttonColors(containerColor = AuthGold, contentColor = Color(0xFF090909),
             disabledContainerColor = Color(0xFF2A2A2A), disabledContentColor = Color.Gray)
@@ -61,7 +81,7 @@ internal fun PremiumAuthOutlineButton(label: String, onClick: () -> Unit) {
 }
 
 @Composable
-internal fun PremiumGoogleButton(enabled: Boolean = true, onClick: () -> Unit) {
+internal fun PremiumGoogleButton(enabled: Boolean = true, label: String = "المواصلة باستخدام Google", onClick: () -> Unit) {
     OutlinedButton(onClick = onClick, enabled = enabled,
         modifier = Modifier.fillMaxWidth().height(54.dp), shape = RoundedCornerShape(28.dp),
         border = BorderStroke(1.dp, Color(0xFF555960)),
@@ -71,6 +91,6 @@ internal fun PremiumGoogleButton(enabled: Boolean = true, onClick: () -> Unit) {
                 contentDescription = "Google", modifier = Modifier.size(23.dp))
         }
         Spacer(Modifier.width(12.dp))
-        Text("المواصلة باستخدام Google", fontSize = 14.sp, fontWeight = FontWeight.Medium)
+        Text(label, fontSize = 14.sp, fontWeight = FontWeight.Medium)
     }
 }

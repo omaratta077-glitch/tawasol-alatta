@@ -3,6 +3,8 @@ package com.alatta.nativeapp
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.util.Base64
+import androidx.credentials.exceptions.GetCredentialException
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.webkit.WebChromeClient
@@ -27,6 +29,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.draw.shadow
+import androidx.compose.animation.core.*
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
@@ -69,6 +74,13 @@ private val Border = Color(0xFF6B5429)
 private val White = Color(0xFFF7F8F9)
 private val Muted = Color(0xFFC9D0D4)
 
+private fun googleTokenDetails(idToken: String): JSONObject {
+    // Preview only. Server validates Google's signature, audience and expiry.
+    return try {
+        val payload = idToken.split('.').getOrNull(1) ?: return JSONObject()
+        JSONObject(String(Base64.decode(payload, Base64.URL_SAFE or Base64.NO_PADDING or Base64.NO_WRAP), Charsets.UTF_8))
+    } catch (_: Exception) { JSONObject() }
+}
 private fun enc(s: String) = URLEncoder.encode(s, "UTF-8")
 private fun media(s: String): String = when {
     s.startsWith("/media/") -> BASE + s
@@ -199,6 +211,21 @@ private fun openYouTube(context: android.content.Context, id: String) {
     var regPhone by remember { mutableStateOf("") }
     var regEmail by remember { mutableStateOf("") }
     var regCountry by remember { mutableStateOf("") }
+    var regCity by remember { mutableStateOf("") }
+    var googleIdToken by remember { mutableStateOf("") }
+    var googleEmail by remember { mutableStateOf("") }
+    var googleName by remember { mutableStateOf("") }
+    var googleAge by remember { mutableStateOf("") }
+    var googleCity by remember { mutableStateOf("") }
+    var changePasswordDialog by remember { mutableStateOf(false) }
+    var currentPassword by remember { mutableStateOf("") }
+    var nextPassword by remember { mutableStateOf("") }
+    var nextPasswordAgain by remember { mutableStateOf("") }
+    var resetEmail by remember { mutableStateOf("") }
+    var resetRequestId by remember { mutableStateOf("") }
+    var resetCode by remember { mutableStateOf("") }
+    var resetPassword by remember { mutableStateOf("") }
+    var resetConfirm by remember { mutableStateOf("") }
     var regGender by remember { mutableStateOf("") }
     var regPass by remember { mutableStateOf("") }
     var regConfirm by remember { mutableStateOf("") }
@@ -259,7 +286,40 @@ private fun openYouTube(context: android.content.Context, id: String) {
         displayName = u.name().ifBlank { fallbackName }
         myUsername = u.optString("username", fallbackName).lowercase()
         prefs.edit().putString("token", token).putString("name", displayName).putString("username", myUsername).apply()
-        password = ""; regPass = ""; regConfirm = ""; authMode = "login"; tab = "الرئيسية"
+        password = ""; regPass = ""; regConfirm = ""; googleIdToken = ""
+        resetPassword = ""; resetConfirm = ""; authMode = "login"; tab = "الرئيسية"
+    }
+    fun chooseGoogle(signup: Boolean) {
+        task {
+            if (!googleEnabled || googleClientId.isBlank()) {
+                throw IllegalStateException("تسجيل Google يحتاج تفعيل GOOGLE_CLIENT_ID في إعدادات Cloudflare وإضافة بصمة SHA-1 لتطبيق أندرويد في Google Cloud.")
+            }
+            val idToken = try {
+                val option = GetSignInWithGoogleOption.Builder(googleClientId).build()
+                val request = GetCredentialRequest.Builder().addCredentialOption(option).build()
+                val credential = CredentialManager.create(ctx).getCredential(ctx, request).credential
+                require(credential.type == GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL) {
+                    "لم يرجع Google بيانات حساب صالحة"
+                }
+                GoogleIdTokenCredential.createFrom(credential.data).idToken
+            } catch (e: GetCredentialException) {
+                throw IllegalStateException("تعذّر اختيار حساب Google. تأكد من إعداد OAuth لأندرويد وبصمة SHA-1 وتوافر خدمات Google Play على الهاتف. (${e.type})")
+            }
+            if (signup) {
+                val details = googleTokenDetails(idToken)
+                googleIdToken = idToken
+                googleEmail = details.optString("email")
+                googleName = details.optString("name").ifBlank { details.optString("given_name") }
+                googleAge = ""
+                googleCity = ""
+                authMode = "googleProfile"
+            } else {
+                val result = withContext(Dispatchers.IO) {
+                    api("/api/google-login", JSONObject().put("credential", idToken).put("signupFlow", "android-login"))
+                }
+                applySession(result, "Google")
+            }
+        }
     }
     suspend fun get(path: String): JSONObject = withContext(Dispatchers.IO) { api("$path${if ('?' in path) "&" else "?"}token=${enc(token)}") }
     suspend fun post(path: String, data: JSONObject): JSONObject = withContext(Dispatchers.IO) { api(path, data.put("token", token)) }
@@ -294,6 +354,34 @@ private fun openYouTube(context: android.content.Context, id: String) {
         text = { Text("هل تريد الخروج من التطبيق؟") },
         confirmButton = { TextButton(onClick = { confirmExit = false; (ctx as? ComponentActivity)?.finish() }) { Text("خروج") } },
         dismissButton = { TextButton(onClick = { confirmExit = false }) { Text("إلغاء") } }
+    )
+    if (changePasswordDialog) AlertDialog(
+        onDismissRequest = { changePasswordDialog = false; currentPassword = ""; nextPassword = ""; nextPasswordAgain = "" },
+        title = { Text("تغيير كلمة السر", color = GoldLight) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                PremiumAuthTextField(currentPassword, { currentPassword = it }, "كلمة المرور الحالية", password = true)
+                PremiumAuthTextField(nextPassword, { nextPassword = it }, "كلمة المرور الجديدة", password = true)
+                PremiumAuthTextField(nextPasswordAgain, { nextPasswordAgain = it }, "تأكيد كلمة المرور الجديدة", password = true)
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                task {
+                    post("/api/change-password", JSONObject()
+                        .put("oldPassword", currentPassword)
+                        .put("newPassword", nextPassword)
+                        .put("confirmPassword", nextPasswordAgain))
+                    currentPassword = ""; nextPassword = ""; nextPasswordAgain = ""
+                    changePasswordDialog = false
+                    token = ""; prefs.edit().clear().apply()
+                    featureMessage = "تم تغيير كلمة المرور. سجل الدخول بكلمة المرور الجديدة."
+                }
+            }, enabled = !busy && currentPassword.isNotBlank() && nextPassword.length >= 8 && nextPassword == nextPasswordAgain) {
+                Text("حفظ", color = GoldLight)
+            }
+        },
+        dismissButton = { TextButton(onClick = { changePasswordDialog = false }) { Text("إلغاء") } }
     )
     if (featureMessage.isNotBlank()) AlertDialog(
         onDismissRequest = { featureMessage = "" },
@@ -375,34 +463,23 @@ private fun openYouTube(context: android.content.Context, id: String) {
                                     applySession(result, username.trim())
                                 }
                             }
-                            Text("أو أنشئ حسابًا مجانًا ببريد Google المؤكد", color = GoldLight,
+                            Text("أو سجّل الدخول بحساب Google الموجود لديك", color = GoldLight,
                                 fontSize = 12.sp, textAlign = TextAlign.Center)
-                            if (googleEnabled && googleClientId.isNotBlank()) {
-                                PremiumGoogleButton(!busy) {
-                                    task {
-                                        // Explicit Google button flow (not a silent credential prompt).
-                                        val option = GetSignInWithGoogleOption.Builder(googleClientId).build()
-                                        val request = GetCredentialRequest.Builder().addCredentialOption(option).build()
-                                        val credential = CredentialManager.create(ctx).getCredential(ctx, request).credential
-                                        require(credential.type == GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL) {
-                                            "تعذر الحصول على بيانات حساب Google"
-                                        }
-                                        val idToken = GoogleIdTokenCredential.createFrom(credential.data).idToken
-                                        val result = withContext(Dispatchers.IO) {
-                                            api("/api/google-login", JSONObject().put("credential", idToken))
-                                        }
-                                        applySession(result, username.ifBlank { "Google" })
-                                    }
-                                }
-                            } else {
-                                Text("تسجيل Google غير مفعّل من إعدادات السيرفر", color = Muted, fontSize = 11.sp)
+                            PremiumGoogleButton(enabled = !busy && googleEnabled, label = "الدخول بحساب Google") {
+                                chooseGoogle(false)
                             }
+                            if (!googleEnabled) Text("خدمة Google تحتاج إعداد OAuth وGOOGLE_CLIENT_ID على السيرفر", color = Muted, fontSize = 11.sp)
                             TextButton(onClick = { authMode = "forgot" }) {
                                 Text("هل نسيت كلمة السر؟", color = GoldLight, fontWeight = FontWeight.Bold)
                             }
                             PremiumAuthOutlineButton("إنشاء حساب جديد") { authMode = "register"; error = "" }
                         } else if (authMode == "register") {
                             Text("إنشاء حساب جديد", color = GoldLight, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                            PremiumGoogleButton(enabled = !busy && googleEnabled, label = "إنشاء حساب عن طريق Google") {
+                                chooseGoogle(true)
+                            }
+                            if (!googleEnabled) Text("يلزم تفعيل تسجيل Google في Cloudflare وGoogle Cloud قبل استخدامه", color = Muted, fontSize = 11.sp)
+                            Text("أو أنشئ حسابًا بالبريد الإلكتروني", color = GoldLight, fontSize = 13.sp)
                             PremiumAuthTextField(regName, { regName = it }, "الاسم الكامل")
                             PremiumAuthTextField(regUsername, { regUsername = it }, "اسم المستخدم")
                             PremiumAuthTextField(regAge, { regAge = it }, "العمر")
@@ -410,6 +487,7 @@ private fun openYouTube(context: android.content.Context, id: String) {
                             PremiumAuthTextField(regEmail, { regEmail = it }, "البريد الإلكتروني لاستقبال كود التأكيد")
                             PremiumAuthTextField(regGender, { regGender = it }, "النوع (اختياري)")
                             PremiumAuthTextField(regCountry, { regCountry = it }, "الدولة (اختياري)")
+                            PremiumAuthTextField(regCity, { regCity = it }, "المدينة (اختياري)")
                             PremiumAuthTextField(regPass, { regPass = it }, "كلمة المرور", password = true)
                             PremiumAuthTextField(regConfirm, { regConfirm = it }, "تأكيد كلمة المرور", password = true)
                             PremiumAuthGoldButton("إرسال كود التأكيد", !busy && regName.isNotBlank() && regUsername.isNotBlank() && regEmail.isNotBlank() && regPass.isNotBlank()) {
@@ -418,7 +496,7 @@ private fun openYouTube(context: android.content.Context, id: String) {
                                         .put("fullName", regName.trim()).put("username", regUsername.trim())
                                         .put("age", regAge.toIntOrNull() ?: 0).put("phone", regPhone.trim())
                                         .put("email", regEmail.trim()).put("gender", regGender.trim())
-                                        .put("country", regCountry.trim()).put("password", regPass)
+                                        .put("country", regCountry.trim()).put("city", regCity.trim()).put("password", regPass)
                                         .put("confirmPassword", regConfirm)
                                     val result = withContext(Dispatchers.IO) { api("/api/register-request", body) }
                                     verificationId = result.getString("verificationId")
@@ -447,10 +525,64 @@ private fun openYouTube(context: android.content.Context, id: String) {
                                 }
                             }) { Text("إعادة إرسال الكود", color = GoldLight) }
                             PremiumAuthOutlineButton("الرجوع") { authMode = "register" }
-                        } else {
+                        } else if (authMode == "googleProfile") {
+                            Text("إنشاء حساب عن طريق Google", color = GoldLight, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                            Text("البريد الذي تم تأكيده بواسطة Google: $googleEmail", color = Muted,
+                                textAlign = TextAlign.Center, fontSize = 13.sp)
+                            Text("الاسم المقترح من Google قابل للتعديل:", color = GoldLight, fontSize = 13.sp)
+                            PremiumAuthTextField(googleName, { googleName = it }, "الاسم الذي يظهر للآخرين")
+                            PremiumAuthTextField(googleAge, { googleAge = it.filter(Char::isDigit).take(3) }, "العمر (مطلوب)")
+                            PremiumAuthTextField(googleCity, { googleCity = it.take(80) }, "المدينة (اختياري)")
+                            Text("الحسابات الحالية بواسطة Google ستفتح مباشرة دون تغيير بياناتها", color = Muted, fontSize = 11.sp)
+                            PremiumAuthGoldButton("تأكيد إنشاء حساب Google", !busy && googleIdToken.isNotBlank() &&
+                                googleName.trim().length >= 2 && (googleAge.toIntOrNull() ?: 0) in 13..120) {
+                                task {
+                                    val data = JSONObject()
+                                        .put("credential", googleIdToken)
+                                        .put("signupFlow", "android-signup")
+                                        .put("fullName", googleName.trim())
+                                        .put("age", googleAge.toIntOrNull())
+                                        .put("city", googleCity.trim())
+                                    val result = withContext(Dispatchers.IO) { api("/api/google-login", data) }
+                                    applySession(result, googleName)
+                                }
+                            }
+                            PremiumAuthOutlineButton("رجوع") { googleIdToken = ""; authMode = "register"; error = "" }
+                        } else if (authMode == "forgot") {
                             Text("استعادة كلمة السر", color = GoldLight, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                            Text("خاصية إعادة تعيين كلمة المرور غير متوفرة حاليًا على سيرفر الموقع. لن نطلب منك كلمة مرور أو نعرض زرًا لا يعمل.",
-                                color = Muted, textAlign = TextAlign.Center)
+                            Text("أدخل البريد المرتبط بحسابك. سنرسل كودًا صالحًا لمدة 10 دقائق.", color = Muted, fontSize = 13.sp)
+                            PremiumAuthTextField(resetEmail, { resetEmail = it }, "البريد الإلكتروني")
+                            PremiumAuthGoldButton("إرسال كود استعادة كلمة السر", !busy && resetEmail.contains("@")) {
+                                task {
+                                    val result = withContext(Dispatchers.IO) {
+                                        api("/api/password-reset-request", JSONObject().put("email", resetEmail.trim()))
+                                    }
+                                    resetRequestId = result.getString("requestId")
+                                    resetCode = ""
+                                    authMode = "resetVerify"
+                                }
+                            }
+                            PremiumAuthOutlineButton("العودة لتسجيل الدخول") { authMode = "login"; error = "" }
+                        } else if (authMode == "resetVerify") {
+                            Text("تعيين كلمة مرور جديدة", color = GoldLight, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                            Text("لو البريد مسجلًا بحساب بكلمة مرور، ستصلك رسالة بها كود التأكيد.", color = Muted,
+                                textAlign = TextAlign.Center, fontSize = 13.sp)
+                            PremiumAuthTextField(resetCode, { resetCode = it.filter(Char::isDigit).take(6) }, "كود التأكيد من 6 أرقام")
+                            PremiumAuthTextField(resetPassword, { resetPassword = it }, "كلمة المرور الجديدة (8 أحرف على الأقل)", password = true)
+                            PremiumAuthTextField(resetConfirm, { resetConfirm = it }, "تأكيد كلمة المرور الجديدة", password = true)
+                            PremiumAuthGoldButton("تغيير كلمة السر", !busy && resetCode.length == 6 &&
+                                resetPassword.length >= 8 && resetPassword == resetConfirm) {
+                                task {
+                                    val payload = JSONObject().put("requestId", resetRequestId)
+                                        .put("code", resetCode).put("newPassword", resetPassword)
+                                        .put("confirmPassword", resetConfirm)
+                                    withContext(Dispatchers.IO) { api("/api/password-reset-confirm", payload) }
+                                    resetPassword = ""; resetConfirm = ""; resetCode = ""; resetRequestId = ""
+                                    authMode = "login"
+                                    featureMessage = "تم تحديث كلمة المرور. ادخل الآن باستخدام كلمة المرور الجديدة."
+                                }
+                            }
+                            TextButton(onClick = { authMode = "forgot" }) { Text("لم يصل الكود؟ اطلب كودًا جديدًا", color = GoldLight) }
                             PremiumAuthOutlineButton("العودة لتسجيل الدخول") { authMode = "login"; error = "" }
                         }
                         HorizontalDivider(color = Border.copy(alpha = .7f))
@@ -459,6 +591,17 @@ private fun openYouTube(context: android.content.Context, id: String) {
                         if (error.isNotBlank()) Text(error, color = Color(0xFFFF8888), textAlign = TextAlign.Center)
                     }
                 } else {
+                    // Persistent authenticated header, independent of the selected tab.
+                    // Keeps the AL-ATTA logo beside the app name (not the username),
+                    // with message, notification and unboxed YouTube icons.
+                    PremiumHeader(
+                        current = tab,
+                        unreadNotifications = notifications.count { !it.optBoolean("read", false) },
+                        onNavigate = ::navigate
+                    )
+                    if (tab == "الرئيسية" || tab == "استكشاف") {
+                        PremiumSearchBar { navigate("استكشاف") }
+                    }
                     if (tab != "الرئيسية") {
                         Row(Modifier.fillMaxWidth().padding(horizontal = 13.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                             Text(tab, color = GoldLight, fontWeight = FontWeight.Bold, fontSize = 16.sp, modifier = Modifier.weight(1f))
@@ -666,6 +809,7 @@ private fun openYouTube(context: android.content.Context, id: String) {
                                     Text("@${profile.optString("username")}")
                                     OutlinedTextField(profileBio, { profileBio = it }, label = { Text("نبذة عني") }, modifier = Modifier.fillMaxWidth())
                                     GoldButton("حفظ النبذة") { task { post("/api/profile", JSONObject().put("bio", profileBio)); load(tab) } }
+                                    PremiumAuthOutlineButton("تغيير كلمة السر") { changePasswordDialog = true }
                                 }
                             }
                         }
