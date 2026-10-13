@@ -153,6 +153,7 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable private fun NativeApp() {
+    AppUpdatePrompt()
     val ctx = LocalContext.current
     val prefs = remember { ctx.getSharedPreferences("alatta_native", 0) }
     var token by remember { mutableStateOf(prefs.getString("token", "") ?: "") }
