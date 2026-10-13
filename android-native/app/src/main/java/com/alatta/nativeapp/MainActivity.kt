@@ -50,6 +50,11 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
 import coil.compose.AsyncImage
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -78,7 +83,7 @@ private fun googleTokenDetails(idToken: String): JSONObject {
     } catch (_: Exception) { JSONObject() }
 }
 private fun enc(s: String) = URLEncoder.encode(s, "UTF-8")
-private fun media(s: String): String = when {
+internal fun media(s: String): String = when {
     s.startsWith("/media/") -> BASE + s
     s.startsWith("https://") -> s
     (s.startsWith("data:image/") || s.startsWith("data:video/")) -> s
@@ -261,6 +266,8 @@ private fun openYouTube(context: android.content.Context, id: String) {
     var search by remember { mutableStateOf("") }
     var chatWith by remember { mutableStateOf("") }
     var messages by remember { mutableStateOf(emptyList<JSONObject>()) }
+    var inboxPreviews by remember { mutableStateOf(emptyList<ChatPreview>()) }
+    var inboxLoading by remember { mutableStateOf(false) }
     var chatText by remember { mutableStateOf("") }
     var youtubeSearch by remember { mutableStateOf("") }
     var youtubeItems by remember { mutableStateOf(emptyList<JSONObject>()) }
@@ -322,12 +329,68 @@ private fun openYouTube(context: android.content.Context, id: String) {
     }
     suspend fun get(path: String): JSONObject = withContext(Dispatchers.IO) { api("$path${if ('?' in path) "&" else "?"}token=${enc(token)}") }
     suspend fun post(path: String, data: JSONObject): JSONObject = withContext(Dispatchers.IO) { api(path, data.put("token", token)) }
+    val chatImagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri != null && chatWith.isNotBlank() && token.isNotBlank()) {
+            // Upload to the existing authenticated media endpoint, then send its URL.
+            scope.launch {
+                busy = true; error = ""
+                try {
+                    val receiver = chatWith
+                    val mime = ctx.contentResolver.getType(uri) ?: "image/jpeg"
+                    require(mime.startsWith("image/")) { "اختر صورة من المعرض" }
+                    val bytes = withContext(Dispatchers.IO) {
+                        ctx.contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: byteArrayOf()
+                    }
+                    require(bytes.isNotEmpty() && bytes.size <= 15 * 1024 * 1024) { "الصورة يجب أن تكون أقل من 15 ميجابايت" }
+                    val url = withContext(Dispatchers.IO) {
+                        upload(token, uri, mime, uri.lastPathSegment ?: "chat-image.jpg", bytes)
+                    }
+                    post("/api/message-send", JSONObject().put("to", receiver)
+                        .put("text", "").put("media", url).put("mediaType", "image"))
+                    if (chatWith == receiver && tab == "الرسائل") {
+                        messages = get("/api/conversation?with=${enc(receiver)}").arr("messages")
+                    }
+                } catch (cancelled: CancellationException) { throw cancelled }
+                catch (e: Exception) { error = e.message ?: "فشل إرسال الصورة" }
+                finally { busy = false }
+            }
+        }
+    }
     suspend fun load(which: String) {
         when (which) {
             "الرئيسية" -> { posts = get("/api/posts?limit=40").arr("posts"); stories = get("/api/stories").arr("stories"); try { notifications = get("/api/notifications").arr("notifications") } catch (_: Exception) { } }
             "استكشاف" -> posts = get("/api/explore").arr("posts")
             "الأصدقاء" -> { users = get("/api/users?q=${enc(search)}").arr("users"); friends = get("/api/friends").arr("friends"); requests = get("/api/friend-requests").arr("requests") }
-            "الرسائل" -> { friends = get("/api/friends").arr("friends"); if (chatWith.isNotBlank()) messages = get("/api/conversation?with=${enc(chatWith)}").arr("messages") }
+            "الرسائل" -> {
+                if (chatWith.isNotBlank()) {
+                    messages = get("/api/conversation?with=${enc(chatWith)}").arr("messages")
+                } else {
+                    inboxLoading = true
+                    try {
+                        val people = get("/api/friends").arr("friends")
+                        friends = people
+                        // Use the existing API; don't invent online/read states.
+                        val limiter = Semaphore(5)
+                        val cached = coroutineScope {
+                            people.take(45).map { user ->
+                                async {
+                                    limiter.acquire()
+                                    try {
+                                        val id = user.optString("username")
+                                        val last = try {
+                                            get("/api/conversation?with=${enc(id)}").arr("messages")
+                                                .lastOrNull { it.optString("mediaType") != "call-signal" }
+                                        } catch (cancelled: CancellationException) { throw cancelled }
+                                        catch (_: Exception) { null }
+                                        ChatPreview(user, last)
+                                    } finally { limiter.release() }
+                                }
+                            }.awaitAll()
+                        }
+                        inboxPreviews = cached
+                    } finally { inboxLoading = false }
+                }
+            }
             "الإشعارات" -> notifications = get("/api/notifications").arr("notifications")
             "المجموعات" -> groups = get("/api/groups").arr("groups")
             "الملف" -> { profile = get("/api/me").optJSONObject("user") ?: JSONObject(); profileBio = profile.optString("bio") }
@@ -341,7 +404,10 @@ private fun openYouTube(context: android.content.Context, id: String) {
     }
     BackHandler(enabled = token.isNotBlank()) {
         when {
-            tab == "الرسائل" && chatWith.isNotBlank() -> chatWith = ""
+            tab == "الرسائل" && chatWith.isNotBlank() -> {
+                chatWith = ""; messages = emptyList()
+                task { load("الرسائل") }
+            }
             visited.isNotEmpty() -> tab = visited.removeAt(visited.lastIndex)
             tab != "الرئيسية" -> tab = "الرئيسية"
             else -> confirmExit = true
@@ -433,6 +499,21 @@ private fun openYouTube(context: android.content.Context, id: String) {
             googleClientId = conf.optString("clientId")
         } catch (cancelled: CancellationException) { throw cancelled }
         catch (_: Exception) { googleEnabled = false }
+    }
+
+    // Lightweight refresh of the opened chat; messages stay on Cloudflare.
+    LaunchedEffect(tab, chatWith, token) {
+        if (tab == "الرسائل" && chatWith.isNotBlank() && token.isNotBlank()) {
+            val other = chatWith
+            while (true) {
+                delay(6000)
+                try {
+                    val latest = get("/api/conversation?with=${enc(other)}").arr("messages")
+                    if (chatWith == other && tab == "الرسائل") messages = latest
+                } catch (cancelled: CancellationException) { throw cancelled }
+                catch (_: Exception) { /* Manual refresh remains available. */ }
+            }
+        }
     }
 
     LaunchedEffect(youtubeId, tab) {
@@ -599,7 +680,7 @@ private fun openYouTube(context: android.content.Context, id: String) {
                     // Persistent authenticated header, independent of the selected tab.
                     // Keeps the AL-ATTA logo beside the app name (not the username),
                     // with message, notification and unboxed YouTube icons.
-                    PremiumHeader(
+                    if (tab != "الرسائل") PremiumHeader(
                         current = tab,
                         unreadNotifications = notifications.count { !it.optBoolean("read", false) },
                         onNavigate = ::navigate
@@ -607,7 +688,7 @@ private fun openYouTube(context: android.content.Context, id: String) {
                     if (tab == "الرئيسية" || tab == "استكشاف") {
                         PremiumSearchBar { navigate("استكشاف") }
                     }
-                    if (tab != "الرئيسية") {
+                    if (tab != "الرئيسية" && tab != "الرسائل") {
                         Row(Modifier.fillMaxWidth().padding(horizontal = 13.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                             Text(tab, color = GoldLight, fontWeight = FontWeight.Bold, fontSize = 16.sp, modifier = Modifier.weight(1f))
                             TextButton(onClick = { refresh() }) { Text("تحديث", fontSize = 12.sp) }
@@ -757,17 +838,47 @@ private fun openYouTube(context: android.content.Context, id: String) {
                             item { SectionTitle("أصدقائي") }
                             items(friends) { u -> CardBox { Text(u.name(), color = GoldLight); TextButton(onClick = { chatWith = u.optString("username"); navigate("الرسائل") }) { Text("مراسلة") } } }
                         }
-                        "الرسائل" -> Column(Modifier.weight(1f).padding(8.dp)) {
+                        "الرسائل" -> Box(Modifier.weight(1f)) {
                             if (chatWith.isBlank()) {
-                                SectionTitle("اختر صديقًا للمراسلة")
-                                LazyColumn { items(friends) { u -> CardBox { TextButton(onClick = { chatWith = u.optString("username"); refresh() }) { Text(u.name()) } } } }
+                                MessengerInbox(
+                                    contacts = friends,
+                                    inbox = inboxPreviews,
+                                    loading = inboxLoading,
+                                    onOpen = { username ->
+                                        if (username.isNotBlank()) {
+                                            messages = emptyList()
+                                            chatText = ""
+                                            chatWith = username
+                                            task { messages = get("/api/conversation?with=${enc(username)}").arr("messages") }
+                                        }
+                                    },
+                                    onRefresh = { refresh() }
+                                )
                             } else {
-                                Row(verticalAlignment = Alignment.CenterVertically) { TextButton(onClick = { chatWith = "" }) { Text("رجوع") }; Text(chatWith, color = GoldLight) }
-                                LazyColumn(Modifier.weight(1f)) { items(messages) { m -> CardBox { Text(m.optString("from"), color = GoldLight, fontSize = 12.sp); Text(m.optString("text")) } } }
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    OutlinedTextField(chatText, { chatText = it }, modifier = Modifier.weight(1f), label = { Text("رسالة") })
-                                    GoldButton("إرسال", chatText.isNotBlank()) { task { post("/api/message-send", JSONObject().put("to", chatWith).put("text", chatText)); chatText = ""; load(tab) } }
-                                }
+                                val target = friends.firstOrNull { it.optString("username") == chatWith }
+                                    ?: JSONObject().put("username", chatWith)
+                                MessengerThread(
+                                    person = target, fallbackUsername = chatWith,
+                                    myUsername = myUsername, messages = messages,
+                                    chatText = chatText, sending = busy,
+                                    onTextChange = { chatText = it.take(6000) },
+                                    onSend = {
+                                        val receiver = chatWith
+                                        val content = chatText.trim()
+                                        if (content.isNotEmpty() && receiver.isNotBlank() && !busy) {
+                                            task {
+                                                post("/api/message-send", JSONObject()
+                                                    .put("to", receiver).put("text", content))
+                                                chatText = ""
+                                                if (chatWith == receiver)
+                                                    messages = get("/api/conversation?with=${enc(receiver)}").arr("messages")
+                                            }
+                                        }
+                                    },
+                                    onPickImage = { chatImagePicker.launch("image/*") },
+                                    onBack = { chatWith = ""; messages = emptyList(); refresh() },
+                                    onRefresh = { task { messages = get("/api/conversation?with=${enc(chatWith)}").arr("messages") } }
+                                )
                             }
                         }
                         "الإشعارات" -> LazyColumn(Modifier.weight(1f).padding(8.dp)) {
@@ -814,7 +925,7 @@ private fun openYouTube(context: android.content.Context, id: String) {
                             }
                         }
                     }
-                    PremiumBottomNav(tab, ::navigate)
+                    if (tab != "الرسائل" || chatWith.isBlank()) PremiumBottomNav(tab, ::navigate)
                 }
                 if (token.isNotBlank()) {
                     if (busy) LinearProgressIndicator(modifier = Modifier.fillMaxWidth(), color = Gold)
