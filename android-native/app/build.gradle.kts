@@ -2,7 +2,24 @@ plugins { id("com.android.application"); id("org.jetbrains.kotlin.android"); id(
 android {
     namespace = "com.alatta.nativeapp"
     compileSdk = 35
-    defaultConfig { applicationId = "com.alatta.nativeapp"; minSdk = 26; targetSdk = 35; versionCode = 5; versionName = "0.5.0" }
+    defaultConfig { applicationId = "com.alatta.nativeapp"; minSdk = 26; targetSdk = 35; versionCode = 100; versionName = "1.0.0" }
+    signingConfigs {
+        create("officialRelease") {
+            val storePath = System.getenv("ALATTA_KEYSTORE_PATH")
+            if (!storePath.isNullOrBlank()) {
+                storeFile = file(storePath)
+                storePassword = System.getenv("ALATTA_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("ALATTA_KEY_ALIAS")
+                keyPassword = System.getenv("ALATTA_KEY_PASSWORD")
+            }
+        }
+    }
+    buildTypes {
+        getByName("release") {
+            isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("officialRelease")
+        }
+    }
     buildFeatures { compose = true }
     compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
     kotlinOptions { jvmTarget = "17" }
