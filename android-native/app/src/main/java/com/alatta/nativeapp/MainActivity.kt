@@ -1,202 +1,419 @@
 package com.alatta.nativeapp
 
+import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
+import android.webkit.WebView
+import android.webkit.WebViewClient
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.media3.common.MediaItem
+import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.ui.PlayerView
 import coil.compose.AsyncImage
-import android.widget.VideoView
-import android.widget.MediaController
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalLayoutDirection
-import androidx.compose.ui.unit.LayoutDirection
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.json.JSONArray
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
+import java.net.URLEncoder
 
 private const val BASE = "https://tawasol-alatta.omaratta077-4fd.workers.dev"
-private val Gold = Color(0xFFD8AD51)
-private val Black = Color(0xFF101010)
-private val Panel = Color(0xFF1C1C1C)
+// Colors transcribed from the FINAL :root block in cloudflare-site/public/style.css.
+// Intentionally independent of the web CSS: styling changes require an Android update.
+private val Gold = Color(0xFFE6B94E)
+private val GoldLight = Color(0xFFF6D776)
+private val Black = Color(0xFF040506)
+private val Panel = Color(0xFF080D10)
+private val Border = Color(0xFF6B5429)
+private val White = Color(0xFFF7F8F9)
+private val Muted = Color(0xFFC9D0D4)
 
-private fun request(path: String, body: JSONObject? = null): JSONObject {
-    val connection = (URL(BASE + path).openConnection() as HttpURLConnection).apply {
-        requestMethod = if (body == null) "GET" else "POST"
-        connectTimeout = 15000
-        readTimeout = 15000
+private fun enc(s: String) = URLEncoder.encode(s, "UTF-8")
+private fun media(s: String): String = when {
+    s.startsWith("/media/") -> BASE + s
+    s.startsWith("https://") -> s
+    (s.startsWith("data:image/") || s.startsWith("data:video/")) -> s
+    else -> ""
+}
+private fun JSONObject.arr(name: String): List<JSONObject> {
+    val a = optJSONArray(name) ?: return emptyList()
+    return (0 until a.length()).mapNotNull { a.optJSONObject(it) }
+}
+private fun JSONObject.name(): String = optString("fullName").ifBlank { optString("displayName").ifBlank { optString("username", "مستخدم") } }
+private fun api(path: String, payload: JSONObject? = null): JSONObject {
+    val conn = (URL(BASE + path).openConnection() as HttpURLConnection).apply {
+        requestMethod = if (payload == null) "GET" else "POST"
+        connectTimeout = 20000; readTimeout = 30000
         setRequestProperty("Accept", "application/json")
-        if (body != null) {
+        if (payload != null) {
             doOutput = true
             setRequestProperty("Content-Type", "application/json; charset=utf-8")
-            outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
+            outputStream.use { it.write(payload.toString().toByteArray(Charsets.UTF_8)) }
         }
     }
     return try {
-        val code = connection.responseCode
-        val stream = if (code in 200..299) connection.inputStream else connection.errorStream
-        val result = JSONObject(stream?.bufferedReader()?.use { it.readText() } ?: "{}")
-        if (code !in 200..299) throw Exception(result.optString("error", "HTTP $code"))
-        result
-    } finally { connection.disconnect() }
+        val status = conn.responseCode
+        val content = (if (status in 200..299) conn.inputStream else conn.errorStream)?.bufferedReader()?.use { it.readText() } ?: "{}"
+        val obj = JSONObject(content)
+        if (status !in 200..299 || obj.optBoolean("ok", true) == false) throw IllegalStateException(obj.optString("error", "HTTP $status"))
+        obj
+    } finally { conn.disconnect() }
 }
-
-private data class Post(val author: String, val text: String, val image: String, val video: String)
-
-private fun mediaUrl(value: String): String = when {
-    value.startsWith("/media/") -> BASE + value
-    value.startsWith("https://") -> value
-    value.startsWith("data:image/") -> value
-    else -> ""
-}
-
-@Composable
-private fun PostMedia(post: Post) {
-    val image = mediaUrl(post.image)
-    val video = mediaUrl(post.video)
-    if (image.isNotBlank()) {
-        Spacer(Modifier.height(10.dp))
-        AsyncImage(
-            model = image,
-            contentDescription = "صورة المنشور",
-            modifier = Modifier.fillMaxWidth().heightIn(min = 160.dp, max = 420.dp),
-            contentScale = ContentScale.Fit
-        )
+private fun upload(token: String, uri: Uri, mime: String, filename: String, bytes: ByteArray): String {
+    val kind = if (mime.startsWith("video/")) "video" else "image"
+    val path = "/api/media-upload?token=${enc(token)}&kind=$kind&name=${enc(filename)}"
+    val conn = (URL(BASE + path).openConnection() as HttpURLConnection).apply {
+        requestMethod = "POST"; doOutput = true
+        connectTimeout = 20000; readTimeout = 120000
+        setRequestProperty("Content-Type", mime)
+        outputStream.use { it.write(bytes) }
     }
-    if (video.isNotBlank()) {
-        Spacer(Modifier.height(10.dp))
-        AndroidView(
-            factory = { context ->
-                VideoView(context).apply {
-                    setMediaController(MediaController(context))
-                    setVideoPath(video)
-                    seekTo(100)
-                }
-            },
-            update = { view -> if (view.tag != video) {
-                view.tag = video
-                view.setVideoPath(video)
-                view.seekTo(100)
-            } },
-            modifier = Modifier.fillMaxWidth().height(240.dp)
-        )
-    } else if (post.video.isNotBlank()) {
-        Text("هذا الفيديو بصيغة قديمة غير مدعومة حاليًا", color = Color.LightGray)
-    }
+    return try {
+        val code = conn.responseCode
+        val obj = JSONObject((if (code in 200..299) conn.inputStream else conn.errorStream)?.bufferedReader()?.use { it.readText() } ?: "{}")
+        if (code !in 200..299) throw IllegalStateException(obj.optString("error", "فشل رفع الملف"))
+        obj.getString("url")
+    } finally { conn.disconnect() }
 }
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent { AlAttaApp() }
+        setContent { NativeApp() }
     }
 }
 
-@Composable
-private fun AlAttaApp() {
+@Composable private fun GoldButton(text: String, enabled: Boolean = true, onClick: () -> Unit) {
+    Button(onClick = onClick, enabled = enabled, colors = ButtonDefaults.buttonColors(containerColor = Gold, contentColor = Black), shape = RoundedCornerShape(13.dp), modifier = Modifier.shadow(4.dp, RoundedCornerShape(13.dp))) {
+        Text(text, fontWeight = FontWeight.Bold)
+    }
+}
+@Composable private fun SectionTitle(text: String) {
+    Text(text, color = GoldLight, fontSize = 20.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 9.dp))
+}
+@Composable private fun CardBox(content: @Composable ColumnScope.() -> Unit) {
+    Column(
+        Modifier.fillMaxWidth().padding(vertical = 5.dp)
+            .shadow(12.dp, RoundedCornerShape(15.dp))
+            .border(1.dp, Border.copy(alpha = .55f), RoundedCornerShape(15.dp))
+            .background(Brush.linearGradient(listOf(Color(0xFF0A0F12), Color(0xFF070B0E))), RoundedCornerShape(15.dp))
+            .padding(13.dp), content = content
+    )
+}
+@Composable private fun NativeVideo(url: String) {
+    val ctx = LocalContext.current
+    val player = remember(url) { ExoPlayer.Builder(ctx).build().apply { setMediaItem(MediaItem.fromUri(url)); prepare() } }
+    DisposableEffect(player) { onDispose { player.release() } }
+    AndroidView(factory = { PlayerView(it).apply { this.player = player; useController = true } }, modifier = Modifier.fillMaxWidth().height(240.dp))
+}
+@Composable private fun YouTubePlayer(id: String) {
+    // YouTube's official embeddable iframe is isolated to the video player; all app screens are native Compose.
+    AndroidView(factory = { ctx -> WebView(ctx).apply {
+        settings.javaScriptEnabled = true
+        settings.domStorageEnabled = true
+        webViewClient = WebViewClient()
+        loadDataWithBaseURL("https://www.youtube.com", """<html><body style='margin:0;background:black'><iframe width='100%' height='100%' src='https://www.youtube-nocookie.com/embed/$id?playsinline=1' frameborder='0' allow='autoplay; encrypted-media; picture-in-picture' allowfullscreen></iframe></body></html>""", "text/html", "UTF-8", null)
+    } }, modifier = Modifier.fillMaxWidth().height(230.dp))
+}
+@Composable private fun Avatar(url: String, label: String) {
+    if (media(url).isNotBlank()) AsyncImage(model = media(url), contentDescription = label, modifier = Modifier.size(42.dp).clip(CircleShape), contentScale = ContentScale.Crop)
+    else Box(Modifier.size(42.dp).background(Gold, CircleShape), contentAlignment = Alignment.Center) { Text(label.take(1), color = Black, fontWeight = FontWeight.Bold) }
+}
+
+@Composable private fun NativeApp() {
+    val ctx = LocalContext.current
+    val prefs = remember { ctx.getSharedPreferences("alatta_native", 0) }
+    var token by remember { mutableStateOf(prefs.getString("token", "") ?: "") }
     var username by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
-    var token by remember { mutableStateOf("") }
-    var displayName by remember { mutableStateOf("") }
+    var displayName by remember { mutableStateOf(prefs.getString("name", "") ?: "") }
+    var myUsername by remember { mutableStateOf(prefs.getString("username", "") ?: "") }
+    var tab by remember { mutableStateOf("الرئيسية") }
     var error by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
-    var posts by remember { mutableStateOf(emptyList<Post>()) }
     var draft by remember { mutableStateOf("") }
+    var pickedUri by remember { mutableStateOf<Uri?>(null) }
+    var pickedMime by remember { mutableStateOf("") }
+    var posts by remember { mutableStateOf(emptyList<JSONObject>()) }
+    var stories by remember { mutableStateOf(emptyList<JSONObject>()) }
+    var storyText by remember { mutableStateOf("") }
+    var groups by remember { mutableStateOf(emptyList<JSONObject>()) }
+    var groupName by remember { mutableStateOf("") }
+    var users by remember { mutableStateOf(emptyList<JSONObject>()) }
+    var friends by remember { mutableStateOf(emptyList<JSONObject>()) }
+    var requests by remember { mutableStateOf(emptyList<JSONObject>()) }
+    var notifications by remember { mutableStateOf(emptyList<JSONObject>()) }
+    var profile by remember { mutableStateOf(JSONObject()) }
+    var search by remember { mutableStateOf("") }
+    var chatWith by remember { mutableStateOf("") }
+    var messages by remember { mutableStateOf(emptyList<JSONObject>()) }
+    var chatText by remember { mutableStateOf("") }
+    var youtubeSearch by remember { mutableStateOf("") }
+    var youtubeItems by remember { mutableStateOf(emptyList<JSONObject>()) }
+    var youtubeId by remember { mutableStateOf("") }
+    var profileBio by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
-
-    fun refresh() {
-        if (token.isBlank()) return
-        scope.launch {
-            busy = true; error = ""
-            try {
-                val result = withContext(Dispatchers.IO) {
-                    request("/api/posts?token=${java.net.URLEncoder.encode(token, "UTF-8")}&limit=20")
-                }
-                val arr = result.optJSONArray("posts")
-                posts = (0 until (arr?.length() ?: 0)).map { i ->
-                    val obj = arr!!.optJSONObject(i) ?: JSONObject()
-                    Post(obj.optJSONObject("authorInfo")?.optString("displayName")
-                        ?.takeIf { it.isNotBlank() } ?: obj.optString("author", "مستخدم"), obj.optString("text"), obj.optString("image"), obj.optString("video"))
-                }
-            } catch (e: Exception) { error = e.message ?: "تعذر تحميل المنشورات" }
-            finally { busy = false }
+    val picker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        pickedUri = uri
+        pickedMime = uri?.let { ctx.contentResolver.getType(it) } ?: ""
+    }
+    fun task(block: suspend () -> Unit) {
+        scope.launch { busy = true; error = ""; try { block() } catch (e: Exception) { error = e.message ?: "تعذر إتمام العملية" } finally { busy = false } }
+    }
+    suspend fun get(path: String): JSONObject = withContext(Dispatchers.IO) { api("$path${if ('?' in path) "&" else "?"}token=${enc(token)}") }
+    suspend fun post(path: String, data: JSONObject): JSONObject = withContext(Dispatchers.IO) { api(path, data.put("token", token)) }
+    suspend fun load(which: String) {
+        when (which) {
+            "الرئيسية" -> { posts = get("/api/posts?limit=40").arr("posts"); stories = get("/api/stories").arr("stories") }
+            "استكشاف" -> posts = get("/api/explore").arr("posts")
+            "الأصدقاء" -> { users = get("/api/users?q=${enc(search)}").arr("users"); friends = get("/api/friends").arr("friends"); requests = get("/api/friend-requests").arr("requests") }
+            "الرسائل" -> { friends = get("/api/friends").arr("friends"); if (chatWith.isNotBlank()) messages = get("/api/conversation?with=${enc(chatWith)}").arr("messages") }
+            "الإشعارات" -> notifications = get("/api/notifications").arr("notifications")
+            "المجموعات" -> groups = get("/api/groups").arr("groups")
+            "الملف" -> { profile = get("/api/me").optJSONObject("user") ?: JSONObject(); profileBio = profile.optString("bio") }
+            "المحفوظات" -> posts = get("/api/saved-posts").arr("posts")
+            "يوتيوب" -> youtubeItems = withContext(Dispatchers.IO) { api("/api/youtube?q=${enc(youtubeSearch)}") }.arr("items")
         }
     }
+    fun refresh() = task { load(tab) }
+    LaunchedEffect(token, tab) { if (token.isNotBlank()) { try { load(tab) } catch (e: Exception) { error = e.message ?: "تعذر التحميل" } } }
 
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
-        MaterialTheme(colorScheme = darkColorScheme(primary = Gold, background = Black, surface = Panel, onBackground = Color.White, onSurface = Color.White)) {
-            Column(Modifier.fillMaxSize().background(Black).padding(16.dp)) {
-                Text("تواصل العطا", color = Gold, fontSize = 30.sp, fontWeight = FontWeight.Bold, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
-                Text("AL-ATTA • Android Native", color = Color.LightGray, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
-                Spacer(Modifier.height(24.dp))
-                if (token.isBlank()) {
-                    OutlinedTextField(value = username, onValueChange = { username = it }, label = { Text("اسم المستخدم أو البريد أو الهاتف") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
-                    Spacer(Modifier.height(12.dp))
-                    OutlinedTextField(value = password, onValueChange = { password = it }, label = { Text("كلمة المرور") }, visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth(), singleLine = true)
-                    Spacer(Modifier.height(16.dp))
-                    Button(onClick = {
-                        scope.launch {
-                            busy = true; error = ""
-                            try {
-                                val result = withContext(Dispatchers.IO) {
-                                    request("/api/login", JSONObject().put("username", username.trim()).put("password", password))
-                                }
-                                token = result.getString("token")
-                                displayName = result.optJSONObject("user")?.optString("fullName")?.takeIf { it.isNotBlank() } ?: username
-                                password = ""
-                                refresh()
-                            } catch (e: Exception) { error = e.message ?: "تعذر تسجيل الدخول" }
-                            finally { busy = false }
-                        }
-                    }, enabled = !busy && username.isNotBlank() && password.isNotBlank(), modifier = Modifier.fillMaxWidth()) { Text("تسجيل الدخول") }
-                } else {
-                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                        Text("مرحبًا، $displayName", color = Color.White, modifier = Modifier.weight(1f))
-                        TextButton(onClick = { token = ""; posts = emptyList(); error = "" }) { Text("خروج") }
+        MaterialTheme(colorScheme = darkColorScheme(primary = Gold, background = Black, surface = Panel, onSurface = White, onBackground = White)) {
+            Column(Modifier.fillMaxSize().background(Black)) {
+                Column(
+                    Modifier.fillMaxWidth()
+                        .shadow(10.dp)
+                        .background(Brush.verticalGradient(listOf(Color(0xFF080B0E), Color(0xFF050709))))
+                        .border(width = 0.5.dp, color = Gold.copy(alpha = .5f))
+                        .padding(top = 18.dp, bottom = 10.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
+                        Image(painter = painterResource(R.drawable.logo_premium), contentDescription = "شعار تواصل العطا", modifier = Modifier.size(48.dp))
+                        Spacer(Modifier.width(10.dp))
+                        Text("تواصل العطا", color = GoldLight, fontSize = 25.sp, fontWeight = FontWeight.ExtraBold)
                     }
-                    OutlinedTextField(value = draft, onValueChange = { draft = it }, label = { Text("بم تفكر؟") }, modifier = Modifier.fillMaxWidth())
-                    Button(onClick = {
-                        scope.launch {
-                            busy = true; error = ""
-                            try {
-                                withContext(Dispatchers.IO) { request("/api/posts", JSONObject().put("token", token).put("text", draft)) }
-                                draft = ""; refresh()
-                            } catch (e: Exception) { error = e.message ?: "تعذر النشر" }
-                            finally { busy = false }
+                    Text("AL-ATTA", color = GoldLight.copy(alpha = .75f), fontSize = 11.sp, letterSpacing = 2.sp)
+                }
+                if (token.isBlank()) {
+                    Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        SectionTitle("تسجيل الدخول")
+                        OutlinedTextField(username, { username = it }, label = { Text("اسم المستخدم أو البريد أو الهاتف") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                        OutlinedTextField(password, { password = it }, label = { Text("كلمة المرور") }, visualTransformation = PasswordVisualTransformation(), singleLine = true, modifier = Modifier.fillMaxWidth())
+                        GoldButton("دخول", !busy && username.isNotBlank() && password.isNotBlank()) {
+                            task {
+                                val result = withContext(Dispatchers.IO) { api("/api/login", JSONObject().put("username", username.trim()).put("password", password)) }
+                                token = result.getString("token")
+                                val u = result.optJSONObject("user") ?: JSONObject()
+                                displayName = u.name().ifBlank { username }
+                                myUsername = u.optString("username", username).lowercase()
+                                prefs.edit().putString("token", token).putString("name", displayName).putString("username", myUsername).apply()
+                                password = ""; tab = "الرئيسية"
+                            }
                         }
-                    }, enabled = !busy && draft.isNotBlank()) { Text("نشر") }
-                    TextButton(onClick = { refresh() }, enabled = !busy) { Text("تحديث المنشورات") }
-                    LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        items(posts) { post ->
-                            Column(Modifier.fillMaxWidth().background(Panel, RoundedCornerShape(14.dp)).padding(16.dp)) {
-                                Text(post.author, color = Gold, fontWeight = FontWeight.Bold)
-                                Spacer(Modifier.height(8.dp))
-                                if (post.text.isNotBlank()) Text(post.text, color = Color.White)
-                                PostMedia(post)
+                    }
+                } else {
+                    ScrollableTabRow(selectedTabIndex = listOf("الرئيسية", "استكشاف", "الأصدقاء", "الرسائل", "الإشعارات", "المجموعات", "يوتيوب", "المحفوظات", "الملف").indexOf(tab).coerceAtLeast(0), edgePadding = 8.dp, containerColor = Panel, contentColor = GoldLight) {
+                        listOf("الرئيسية", "استكشاف", "الأصدقاء", "الرسائل", "الإشعارات", "المجموعات", "يوتيوب", "المحفوظات", "الملف").forEach { name -> Tab(selected = tab == name, onClick = { tab = name }, text = { Text(name, fontSize = 12.sp) }) }
+                    }
+                    Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text("مرحبًا، $displayName", color = GoldLight, modifier = Modifier.weight(1f), maxLines = 1)
+                        TextButton(onClick = { refresh() }) { Text("تحديث") }
+                        TextButton(onClick = {
+                            token = ""; posts = emptyList(); prefs.edit().clear().apply()
+                        }) { Text("خروج") }
+                    }
+                    when (tab) {
+                        "الرئيسية", "استكشاف", "المحفوظات" -> LazyColumn(Modifier.fillMaxSize().padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            if (tab == "الرئيسية") {
+                                item {
+                                    CardBox {
+                                        SectionTitle("بم تفكر؟")
+                                        OutlinedTextField(draft, { draft = it }, modifier = Modifier.fillMaxWidth(), placeholder = { Text("اكتب منشورًا...") }, minLines = 2)
+                                        pickedUri?.let { Text("مرفق: ${it.lastPathSegment ?: "ملف"}", color = GoldLight) }
+                                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                            OutlinedButton(onClick = { picker.launch("image/*") }) { Text("صورة") }
+                                            OutlinedButton(onClick = { picker.launch("video/*") }) { Text("فيديو") }
+                                            GoldButton("نشر", !busy && (draft.isNotBlank() || pickedUri != null)) {
+                                                task {
+                                                    var image = ""; var video = ""
+                                                    pickedUri?.let { uri ->
+                                                        val bytes = withContext(Dispatchers.IO) { ctx.contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: byteArrayOf() }
+                                                        require(bytes.size <= 50 * 1024 * 1024) { "الحد الأقصى 50 ميجابايت" }
+                                                        val mime = pickedMime.ifBlank { "image/jpeg" }
+                                                        val url = withContext(Dispatchers.IO) { upload(token, uri, mime, uri.lastPathSegment ?: "upload", bytes) }
+                                                        if (mime.startsWith("video/")) video = url else image = url
+                                                    }
+                                                    post("/api/posts", JSONObject().put("text", draft).put("image", image).put("video", video))
+                                                    draft = ""; pickedUri = null; load("الرئيسية")
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                                item { SectionTitle("الحالات")
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        OutlinedTextField(storyText, { storyText = it }, label = { Text("حالة جديدة") }, modifier = Modifier.weight(1f))
+                                        GoldButton("إضافة", storyText.isNotBlank()) { task { post("/api/stories", JSONObject().put("text", storyText)); storyText = ""; load(tab) } }
+                                    }
+                                }
+                                item {
+                                    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        stories.take(20).forEach { st ->
+                                            Column(Modifier.width(110.dp).border(1.dp, Gold, RoundedCornerShape(14.dp)).padding(8.dp)) {
+                                                Text(st.optString("author"), color = GoldLight, maxLines = 1)
+                                                if (media(st.optString("media")).isNotBlank()) AsyncImage(media(st.optString("media")), null, Modifier.fillMaxWidth().height(80.dp), contentScale = ContentScale.Crop)
+                                                Text(st.optString("text"), maxLines = 2, fontSize = 11.sp)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            items(posts, key = { it.optString("id", it.hashCode().toString()) }) { p ->
+                                val author = p.optJSONObject("authorInfo") ?: JSONObject()
+                                val postId = p.optString("id")
+                                var comment by remember(postId) { mutableStateOf("") }
+                                var showComments by remember(postId) { mutableStateOf(false) }
+                                CardBox {
+                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                        Avatar(author.optString("avatar"), author.name())
+                                        Column { Text(author.name().ifBlank { p.optString("author") }, color = GoldLight, fontWeight = FontWeight.Bold); Text(p.optString("author"), fontSize = 11.sp, color = Color.LightGray) }
+                                    }
+                                    if (p.optString("text").isNotBlank()) Text(p.optString("text"), color = White, modifier = Modifier.padding(vertical = 10.dp))
+                                    val image = media(p.optString("image")); val video = media(p.optString("video"))
+                                    if (image.isNotBlank()) AsyncImage(image, "صورة المنشور", Modifier.fillMaxWidth().heightIn(min = 120.dp, max = 450.dp).padding(vertical = 6.dp), contentScale = ContentScale.Fit)
+                                    if (video.isNotBlank()) NativeVideo(video)
+                                    p.optJSONObject("sharedPost")?.let { shared -> Text("مشاركة: ${shared.optString("text")}", color = GoldLight) }
+                                    Text("${p.optInt("likeCount")} إعجاب  •  ${p.optInt("commentCount")} تعليق", color = Color.LightGray, fontSize = 12.sp)
+                                    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                                        TextButton(onClick = { task { post("/api/post-like", JSONObject().put("postId", postId)); load(tab) } }) { Text(if (p.optBoolean("likedByMe")) "♥ أعجبني" else "♡ إعجاب") }
+                                        TextButton(onClick = { showComments = !showComments }) { Text("تعليق") }
+                                        TextButton(onClick = { task { post("/api/post-save", JSONObject().put("postId", postId)); load(tab) } }) { Text(if (p.optBoolean("savedByMe")) "محفوظ ✓" else "حفظ") }
+                                        TextButton(onClick = { task { post("/api/post-share", JSONObject().put("postId", postId).put("text", "")); load(tab) } }) { Text("مشاركة") }
+                                    }
+                                    Row(Modifier.horizontalScroll(rememberScrollState())) {
+                                        listOf("love" to "❤️", "haha" to "😂", "wow" to "😮", "sad" to "😢", "angry" to "😡").forEach { (reaction, emoji) ->
+                                            TextButton(onClick = { task { post("/api/post-react", JSONObject().put("postId", postId).put("reaction", reaction)); load(tab) } }) { Text(emoji) }
+                                        }
+                                    }
+                                    if (showComments) {
+                                        p.arr("comments").takeLast(15).forEach { c -> Text("${c.optString("author")}: ${c.optString("text")}", modifier = Modifier.padding(4.dp)) }
+                                        OutlinedTextField(comment, { comment = it }, label = { Text("اكتب تعليقًا") }, modifier = Modifier.fillMaxWidth())
+                                        GoldButton("إرسال التعليق", !busy && comment.isNotBlank()) { task { post("/api/post-comment", JSONObject().put("postId", postId).put("text", comment)); comment = ""; load(tab) } }
+                                    }
+                                    if (p.optString("author") == myUsername) TextButton(onClick = { task { post("/api/post-delete", JSONObject().put("postId", postId)); load(tab) } }) { Text("حذف المنشور", color = Color(0xFFFF8B8B)) }
+                                }
+                            }
+                        }
+                        "الأصدقاء" -> LazyColumn(Modifier.padding(horizontal = 12.dp)) {
+                            item { SectionTitle("طلبات الصداقة") }
+                            items(requests) { r ->
+                                val u = r.optJSONObject("user") ?: JSONObject()
+                                CardBox { Text(u.name(), color = GoldLight); Row {
+                                    GoldButton("قبول") { task { post("/api/friend-action", JSONObject().put("username", u.optString("username")).put("action", "accept")); load(tab) } }
+                                    TextButton(onClick = { task { post("/api/friend-action", JSONObject().put("username", u.optString("username")).put("action", "decline")); load(tab) } }) { Text("رفض") }
+                                } }
+                            }
+                            item { SectionTitle("بحث عن أشخاص"); OutlinedTextField(search, { search = it }, label = { Text("اسم المستخدم") }, modifier = Modifier.fillMaxWidth()); GoldButton("بحث") { refresh() } }
+                            items(users) { u ->
+                                CardBox { Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Avatar(u.optString("avatar"), u.name()); Spacer(Modifier.width(8.dp)); Text(u.name(), modifier = Modifier.weight(1f))
+                                    val state = u.optString("friendState")
+                                    TextButton(onClick = { task { if (state == "incoming") post("/api/friend-action", JSONObject().put("username", u.optString("username")).put("action", "accept")) else post("/api/friend-request", JSONObject().put("username", u.optString("username"))); load(tab) } }, enabled = state != "friends" && state != "outgoing" && u.optString("username") != myUsername) { Text(when (state) { "friends" -> "صديق"; "outgoing" -> "مرسل"; "incoming" -> "قبول"; else -> "إضافة" }) }
+                                } }
+                            }
+                            item { SectionTitle("أصدقائي") }
+                            items(friends) { u -> CardBox { Text(u.name(), color = GoldLight); TextButton(onClick = { chatWith = u.optString("username"); tab = "الرسائل" }) { Text("مراسلة") } } }
+                        }
+                        "الرسائل" -> Column(Modifier.fillMaxSize().padding(12.dp)) {
+                            if (chatWith.isBlank()) {
+                                SectionTitle("اختر صديقًا للمراسلة")
+                                LazyColumn { items(friends) { u -> CardBox { TextButton(onClick = { chatWith = u.optString("username"); refresh() }) { Text(u.name()) } } } }
+                            } else {
+                                Row(verticalAlignment = Alignment.CenterVertically) { TextButton(onClick = { chatWith = "" }) { Text("رجوع") }; Text(chatWith, color = GoldLight) }
+                                LazyColumn(Modifier.weight(1f)) { items(messages) { m -> CardBox { Text(m.optString("from"), color = GoldLight, fontSize = 12.sp); Text(m.optString("text")) } } }
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    OutlinedTextField(chatText, { chatText = it }, modifier = Modifier.weight(1f), label = { Text("رسالة") })
+                                    GoldButton("إرسال", chatText.isNotBlank()) { task { post("/api/message-send", JSONObject().put("to", chatWith).put("text", chatText)); chatText = ""; load(tab) } }
+                                }
+                            }
+                        }
+                        "الإشعارات" -> LazyColumn(Modifier.padding(12.dp)) {
+                            item { SectionTitle("الإشعارات") }
+                            items(notifications) { n -> CardBox {
+                                Text("${n.optString("from")} • ${n.optString("type")}", color = GoldLight)
+                                Text(n.optString("text"))
+                            } }
+                            item { GoldButton("تعليم الكل كمقروء") { task { post("/api/notifications/read", JSONObject()); load(tab) } } }
+                        }
+                        "المجموعات" -> LazyColumn(Modifier.padding(12.dp)) {
+                            item { SectionTitle("المجموعات")
+                                OutlinedTextField(groupName, { groupName = it }, label = { Text("اسم المجموعة الجديدة") }, modifier = Modifier.fillMaxWidth())
+                                GoldButton("إنشاء مجموعة", groupName.isNotBlank()) { task { post("/api/groups", JSONObject().put("name", groupName).put("members", JSONArray())); groupName = ""; load(tab) } }
+                            }
+                            items(groups) { g -> CardBox {
+                                Text(g.optString("name"), color = GoldLight, fontWeight = FontWeight.Bold)
+                                Text("الأعضاء: ${g.optJSONArray("members")?.length() ?: 0}", color = Color.LightGray)
+                            } }
+                        }
+                        "يوتيوب" -> LazyColumn(Modifier.padding(12.dp)) {
+                            item { SectionTitle("يوتيوب داخل تواصل العطا"); OutlinedTextField(youtubeSearch, { youtubeSearch = it }, label = { Text("ابحث عن فيديو") }, modifier = Modifier.fillMaxWidth()); GoldButton("بحث") { refresh() } }
+                            if (youtubeId.isNotBlank()) item { CardBox { YouTubePlayer(youtubeId); TextButton(onClick = { youtubeId = "" }) { Text("إغلاق المشغل") } } }
+                            items(youtubeItems) { v -> CardBox {
+                                AsyncImage(v.optString("thumbnail"), "صورة الفيديو", Modifier.fillMaxWidth().height(160.dp), contentScale = ContentScale.Crop)
+                                Text(v.optString("title"), color = GoldLight, fontWeight = FontWeight.Bold)
+                                Text(v.optString("channel"), color = Color.LightGray)
+                                GoldButton("تشغيل") { youtubeId = v.optString("id") }
+                            } }
+                        }
+                        "الملف" -> LazyColumn(Modifier.padding(12.dp)) {
+                            item {
+                                CardBox {
+                                    SectionTitle(profile.name())
+                                    if (media(profile.optString("cover")).isNotBlank()) AsyncImage(media(profile.optString("cover")), "الغلاف", Modifier.fillMaxWidth().height(140.dp), contentScale = ContentScale.Crop)
+                                    Avatar(profile.optString("avatar"), profile.name())
+                                    Text("@${profile.optString("username")}")
+                                    OutlinedTextField(profileBio, { profileBio = it }, label = { Text("نبذة عني") }, modifier = Modifier.fillMaxWidth())
+                                    GoldButton("حفظ النبذة") { task { post("/api/profile", JSONObject().put("bio", profileBio)); load(tab) } }
+                                }
                             }
                         }
                     }
                 }
-                if (busy) LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-                if (error.isNotBlank()) Text(error, color = Color(0xFFFF7777))
+                if (busy) LinearProgressIndicator(modifier = Modifier.fillMaxWidth(), color = Gold)
+                if (error.isNotBlank()) Text(error, color = Color(0xFFFF8B8B), modifier = Modifier.padding(12.dp))
             }
         }
     }
