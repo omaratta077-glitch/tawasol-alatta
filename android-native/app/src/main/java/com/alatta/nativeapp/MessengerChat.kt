@@ -81,7 +81,7 @@ private fun ChatAvatar(person: JSONObject, size: Int = 55, showRing: Boolean = f
         .border(if (showRing) 2.dp else .7.dp, ring, CircleShape)
         .padding(if (showRing) 3.dp else 1.dp).clip(CircleShape)
         .background(Brush.linearGradient(listOf(Color(0xFF6D5124), Color(0xFF241A0D)))), contentAlignment = Alignment.Center) {
-        if (avatar.isNotBlank()) AsyncImage(avatar, name, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+        if (avatar.isNotBlank()) ProfileMediaImage(avatar, name, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
         else Text(name.take(1).uppercase(), color = ChatGoldBright, fontWeight = FontWeight.Bold,
             fontSize = (size * .38f).sp)
     }

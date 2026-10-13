@@ -61,7 +61,7 @@ internal fun PublicUserProfile(
         LazyColumn(Modifier.fillMaxSize()) {
             item {
                 Box(Modifier.fillMaxWidth().height(164.dp).background(profilePanel)) {
-                    if (cover.isNotBlank()) AsyncImage(cover, "صورة الغلاف", Modifier.fillMaxSize(),
+                    if (cover.isNotBlank()) ProfileMediaImage(cover, "صورة الغلاف", Modifier.fillMaxSize(),
                         contentScale = ContentScale.Crop)
                 }
                 Column(Modifier.fillMaxWidth().padding(horizontal = 18.dp),
@@ -69,7 +69,7 @@ internal fun PublicUserProfile(
                     Box(Modifier.offset(y = (-44).dp).size(96.dp).border(3.dp, profileGold, CircleShape)
                         .padding(3.dp).clip(CircleShape).background(Color(0xFF41311A)),
                         contentAlignment = Alignment.Center) {
-                        if (avatar.isNotBlank()) AsyncImage(avatar, fullName, Modifier.fillMaxSize(),
+                        if (avatar.isNotBlank()) ProfileMediaImage(avatar, fullName, Modifier.fillMaxSize(),
                             contentScale = ContentScale.Crop)
                         else Text(fullName.take(1), fontSize = 36.sp, color = profileGold)
                     }

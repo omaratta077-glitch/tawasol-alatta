@@ -265,7 +265,7 @@ private fun openYouTube(context: android.content.Context, id: String) {
     }
 }
 @Composable private fun Avatar(url: String, label: String, onClick: (() -> Unit)? = null) {
-    if (media(url).isNotBlank()) AsyncImage(model = media(url), contentDescription = label, modifier = Modifier.size(42.dp).then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier).border(1.dp, Gold, CircleShape).clip(CircleShape), contentScale = ContentScale.Crop)
+    if (media(url).isNotBlank()) ProfileMediaImage(value = url, description = label, modifier = Modifier.size(42.dp).then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier).border(1.dp, Gold, CircleShape).clip(CircleShape), contentScale = ContentScale.Crop)
     else Box(Modifier.size(42.dp).background(Gold, CircleShape).then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier), contentAlignment = Alignment.Center) { Text(label.take(1), color = Black, fontWeight = FontWeight.Bold) }
 }
 
@@ -329,6 +329,7 @@ private fun openYouTube(context: android.content.Context, id: String) {
     var requests by remember { mutableStateOf(emptyList<JSONObject>()) }
     var notifications by remember { mutableStateOf(emptyList<JSONObject>()) }
     var profile by remember { mutableStateOf(JSONObject()) }
+    var myAvatar by remember { mutableStateOf("") }
     var search by remember { mutableStateOf("") }
     var chatWith by remember { mutableStateOf("") }
     var messages by remember { mutableStateOf(emptyList<JSONObject>()) }
@@ -368,6 +369,7 @@ private fun openYouTube(context: android.content.Context, id: String) {
         val u = result.optJSONObject("user") ?: JSONObject()
         displayName = u.name().ifBlank { fallbackName }
         myUsername = u.optString("username", fallbackName).lowercase()
+        myAvatar = u.optString("avatar")
         prefs.edit().putString("token", token).putString("name", displayName).putString("username", myUsername).apply()
         password = ""; regPass = ""; regConfirm = ""; googleIdToken = ""
         resetPassword = ""; resetConfirm = ""; authMode = "login"; tab = "الرئيسية"
@@ -487,6 +489,24 @@ private fun openYouTube(context: android.content.Context, id: String) {
             finally { busy = false }
         }
     }
+    fun changeOwnProfileImage(kind: String, uri: Uri) {
+        if (token.isBlank()) return
+        task {
+            val data = withContext(Dispatchers.IO) { encodeProfileImage(ctx, uri, kind) }
+            val updated = post("/api/profile", JSONObject().put(kind, data))
+            // Server returns the updated user, but reload if an older deployment omits it.
+            profile = updated.optJSONObject("user") ?: get("/api/me").optJSONObject("user") ?: JSONObject()
+            profileBio = profile.optString("bio")
+            myAvatar = profile.optString("avatar")
+            featureMessage = if (kind == "avatar") "تم تحديث الصورة الشخصية على الموقع والتطبيق" else "تم تحديث صورة الغلاف على الموقع والتطبيق"
+        }
+    }
+    val profileAvatarPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri != null) changeOwnProfileImage("avatar", uri)
+    }
+    val profileCoverPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri != null) changeOwnProfileImage("cover", uri)
+    }
     val chatImagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         if (uri != null) sendSelectedChatMedia(uri, "image")
     }
@@ -583,7 +603,7 @@ private fun openYouTube(context: android.content.Context, id: String) {
             }
             "الإشعارات" -> notifications = get("/api/notifications").arr("notifications")
             "المجموعات" -> groups = get("/api/groups").arr("groups")
-            "الملف" -> { profile = get("/api/me").optJSONObject("user") ?: JSONObject(); profileBio = profile.optString("bio") }
+            "الملف" -> { profile = get("/api/me").optJSONObject("user") ?: JSONObject(); profileBio = profile.optString("bio"); myAvatar = profile.optString("avatar") }
             "المحفوظات" -> posts = get("/api/saved-posts").arr("posts")
             "يوتيوب" -> youtubeItems = withContext(Dispatchers.IO) { api("/api/youtube?q=${enc(youtubeSearch)}") }.arr("items")
         }
@@ -689,6 +709,14 @@ private fun openYouTube(context: android.content.Context, id: String) {
             },
             confirmButton = { TextButton(onClick = { selectedStory = null }) { Text("إغلاق") } }
         )
+    }
+    // Fetch our actual profile photo after login, even when opening the home feed first.
+    LaunchedEffect(token) {
+        if (token.isNotBlank()) {
+            try { myAvatar = get("/api/me").optJSONObject("user")?.optString("avatar").orEmpty() }
+            catch (cancelled: CancellationException) { throw cancelled }
+            catch (_: Exception) { /* UI can still use the account initial. */ }
+        } else myAvatar = ""
     }
     LaunchedEffect(token, tab) {
         if (token.isNotBlank()) {
@@ -908,8 +936,7 @@ private fun openYouTube(context: android.content.Context, id: String) {
                                     CardBox {
                                         Row(verticalAlignment = Alignment.CenterVertically,
                                             horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-                                            Image(painterResource(R.drawable.logo_premium), "صورة المستخدم",
-                                                Modifier.size(39.dp).clip(CircleShape))
+                                            Avatar(myAvatar, displayName.ifBlank { myUsername })
                                             Text(myUsername.ifBlank { displayName }, color = White,
                                                 fontWeight = FontWeight.Bold, fontSize = 14.sp,
                                                 modifier = Modifier.weight(1f), maxLines = 1)
@@ -1122,15 +1149,58 @@ private fun openYouTube(context: android.content.Context, id: String) {
                                 }
                             } }
                         }
-                        "الملف" -> LazyColumn(Modifier.weight(1f).padding(8.dp)) {
+                        "الملف" -> LazyColumn(Modifier.weight(1f).padding(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)) {
                             item {
                                 CardBox {
-                                    SectionTitle(profile.name())
-                                    if (media(profile.optString("cover")).isNotBlank()) AsyncImage(media(profile.optString("cover")), "الغلاف", Modifier.fillMaxWidth().height(140.dp), contentScale = ContentScale.Crop)
-                                    Avatar(profile.optString("avatar"), profile.name())
-                                    Text("@${profile.optString("username")}")
-                                    OutlinedTextField(profileBio, { profileBio = it }, label = { Text("نبذة عني") }, modifier = Modifier.fillMaxWidth())
-                                    GoldButton("حفظ النبذة") { task { post("/api/profile", JSONObject().put("bio", profileBio)); load(tab) } }
+                                    SectionTitle("ملفي الشخصي")
+                                    Spacer(Modifier.height(8.dp))
+                                    Box(Modifier.fillMaxWidth().height(174.dp)
+                                        .clip(RoundedCornerShape(16.dp)).background(Panel)) {
+                                        if (media(profile.optString("cover")).isNotBlank()) {
+                                            ProfileMediaImage(profile.optString("cover"), "صورة الغلاف",
+                                                Modifier.fillMaxSize(), ContentScale.Crop)
+                                        } else {
+                                            Box(Modifier.fillMaxSize().background(
+                                                Brush.horizontalGradient(listOf(Color(0xFF282014), Color(0xFF090C0F)))))
+                                        }
+                                        Box(Modifier.align(Alignment.BottomEnd).padding(8.dp)) {
+                                            GoldButton("تغيير الغلاف", !busy) { profileCoverPicker.launch("image/*") }
+                                        }
+                                    }
+                                    Spacer(Modifier.height(10.dp))
+                                    Row(verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                        Box(Modifier.size(83.dp).border(2.dp, Gold, CircleShape)
+                                            .padding(3.dp).clip(CircleShape).background(Panel),
+                                            contentAlignment = Alignment.Center) {
+                                            if (media(profile.optString("avatar")).isNotBlank()) {
+                                                ProfileMediaImage(profile.optString("avatar"), "الصورة الشخصية",
+                                                    Modifier.fillMaxSize())
+                                            } else Text(profile.name().take(1), color = GoldLight, fontSize = 35.sp)
+                                        }
+                                        Column(Modifier.weight(1f)) {
+                                            Text(profile.name(), color = White,
+                                                fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                                            Text("@${profile.optString("username")}", color = Muted,
+                                                fontSize = 12.sp)
+                                            Spacer(Modifier.height(5.dp))
+                                            GoldButton("تغيير الصورة", !busy) {
+                                                profileAvatarPicker.launch("image/*")
+                                            }
+                                        }
+                                    }
+                                    Spacer(Modifier.height(14.dp))
+                                    OutlinedTextField(profileBio, { profileBio = it },
+                                        label = { Text("نبذة عني") }, modifier = Modifier.fillMaxWidth())
+                                    Spacer(Modifier.height(8.dp))
+                                    GoldButton("حفظ النبذة", !busy) {
+                                        task {
+                                            val updated = post("/api/profile", JSONObject().put("bio", profileBio))
+                                            profile = updated.optJSONObject("user") ?: profile
+                                        }
+                                    }
+                                    Spacer(Modifier.height(6.dp))
                                     PremiumAuthOutlineButton("تغيير كلمة السر") { changePasswordDialog = true }
                                 }
                             }
