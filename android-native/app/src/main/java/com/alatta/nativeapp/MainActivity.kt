@@ -55,7 +55,7 @@ private const val BASE = "https://tawasol-alatta.omaratta077-4fd.workers.dev"
 private val Gold = Color(0xFFE6B94E)
 private val GoldLight = Color(0xFFF6D776)
 private val Black = Color(0xFF040506)
-private val Panel = Color(0xFF080D10)
+private val Panel = Color(0xFF090D0F)
 private val Border = Color(0xFF6B5429)
 private val White = Color(0xFFF7F8F9)
 private val Muted = Color(0xFFC9D0D4)
@@ -148,7 +148,7 @@ class MainActivity : ComponentActivity() {
     } }, modifier = Modifier.fillMaxWidth().height(230.dp))
 }
 @Composable private fun Avatar(url: String, label: String) {
-    if (media(url).isNotBlank()) AsyncImage(model = media(url), contentDescription = label, modifier = Modifier.size(42.dp).clip(CircleShape), contentScale = ContentScale.Crop)
+    if (media(url).isNotBlank()) AsyncImage(model = media(url), contentDescription = label, modifier = Modifier.size(42.dp).border(1.dp, Gold, CircleShape).clip(CircleShape), contentScale = ContentScale.Crop)
     else Box(Modifier.size(42.dp).background(Gold, CircleShape), contentAlignment = Alignment.Center) { Text(label.take(1), color = Black, fontWeight = FontWeight.Bold) }
 }
 
@@ -213,20 +213,41 @@ class MainActivity : ComponentActivity() {
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
         MaterialTheme(colorScheme = darkColorScheme(primary = Gold, background = Black, surface = Panel, onSurface = White, onBackground = White)) {
             Column(Modifier.fillMaxSize().background(Black)) {
-                Column(
-                    Modifier.fillMaxWidth()
-                        .shadow(10.dp)
-                        .background(Brush.verticalGradient(listOf(Color(0xFF080B0E), Color(0xFF050709))))
-                        .border(width = 0.5.dp, color = Gold.copy(alpha = .5f))
-                        .padding(top = 9.dp, bottom = 8.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
-                        Image(painter = painterResource(R.drawable.logo_premium), contentDescription = "شعار تواصل العطا", modifier = Modifier.size(42.dp))
-                        Spacer(Modifier.width(8.dp))
-                        Text("تواصل العطا", color = GoldLight, fontSize = 23.sp, fontWeight = FontWeight.ExtraBold)
+                if (token.isBlank()) {
+                    Column(
+                        Modifier.fillMaxWidth().background(Brush.verticalGradient(listOf(Color(0xFF0B0D0F), Black)))
+                            .border(0.5.dp, Border).padding(vertical = 18.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Image(painterResource(R.drawable.logo_premium), "شعار تواصل العطا", Modifier.size(74.dp).clip(CircleShape))
+                        Text("تواصل العطا", color = GoldLight, fontSize = 27.sp, fontWeight = FontWeight.ExtraBold)
+                        Text("AL-ATTA", color = GoldLight.copy(alpha = .8f), fontSize = 13.sp, letterSpacing = 3.sp)
                     }
-                    Text("AL-ATTA", color = GoldLight.copy(alpha = .75f), fontSize = 11.sp, letterSpacing = 2.sp)
+                } else {
+                    Row(
+                        Modifier.fillMaxWidth().height(65.dp)
+                            .background(Brush.verticalGradient(listOf(Color(0xFF0E1113), Black)))
+                            .border(0.5.dp, Border.copy(alpha = .8f))
+                            .padding(horizontal = 10.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Image(painterResource(R.drawable.logo_premium), "الشعار", Modifier.size(39.dp).clip(CircleShape))
+                            Spacer(Modifier.width(7.dp))
+                            Column {
+                                Text(displayName.ifBlank { "تواصل العطا" }, color = GoldLight, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                                Text("AL-ATTA", color = Muted, fontSize = 9.sp)
+                            }
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(1.dp), verticalAlignment = Alignment.CenterVertically) {
+                            listOf("يوتيوب" to "▶", "الإشعارات" to "♧", "الرسائل" to "▢", "الأصدقاء" to "♙", "استكشاف" to "⌕").forEach { (name, symbol) ->
+                                TextButton(onClick = { tab = name }, contentPadding = PaddingValues(0.dp), modifier = Modifier.size(40.dp)) {
+                                    Text(symbol, color = if (tab == name) GoldLight else Gold, fontSize = 25.sp, lineHeight = 26.sp)
+                                }
+                            }
+                        }
+                    }
                 }
                 if (token.isBlank()) {
                     Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -246,35 +267,29 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                 } else {
-                    // Compact gold navigation, with native touch targets and no clipped labels.
-                    ScrollableTabRow(
-                        selectedTabIndex = listOf("الرئيسية", "استكشاف", "الأصدقاء", "الرسائل", "الإشعارات", "المجموعات", "يوتيوب", "المحفوظات", "الملف").indexOf(tab).coerceAtLeast(0),
-                        edgePadding = 4.dp, containerColor = Black, contentColor = GoldLight,
-                        divider = { HorizontalDivider(color = Border.copy(alpha = .65f)) }
-                    ) {
-                        listOf("الرئيسية", "استكشاف", "الأصدقاء", "الرسائل", "الإشعارات", "المجموعات", "يوتيوب", "المحفوظات", "الملف").forEach { name ->
-                            Tab(selected = tab == name, onClick = { tab = name }, modifier = Modifier.height(46.dp),
-                                text = { Text(name, fontSize = 12.sp, maxLines = 1, color = if (tab == name) GoldLight else Muted) })
+                    if (tab != "الرئيسية") {
+                        Row(Modifier.fillMaxWidth().padding(horizontal = 13.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Text(tab, color = GoldLight, fontWeight = FontWeight.Bold, fontSize = 16.sp, modifier = Modifier.weight(1f))
+                            TextButton(onClick = { refresh() }) { Text("تحديث", fontSize = 12.sp) }
+                            TextButton(onClick = { token = ""; posts = emptyList(); prefs.edit().clear().apply() }) { Text("خروج", fontSize = 12.sp) }
                         }
                     }
-                    Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text("مرحبًا، $displayName", color = GoldLight, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis, fontSize = 13.sp)
-                        TextButton(onClick = { refresh() }) { Text("تحديث") }
-                        TextButton(onClick = {
-                            token = ""; posts = emptyList(); prefs.edit().clear().apply()
-                        }) { Text("خروج") }
-                    }
                     when (tab) {
-                        "الرئيسية", "استكشاف", "المحفوظات" -> LazyColumn(Modifier.fillMaxSize().padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        "الرئيسية", "استكشاف", "المحفوظات" -> LazyColumn(Modifier.weight(1f).padding(horizontal = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             if (tab == "الرئيسية") {
                                 item {
                                     CardBox {
-                                        SectionTitle("بم تفكر؟")
-                                        OutlinedTextField(draft, { draft = it }, modifier = Modifier.fillMaxWidth(), placeholder = { Text("اكتب منشورًا...") }, minLines = 2)
+                                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                                            Image(painterResource(R.drawable.logo_premium), "صورة المستخدم", Modifier.size(44.dp).clip(CircleShape))
+                                            Spacer(Modifier.width(8.dp))
+                                            Text(myUsername.ifBlank { displayName }, color = White, fontWeight = FontWeight.Bold, fontSize = 15.sp, modifier = Modifier.weight(1f))
+                                            TextButton(onClick = { token = ""; posts = emptyList(); prefs.edit().clear().apply() }) { Text("خروج", fontSize = 12.sp) }
+                                        }
+                                        OutlinedTextField(draft, { draft = it }, modifier = Modifier.fillMaxWidth().heightIn(min = 96.dp), placeholder = { Text("بم تفكر؟", fontSize = 15.sp) }, minLines = 3, shape = RoundedCornerShape(12.dp))
                                         pickedUri?.let { Text("مرفق: ${it.lastPathSegment ?: "ملف"}", color = GoldLight) }
                                         Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                                            OutlinedButton(onClick = { picker.launch("image/*") }, contentPadding = PaddingValues(horizontal = 12.dp, vertical = 3.dp), shape = RoundedCornerShape(9.dp)) { Text("▧ صورة", fontSize = 12.sp, maxLines = 1) }
-                                            OutlinedButton(onClick = { picker.launch("video/*") }, contentPadding = PaddingValues(horizontal = 12.dp, vertical = 3.dp), shape = RoundedCornerShape(9.dp)) { Text("▷ فيديو", fontSize = 12.sp, maxLines = 1) }
+                                            OutlinedButton(onClick = { picker.launch("image/*") }, contentPadding = PaddingValues(horizontal = 9.dp, vertical = 1.dp), shape = RoundedCornerShape(10.dp), border = BorderStroke(1.dp, Gold.copy(alpha = .85f)), modifier = Modifier.height(39.dp)) { Text("▧ صورة", color = GoldLight, fontSize = 12.sp, maxLines = 1) }
+                                            OutlinedButton(onClick = { picker.launch("video/*") }, contentPadding = PaddingValues(horizontal = 9.dp, vertical = 1.dp), shape = RoundedCornerShape(10.dp), border = BorderStroke(1.dp, Gold.copy(alpha = .85f)), modifier = Modifier.height(39.dp)) { Text("▷ فيديو", color = GoldLight, fontSize = 12.sp, maxLines = 1) }
                                             GoldButton("➤ نشر", !busy && (draft.isNotBlank() || pickedUri != null)) {
                                                 task {
                                                     var image = ""; var video = ""
@@ -325,7 +340,7 @@ class MainActivity : ComponentActivity() {
                                     if (image.isNotBlank()) AsyncImage(image, "صورة المنشور", Modifier.fillMaxWidth().heightIn(min = 120.dp, max = 450.dp).padding(vertical = 6.dp), contentScale = ContentScale.Fit)
                                     if (video.isNotBlank()) NativeVideo(video)
                                     p.optJSONObject("sharedPost")?.let { shared -> Text("مشاركة: ${shared.optString("text")}", color = GoldLight) }
-                                    Text("${p.optInt("likeCount")} إعجاب  •  ${p.optInt("commentCount")} تعليق", color = Color.LightGray, fontSize = 12.sp)
+                                    HorizontalDivider(color = Border.copy(alpha = .5f), modifier = Modifier.padding(vertical = 7.dp))
                                     Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(0.dp)) {
                                         TextButton(contentPadding = PaddingValues(horizontal = 8.dp), onClick = { task { post("/api/post-like", JSONObject().put("postId", postId)); load(tab) } }) { Text(if (p.optBoolean("likedByMe")) "♥ ${p.optInt("likeCount")}" else "♡ ${p.optInt("likeCount")}", fontSize = 13.sp, maxLines = 1) }
                                         TextButton(contentPadding = PaddingValues(horizontal = 8.dp), onClick = { showComments = !showComments }) { Text("▢ ${p.optInt("commentCount")}", fontSize = 13.sp, maxLines = 1) }
@@ -346,7 +361,7 @@ class MainActivity : ComponentActivity() {
                                 }
                             }
                         }
-                        "الأصدقاء" -> LazyColumn(Modifier.padding(horizontal = 12.dp)) {
+                        "الأصدقاء" -> LazyColumn(Modifier.weight(1f).padding(horizontal = 8.dp)) {
                             item { SectionTitle("طلبات الصداقة") }
                             items(requests) { r ->
                                 val u = r.optJSONObject("user") ?: JSONObject()
@@ -366,7 +381,7 @@ class MainActivity : ComponentActivity() {
                             item { SectionTitle("أصدقائي") }
                             items(friends) { u -> CardBox { Text(u.name(), color = GoldLight); TextButton(onClick = { chatWith = u.optString("username"); tab = "الرسائل" }) { Text("مراسلة") } } }
                         }
-                        "الرسائل" -> Column(Modifier.fillMaxSize().padding(12.dp)) {
+                        "الرسائل" -> Column(Modifier.weight(1f).padding(8.dp)) {
                             if (chatWith.isBlank()) {
                                 SectionTitle("اختر صديقًا للمراسلة")
                                 LazyColumn { items(friends) { u -> CardBox { TextButton(onClick = { chatWith = u.optString("username"); refresh() }) { Text(u.name()) } } } }
@@ -379,7 +394,7 @@ class MainActivity : ComponentActivity() {
                                 }
                             }
                         }
-                        "الإشعارات" -> LazyColumn(Modifier.padding(12.dp)) {
+                        "الإشعارات" -> LazyColumn(Modifier.weight(1f).padding(8.dp)) {
                             item { SectionTitle("الإشعارات") }
                             items(notifications) { n -> CardBox {
                                 Text("${n.optString("from")} • ${n.optString("type")}", color = GoldLight)
@@ -387,7 +402,7 @@ class MainActivity : ComponentActivity() {
                             } }
                             item { GoldButton("تعليم الكل كمقروء") { task { post("/api/notifications/read", JSONObject()); load(tab) } } }
                         }
-                        "المجموعات" -> LazyColumn(Modifier.padding(12.dp)) {
+                        "المجموعات" -> LazyColumn(Modifier.weight(1f).padding(8.dp)) {
                             item { SectionTitle("المجموعات")
                                 OutlinedTextField(groupName, { groupName = it }, label = { Text("اسم المجموعة الجديدة") }, modifier = Modifier.fillMaxWidth())
                                 GoldButton("إنشاء مجموعة", groupName.isNotBlank()) { task { post("/api/groups", JSONObject().put("name", groupName).put("members", JSONArray())); groupName = ""; load(tab) } }
@@ -397,7 +412,7 @@ class MainActivity : ComponentActivity() {
                                 Text("الأعضاء: ${g.optJSONArray("members")?.length() ?: 0}", color = Color.LightGray)
                             } }
                         }
-                        "يوتيوب" -> LazyColumn(Modifier.padding(12.dp)) {
+                        "يوتيوب" -> LazyColumn(Modifier.weight(1f).padding(8.dp)) {
                             item { SectionTitle("يوتيوب داخل تواصل العطا"); OutlinedTextField(youtubeSearch, { youtubeSearch = it }, label = { Text("ابحث عن فيديو") }, modifier = Modifier.fillMaxWidth()); GoldButton("بحث") { refresh() } }
                             if (youtubeId.isNotBlank()) item { CardBox { YouTubePlayer(youtubeId); TextButton(onClick = { youtubeId = "" }) { Text("إغلاق المشغل") } } }
                             items(youtubeItems) { v -> CardBox {
@@ -407,7 +422,7 @@ class MainActivity : ComponentActivity() {
                                 GoldButton("تشغيل") { youtubeId = v.optString("id") }
                             } }
                         }
-                        "الملف" -> LazyColumn(Modifier.padding(12.dp)) {
+                        "الملف" -> LazyColumn(Modifier.weight(1f).padding(8.dp)) {
                             item {
                                 CardBox {
                                     SectionTitle(profile.name())
@@ -417,6 +432,27 @@ class MainActivity : ComponentActivity() {
                                     OutlinedTextField(profileBio, { profileBio = it }, label = { Text("نبذة عني") }, modifier = Modifier.fillMaxWidth())
                                     GoldButton("حفظ النبذة") { task { post("/api/profile", JSONObject().put("bio", profileBio)); load(tab) } }
                                 }
+                            }
+                        }
+                    }
+                    Row(
+                        Modifier.fillMaxWidth().height(64.dp)
+                            .background(Color(0xFF080B0D))
+                            .border(1.dp, Border.copy(alpha = .7f), RoundedCornerShape(topStart = 15.dp, topEnd = 15.dp))
+                            .padding(horizontal = 4.dp),
+                        horizontalArrangement = Arrangement.SpaceEvenly,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        listOf("الرئيسية" to "⌂", "استكشاف" to "⌕", "الأصدقاء" to "♙", "الرسائل" to "▢", "الإشعارات" to "♧").forEach { (name, symbol) ->
+                            Column(
+                                Modifier.weight(1f).fillMaxHeight()
+                                    .background(if (tab == name) Gold.copy(alpha = .15f) else Color.Transparent, RoundedCornerShape(13.dp))
+                                    .clickable { tab = name }.padding(vertical = 3.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
+                            ) {
+                                Text(symbol, fontSize = 24.sp, color = if (tab == name) GoldLight else Muted, lineHeight = 25.sp)
+                                Text(name, fontSize = 10.sp, color = if (tab == name) GoldLight else Muted, maxLines = 1)
                             }
                         }
                     }
