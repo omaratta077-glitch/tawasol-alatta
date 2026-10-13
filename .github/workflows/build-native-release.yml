@@ -52,11 +52,11 @@ jobs:
       - name: Package APK
         run: |
           mkdir -p release-output
-          cp android-native/app/build/outputs/apk/release/app-release.apk release-output/tawasol-alatta-v1.0.1.apk
+          cp android-native/app/build/outputs/apk/release/app-release.apk release-output/tawasol-alatta-v1.0.2.apk
       - name: Upload official APK
         uses: actions/upload-artifact@v4
         with:
-          name: Tawasol-Alatta-Official-v1.0.1
-          path: release-output/tawasol-alatta-v1.0.1.apk
+          name: Tawasol-Alatta-Official-v1.0.2
+          path: release-output/tawasol-alatta-v1.0.2.apk
           if-no-files-found: error
           retention-days: 30
