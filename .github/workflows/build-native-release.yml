@@ -24,7 +24,7 @@ jobs:
         with:
           gradle-version: '8.9'
 
-      - name: Verify v1.0.6 native source
+      - name: Verify v1.0.7 native source
         shell: bash
         run: |
           set -euo pipefail
@@ -34,14 +34,23 @@ jobs:
           test -f "$BUILD_FILE"
           test -f "$MAIN_FILE"
           test -f "$GOOGLE_FILE"
-          grep -Eq 'versionCode[[:space:]]*=[[:space:]]*106' "$BUILD_FILE"
-          grep -Eq 'versionName[[:space:]]*=[[:space:]]*"1\.0\.6"' "$BUILD_FILE"
+          grep -Eq 'versionCode[[:space:]]*=[[:space:]]*107' "$BUILD_FILE"
+          grep -Eq 'versionName[[:space:]]*=[[:space:]]*"1\.0\.7"' "$BUILD_FILE"
           grep -q 'GoogleNativeSignIn.pickAccount' "$MAIN_FILE"
           if grep -Eq 'GoogleWebBridge\.begin|android-google-auth\.html' "$MAIN_FILE"; then
             echo '::error::Old browser-based Google login still present in MainActivity.kt'
             exit 1
           fi
-          echo 'Native Google sign-in and version 1.0.6 verified.'
+          CHAT_FILE=android-native/app/src/main/java/com/alatta/nativeapp/MessengerChat.kt
+          test -s "$CHAT_FILE"
+          grep -q 'MessengerInbox(' "$MAIN_FILE"
+          grep -q 'MessengerThread(' "$MAIN_FILE"
+          grep -q 'api/conversation' "$MAIN_FILE"
+          if grep -q 'اختر صديقًا للمراسلة' "$MAIN_FILE"; then
+            echo '::error::Old chat UI detected'
+            exit 1
+          fi
+          echo 'Native Google sign-in, Messenger UI, and version 1.0.7 verified.' 
 
       - name: Install Android SDK components
         shell: bash
@@ -110,13 +119,13 @@ jobs:
             exit 1
           }
           mkdir -p release-output
-          cp "$APK" release-output/tawasol-alatta-v1.0.6.apk
-          sha256sum release-output/tawasol-alatta-v1.0.6.apk > release-output/SHA256SUMS.txt
+          cp "$APK" release-output/tawasol-alatta-v1.0.7.apk
+          sha256sum release-output/tawasol-alatta-v1.0.7.apk > release-output/SHA256SUMS.txt
 
-      - name: Upload official APK v1.0.6
+      - name: Upload official APK v1.0.7
         uses: actions/upload-artifact@v4
         with:
-          name: Tawasol-Alatta-Official-v1.0.6
+          name: Tawasol-Alatta-Official-v1.0.7
           path: release-output/
           if-no-files-found: error
           retention-days: 30
