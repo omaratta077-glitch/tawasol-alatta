@@ -26,7 +26,14 @@ once('          country:reg.country,\n          passwordHash:await hashPassword(
 once('        country:reg.country,\n        passwordHash:reg.passwordHash,','        country:reg.country,\n        city:reg.city||"",\n        passwordHash:reg.passwordHash,','registered user')
 
 # Hide sessions created before password reset.
-once('    if(!u || u.banned)return null;\n    return session;','    if(!u || u.banned)return null;\n    if(u.passwordChangedAt && session.createdAt < u.passwordChangedAt)return null;\n    return session;','session invalidation')
+# Session versions are monotonic and safe even if password changes occur within the same millisecond.
+# Existing sessions without authVersion are treated as version 0 until the first password change.
+once('    await this.ctx.storage.put(`session:${token}`,{username,createdAt:Date.now()});',
+     '    const sessionUser=await this.user(username);\n    await this.ctx.storage.put(`session:${token}`,{username,createdAt:Date.now(),authVersion:Number(sessionUser?.authVersion||0)});',
+     'attach auth version to newly created sessions')
+once('    if(!u || u.banned)return null;\n    return session;',
+     '    if(!u || u.banned)return null;\n    if(Number(session.authVersion||0)!==Number(u.authVersion||0))return null;\n    return session;',
+     'invalidate sessions by auth version')
 
 # Reuse the already working transactional email provider with two different purposes.
 once('  async sendVerificationEmail(email,code){','  async sendVerificationEmail(email,code,purpose="registration"){','mail function signature')
@@ -94,7 +101,8 @@ reset_routes = '''    // ALATTA_NATIVE_AUTH_V103: one-time, email-verified reset
       const u=await this.user(pending.username);
       if(!u || u.email!==pending.email || !u.passwordHash)return j({ok:false,error:"تعذّر تحديث كلمة المرور"},400);
       u.passwordHash=await hashPassword(password); // Uses same legacy password format as /api/login.
-      u.passwordChangedAt=Date.now(); // Invalidate existing sessions server-side.
+      u.passwordChangedAt=Date.now(); // Audit-only timestamp.
+      u.authVersion=Number(u.authVersion||0)+1; // Invalidate pre-change sessions.
       await this.ctx.storage.put(`user:${u.username}`,u);
       await this.ctx.storage.delete(key); // Code is single-use.
       return j({ok:true,message:"تم تغيير كلمة المرور. يمكنك تسجيل الدخول الآن"});
@@ -118,6 +126,7 @@ reset_routes = '''    // ALATTA_NATIVE_AUTH_V103: one-time, email-verified reset
       if(newPassword!==confirm)return j({ok:false,error:"تأكيد كلمة المرور غير مطابق"},400);
       user.passwordHash=await hashPassword(newPassword);
       user.passwordChangedAt=Date.now();
+      user.authVersion=Number(user.authVersion||0)+1;
       await this.ctx.storage.put(`user:${user.username}`,user);
       await this.ctx.storage.delete(attemptKey);
       return j({ok:true,message:"تم تغيير كلمة المرور، سجّل الدخول من جديد"});
