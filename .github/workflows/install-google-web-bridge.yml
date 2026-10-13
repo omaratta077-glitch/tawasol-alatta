@@ -1,0 +1,35 @@
+name: Install AL-ATTA Google Web Bridge
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  update-worker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 1
+      - name: Patch the existing Cloudflare Worker without replacing it
+        run: python3 scripts/patch_google_bridge.py --path cloudflare-site/src/worker.js
+      - name: Verify Cloudflare Worker JavaScript
+        run: node --check cloudflare-site/src/worker.js
+      - name: Test one-time browser-to-Android handoff
+        run: node scripts/test_google_bridge.mjs cloudflare-site/src/worker.js
+      - name: Commit only Worker changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- cloudflare-site/src/worker.js; then
+            echo 'Google browser bridge already installed.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add cloudflare-site/src/worker.js
+          git commit -m 'Allow first-party Google login handoff to native app'
+          git push origin HEAD:main
