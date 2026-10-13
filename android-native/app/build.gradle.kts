@@ -2,7 +2,7 @@ plugins { id("com.android.application"); id("org.jetbrains.kotlin.android"); id(
 android {
     namespace = "com.alatta.nativeapp"
     compileSdk = 35
-    defaultConfig { applicationId = "com.alatta.nativeapp"; minSdk = 26; targetSdk = 35; versionCode = 100; versionName = "1.0.0" }
+    defaultConfig { applicationId = "com.alatta.nativeapp"; minSdk = 26; targetSdk = 35; versionCode = 101; versionName = "1.0.1" }
     signingConfigs {
         create("officialRelease") {
             val storePath = System.getenv("ALATTA_KEYSTORE_PATH")

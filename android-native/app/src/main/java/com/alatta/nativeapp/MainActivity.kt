@@ -7,6 +7,7 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.*
@@ -162,6 +163,11 @@ class MainActivity : ComponentActivity() {
     var displayName by remember { mutableStateOf(prefs.getString("name", "") ?: "") }
     var myUsername by remember { mutableStateOf(prefs.getString("username", "") ?: "") }
     var tab by remember { mutableStateOf("الرئيسية") }
+    val visited = remember { mutableStateListOf<String>() }
+    var confirmExit by remember { mutableStateOf(false) }
+    var showStoryComposer by remember { mutableStateOf(false) }
+    var selectedStory by remember { mutableStateOf<JSONObject?>(null) }
+    var featureMessage by remember { mutableStateOf("") }
     var error by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
     var draft by remember { mutableStateOf("") }
@@ -197,7 +203,7 @@ class MainActivity : ComponentActivity() {
     suspend fun post(path: String, data: JSONObject): JSONObject = withContext(Dispatchers.IO) { api(path, data.put("token", token)) }
     suspend fun load(which: String) {
         when (which) {
-            "الرئيسية" -> { posts = get("/api/posts?limit=40").arr("posts"); stories = get("/api/stories").arr("stories") }
+            "الرئيسية" -> { posts = get("/api/posts?limit=40").arr("posts"); stories = get("/api/stories").arr("stories"); try { notifications = get("/api/notifications").arr("notifications") } catch (_: Exception) { } }
             "استكشاف" -> posts = get("/api/explore").arr("posts")
             "الأصدقاء" -> { users = get("/api/users?q=${enc(search)}").arr("users"); friends = get("/api/friends").arr("friends"); requests = get("/api/friend-requests").arr("requests") }
             "الرسائل" -> { friends = get("/api/friends").arr("friends"); if (chatWith.isNotBlank()) messages = get("/api/conversation?with=${enc(chatWith)}").arr("messages") }
@@ -209,11 +215,66 @@ class MainActivity : ComponentActivity() {
         }
     }
     fun refresh() = task { load(tab) }
+    fun navigate(destination: String) {
+        if (tab != destination) { visited.add(tab); tab = destination }
+    }
+    BackHandler(enabled = token.isNotBlank()) {
+        when {
+            tab == "الرسائل" && chatWith.isNotBlank() -> chatWith = ""
+            visited.isNotEmpty() -> tab = visited.removeAt(visited.lastIndex)
+            tab != "الرئيسية" -> tab = "الرئيسية"
+            else -> confirmExit = true
+        }
+    }
+    if (confirmExit) AlertDialog(
+        onDismissRequest = { confirmExit = false },
+        title = { Text("إغلاق تواصل العطا؟") },
+        text = { Text("هل تريد الخروج من التطبيق؟") },
+        confirmButton = { TextButton(onClick = { confirmExit = false; (ctx as? ComponentActivity)?.finish() }) { Text("خروج") } },
+        dismissButton = { TextButton(onClick = { confirmExit = false }) { Text("إلغاء") } }
+    )
+    if (featureMessage.isNotBlank()) AlertDialog(
+        onDismissRequest = { featureMessage = "" },
+        title = { Text("معلومة") }, text = { Text(featureMessage) },
+        confirmButton = { TextButton(onClick = { featureMessage = "" }) { Text("حسنًا") } }
+    )
+    if (showStoryComposer) AlertDialog(
+        onDismissRequest = { showStoryComposer = false },
+        title = { Text("إضافة قصة") },
+        text = { OutlinedTextField(storyText, { storyText = it }, label = { Text("اكتب قصتك") }) },
+        confirmButton = {
+            TextButton(onClick = {
+                showStoryComposer = false
+                if (storyText.isNotBlank()) task {
+                    post("/api/stories", JSONObject().put("text", storyText))
+                    storyText = ""; load("الرئيسية")
+                }
+            }, enabled = storyText.isNotBlank()) { Text("نشر القصة") }
+        },
+        dismissButton = { TextButton(onClick = { showStoryComposer = false }) { Text("إلغاء") } }
+    )
+    selectedStory?.let { st ->
+        AlertDialog(
+            onDismissRequest = { selectedStory = null },
+            title = { Text(st.optString("author", "قصة")) },
+            text = {
+                Column {
+                    Text(st.optString("text"))
+                    val storyMedia = media(st.optString("media"))
+                    if (storyMedia.isNotBlank()) {
+                        if (storyMedia.contains(".mp4", true)) NativeVideo(storyMedia)
+                        else AsyncImage(storyMedia, "القصة", Modifier.fillMaxWidth().heightIn(max = 280.dp), contentScale = ContentScale.Fit)
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { selectedStory = null }) { Text("إغلاق") } }
+        )
+    }
     LaunchedEffect(token, tab) { if (token.isNotBlank()) { try { load(tab) } catch (e: Exception) { error = e.message ?: "تعذر التحميل" } } }
 
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
         MaterialTheme(colorScheme = darkColorScheme(primary = Gold, background = Black, surface = Panel, onSurface = White, onBackground = White)) {
-            Column(Modifier.fillMaxSize().background(Black)) {
+            Column(Modifier.fillMaxSize().background(Black).safeDrawingPadding()) {
                 if (token.isBlank()) {
                     Column(
                         Modifier.fillMaxWidth().background(Brush.verticalGradient(listOf(Color(0xFF0B0D0F), Black)))
@@ -221,34 +282,16 @@ class MainActivity : ComponentActivity() {
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Image(painterResource(R.drawable.logo_premium), "شعار تواصل العطا", Modifier.size(74.dp).clip(CircleShape))
-                        Text("تواصل العطا", color = GoldLight, fontSize = 27.sp, fontWeight = FontWeight.ExtraBold)
+                        Text("العطا", color = GoldLight, fontSize = 27.sp, fontWeight = FontWeight.ExtraBold)
                         Text("AL-ATTA", color = GoldLight.copy(alpha = .8f), fontSize = 13.sp, letterSpacing = 3.sp)
                     }
                 } else {
-                    Row(
-                        Modifier.fillMaxWidth().height(65.dp)
-                            .background(Brush.verticalGradient(listOf(Color(0xFF0E1113), Black)))
-                            .border(0.5.dp, Border.copy(alpha = .8f))
-                            .padding(horizontal = 10.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Image(painterResource(R.drawable.logo_premium), "الشعار", Modifier.size(39.dp).clip(CircleShape))
-                            Spacer(Modifier.width(7.dp))
-                            Column {
-                                Text(displayName.ifBlank { "تواصل العطا" }, color = GoldLight, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1)
-                                Text("AL-ATTA", color = Muted, fontSize = 9.sp)
-                            }
-                        }
-                        Row(horizontalArrangement = Arrangement.spacedBy(1.dp), verticalAlignment = Alignment.CenterVertically) {
-                            listOf("يوتيوب" to "▶", "الإشعارات" to "♧", "الرسائل" to "▢", "الأصدقاء" to "♙", "استكشاف" to "⌕").forEach { (name, symbol) ->
-                                TextButton(onClick = { tab = name }, contentPadding = PaddingValues(0.dp), modifier = Modifier.size(40.dp)) {
-                                    Text(symbol, color = if (tab == name) GoldLight else Gold, fontSize = 25.sp, lineHeight = 26.sp)
-                                }
-                            }
-                        }
-                    }
+                    PremiumHeader(
+                        current = tab,
+                        unreadNotifications = notifications.count { !it.optBoolean("read", false) },
+                        onNavigate = ::navigate
+                    )
+                    PremiumSearchBar { navigate("استكشاف") }
                 }
                 if (token.isBlank()) {
                     Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -280,18 +323,14 @@ class MainActivity : ComponentActivity() {
                             if (tab == "الرئيسية") {
                                 item {
                                     CardBox {
-                                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                                            Image(painterResource(R.drawable.logo_premium), "صورة المستخدم", Modifier.size(44.dp).clip(CircleShape))
-                                            Spacer(Modifier.width(8.dp))
-                                            Text(myUsername.ifBlank { displayName }, color = White, fontWeight = FontWeight.Bold, fontSize = 15.sp, modifier = Modifier.weight(1f))
-                                            TextButton(onClick = { token = ""; posts = emptyList(); prefs.edit().clear().apply() }) { Text("خروج", fontSize = 12.sp) }
-                                        }
-                                        OutlinedTextField(draft, { draft = it }, modifier = Modifier.fillMaxWidth().heightIn(min = 96.dp), placeholder = { Text("بم تفكر؟", fontSize = 15.sp) }, minLines = 3, shape = RoundedCornerShape(12.dp))
-                                        pickedUri?.let { Text("مرفق: ${it.lastPathSegment ?: "ملف"}", color = GoldLight) }
-                                        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                                            OutlinedButton(onClick = { picker.launch("image/*") }, contentPadding = PaddingValues(horizontal = 9.dp, vertical = 1.dp), shape = RoundedCornerShape(10.dp), border = BorderStroke(1.dp, Gold.copy(alpha = .85f)), modifier = Modifier.height(39.dp)) { Text("▧ صورة", color = GoldLight, fontSize = 12.sp, maxLines = 1) }
-                                            OutlinedButton(onClick = { picker.launch("video/*") }, contentPadding = PaddingValues(horizontal = 9.dp, vertical = 1.dp), shape = RoundedCornerShape(10.dp), border = BorderStroke(1.dp, Gold.copy(alpha = .85f)), modifier = Modifier.height(39.dp)) { Text("▷ فيديو", color = GoldLight, fontSize = 12.sp, maxLines = 1) }
-                                            GoldButton("➤ نشر", !busy && (draft.isNotBlank() || pickedUri != null)) {
+                                        Row(verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+                                            Image(painterResource(R.drawable.logo_premium), "صورة المستخدم",
+                                                Modifier.size(39.dp).clip(CircleShape))
+                                            Text(myUsername.ifBlank { displayName }, color = White,
+                                                fontWeight = FontWeight.Bold, fontSize = 14.sp,
+                                                modifier = Modifier.weight(1f), maxLines = 1)
+                                            GoldButton("نشر", !busy && (draft.isNotBlank() || pickedUri != null)) {
                                                 task {
                                                     var image = ""; var video = ""
                                                     pickedUri?.let { uri ->
@@ -306,21 +345,45 @@ class MainActivity : ComponentActivity() {
                                                 }
                                             }
                                         }
-                                    }
-                                }
-                                item { SectionTitle("الحالات")
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        OutlinedTextField(storyText, { storyText = it }, label = { Text("حالة جديدة") }, modifier = Modifier.weight(1f))
-                                        GoldButton("إضافة", storyText.isNotBlank()) { task { post("/api/stories", JSONObject().put("text", storyText)); storyText = ""; load(tab) } }
+                                        Spacer(Modifier.height(8.dp))
+                                        OutlinedTextField(draft, { draft = it },
+                                            modifier = Modifier.fillMaxWidth().heightIn(min = 74.dp),
+                                            placeholder = { Text("بم تفكر؟", fontSize = 14.sp) },
+                                            minLines = 2, shape = RoundedCornerShape(12.dp))
+                                        pickedUri?.let { Text("مرفق: ${it.lastPathSegment ?: "ملف"}", color = GoldLight, fontSize = 11.sp) }
+                                        Spacer(Modifier.height(8.dp))
+                                        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                                            horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                            PremiumOutlineAction("image", "صورة") { picker.launch("image/*") }
+                                            PremiumOutlineAction("video", "فيديو") { picker.launch("video/*") }
+                                            PremiumOutlineAction("chart", "استطلاع") {
+                                                featureMessage = "إنشاء الاستطلاعات يحتاج دعمًا من واجهة السيرفر، ولم يتم تفعيله بعد."
+                                            }
+                                            PremiumOutlineAction("smile", "مشاركة مشاعر") {
+                                                featureMessage = "مشاركة المشاعر كمنشور خاص لم تُفعّل بعد."
+                                            }
+                                        }
                                     }
                                 }
                                 item {
-                                    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                        stories.take(20).forEach { st ->
-                                            Column(Modifier.width(110.dp).border(1.dp, Gold, RoundedCornerShape(14.dp)).padding(8.dp)) {
-                                                Text(st.optString("author"), color = GoldLight, maxLines = 1)
-                                                if (media(st.optString("media")).isNotBlank()) AsyncImage(media(st.optString("media")), null, Modifier.fillMaxWidth().height(80.dp), contentScale = ContentScale.Crop)
-                                                Text(st.optString("text"), maxLines = 2, fontSize = 11.sp)
+                                    CardBox {
+                                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                            Text("القصص", color = White, fontSize = 17.sp,
+                                                fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                                            Text("عرض الكل", color = GoldLight, fontSize = 12.sp,
+                                                modifier = Modifier.clickable {
+                                                    featureMessage = "القائمة تعرض القصص المتاحة حاليًا من السيرفر."
+                                                })
+                                        }
+                                        Spacer(Modifier.height(10.dp))
+                                        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                            StoryRing("إضافة قصة", "", true) { showStoryComposer = true }
+                                            stories.take(20).forEach { st ->
+                                                val storyPhoto = media(st.optString("media").ifBlank { st.optString("image") })
+                                                StoryRing(st.optString("author", "مستخدم"), storyPhoto, false) {
+                                                    selectedStory = st
+                                                }
                                             }
                                         }
                                     }
@@ -338,15 +401,31 @@ class MainActivity : ComponentActivity() {
                                     }
                                     if (p.optString("text").isNotBlank()) Text(p.optString("text"), color = White, modifier = Modifier.padding(vertical = 10.dp))
                                     val image = media(p.optString("image")); val video = media(p.optString("video"))
-                                    if (image.isNotBlank()) AsyncImage(image, "صورة المنشور", Modifier.fillMaxWidth().heightIn(min = 120.dp, max = 450.dp).padding(vertical = 6.dp), contentScale = ContentScale.Fit)
+                                    if (image.isNotBlank()) AsyncImage(image, "صورة المنشور", Modifier.fillMaxWidth().padding(vertical = 6.dp).heightIn(min = 120.dp, max = 450.dp).clip(RoundedCornerShape(11.dp)).border(.6.dp, Border.copy(alpha = .75f), RoundedCornerShape(11.dp)), contentScale = ContentScale.Fit)
                                     if (video.isNotBlank()) NativeVideo(video)
                                     p.optJSONObject("sharedPost")?.let { shared -> Text("مشاركة: ${shared.optString("text")}", color = GoldLight) }
                                     HorizontalDivider(color = Border.copy(alpha = .5f), modifier = Modifier.padding(vertical = 7.dp))
-                                    Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(0.dp)) {
-                                        TextButton(contentPadding = PaddingValues(horizontal = 8.dp), onClick = { task { post("/api/post-like", JSONObject().put("postId", postId)); load(tab) } }) { Text(if (p.optBoolean("likedByMe")) "♥ ${p.optInt("likeCount")}" else "♡ ${p.optInt("likeCount")}", fontSize = 13.sp, maxLines = 1) }
-                                        TextButton(contentPadding = PaddingValues(horizontal = 8.dp), onClick = { showComments = !showComments }) { Text("▢ ${p.optInt("commentCount")}", fontSize = 13.sp, maxLines = 1) }
-                                        TextButton(contentPadding = PaddingValues(horizontal = 8.dp), onClick = { task { post("/api/post-save", JSONObject().put("postId", postId)); load(tab) } }) { Text(if (p.optBoolean("savedByMe")) "▣ محفوظ" else "♧ حفظ", fontSize = 13.sp, maxLines = 1) }
-                                        TextButton(contentPadding = PaddingValues(horizontal = 8.dp), onClick = { task { post("/api/post-share", JSONObject().put("postId", postId).put("text", "")); load(tab) } }) { Text("↗ مشاركة", fontSize = 13.sp, maxLines = 1) }
+                                    Row(Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically) {
+                                        Row(Modifier.weight(1f).horizontalScroll(rememberScrollState()),
+                                            horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                                            PremiumPostAction("heart", p.optInt("likeCount").toString(),
+                                                color = if (p.optBoolean("likedByMe")) GoldLight else Muted) {
+                                                task { post("/api/post-like", JSONObject().put("postId", postId)); load(tab) }
+                                            }
+                                            PremiumPostAction("message-circle", p.optInt("commentCount").toString(), Muted) {
+                                                showComments = !showComments
+                                            }
+                                            // The site 'repeat' arrows are the ONE and ONLY share control.
+                                            PremiumPostAction("repeat", p.optInt("shareCount").toString(), GoldLight) {
+                                                task { post("/api/post-share", JSONObject().put("postId", postId).put("text", "")); load(tab) }
+                                            }
+                                        }
+                                        PremiumPostAction("bookmark",
+                                            if (p.optBoolean("savedByMe")) "محفوظ" else "حفظ", GoldLight) {
+                                            task { post("/api/post-save", JSONObject().put("postId", postId)); load(tab) }
+                                        }
                                     }
                                     Row(Modifier.horizontalScroll(rememberScrollState())) {
                                         listOf("love" to "❤️", "haha" to "😂", "wow" to "😮", "sad" to "😢", "angry" to "😡").forEach { (reaction, emoji) ->
@@ -380,7 +459,7 @@ class MainActivity : ComponentActivity() {
                                 } }
                             }
                             item { SectionTitle("أصدقائي") }
-                            items(friends) { u -> CardBox { Text(u.name(), color = GoldLight); TextButton(onClick = { chatWith = u.optString("username"); tab = "الرسائل" }) { Text("مراسلة") } } }
+                            items(friends) { u -> CardBox { Text(u.name(), color = GoldLight); TextButton(onClick = { chatWith = u.optString("username"); navigate("الرسائل") }) { Text("مراسلة") } } }
                         }
                         "الرسائل" -> Column(Modifier.weight(1f).padding(8.dp)) {
                             if (chatWith.isBlank()) {
@@ -436,27 +515,7 @@ class MainActivity : ComponentActivity() {
                             }
                         }
                     }
-                    Row(
-                        Modifier.fillMaxWidth().height(64.dp)
-                            .background(Color(0xFF080B0D))
-                            .border(1.dp, Border.copy(alpha = .7f), RoundedCornerShape(topStart = 15.dp, topEnd = 15.dp))
-                            .padding(horizontal = 4.dp),
-                        horizontalArrangement = Arrangement.SpaceEvenly,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        listOf("الرئيسية" to "⌂", "استكشاف" to "⌕", "الأصدقاء" to "♙", "الرسائل" to "▢", "الإشعارات" to "♧").forEach { (name, symbol) ->
-                            Column(
-                                Modifier.weight(1f).fillMaxHeight()
-                                    .background(if (tab == name) Gold.copy(alpha = .15f) else Color.Transparent, RoundedCornerShape(13.dp))
-                                    .clickable { tab = name }.padding(vertical = 3.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.Center
-                            ) {
-                                Text(symbol, fontSize = 24.sp, color = if (tab == name) GoldLight else Muted, lineHeight = 25.sp)
-                                Text(name, fontSize = 10.sp, color = if (tab == name) GoldLight else Muted, maxLines = 1)
-                            }
-                        }
-                    }
+                    PremiumBottomNav(tab, ::navigate)
                 }
                 if (busy) LinearProgressIndicator(modifier = Modifier.fillMaxWidth(), color = Gold)
                 if (error.isNotBlank()) Text(error, color = Color(0xFFFF8B8B), modifier = Modifier.padding(12.dp))
