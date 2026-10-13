@@ -7,6 +7,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
@@ -15,6 +16,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
@@ -70,11 +72,13 @@ private fun chatLastText(message: JSONObject?): String {
 }
 
 @Composable
-private fun ChatAvatar(person: JSONObject, size: Int = 55, showRing: Boolean = false) {
+private fun ChatAvatar(person: JSONObject, size: Int = 55, showRing: Boolean = false, onClick: (() -> Unit)? = null) {
     val name = contactName(person)
     val avatar = media(person.optString("avatar"))
     val ring = if (showRing) ChatGold else Color(0xFF48443A)
-    Box(Modifier.size(size.dp).border(if (showRing) 2.dp else .7.dp, ring, CircleShape)
+    Box(Modifier.size(size.dp)
+        .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
+        .border(if (showRing) 2.dp else .7.dp, ring, CircleShape)
         .padding(if (showRing) 3.dp else 1.dp).clip(CircleShape)
         .background(Brush.linearGradient(listOf(Color(0xFF6D5124), Color(0xFF241A0D)))), contentAlignment = Alignment.Center) {
         if (avatar.isNotBlank()) AsyncImage(avatar, name, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
@@ -85,9 +89,9 @@ private fun ChatAvatar(person: JSONObject, size: Int = 55, showRing: Boolean = f
 
 @Composable
 private fun ChatCircleAction(icon: String, description: String, onClick: () -> Unit) {
-    Box(Modifier.size(43.dp).clip(CircleShape).background(ChatPanel).clickable(onClick = onClick),
+    Box(Modifier.size(36.dp).clip(CircleShape).background(ChatPanel).clickable(onClick = onClick),
         contentAlignment = Alignment.Center) {
-        SiteIcon(icon, size = 21.dp, tint = ChatGoldBright)
+        SiteIcon(icon, size = 18.dp, tint = ChatGoldBright)
     }
 }
 
@@ -108,6 +112,7 @@ internal fun MessengerInbox(
     inbox: List<ChatPreview>,
     loading: Boolean,
     onOpen: (String) -> Unit,
+    onProfile: (String) -> Unit,
     onRefresh: () -> Unit
 ) {
     var query by remember { mutableStateOf("") }
@@ -125,7 +130,7 @@ internal fun MessengerInbox(
                             showNewChat = false
                             onOpen(person.optString("username"))
                         }.padding(vertical = 9.dp), verticalAlignment = Alignment.CenterVertically) {
-                            ChatAvatar(person, 43)
+                            ChatAvatar(person, 43, onClick = { onProfile(person.optString("username")) })
                             Spacer(Modifier.width(10.dp))
                             Text(contactName(person), color = ChatText, fontWeight = FontWeight.Medium)
                         }
@@ -152,35 +157,41 @@ internal fun MessengerInbox(
     }
 
     Column(Modifier.fillMaxSize().background(ChatBackground)) {
-        Row(Modifier.fillMaxWidth().padding(start = 17.dp, end = 17.dp, top = 16.dp, bottom = 12.dp),
+        Row(Modifier.fillMaxWidth().padding(start = 14.dp, end = 14.dp, top = 8.dp, bottom = 7.dp),
             verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text("الدردشات", fontWeight = FontWeight.ExtraBold, color = ChatText, fontSize = 29.sp)
-                Text("تواصل العطا", color = ChatGold, fontSize = 12.sp)
+                Text("الدردشات", fontWeight = FontWeight.ExtraBold, color = ChatText, fontSize = 25.sp)
+                Text("تواصل العطا", color = ChatGold, fontSize = 11.sp)
             }
             ChatCircleAction("plus", "بدء دردشة") { showNewChat = true }
-            Spacer(Modifier.width(10.dp))
+            Spacer(Modifier.width(5.dp))
             ChatCircleAction("repeat", "تحديث") { onRefresh() }
         }
         Row(Modifier.fillMaxWidth().padding(horizontal = 17.dp)
-            .border(1.dp, ChatDivider, RoundedCornerShape(23.dp))
-            .background(ChatPanel, RoundedCornerShape(23.dp))
-            .padding(horizontal = 14.dp, vertical = 2.dp),
+            .height(45.dp)
+            .border(1.dp, ChatDivider, RoundedCornerShape(21.dp))
+            .background(ChatPanel, RoundedCornerShape(21.dp))
+            .padding(horizontal = 10.dp),
             verticalAlignment = Alignment.CenterVertically) {
             SiteIcon("search", tint = ChatSecondary, size = 19.dp)
             Spacer(Modifier.width(8.dp))
-            androidx.compose.material3.TextField(
-                value = query, onValueChange = { query = it },
-                modifier = Modifier.fillMaxWidth(), singleLine = true,
-                placeholder = { Text("بحث عن محادثة أو صديق", fontSize = 14.sp, color = ChatSecondary) },
-                colors = TextFieldDefaults.colors(
-                    focusedTextColor = ChatText, unfocusedTextColor = ChatText,
-                    focusedContainerColor = Color.Transparent, unfocusedContainerColor = Color.Transparent,
-                    focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent),
-                textStyle = androidx.compose.ui.text.TextStyle(fontSize = 14.sp, color = ChatText)
+            BasicTextField(
+                value = query,
+                onValueChange = { query = it },
+                modifier = Modifier.weight(1f),
+                singleLine = true,
+                cursorBrush = SolidColor(ChatGold),
+                textStyle = androidx.compose.ui.text.TextStyle(fontSize = 14.sp, color = ChatText),
+                decorationBox = { innerField ->
+                    Box(contentAlignment = Alignment.CenterStart) {
+                        if (query.isBlank()) Text("بحث عن محادثة أو صديق", fontSize = 13.sp,
+                            color = ChatSecondary)
+                        innerField()
+                    }
+                }
             )
         }
-        Row(Modifier.padding(horizontal = 17.dp, vertical = 13.dp),
+        Row(Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             ChatSegment("الكل", segment == "الكل") { segment = "الكل" }
             ChatSegment("محادثات", segment == "محادثات") { segment = "محادثات" }
@@ -188,15 +199,15 @@ internal fun MessengerInbox(
         // These are contacts, NOT claimed to be online. Presence requires a separate API.
         if (contacts.isNotEmpty() && query.isBlank()) {
             Text("الأصدقاء", color = ChatSecondary, fontSize = 12.sp,
-                modifier = Modifier.padding(horizontal = 18.dp, vertical = 5.dp))
+                modifier = Modifier.padding(horizontal = 15.dp, vertical = 2.dp))
             Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp, vertical = 7.dp),
-                horizontalArrangement = Arrangement.spacedBy(17.dp)) {
+                .padding(horizontal = 14.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(9.dp)) {
                 contacts.take(16).forEach { user ->
-                    Column(Modifier.width(70.dp).clickable { onOpen(user.optString("username")) },
+                    Column(Modifier.width(62.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        ChatAvatar(user, size = 59, showRing = true)
+                        ChatAvatar(user, size = 51, showRing = true, onClick = { onProfile(user.optString("username")) })
                         Text(contactName(user), color = ChatText, fontSize = 11.sp,
                             maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center)
                     }
@@ -222,7 +233,7 @@ internal fun MessengerInbox(
                     Row(Modifier.fillMaxWidth().clickable { onOpen(preview.username) }
                         .padding(horizontal = 17.dp, vertical = 10.dp),
                         verticalAlignment = Alignment.CenterVertically) {
-                        ChatAvatar(preview.user)
+                        ChatAvatar(preview.user, onClick = { onProfile(preview.username) })
                         Spacer(Modifier.width(12.dp))
                         Column(Modifier.weight(1f)) {
                             Text(contactName(preview.user), color = ChatText,
@@ -246,6 +257,7 @@ internal fun MessengerInbox(
 
 @Composable
 private fun ChatBubble(message: JSONObject, mine: Boolean) {
+    var videoExpanded by remember(message.optString("id")) { mutableStateOf(false) }
     val body = message.optString("text")
     val mediaUrl = media(message.optString("media"))
     val mediaType = message.optString("mediaType")
@@ -266,6 +278,25 @@ private fun ChatBubble(message: JSONObject, mine: Boolean) {
                     AsyncImage(mediaUrl, "صورة داخل المحادثة", Modifier
                         .widthIn(max = 250.dp).heightIn(min = 90.dp, max = 330.dp)
                         .clip(RoundedCornerShape(12.dp)), contentScale = ContentScale.Fit)
+                } else if (mediaType == "video") {
+                    Column(Modifier.clip(RoundedCornerShape(11.dp))) {
+                        if (videoExpanded) {
+                            NativeVideo(mediaUrl)
+                            TextButton(onClick = { videoExpanded = false }) {
+                                Text("إيقاف الفيديو", color = if (mine) Color.Black else ChatGoldBright)
+                            }
+                        } else {
+                            Box(Modifier.width(235.dp).height(136.dp)
+                                .background(Color(0xFF141C20))
+                                .clickable { videoExpanded = true }, contentAlignment = Alignment.Center) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    SiteIcon("play", size = 38.dp, tint = ChatGold)
+                                    Spacer(Modifier.height(7.dp))
+                                    Text("تشغيل الفيديو", color = ChatText, fontSize = 12.sp)
+                                }
+                            }
+                        }
+                    }
                 } else {
                     Text("📎 مرفق (${mediaType})", color = if (mine) Color.Black else ChatGoldBright)
                 }
@@ -292,6 +323,10 @@ internal fun MessengerThread(
     onTextChange: (String) -> Unit,
     onSend: () -> Unit,
     onPickImage: () -> Unit,
+    onPickVideo: () -> Unit,
+    onProfile: () -> Unit,
+    onVoiceCall: () -> Unit,
+    onVideoCall: () -> Unit,
     onBack: () -> Unit,
     onRefresh: () -> Unit
 ) {
@@ -309,21 +344,23 @@ internal fun MessengerThread(
                 SiteIcon("chevron-left", tint = ChatGold, size = 26.dp)
             }
             Spacer(Modifier.width(4.dp))
-            ChatAvatar(person, size = 43)
+            ChatAvatar(person, size = 43, onClick = onProfile)
             Spacer(Modifier.width(9.dp))
             Column(Modifier.weight(1f)) {
                 Text(name, color = ChatText, fontWeight = FontWeight.Bold,
                     fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text("محادثة خاصة", color = ChatSecondary, fontSize = 11.sp)
             }
-            ChatCircleAction("repeat", "تحديث الرسائل", onRefresh)
+            ChatCircleAction("phone", "اتصال صوتي", onVoiceCall)
+            Spacer(Modifier.width(6.dp))
+            ChatCircleAction("video", "اتصال مرئي", onVideoCall)
         }
         HorizontalDivider(color = ChatDivider)
         if (messages.isEmpty()) {
             Column(Modifier.weight(1f).fillMaxWidth().padding(20.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center) {
-                ChatAvatar(person, size = 78, showRing = true)
+                ChatAvatar(person, size = 78, showRing = true, onClick = onProfile)
                 Spacer(Modifier.height(12.dp))
                 Text(name, color = ChatGoldBright, fontWeight = FontWeight.Bold, fontSize = 19.sp)
                 Text("ابدأ المحادثة برسالة لطيفة ✨", color = ChatSecondary,
@@ -342,10 +379,14 @@ internal fun MessengerThread(
         HorizontalDivider(color = ChatDivider)
         Row(Modifier.fillMaxWidth().background(ChatPanel).padding(horizontal = 10.dp, vertical = 8.dp),
             verticalAlignment = Alignment.Bottom,
-            horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-            Box(Modifier.size(43.dp).clip(CircleShape).clickable(enabled = !sending, onClick = onPickImage),
+            horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            Box(Modifier.size(34.dp).clip(CircleShape).clickable(enabled = !sending, onClick = onPickImage),
                 contentAlignment = Alignment.Center) {
-                SiteIcon("image", size = 25.dp, tint = ChatGold)
+                SiteIcon("image", size = 22.dp, tint = ChatGold)
+            }
+            Box(Modifier.size(34.dp).clip(CircleShape).clickable(enabled = !sending, onClick = onPickVideo),
+                contentAlignment = Alignment.Center) {
+                SiteIcon("video", size = 22.dp, tint = ChatGold)
             }
             OutlinedTextField(value = chatText, onValueChange = onTextChange,
                 modifier = Modifier.weight(1f).heightIn(min = 49.dp, max = 124.dp),

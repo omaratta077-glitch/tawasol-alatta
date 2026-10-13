@@ -2,6 +2,18 @@ package com.alatta.nativeapp
 
 import android.content.Intent
 import android.net.Uri
+import android.Manifest
+import android.content.pm.PackageManager
+import android.provider.OpenableColumns
+import androidx.core.content.ContextCompat
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.WebSocket
+import okhttp3.WebSocketListener
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.isActive
+import java.util.UUID
+import java.util.concurrent.TimeUnit
 import android.os.Bundle
 import android.util.Base64
 import android.webkit.WebView
@@ -130,6 +142,60 @@ private fun upload(token: String, uri: Uri, mime: String, filename: String, byte
     } finally { conn.disconnect() }
 }
 
+
+// Files up to the Cloudflare R2 endpoint limit (50 MiB) are streamed in 64 KiB chunks.
+// Do not use readBytes() for videos: phones may run out of memory.
+private fun uploadChatMedia(context: android.content.Context, token: String, uri: Uri, mime: String): String {
+    val kind = when {
+        mime.startsWith("video/") -> "video"
+        mime.startsWith("image/") -> "image"
+        else -> throw IllegalArgumentException("اختر صورة أو فيديو مدعوم")
+    }
+    val maxBytes = 50L * 1024L * 1024L
+    var displayName = if (kind == "video") "chat-video.mp4" else "chat-image.jpg"
+    var declaredSize = -1L
+    context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE),
+        null, null, null)?.use { cursor ->
+        if (cursor.moveToFirst()) {
+            val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+            val sizeIndex = cursor.getColumnIndex(OpenableColumns.SIZE)
+            if (nameIndex >= 0) displayName = cursor.getString(nameIndex) ?: displayName
+            if (sizeIndex >= 0 && !cursor.isNull(sizeIndex)) declaredSize = cursor.getLong(sizeIndex)
+        }
+    }
+    require(declaredSize <= maxBytes) { "الحد الأقصى للفيديو أو الصورة 50 ميجابايت" }
+    val path = "/api/media-upload?token=${enc(token)}&kind=$kind&name=${enc(displayName)}"
+    val conn = (URL(BASE + path).openConnection() as HttpURLConnection).apply {
+        requestMethod = "POST"; doOutput = true
+        connectTimeout = 20000; readTimeout = 150000
+        setRequestProperty("Content-Type", mime)
+        if (declaredSize > 0L) setFixedLengthStreamingMode(declaredSize)
+        else setChunkedStreamingMode(64 * 1024)
+    }
+    return try {
+        context.contentResolver.openInputStream(uri)?.use { input ->
+            conn.outputStream.use { output ->
+                val buffer = ByteArray(64 * 1024)
+                var total = 0L
+                while (true) {
+                    val n = input.read(buffer)
+                    if (n < 0) break
+                    total += n
+                    require(total <= maxBytes) { "حجم الملف يتجاوز 50 ميجابايت" }
+                    output.write(buffer, 0, n)
+                }
+            }
+        } ?: error("تعذر قراءة الفيديو من جهازك")
+        val code = conn.responseCode
+        val result = JSONObject((if (code in 200..299) conn.inputStream else conn.errorStream)
+            ?.bufferedReader()?.use { it.readText() } ?: "{}")
+        if (code !in 200..299 || !result.optBoolean("ok", true)) {
+            throw IllegalStateException(result.optString("error", "تعذر رفع المرفق"))
+        }
+        result.getString("url")
+    } finally { conn.disconnect() }
+}
+
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -154,7 +220,7 @@ class MainActivity : ComponentActivity() {
             .padding(12.dp), content = content
     )
 }
-@Composable private fun NativeVideo(url: String) {
+@Composable internal fun NativeVideo(url: String) {
     val ctx = LocalContext.current
     val player = remember(url) { ExoPlayer.Builder(ctx).build().apply { setMediaItem(MediaItem.fromUri(url)); prepare() } }
     DisposableEffect(player) { onDispose { player.release() } }
@@ -198,9 +264,9 @@ private fun openYouTube(context: android.content.Context, id: String) {
         }
     }
 }
-@Composable private fun Avatar(url: String, label: String) {
-    if (media(url).isNotBlank()) AsyncImage(model = media(url), contentDescription = label, modifier = Modifier.size(42.dp).border(1.dp, Gold, CircleShape).clip(CircleShape), contentScale = ContentScale.Crop)
-    else Box(Modifier.size(42.dp).background(Gold, CircleShape), contentAlignment = Alignment.Center) { Text(label.take(1), color = Black, fontWeight = FontWeight.Bold) }
+@Composable private fun Avatar(url: String, label: String, onClick: (() -> Unit)? = null) {
+    if (media(url).isNotBlank()) AsyncImage(model = media(url), contentDescription = label, modifier = Modifier.size(42.dp).then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier).border(1.dp, Gold, CircleShape).clip(CircleShape), contentScale = ContentScale.Crop)
+    else Box(Modifier.size(42.dp).background(Gold, CircleShape).then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier), contentAlignment = Alignment.Center) { Text(label.take(1), color = Black, fontWeight = FontWeight.Bold) }
 }
 
 @Composable private fun NativeApp() {
@@ -269,6 +335,14 @@ private fun openYouTube(context: android.content.Context, id: String) {
     var inboxPreviews by remember { mutableStateOf(emptyList<ChatPreview>()) }
     var inboxLoading by remember { mutableStateOf(false) }
     var chatText by remember { mutableStateOf("") }
+    var activeCall by remember { mutableStateOf<NativeCallSession?>(null) }
+    var incomingCall by remember { mutableStateOf<NativeCallSession?>(null) }
+    var pendingPermissionCall by remember { mutableStateOf<NativeCallSession?>(null) }
+    val knownCalls = remember(token) { mutableSetOf<String>() }
+    var profilePeer by remember { mutableStateOf("") }
+    var publicProfile by remember { mutableStateOf<JSONObject?>(null) }
+    var publicPosts by remember { mutableStateOf(emptyList<JSONObject>()) }
+    var publicProfileLoading by remember { mutableStateOf(false) }
     var youtubeSearch by remember { mutableStateOf("") }
     var youtubeItems by remember { mutableStateOf(emptyList<JSONObject>()) }
     var youtubeId by remember { mutableStateOf("") }
@@ -329,32 +403,148 @@ private fun openYouTube(context: android.content.Context, id: String) {
     }
     suspend fun get(path: String): JSONObject = withContext(Dispatchers.IO) { api("$path${if ('?' in path) "&" else "?"}token=${enc(token)}") }
     suspend fun post(path: String, data: JSONObject): JSONObject = withContext(Dispatchers.IO) { api(path, data.put("token", token)) }
-    val chatImagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
-        if (uri != null && chatWith.isNotBlank() && token.isNotBlank()) {
-            // Upload to the existing authenticated media endpoint, then send its URL.
-            scope.launch {
-                busy = true; error = ""
+    val callPermissions = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { granted ->
+        val next = pendingPermissionCall
+        pendingPermissionCall = null
+        if (next != null && granted.values.all { it }) activeCall = next
+        else {
+            featureMessage = "لا يمكن إجراء المكالمة بدون السماح بالميكروفون والكاميرا عند الحاجة"
+            if (next?.incoming == true) scope.launch {
                 try {
-                    val receiver = chatWith
-                    val mime = ctx.contentResolver.getType(uri) ?: "image/jpeg"
-                    require(mime.startsWith("image/")) { "اختر صورة من المعرض" }
-                    val bytes = withContext(Dispatchers.IO) {
-                        ctx.contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: byteArrayOf()
-                    }
-                    require(bytes.isNotEmpty() && bytes.size <= 15 * 1024 * 1024) { "الصورة يجب أن تكون أقل من 15 ميجابايت" }
-                    val url = withContext(Dispatchers.IO) {
-                        upload(token, uri, mime, uri.lastPathSegment ?: "chat-image.jpg", bytes)
-                    }
-                    post("/api/message-send", JSONObject().put("to", receiver)
-                        .put("text", "").put("media", url).put("mediaType", "image"))
-                    if (chatWith == receiver && tab == "الرسائل") {
-                        messages = get("/api/conversation?with=${enc(receiver)}").arr("messages")
-                    }
+                    val packet = JSONObject().put("type", "call-reject").put("to", next.peer)
+                        .put("from", myUsername).put("callId", next.callId)
+                        .put("callType", next.type).put("reason", "permission-denied")
+                        .put("signalId", UUID.randomUUID().toString())
+                        .put("createdAt", System.currentTimeMillis())
+                    post("/api/message-send", JSONObject().put("to", next.peer)
+                        .put("text", "").put("media", packet.toString())
+                        .put("mediaType", "call-signal"))
                 } catch (cancelled: CancellationException) { throw cancelled }
-                catch (e: Exception) { error = e.message ?: "فشل إرسال الصورة" }
-                finally { busy = false }
+                catch (_: Exception) { }
             }
         }
+    }
+    fun openCall(peer: String, type: String, incoming: Boolean = false, callId: String = UUID.randomUUID().toString()) {
+        if (peer.isBlank() || token.isBlank()) return
+        if (activeCall != null) { featureMessage = "توجد مكالمة جارية"; return }
+        val session = NativeCallSession(peer.lowercase(), type, callId, incoming)
+        val permissionNames = if (type == "video")
+            arrayOf(Manifest.permission.RECORD_AUDIO, Manifest.permission.CAMERA)
+            else arrayOf(Manifest.permission.RECORD_AUDIO)
+        val needed = permissionNames.filter {
+            ContextCompat.checkSelfPermission(ctx, it) != PackageManager.PERMISSION_GRANTED
+        }
+        if (needed.isEmpty()) activeCall = session
+        else { pendingPermissionCall = session; callPermissions.launch(needed.toTypedArray()) }
+    }
+    fun openPublicProfile(other: String) {
+        if (other.isBlank() || token.isBlank()) return
+        profilePeer = other
+        publicProfile = null; publicPosts = emptyList(); publicProfileLoading = true
+        scope.launch {
+            try {
+                val detail = get("/api/profile-public?username=${enc(other)}")
+                // Only the recent public posts returned by the existing API are shown.
+                val latest = get("/api/posts?limit=50").arr("posts").filter {
+                    it.optString("author").equals(other, ignoreCase = true)
+                }
+                if (profilePeer == other) { publicProfile = detail; publicPosts = latest }
+            } catch (cancelled: CancellationException) { throw cancelled }
+            catch (e: Exception) { if (profilePeer == other) featureMessage = e.message ?: "تعذر فتح صفحة المستخدم" }
+            finally { if (profilePeer == other) publicProfileLoading = false }
+        }
+    }
+    fun sendCallResponse(session: NativeCallSession, reason: String) {
+        scope.launch {
+            try {
+                val data = JSONObject().put("type", "call-reject").put("to", session.peer)
+                    .put("from", myUsername).put("callId", session.callId)
+                    .put("callType", session.type).put("reason", reason)
+                    .put("signalId", UUID.randomUUID().toString())
+                    .put("createdAt", System.currentTimeMillis())
+                post("/api/message-send", JSONObject().put("to", session.peer)
+                    .put("text", "").put("media", data.toString())
+                    .put("mediaType", "call-signal"))
+            } catch (cancelled: CancellationException) { throw cancelled }
+            catch (_: Exception) { }
+        }
+    }
+    fun sendSelectedChatMedia(uri: Uri, requiredType: String) {
+        if (chatWith.isBlank() || token.isBlank()) return
+        scope.launch {
+            busy = true; error = ""
+            try {
+                val receiver = chatWith
+                val mime = ctx.contentResolver.getType(uri) ?: if (requiredType == "video") "video/mp4" else "image/jpeg"
+                require(mime.startsWith("$requiredType/")) { "نوع الملف غير مدعوم" }
+                val url = withContext(Dispatchers.IO) { uploadChatMedia(ctx, token, uri, mime) }
+                post("/api/message-send", JSONObject().put("to", receiver)
+                    .put("text", "").put("media", url).put("mediaType", requiredType))
+                if (chatWith == receiver && tab == "الرسائل")
+                    messages = get("/api/conversation?with=${enc(receiver)}").arr("messages")
+            } catch (cancelled: CancellationException) { throw cancelled }
+            catch (e: Exception) { error = e.message ?: "فشل إرسال المرفق" }
+            finally { busy = false }
+        }
+    }
+    val chatImagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri != null) sendSelectedChatMedia(uri, "image")
+    }
+    val chatVideoPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri != null) sendSelectedChatMedia(uri, "video")
+    }
+
+    // A single lightweight authenticated WebSocket receives incoming calls in the
+    // foreground. WebRTC transport itself is active only while a call screen is open.
+    LaunchedEffect(token, myUsername) {
+        if (token.isBlank() || myUsername.isBlank()) return@LaunchedEffect
+        val socketClient = OkHttpClient.Builder().pingInterval(25, TimeUnit.SECONDS).build()
+        try {
+            while (isActive) {
+                val done = CompletableDeferred<Unit>()
+                val socket = socketClient.newWebSocket(
+                    Request.Builder().url("wss://tawasol-alatta.omaratta077-4fd.workers.dev/ws?token=${enc(token)}").build(),
+                    object : WebSocketListener() {
+                        override fun onMessage(webSocket: WebSocket, text: String) {
+                            val msg = try { JSONObject(text) } catch (_: Exception) { return }
+                            val signal = if (msg.optString("type") == "chat" && msg.optString("mediaType") == "call-signal")
+                                try { JSONObject(msg.optString("media")).apply {
+                                    if (!has("from")) put("from", msg.optString("from"))
+                                    if (!has("to")) put("to", msg.optString("to"))
+                                } } catch (_: Exception) { null }
+                                else msg
+                            val isCall = signal?.optString("type") == "call-request"
+                            val sender = signal?.optString("from").orEmpty()
+                            val callId = signal?.optString("callId").orEmpty()
+                            if (isCall && sender.isNotBlank() && sender != myUsername && callId.isNotBlank()) {
+                                val age = System.currentTimeMillis() - signal!!.optLong("createdAt", 0L)
+                                if (age in 0..45000L) scope.launch(Dispatchers.Main) {
+                                    if (knownCalls.add(callId)) {
+                                        val invite = NativeCallSession(sender,
+                                            signal.optString("callType", "audio"), callId, true)
+                                        if (activeCall == null && incomingCall == null) incomingCall = invite
+                                        else sendCallResponse(invite, "busy")
+                                    }
+                                }
+                            } else if (msg.optString("type") == "chat" && msg.optString("mediaType") != "call-signal") {
+                                val from = msg.optString("from"); val to = msg.optString("to")
+                                scope.launch(Dispatchers.Main) {
+                                    val other = chatWith
+                                    if (tab == "الرسائل" && other.isNotBlank() && (from == other || to == other)) {
+                                        try { messages = get("/api/conversation?with=${enc(other)}").arr("messages") }
+                                        catch (_: Exception) { }
+                                    }
+                                }
+                            }
+                        }
+                        override fun onClosed(webSocket: WebSocket, code: Int, reason: String) { done.complete(Unit) }
+                        override fun onFailure(webSocket: WebSocket, t: Throwable, response: okhttp3.Response?) { done.complete(Unit) }
+                    }
+                )
+                try { done.await() } finally { socket.close(1000, "closing") }
+                delay(2500)
+            }
+        } finally { socketClient.dispatcher.executorService.shutdown() }
     }
     suspend fun load(which: String) {
         when (which) {
@@ -404,6 +594,7 @@ private fun openYouTube(context: android.content.Context, id: String) {
     }
     BackHandler(enabled = token.isNotBlank()) {
         when {
+            profilePeer.isNotBlank() -> { profilePeer = ""; publicProfile = null }
             tab == "الرسائل" && chatWith.isNotBlank() -> {
                 chatWith = ""; messages = emptyList()
                 task { load("الرسائل") }
@@ -448,6 +639,20 @@ private fun openYouTube(context: android.content.Context, id: String) {
         },
         dismissButton = { TextButton(onClick = { changePasswordDialog = false }) { Text("إلغاء") } }
     )
+    incomingCall?.let { invitation ->
+        AlertDialog(
+            onDismissRequest = { sendCallResponse(invitation, "rejected"); incomingCall = null },
+            title = { Text(if (invitation.type == "video") "مكالمة فيديو واردة" else "مكالمة صوتية واردة", color = GoldLight) },
+            text = { Text("${invitation.peer} يتصل بك عبر تواصل العطا") },
+            confirmButton = { TextButton(onClick = {
+                incomingCall = null
+                openCall(invitation.peer, invitation.type, true, invitation.callId)
+            }) { Text("رد", color = GoldLight) } },
+            dismissButton = { TextButton(onClick = {
+                sendCallResponse(invitation, "rejected"); incomingCall = null
+            }) { Text("رفض") } }
+        )
+    }
     if (featureMessage.isNotBlank()) AlertDialog(
         onDismissRequest = { featureMessage = "" },
         title = { Text("معلومة") }, text = { Text(featureMessage) },
@@ -524,6 +729,7 @@ private fun openYouTube(context: android.content.Context, id: String) {
 
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
         MaterialTheme(colorScheme = darkColorScheme(primary = Gold, background = Black, surface = Panel, onSurface = White, onBackground = White)) {
+            Box(Modifier.fillMaxSize().background(Black)) {
             Column(Modifier.fillMaxSize().background(Black).safeDrawingPadding()) {
                 if (token.isBlank()) {
                     // Scroll only the authentication screen; Android navigation remains unobstructed.
@@ -773,7 +979,7 @@ private fun openYouTube(context: android.content.Context, id: String) {
                                 var showComments by remember(postId) { mutableStateOf(false) }
                                 CardBox {
                                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                        Avatar(author.optString("avatar"), author.name())
+                                        Avatar(author.optString("avatar"), author.name(), onClick = { openPublicProfile(author.optString("username")) })
                                         Column { Text(author.name().ifBlank { p.optString("author") }, color = GoldLight, fontWeight = FontWeight.Bold); Text(p.optString("author"), fontSize = 11.sp, color = Color.LightGray) }
                                     }
                                     if (p.optString("text").isNotBlank()) Text(p.optString("text"), color = White, modifier = Modifier.padding(vertical = 10.dp))
@@ -830,7 +1036,7 @@ private fun openYouTube(context: android.content.Context, id: String) {
                             item { SectionTitle("بحث عن أشخاص"); OutlinedTextField(search, { search = it }, label = { Text("اسم المستخدم") }, modifier = Modifier.fillMaxWidth()); GoldButton("بحث") { refresh() } }
                             items(users) { u ->
                                 CardBox { Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Avatar(u.optString("avatar"), u.name()); Spacer(Modifier.width(8.dp)); Text(u.name(), modifier = Modifier.weight(1f))
+                                    Avatar(u.optString("avatar"), u.name(), onClick = { openPublicProfile(u.optString("username")) }); Spacer(Modifier.width(8.dp)); Text(u.name(), modifier = Modifier.weight(1f))
                                     val state = u.optString("friendState")
                                     TextButton(onClick = { task { if (state == "incoming") post("/api/friend-action", JSONObject().put("username", u.optString("username")).put("action", "accept")) else post("/api/friend-request", JSONObject().put("username", u.optString("username"))); load(tab) } }, enabled = state != "friends" && state != "outgoing" && u.optString("username") != myUsername) { Text(when (state) { "friends" -> "صديق"; "outgoing" -> "مرسل"; "incoming" -> "قبول"; else -> "إضافة" }) }
                                 } }
@@ -852,6 +1058,7 @@ private fun openYouTube(context: android.content.Context, id: String) {
                                             task { messages = get("/api/conversation?with=${enc(username)}").arr("messages") }
                                         }
                                     },
+                                    onProfile = { username -> openPublicProfile(username) },
                                     onRefresh = { refresh() }
                                 )
                             } else {
@@ -876,6 +1083,10 @@ private fun openYouTube(context: android.content.Context, id: String) {
                                         }
                                     },
                                     onPickImage = { chatImagePicker.launch("image/*") },
+                                    onPickVideo = { chatVideoPicker.launch("video/*") },
+                                    onProfile = { openPublicProfile(chatWith) },
+                                    onVoiceCall = { openCall(chatWith, "audio") },
+                                    onVideoCall = { openCall(chatWith, "video") },
                                     onBack = { chatWith = ""; messages = emptyList(); refresh() },
                                     onRefresh = { task { messages = get("/api/conversation?with=${enc(chatWith)}").arr("messages") } }
                                 )
@@ -931,6 +1142,32 @@ private fun openYouTube(context: android.content.Context, id: String) {
                     if (busy) LinearProgressIndicator(modifier = Modifier.fillMaxWidth(), color = Gold)
                     if (error.isNotBlank()) Text(error, color = Color(0xFFFF8B8B), modifier = Modifier.padding(12.dp))
                 }
+            }
+            if (profilePeer.isNotBlank() && token.isNotBlank()) {
+                Box(Modifier.fillMaxSize().background(Black).safeDrawingPadding()) {
+                    PublicUserProfile(
+                        username = profilePeer, profile = publicProfile, recentPosts = publicPosts,
+                        isLoading = publicProfileLoading,
+                        onBack = { profilePeer = ""; publicProfile = null },
+                        onMessage = {
+                            val peer = profilePeer
+                            profilePeer = ""; publicProfile = null
+                            chatWith = peer; chatText = ""; messages = emptyList()
+                            navigate("الرسائل")
+                            scope.launch { try { messages = get("/api/conversation?with=${enc(peer)}").arr("messages") }
+                                catch (e: Exception) { error = e.message ?: "تعذر تحميل المحادثة" } }
+                        },
+                        onVoiceCall = { openCall(profilePeer, "audio") },
+                        onVideoCall = { openCall(profilePeer, "video") }
+                    )
+                }
+            }
+            activeCall?.let { session ->
+                Box(Modifier.fillMaxSize().background(Black).safeDrawingPadding()) {
+                    NativeCallScreen(session, token, myUsername,
+                        onClose = { activeCall = null })
+                }
+            }
             }
         }
     }

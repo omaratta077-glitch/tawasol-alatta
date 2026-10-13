@@ -1,0 +1,166 @@
+<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1"/>
+<style>
+:root{color-scheme:dark;font-family:system-ui,-apple-system,sans-serif;background:#050709;color:#faf9f5}
+*{box-sizing:border-box}body{margin:0;overflow:hidden}.page{height:100dvh;min-height:320px;display:flex;flex-direction:column;position:relative}
+.header{z-index:3;background:#101419;padding:20px 18px;border-bottom:1px solid #27211a;display:flex;gap:14px;align-items:center}
+.avatar{display:grid;place-items:center;width:53px;height:53px;border-radius:50%;border:2px solid #e6b94e;font-size:25px;background:#32251a}
+.title{font-weight:750;font-size:20px}.subtitle{color:#edca80;font-size:12px;margin-top:5px}
+.stage{flex:1;min-height:0;display:flex;flex-direction:column;align-items:center;justify-content:center;position:relative;overflow:hidden;background:radial-gradient(ellipse at 50% 25%,#23201a 0%,#050709 66%)}
+#remoteVideo{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#080b0d;display:none}
+#localVideo{position:absolute;bottom:16px;right:15px;width:112px;height:151px;object-fit:cover;border:2px solid #dfb557;border-radius:15px;z-index:2;transform:scaleX(-1);background:#101419;display:none}
+#bigAvatar{width:132px;height:132px;border-radius:50%;display:grid;place-items:center;background:linear-gradient(135deg,#705327,#201508);border:3px solid #e6b94e;font-size:58px;margin-bottom:25px}
+#hint{color:#c8beb2;font-size:14px;padding:0 22px;text-align:center;line-height:1.7}
+.actions{z-index:3;display:flex;justify-content:center;align-items:center;gap:19px;padding:22px 8px max(30px,env(safe-area-inset-bottom));background:#101419}
+button{border:0;border-radius:50%;background:#282d30;color:#ebc76d;font-size:25px;width:59px;height:59px;display:grid;place-items:center;cursor:pointer}
+button.danger{background:#c84040;color:white;width:70px;height:70px}button:active{transform:scale(.95)}button.off{background:#594020;color:#fff}
+.smallLabel{color:#d3bb85;font-size:11px;margin-top:4px}.action{display:flex;align-items:center;flex-direction:column;gap:2px}
+#error{position:absolute;bottom:185px;left:12px;right:12px;padding:11px;border-radius:9px;background:#662626;color:#fff;text-align:center;display:none;z-index:6;font-size:12px}
+</style></head><body><div class="page"><header class="header">
+<div class="avatar" id="initial">؟</div><div><div class="title" id="peer"></div><div class="subtitle" id="status">جاري التهيئة...</div></div></header>
+<div class="stage"><div id="bigAvatar">☎</div><div id="hint">مكالمة آمنة داخل تواصل العطا</div>
+<video id="remoteVideo" autoplay playsinline muted></video><video id="localVideo" autoplay playsinline muted></video>
+<audio id="remoteAudio" autoplay playsinline></audio><div id="error"></div></div>
+<div class="actions"><div class="action"><button id="mute" onclick="toggleMute()">🎙</button><span class="smallLabel">الميكروفون</span></div>
+<div class="action" id="cameraAction"><button id="camera" onclick="toggleCamera()">📷</button><span class="smallLabel">الكاميرا</span></div>
+<div class="action"><button class="danger" onclick="window.__attaEndCall()">☎</button><span class="smallLabel">إنهاء</span></div></div></div>
+<script>
+'use strict';
+const cfg=__CONFIG_JSON__;
+const BASE='https://tawasol-alatta.omaratta077-4fd.workers.dev';
+const types=new Set(['call-request','call-accept','call-reject','offer','answer','ice','hangup']);
+let active=true,pc=null,local=null,remote=null,ws=null,offerSent=false;
+let pending=[],seen=new Set(),candidateCount=0,pollHandle=0,timeoutHandle=0,connectionStarted=Date.now();
+const $=id=>document.getElementById(id);
+$('peer').textContent=cfg.peer;$('initial').textContent=cfg.peer.slice(0,1).toUpperCase();
+$('cameraAction').style.display=cfg.type==='video'?'flex':'none';
+$('bigAvatar').textContent=cfg.type==='video'?'📹':'☎';
+function status(t){$('status').textContent=t;$('hint').textContent=t;try{AttaBridge.onStatus(t)}catch(e){}}
+function error(t){$('error').textContent=t;$('error').style.display='block';status(t)}
+function id(){return (crypto.randomUUID?crypto.randomUUID():Date.now().toString(36)+Math.random().toString(36).slice(2));}
+function isFresh(m){return Date.now()-Number(m.createdAt||m.ts||0)<120000;}
+async function req(path,method='GET',body){
+ const options={method,cache:'no-store',headers:{'Content-Type':'application/json'}};
+ if(body)options.body=JSON.stringify(body);
+ const r=await fetch(BASE+path,options);const d=await r.json();if(!r.ok||d.ok===false)throw Error(d.error||'تعذر الاتصال بالخادم');return d;
+}
+async function transmit(type,data={}){
+ const packet={...data,type,to:cfg.peer,from:cfg.me,callId:cfg.callId,callType:cfg.type,signalId:id(),createdAt:Date.now()};
+ let realtime=false;
+ if(ws&&ws.readyState===1){try{ws.send(JSON.stringify(packet));realtime=true;}catch(e){}}
+ // ICE can go over the live socket without creating dozens of saved messages.
+ if(type==='ice'&&realtime)return;
+ // Persist all critical signals so the website and mobile interoperate even on a lost socket.
+ try{return await req('/api/message-send','POST',{token:cfg.token,to:cfg.peer,text:'',media:JSON.stringify(packet),mediaType:'call-signal'});}
+ catch(e){if(!realtime)throw e;}
+}
+function receiveRaw(raw){
+ if(!active||!raw)return;
+ let s=raw;
+ if(raw.type==='chat'&&raw.mediaType==='call-signal'){
+   try{s=JSON.parse(raw.media||'{}')}catch(e){return}
+   s.from=s.from||raw.from;s.to=s.to||raw.to;s.signalId=s.signalId||raw.id;
+ }
+ if(!types.has(s.type)||s.from!==cfg.peer||s.callId!==cfg.callId||(s.to&&s.to!==cfg.me)||!isFresh(s))return;
+ const unique=s.signalId||s.type+':'+s.createdAt;
+ if(seen.has(unique))return;
+ seen.add(unique);if(seen.size>400)seen=new Set([...seen].slice(-200));
+ handle(s).catch(e=>error('تعذر معالجة الاتصال: '+e.message));
+}
+function connect(){
+ try{
+ ws=new WebSocket('wss://tawasol-alatta.omaratta077-4fd.workers.dev/ws?token='+encodeURIComponent(cfg.token));
+ ws.onmessage=e=>{try{receiveRaw(JSON.parse(e.data))}catch(err){}};
+ ws.onclose=()=>{if(active)setTimeout(connect,2400)};
+ }catch(e){/* HTTP is the fallback */}
+}
+async function poll(){
+ if(!active)return;
+ try{const d=await req('/api/conversation?token='+encodeURIComponent(cfg.token)+'&with='+encodeURIComponent(cfg.peer));
+ for(const m of d.messages||[])if(m.mediaType==='call-signal'&&m.to===cfg.me)receiveRaw(m);
+ }catch(e){/* live socket may still work */}
+}
+async function mediaAndPeer(){
+ if(pc)return pc;
+ status('جاري تشغيل الميكروفون'+(cfg.type==='video'?' والكاميرا':'')+'...');
+ const turn=req('/api/turn-credentials?token='+encodeURIComponent(cfg.token)).catch(()=>null);
+ local=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true},video:cfg.type==='video'?{width:{ideal:640},height:{ideal:360},frameRate:{ideal:15,max:20},facingMode:'user'}:false});
+ if(!active){local.getTracks().forEach(t=>t.stop());return null}
+ if(cfg.type==='video'){$('localVideo').srcObject=local;$('localVideo').style.display='block';$('localVideo').play().catch(()=>{});}
+ const turnData=await Promise.race([turn,new Promise(resolve=>setTimeout(()=>resolve(null),2200))]);
+ const servers=(turnData&&turnData.iceServers&&turnData.iceServers.length)?turnData.iceServers:[{urls:'stun:stun.cloudflare.com:3478'},{urls:'stun:stun.l.google.com:19302'}];
+ pc=new RTCPeerConnection({iceServers:servers,iceCandidatePoolSize:2,bundlePolicy:'max-bundle',rtcpMuxPolicy:'require'});
+ remote=new MediaStream();
+ for(const track of local.getTracks()){
+  const sender=pc.addTrack(track,local);
+  try{const params=sender.getParameters();params.encodings=params.encodings?.length?params.encodings:[{}];
+   params.encodings[0].maxBitrate=track.kind==='video'?600000:40000;
+   if(track.kind==='video')params.encodings[0].maxFramerate=18;
+   await sender.setParameters(params);
+  }catch(e){}
+ }
+ pc.onicecandidate=e=>{if(e.candidate&&candidateCount++<24)transmit('ice',{candidate:e.candidate.toJSON()}).catch(()=>{});};
+ pc.ontrack=e=>{
+  if(!remote.getTracks().some(t=>t.id===e.track.id))remote.addTrack(e.track);
+  if(e.track.kind==='video'){$('remoteVideo').style.display='block';$('bigAvatar').style.display='none';$('remoteVideo').srcObject=remote;$('remoteVideo').play().catch(()=>{});}
+  if(e.track.kind==='audio'){$('remoteAudio').srcObject=new MediaStream(remote.getAudioTracks());$('remoteAudio').play().catch(()=>{});}
+  status('مكالمة جارية');
+ };
+ pc.onconnectionstatechange=()=>{if(!pc)return;const c=pc.connectionState;
+  if(c==='connected'){status('متصل الآن');clearTimeout(timeoutHandle);}
+  if(c==='disconnected')status('الاتصال غير مستقر — جاري المحاولة');
+  if(c==='failed')error('فشل اتصال الوسائط. تأكد من إعداد TURN والإنترنت');
+ };
+ return pc;
+}
+async function gatheringWait(){
+ if(!pc||pc.iceGatheringState==='complete')return;
+ await new Promise(resolve=>{let done=false;const finish=()=>{if(done)return;done=true;pc?.removeEventListener('icegatheringstatechange',watch);resolve()};
+ const watch=()=>{if(pc?.iceGatheringState==='complete')finish()};pc.addEventListener('icegatheringstatechange',watch);setTimeout(finish,1400);});
+}
+async function flush(){if(!pc?.remoteDescription)return;
+ const queue=pending;pending=[];for(const c of queue){try{await pc.addIceCandidate(c)}catch(e){}}
+}
+async function handle(s){
+ if(!active)return;
+ if(s.type==='call-reject'){error(s.reason==='busy'?'المستخدم مشغول':'تم رفض المكالمة');setTimeout(finish,1600);return;}
+ if(s.type==='hangup'){status('انتهت المكالمة');setTimeout(finish,900);return;}
+ if(s.type==='call-accept'&&!cfg.incoming&&!offerSent){
+  status('تم الرد — جاري توصيل الوسائط');
+  await mediaAndPeer();
+  if(!active)return;
+  offerSent=true;
+  const offer=await pc.createOffer({offerToReceiveAudio:true,offerToReceiveVideo:cfg.type==='video'});
+  await pc.setLocalDescription(offer);await gatheringWait();
+  await transmit('offer',{sdp:pc.localDescription,iceComplete:pc.iceGatheringState==='complete'});
+  return;
+ }
+ if(s.type==='offer'){
+  const conn=await mediaAndPeer();if(!conn||!active)return;
+  await conn.setRemoteDescription(new RTCSessionDescription(s.sdp));await flush();
+  const answer=await conn.createAnswer();await conn.setLocalDescription(answer);await gatheringWait();
+  await transmit('answer',{sdp:conn.localDescription,iceComplete:conn.iceGatheringState==='complete'});
+  status('جاري إتمام الاتصال');return;
+ }
+ if(s.type==='answer'&&pc&&pc.signalingState==='have-local-offer'){
+  await pc.setRemoteDescription(new RTCSessionDescription(s.sdp));await flush();status('جاري إتمام الاتصال');return;
+ }
+ if(s.type==='ice'&&s.candidate){if(pc?.remoteDescription){try{await pc.addIceCandidate(s.candidate)}catch(e){}}else pending.push(s.candidate);}
+}
+async function start(){
+ connect();poll();pollHandle=setInterval(poll,2400);
+ timeoutHandle=setTimeout(()=>{if(active&&pc?.connectionState!=='connected'){error('لم يتم الرد أو تعذر الاتصال');window.__attaEndCall();}},55000);
+ try{
+  await mediaAndPeer();if(!active)return;
+  if(cfg.incoming){status('جارٍ الرد على المكالمة');await transmit('call-accept');}
+  else{status('يرن الآن...');await transmit('call-request');}
+ }catch(e){error('تعذر فتح الميكروفون أو الكاميرا: '+e.message);}
+}
+function toggleMute(){if(!local)return;const tracks=local.getAudioTracks();tracks.forEach(t=>t.enabled=!t.enabled);$('mute').classList.toggle('off',!tracks[0]?.enabled);}
+function toggleCamera(){if(!local)return;const tracks=local.getVideoTracks();tracks.forEach(t=>t.enabled=!t.enabled);$('camera').classList.toggle('off',!tracks[0]?.enabled);}
+function cleanup(){active=false;clearInterval(pollHandle);clearTimeout(timeoutHandle);try{ws?.close()}catch(e){};try{pc?.close()}catch(e){};local?.getTracks().forEach(t=>t.stop());remote?.getTracks().forEach(t=>t.stop());pc=null;}
+function finish(){cleanup();try{AttaBridge.close()}catch(e){}}
+window.__attaEndCall=async()=>{if(!active)return;try{await Promise.race([transmit('hangup'),new Promise(r=>setTimeout(r,1200))])}catch(e){}finish()};
+window.addEventListener('pagehide',cleanup);
+start();
+</script></body></html>
