@@ -145,14 +145,21 @@ private fun upload(token: String, uri: Uri, mime: String, filename: String, byte
 
 // Files up to the Cloudflare R2 endpoint limit (50 MiB) are streamed in 64 KiB chunks.
 // Do not use readBytes() for videos: phones may run out of memory.
-private fun uploadChatMedia(context: android.content.Context, token: String, uri: Uri, mime: String): String {
+private fun uploadChatMedia(context: android.content.Context, token: String, uri: Uri, mime: String, type: String): String {
     val kind = when {
-        mime.startsWith("video/") -> "video"
-        mime.startsWith("image/") -> "image"
-        else -> throw IllegalArgumentException("اختر صورة أو فيديو مدعوم")
+        type == "video" && mime.startsWith("video/") -> "video"
+        type == "image" && mime.startsWith("image/") -> "image"
+        type == "audio" && mime.startsWith("audio/") -> "audio"
+        type == "file" && mime == "application/pdf" -> "file"
+        else -> throw IllegalArgumentException("نوع الملف غير مدعوم")
     }
     val maxBytes = 50L * 1024L * 1024L
-    var displayName = if (kind == "video") "chat-video.mp4" else "chat-image.jpg"
+    var displayName = when (kind) {
+        "video" -> "chat-video.mp4"
+        "image" -> "chat-image.jpg"
+        "audio" -> "chat-audio.m4a"
+        else -> "chat-document.pdf"
+    }
     var declaredSize = -1L
     context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE),
         null, null, null)?.use { cursor ->
@@ -289,6 +296,8 @@ private fun openYouTube(context: android.content.Context, id: String) {
     var googleName by remember { mutableStateOf("") }
     var googleAge by remember { mutableStateOf("") }
     var googleCity by remember { mutableStateOf("") }
+    var googleUsername by remember { mutableStateOf("") }
+    var nativeUsernameSignup by remember { mutableStateOf(false) }
     var changePasswordDialog by remember { mutableStateOf(false) }
     var currentPassword by remember { mutableStateOf("") }
     var nextPassword by remember { mutableStateOf("") }
@@ -392,6 +401,7 @@ private fun openYouTube(context: android.content.Context, id: String) {
                 googleName = claims.optString("name").ifBlank { claims.optString("given_name") }
                 googleAge = ""
                 googleCity = ""
+                googleUsername = ""
                 authMode = "googleProfile"
             } else {
                 val result = withContext(Dispatchers.IO) {
@@ -477,9 +487,16 @@ private fun openYouTube(context: android.content.Context, id: String) {
             busy = true; error = ""
             try {
                 val receiver = chatWith
-                val mime = ctx.contentResolver.getType(uri) ?: if (requiredType == "video") "video/mp4" else "image/jpeg"
-                require(mime.startsWith("$requiredType/")) { "نوع الملف غير مدعوم" }
-                val url = withContext(Dispatchers.IO) { uploadChatMedia(ctx, token, uri, mime) }
+                val mime = ctx.contentResolver.getType(uri) ?: when (requiredType) {
+                    "video" -> "video/mp4"
+                    "audio" -> "audio/mpeg"
+                    "file" -> "application/pdf"
+                    else -> "image/jpeg"
+                }
+                require(if (requiredType == "file") mime == "application/pdf" else mime.startsWith("$requiredType/")) {
+                    "نوع الملف غير مدعوم"
+                }
+                val url = withContext(Dispatchers.IO) { uploadChatMedia(ctx, token, uri, mime, requiredType) }
                 post("/api/message-send", JSONObject().put("to", receiver)
                     .put("text", "").put("media", url).put("mediaType", requiredType))
                 if (chatWith == receiver && tab == "الرسائل")
@@ -512,6 +529,12 @@ private fun openYouTube(context: android.content.Context, id: String) {
     }
     val chatVideoPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         if (uri != null) sendSelectedChatMedia(uri, "video")
+    }
+    val chatAudioPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri != null) sendSelectedChatMedia(uri, "audio")
+    }
+    val chatPdfPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri != null) sendSelectedChatMedia(uri, "file")
     }
 
     // A single lightweight authenticated WebSocket receives incoming calls in the
@@ -730,6 +753,7 @@ private fun openYouTube(context: android.content.Context, id: String) {
             val conf = withContext(Dispatchers.IO) { api("/api/google-config") }
             googleEnabled = conf.optBoolean("enabled")
             googleClientId = conf.optString("clientId")
+            nativeUsernameSignup = conf.optBoolean("nativeUsernameSignup", false)
         } catch (cancelled: CancellationException) { throw cancelled }
         catch (_: Exception) { googleEnabled = false }
     }
@@ -773,7 +797,7 @@ private fun openYouTube(context: android.content.Context, id: String) {
                             fontWeight = FontWeight.SemiBold, letterSpacing = 4.sp)
                         Spacer(Modifier.height(8.dp))
                         if (authMode == "login") {
-                            PremiumAuthTextField(username, { username = it }, "رقم الهاتف أو البريد الإلكتروني أو اسم المستخدم")
+                            PremiumAuthTextField(username, { username = it }, "الهاتف أو البريد أو اسم المستخدم")
                             PremiumAuthTextField(password, { password = it }, "كلمة السر", password = true)
                             PremiumAuthGoldButton("تسجيل الدخول", !busy && username.isNotBlank() && password.isNotBlank()) {
                                 task {
@@ -801,7 +825,9 @@ private fun openYouTube(context: android.content.Context, id: String) {
                             if (!googleEnabled) Text("سيظهر اختيار حساب Google مباشرة داخل التطبيق", color = Muted, fontSize = 11.sp)
                             Text("أو أنشئ حسابًا بالبريد الإلكتروني", color = GoldLight, fontSize = 13.sp)
                             PremiumAuthTextField(regName, { regName = it }, "الاسم الكامل")
-                            PremiumAuthTextField(regUsername, { regUsername = it }, "اسم المستخدم")
+                            PremiumAuthTextField(regUsername, { regUsername = it.lowercase().filter { c -> c.isLetterOrDigit() && c.code < 128 || c == '_' }.take(24) }, "اختر اسم مستخدم فريد (مطلوب)")
+                            Text("اسم المستخدم تختاره بنفسك، ويُستخدم للبحث وتسجيل الدخول، ولا يظهر تحت اسمك في الملف الشخصي.",
+                                color = Muted, fontSize = 11.sp)
                             PremiumAuthTextField(regAge, { regAge = it }, "العمر")
                             PremiumAuthTextField(regPhone, { regPhone = it }, "رقم الهاتف (اختياري)")
                             PremiumAuthTextField(regEmail, { regEmail = it }, "البريد الإلكتروني لاستقبال كود التأكيد")
@@ -851,19 +877,32 @@ private fun openYouTube(context: android.content.Context, id: String) {
                                 textAlign = TextAlign.Center, fontSize = 13.sp)
                             Text("الاسم المقترح من Google قابل للتعديل:", color = GoldLight, fontSize = 13.sp)
                             PremiumAuthTextField(googleName, { googleName = it }, "الاسم الذي يظهر للآخرين")
+                            PremiumAuthTextField(googleUsername,
+                                { googleUsername = it.lowercase().filter { c -> (c in 'a'..'z') || (c in '0'..'9') || c == '_' }.take(24) },
+                                "اختر اسم مستخدم لحسابك")
+                            Text("اسم المستخدم لا يظهر في صفحتك؛ الاسم الكامل هو الذي يظهر للناس.",
+                                color = Muted, fontSize = 11.sp)
                             PremiumAuthTextField(googleAge, { googleAge = it.filter(Char::isDigit).take(3) }, "العمر (مطلوب)")
                             PremiumAuthTextField(googleCity, { googleCity = it.take(80) }, "المدينة (اختياري)")
                             Text("الحسابات الحالية بواسطة Google ستفتح مباشرة دون تغيير بياناتها", color = Muted, fontSize = 11.sp)
-                            PremiumAuthGoldButton("تأكيد إنشاء حساب Google", !busy && googleIdToken.isNotBlank() &&
+                            if (!nativeUsernameSignup) Text(
+                                "إنشاء حساب Google جديد يحتاج تفعيل اختيار اسم المستخدم على خادم Cloudflare أولًا. حسابات Google الحالية تستمر في الدخول بشكل طبيعي.",
+                                color = Color(0xFFFFC78E), fontSize = 12.sp)
+                            PremiumAuthGoldButton("تأكيد إنشاء حساب Google", !busy && nativeUsernameSignup &&
+                                googleIdToken.isNotBlank() && googleUsername.matches(Regex("[a-z0-9_]{3,24}")) &&
                                 googleName.trim().length >= 2 && (googleAge.toIntOrNull() ?: 0) in 13..120) {
                                 task {
                                     val data = JSONObject()
                                         .put("credential", googleIdToken)
                                         .put("signupFlow", "android-signup")
                                         .put("fullName", googleName.trim())
+                                        .put("username", googleUsername.trim())
                                         .put("age", googleAge.toIntOrNull())
                                         .put("city", googleCity.trim())
                                     val result = withContext(Dispatchers.IO) { api("/api/google-login", data) }
+                                    require(result.optJSONObject("user")?.optString("username") == googleUsername.trim()) {
+                                        "الخادم لم يحفظ اسم المستخدم الذي اخترته؛ راجع تحديث Cloudflare."
+                                    }
                                     applySession(result, googleName)
                                 }
                             }
@@ -937,7 +976,7 @@ private fun openYouTube(context: android.content.Context, id: String) {
                                         Row(verticalAlignment = Alignment.CenterVertically,
                                             horizontalArrangement = Arrangement.spacedBy(9.dp)) {
                                             Avatar(myAvatar, displayName.ifBlank { myUsername })
-                                            Text(myUsername.ifBlank { displayName }, color = White,
+                                            Text(displayName.ifBlank { myUsername }, color = White,
                                                 fontWeight = FontWeight.Bold, fontSize = 14.sp,
                                                 modifier = Modifier.weight(1f), maxLines = 1)
                                             GoldButton("نشر", !busy && (draft.isNotBlank() || pickedUri != null)) {
@@ -1111,6 +1150,8 @@ private fun openYouTube(context: android.content.Context, id: String) {
                                     },
                                     onPickImage = { chatImagePicker.launch("image/*") },
                                     onPickVideo = { chatVideoPicker.launch("video/*") },
+                                    onPickAudio = { chatAudioPicker.launch("audio/*") },
+                                    onPickDocument = { chatPdfPicker.launch("application/pdf") },
                                     onProfile = { openPublicProfile(chatWith) },
                                     onVoiceCall = { openCall(chatWith, "audio") },
                                     onVideoCall = { openCall(chatWith, "video") },
@@ -1182,8 +1223,6 @@ private fun openYouTube(context: android.content.Context, id: String) {
                                         Column(Modifier.weight(1f)) {
                                             Text(profile.name(), color = White,
                                                 fontSize = 17.sp, fontWeight = FontWeight.Bold)
-                                            Text("@${profile.optString("username")}", color = Muted,
-                                                fontSize = 12.sp)
                                             Spacer(Modifier.height(5.dp))
                                             GoldButton("تغيير الصورة", !busy) {
                                                 profileAvatarPicker.launch("image/*")

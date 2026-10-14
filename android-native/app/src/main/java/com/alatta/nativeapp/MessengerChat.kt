@@ -23,6 +23,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.platform.LocalContext
+import android.content.Intent
+import android.net.Uri
+import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.common.MediaItem
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
@@ -66,6 +71,7 @@ private fun chatLastText(message: JSONObject?): String {
     return when (message.optString("mediaType")) {
         "image" -> "📷 صورة"
         "audio" -> "🎙️ رسالة صوتية"
+        "file" -> "📎 ملف PDF"
         "video" -> "🎬 فيديو"
         else -> if (message.optString("media").isNotBlank()) "مرفق" else "ابدأ المحادثة"
     }
@@ -97,12 +103,12 @@ private fun ChatCircleAction(icon: String, description: String, onClick: () -> U
 
 @Composable
 private fun ChatSegment(label: String, selected: Boolean, onClick: () -> Unit) {
-    Box(Modifier.clip(RoundedCornerShape(19.dp))
+    Box(Modifier.clip(RoundedCornerShape(18.dp))
         .background(if (selected) ChatGold else ChatPanel)
         .clickable(onClick = onClick)
-        .padding(horizontal = 17.dp, vertical = 8.dp)) {
+        .padding(horizontal = 12.dp, vertical = 7.dp)) {
         Text(label, color = if (selected) Color(0xFF060707) else ChatSecondary,
-            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium, fontSize = 13.sp)
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium, fontSize = 12.sp)
     }
 }
 
@@ -157,64 +163,62 @@ internal fun MessengerInbox(
     }
 
     Column(Modifier.fillMaxSize().background(ChatBackground)) {
-        Row(Modifier.fillMaxWidth().padding(start = 14.dp, end = 14.dp, top = 8.dp, bottom = 7.dp),
+        Row(Modifier.fillMaxWidth().padding(start = 14.dp, end = 14.dp, top = 4.dp, bottom = 4.dp),
             verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text("الدردشات", fontWeight = FontWeight.ExtraBold, color = ChatText, fontSize = 25.sp)
+                Text("الدردشات", fontWeight = FontWeight.ExtraBold, color = ChatText, fontSize = 23.sp)
                 Text("تواصل العطا", color = ChatGold, fontSize = 11.sp)
             }
             ChatCircleAction("plus", "بدء دردشة") { showNewChat = true }
             Spacer(Modifier.width(5.dp))
             ChatCircleAction("repeat", "تحديث") { onRefresh() }
         }
-        Row(Modifier.fillMaxWidth().padding(horizontal = 17.dp)
-            .height(45.dp)
-            .border(1.dp, ChatDivider, RoundedCornerShape(21.dp))
-            .background(ChatPanel, RoundedCornerShape(21.dp))
-            .padding(horizontal = 10.dp),
+        // Compact, responsive single row: All + Chats + Search (RTL).
+        Row(Modifier.fillMaxWidth().padding(horizontal = 13.dp, vertical = 6.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
             verticalAlignment = Alignment.CenterVertically) {
-            SiteIcon("search", tint = ChatSecondary, size = 19.dp)
-            Spacer(Modifier.width(8.dp))
-            BasicTextField(
-                value = query,
-                onValueChange = { query = it },
-                modifier = Modifier.weight(1f),
-                singleLine = true,
-                cursorBrush = SolidColor(ChatGold),
-                textStyle = androidx.compose.ui.text.TextStyle(fontSize = 14.sp, color = ChatText),
-                decorationBox = { innerField ->
-                    Box(contentAlignment = Alignment.CenterStart) {
-                        if (query.isBlank()) Text("بحث عن محادثة أو صديق", fontSize = 13.sp,
-                            color = ChatSecondary)
-                        innerField()
-                    }
-                }
-            )
-        }
-        Row(Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             ChatSegment("الكل", segment == "الكل") { segment = "الكل" }
             ChatSegment("محادثات", segment == "محادثات") { segment = "محادثات" }
+            Row(Modifier.weight(1f).height(37.dp)
+                .border(1.dp, ChatDivider, RoundedCornerShape(19.dp))
+                .background(ChatPanel, RoundedCornerShape(19.dp))
+                .padding(horizontal = 10.dp),
+                verticalAlignment = Alignment.CenterVertically) {
+                SiteIcon("search", tint = ChatSecondary, size = 16.dp)
+                Spacer(Modifier.width(5.dp))
+                BasicTextField(
+                    value = query, onValueChange = { query = it },
+                    modifier = Modifier.weight(1f), singleLine = true,
+                    cursorBrush = SolidColor(ChatGold),
+                    textStyle = androidx.compose.ui.text.TextStyle(fontSize = 12.sp, color = ChatText),
+                    decorationBox = { innerField ->
+                        Box(contentAlignment = Alignment.CenterStart) {
+                            if (query.isBlank()) Text("بحث...", fontSize = 12.sp, color = ChatSecondary)
+                            innerField()
+                        }
+                    }
+                )
+            }
         }
         // These are contacts, NOT claimed to be online. Presence requires a separate API.
         if (contacts.isNotEmpty() && query.isBlank()) {
             Text("الأصدقاء", color = ChatSecondary, fontSize = 12.sp,
-                modifier = Modifier.padding(horizontal = 15.dp, vertical = 2.dp))
+                modifier = Modifier.padding(horizontal = 15.dp, vertical = 1.dp))
             Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())
                 .padding(horizontal = 14.dp, vertical = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+                horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                 contacts.take(16).forEach { user ->
-                    Column(Modifier.width(62.dp),
+                    Column(Modifier.width(58.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        ChatAvatar(user, size = 51, showRing = true, onClick = { onProfile(user.optString("username")) })
+                        verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        ChatAvatar(user, size = 46, showRing = true, onClick = { onProfile(user.optString("username")) })
                         Text(contactName(user), color = ChatText, fontSize = 11.sp,
                             maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center)
                     }
                 }
             }
         }
-        HorizontalDivider(color = ChatDivider, modifier = Modifier.padding(top = 5.dp))
+        HorizontalDivider(color = ChatDivider, modifier = Modifier.padding(top = 3.dp))
         if (loading) LinearProgressIndicator(Modifier.fillMaxWidth(), color = ChatGold)
         if (visible.isEmpty()) {
             Column(Modifier.fillMaxWidth().weight(1f).padding(22.dp),
@@ -252,6 +256,51 @@ internal fun MessengerInbox(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun ChatAudioInline(url: String, mine: Boolean) {
+    val context = LocalContext.current
+    val player = remember(url) {
+        ExoPlayer.Builder(context).build().apply {
+            setMediaItem(MediaItem.fromUri(url))
+            prepare()
+        }
+    }
+    var playing by remember(url) { mutableStateOf(false) }
+    DisposableEffect(player) { onDispose { player.release() } }
+    Row(Modifier.clip(RoundedCornerShape(12.dp))
+        .background(if (mine) Color(0x33FFFFFF) else Color(0xFF293136))
+        .clickable {
+            if (player.isPlaying) { player.pause(); playing = false }
+            else { if (player.playbackState == androidx.media3.common.Player.STATE_ENDED) player.seekTo(0); player.play(); playing = true }
+        }.padding(horizontal = 13.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically) {
+        SiteIcon(if (playing) "square" else "play", size = 23.dp,
+            tint = if (mine) Color(0xFF211A0A) else ChatGoldBright)
+        Spacer(Modifier.width(10.dp))
+        Text(if (playing) "إيقاف الصوت" else "تشغيل المقطع الصوتي",
+            color = if (mine) Color(0xFF211A0A) else ChatText, fontSize = 12.sp)
+    }
+}
+
+@Composable
+private fun ChatPdfDocument(url: String, mine: Boolean) {
+    val context = LocalContext.current
+    Row(Modifier.clip(RoundedCornerShape(12.dp))
+        .background(if (mine) Color(0x33FFFFFF) else Color(0xFF293136))
+        .clickable {
+            runCatching {
+                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
+                    addCategory(Intent.CATEGORY_BROWSABLE)
+                })
+            }
+        }.padding(horizontal = 13.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically) {
+        SiteIcon("paperclip", size = 21.dp, tint = if (mine) Color.Black else ChatGoldBright)
+        Spacer(Modifier.width(9.dp))
+        Text("فتح ملف PDF", color = if (mine) Color.Black else ChatText, fontSize = 12.sp)
     }
 }
 
@@ -297,6 +346,10 @@ private fun ChatBubble(message: JSONObject, mine: Boolean) {
                             }
                         }
                     }
+                } else if (mediaType == "audio") {
+                    ChatAudioInline(mediaUrl, mine)
+                } else if (mediaType == "file") {
+                    ChatPdfDocument(mediaUrl, mine)
                 } else {
                     Text("📎 مرفق (${mediaType})", color = if (mine) Color.Black else ChatGoldBright)
                 }
@@ -324,6 +377,8 @@ internal fun MessengerThread(
     onSend: () -> Unit,
     onPickImage: () -> Unit,
     onPickVideo: () -> Unit,
+    onPickAudio: () -> Unit,
+    onPickDocument: () -> Unit,
     onProfile: () -> Unit,
     onVoiceCall: () -> Unit,
     onVideoCall: () -> Unit,
@@ -331,6 +386,40 @@ internal fun MessengerThread(
     onRefresh: () -> Unit
 ) {
     val listState = rememberLazyListState()
+    var showAttachments by remember(fallbackUsername) { mutableStateOf(false) }
+    if (showAttachments) {
+        ModalBottomSheet(onDismissRequest = { showAttachments = false },
+            containerColor = ChatPanel, contentColor = ChatText,
+            dragHandle = { BottomSheetDefaults.DragHandle(color = ChatGold) }) {
+            Column(Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, bottom = 30.dp),
+                verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                Text("إرفاق بالمحادثة", color = ChatGoldBright, fontSize = 19.sp,
+                    fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 6.dp))
+                listOf(
+                    Triple("image", "صورة من المعرض", onPickImage),
+                    Triple("video", "فيديو من المعرض", onPickVideo),
+                    Triple("mic", "ملف صوتي", onPickAudio),
+                    Triple("paperclip", "ملف PDF", onPickDocument)
+                ).forEach { (icon, label, callback) ->
+                    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
+                        .background(Color(0xFF1D2529)).clickable {
+                            showAttachments = false
+                            callback()
+                        }.padding(horizontal = 15.dp, vertical = 13.dp),
+                        verticalAlignment = Alignment.CenterVertically) {
+                        Box(Modifier.size(38.dp).background(Color(0xFF3A3020), CircleShape),
+                            contentAlignment = Alignment.Center) {
+                            SiteIcon(icon, size = 21.dp, tint = ChatGoldBright)
+                        }
+                        Spacer(Modifier.width(13.dp))
+                        Text(label, fontSize = 14.sp, color = ChatText)
+                    }
+                }
+                Text("الحد الأقصى للمرفق 50 ميجابايت", fontSize = 11.sp,
+                    color = ChatSecondary, modifier = Modifier.padding(top = 5.dp))
+            }
+        }
+    }
     LaunchedEffect(messages.size, fallbackUsername) {
         if (messages.isNotEmpty()) listState.animateScrollToItem(messages.lastIndex)
     }
@@ -380,13 +469,11 @@ internal fun MessengerThread(
         Row(Modifier.fillMaxWidth().background(ChatPanel).padding(horizontal = 10.dp, vertical = 8.dp),
             verticalAlignment = Alignment.Bottom,
             horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            Box(Modifier.size(34.dp).clip(CircleShape).clickable(enabled = !sending, onClick = onPickImage),
+            Box(Modifier.size(39.dp).clip(CircleShape)
+                .background(Color(0xFF292419))
+                .clickable(enabled = !sending) { showAttachments = true },
                 contentAlignment = Alignment.Center) {
-                SiteIcon("image", size = 22.dp, tint = ChatGold)
-            }
-            Box(Modifier.size(34.dp).clip(CircleShape).clickable(enabled = !sending, onClick = onPickVideo),
-                contentAlignment = Alignment.Center) {
-                SiteIcon("video", size = 22.dp, tint = ChatGold)
+                SiteIcon("plus", size = 24.dp, tint = ChatGoldBright)
             }
             OutlinedTextField(value = chatText, onValueChange = onTextChange,
                 modifier = Modifier.weight(1f).heightIn(min = 49.dp, max = 124.dp),
