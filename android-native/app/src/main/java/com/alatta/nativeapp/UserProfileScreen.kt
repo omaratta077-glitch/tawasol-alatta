@@ -122,8 +122,8 @@ internal fun PublicUserProfile(
                         fontSize = 14.sp, modifier = Modifier.padding(bottom = 10.dp))
                     val photo = media(post.optString("image"))
                     val video = media(post.optString("video"))
-                    if (photo.isNotBlank()) AsyncImage(photo, "صورة المنشور", Modifier.fillMaxWidth()
-                        .heightIn(max = 240.dp).clip(RoundedCornerShape(11.dp)), contentScale = ContentScale.Fit)
+                    if (photo.isNotBlank()) ProfileMediaImage(photo, "صورة المنشور", Modifier.fillMaxWidth()
+                        .heightIn(min = 120.dp, max = 420.dp).clip(RoundedCornerShape(11.dp)), contentScale = ContentScale.Fit)
                     if (video.isNotBlank()) {
                         if (playing == post.optString("id")) {
                             NativeVideo(video)

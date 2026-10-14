@@ -324,7 +324,7 @@ private fun ChatBubble(message: JSONObject, mine: Boolean) {
             if (mediaUrl.isNotBlank()) {
                 Spacer(Modifier.height(if (body.isNotBlank()) 7.dp else 0.dp))
                 if (mediaType == "image" || mediaType.isBlank()) {
-                    AsyncImage(mediaUrl, "صورة داخل المحادثة", Modifier
+                    ProfileMediaImage(mediaUrl, "صورة داخل المحادثة", Modifier
                         .widthIn(max = 250.dp).heightIn(min = 90.dp, max = 330.dp)
                         .clip(RoundedCornerShape(12.dp)), contentScale = ContentScale.Fit)
                 } else if (mediaType == "video") {

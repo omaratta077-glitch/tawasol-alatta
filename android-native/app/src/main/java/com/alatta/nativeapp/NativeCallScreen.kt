@@ -59,6 +59,16 @@ internal fun NativeCallScreen(
                 fun close() { activity?.runOnUiThread { onClose() } }
                 @JavascriptInterface
                 fun onStatus(message: String) { /* Status displayed inside trusted call document. */ }
+                @JavascriptInterface
+                fun mediaReady() {
+                    // Configure communication routing AFTER WebRTC has captured the microphone.
+                    // Some Android devices report NotReadableError if audio mode is changed first.
+                    activity?.runOnUiThread {
+                        audioManager.mode = AudioManager.MODE_IN_COMMUNICATION
+                        @Suppress("DEPRECATION")
+                        audioManager.isSpeakerphoneOn = session.type == "video"
+                    }
+                }
             }, "AttaBridge")
             webChromeClient = object : WebChromeClient() {
                 override fun onPermissionRequest(request: PermissionRequest) {
@@ -90,9 +100,6 @@ internal fun NativeCallScreen(
         }
     }
     DisposableEffect(webView) {
-        audioManager.mode = AudioManager.MODE_IN_COMMUNICATION
-        @Suppress("DEPRECATION")
-        audioManager.isSpeakerphoneOn = session.type == "video"
         onDispose {
             webView.loadUrl("about:blank")
             webView.removeJavascriptInterface("AttaBridge")

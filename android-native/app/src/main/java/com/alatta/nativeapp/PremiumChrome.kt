@@ -247,7 +247,7 @@ internal fun StoryRing(label: String, url: String, isAdd: Boolean, onClick: () -
             .background(Color(0xFF191307)), contentAlignment = Alignment.Center) {
             if (isAdd) SiteIcon("plus", size = 28.dp)
             else if (url.endsWith(".mp4", ignoreCase = true)) SiteIcon("video", size = 26.dp)
-            else if (url.isNotBlank()) AsyncImage(url, label, Modifier.fillMaxSize().clip(CircleShape), contentScale = ContentScale.Crop)
+            else if (url.isNotBlank()) ProfileMediaImage(url, label, Modifier.fillMaxSize().clip(CircleShape), contentScale = ContentScale.Crop)
             else Image(painterResource(R.drawable.logo_premium), label, Modifier.fillMaxSize().clip(CircleShape))
         }
         Spacer(Modifier.height(5.dp))

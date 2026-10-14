@@ -11,6 +11,13 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Text
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.unit.sp
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
@@ -49,11 +56,23 @@ internal fun ProfileMediaImage(
             Image(bitmap = bitmap, contentDescription = description,
                 modifier = modifier, contentScale = contentScale)
         } else {
-            Box(modifier.background(Color(0xFF282119)))
+            Box(modifier.background(Color(0xFF282119)), contentAlignment = Alignment.Center) {
+                Text("الصورة غير متاحة", color = Color(0xFFE6B94E), fontSize = 11.sp)
+            }
         }
     } else if (resolved.isNotBlank()) {
-        AsyncImage(model = resolved, contentDescription = description,
-            modifier = modifier, contentScale = contentScale)
+        var hasError by remember(resolved) { mutableStateOf(false) }
+        Box(modifier) {
+            AsyncImage(model = resolved, contentDescription = description,
+                modifier = Modifier.fillMaxSize(), contentScale = contentScale,
+                onSuccess = { hasError = false }, onError = { hasError = true })
+            if (hasError) {
+                Box(Modifier.fillMaxSize().background(Color(0xFF282119)),
+                    contentAlignment = Alignment.Center) {
+                    Text("تعذر تحميل الصورة", color = Color(0xFFE6B94E), fontSize = 11.sp)
+                }
+            }
+        }
     } else {
         Box(modifier.background(Color(0xFF282119)))
     }

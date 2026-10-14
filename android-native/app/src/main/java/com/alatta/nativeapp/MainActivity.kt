@@ -95,11 +95,15 @@ private fun googleTokenDetails(idToken: String): JSONObject {
     } catch (_: Exception) { JSONObject() }
 }
 private fun enc(s: String) = URLEncoder.encode(s, "UTF-8")
-internal fun media(s: String): String = when {
-    s.startsWith("/media/") -> BASE + s
-    s.startsWith("https://") -> s
-    (s.startsWith("data:image/") || s.startsWith("data:video/")) -> s
-    else -> ""
+internal fun media(s: String): String {
+    val value = s.trim()
+    return when {
+        value.startsWith("/media/") -> BASE + value
+        value.startsWith("https://") -> value
+        value.startsWith("data:image/", ignoreCase = true) -> value
+        value.startsWith("data:video/", ignoreCase = true) -> value
+        else -> ""
+    }
 }
 private fun JSONObject.arr(name: String): List<JSONObject> {
     val a = optJSONArray(name) ?: return emptyList()
@@ -228,10 +232,7 @@ class MainActivity : ComponentActivity() {
     )
 }
 @Composable internal fun NativeVideo(url: String) {
-    val ctx = LocalContext.current
-    val player = remember(url) { ExoPlayer.Builder(ctx).build().apply { setMediaItem(MediaItem.fromUri(url)); prepare() } }
-    DisposableEffect(player) { onDispose { player.release() } }
-    AndroidView(factory = { PlayerView(it).apply { this.player = player; useController = true } }, modifier = Modifier.fillMaxWidth().height(240.dp))
+    AttaExpandableVideo(url)
 }
 private fun openYouTube(context: android.content.Context, id: String) {
     if (!Regex("[A-Za-z0-9_-]{11}").matches(id)) return
@@ -726,7 +727,7 @@ private fun openYouTube(context: android.content.Context, id: String) {
                     val storyMedia = media(st.optString("media"))
                     if (storyMedia.isNotBlank()) {
                         if (storyMedia.contains(".mp4", true)) NativeVideo(storyMedia)
-                        else AsyncImage(storyMedia, "القصة", Modifier.fillMaxWidth().heightIn(max = 280.dp), contentScale = ContentScale.Fit)
+                        else ProfileMediaImage(storyMedia, "القصة", Modifier.fillMaxWidth().heightIn(max = 280.dp), contentScale = ContentScale.Fit)
                     }
                 }
             },
@@ -1050,7 +1051,7 @@ private fun openYouTube(context: android.content.Context, id: String) {
                                     }
                                     if (p.optString("text").isNotBlank()) Text(p.optString("text"), color = White, modifier = Modifier.padding(vertical = 10.dp))
                                     val image = media(p.optString("image")); val video = media(p.optString("video"))
-                                    if (image.isNotBlank()) AsyncImage(image, "صورة المنشور", Modifier.fillMaxWidth().padding(vertical = 6.dp).heightIn(min = 120.dp, max = 450.dp).clip(RoundedCornerShape(11.dp)).border(.6.dp, Border.copy(alpha = .75f), RoundedCornerShape(11.dp)), contentScale = ContentScale.Fit)
+                                    if (image.isNotBlank()) ProfileMediaImage(image, "صورة المنشور", Modifier.fillMaxWidth().padding(vertical = 6.dp).heightIn(min = 120.dp, max = 450.dp).clip(RoundedCornerShape(11.dp)).border(.6.dp, Border.copy(alpha = .75f), RoundedCornerShape(11.dp)), contentScale = ContentScale.Fit)
                                     if (video.isNotBlank()) NativeVideo(video)
                                     p.optJSONObject("sharedPost")?.let { shared -> Text("مشاركة: ${shared.optString("text")}", color = GoldLight) }
                                     HorizontalDivider(color = Border.copy(alpha = .5f), modifier = Modifier.padding(vertical = 7.dp))

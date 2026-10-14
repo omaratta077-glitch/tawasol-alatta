@@ -15,12 +15,13 @@
 button{border:0;border-radius:50%;background:#282d30;color:#ebc76d;font-size:25px;width:59px;height:59px;display:grid;place-items:center;cursor:pointer}
 button.danger{background:#c84040;color:white;width:70px;height:70px}button:active{transform:scale(.95)}button.off{background:#594020;color:#fff}
 .smallLabel{color:#d3bb85;font-size:11px;margin-top:4px}.action{display:flex;align-items:center;flex-direction:column;gap:2px}
-#error{position:absolute;bottom:185px;left:12px;right:12px;padding:11px;border-radius:9px;background:#662626;color:#fff;text-align:center;display:none;z-index:6;font-size:12px}
+#error{position:absolute;bottom:140px;left:12px;right:12px;padding:12px;border-radius:11px;background:#662626;color:#fff;text-align:center;display:none;z-index:6;font-size:13px}
+#retry{display:none;position:relative;width:auto;height:auto;border-radius:14px;padding:10px 18px;background:#d8af51;color:#16120a;font-size:14px;margin:10px auto 0}
 </style></head><body><div class="page"><header class="header">
 <div class="avatar" id="initial">؟</div><div><div class="title" id="peer"></div><div class="subtitle" id="status">جاري التهيئة...</div></div></header>
 <div class="stage"><div id="bigAvatar">☎</div><div id="hint">مكالمة آمنة داخل تواصل العطا</div>
 <video id="remoteVideo" autoplay playsinline muted></video><video id="localVideo" autoplay playsinline muted></video>
-<audio id="remoteAudio" autoplay playsinline></audio><div id="error"></div></div>
+<audio id="remoteAudio" autoplay playsinline></audio><div id="error"><span id="errorText"></span><button id="retry" onclick="retryStart()">إعادة محاولة الميكروفون</button></div></div>
 <div class="actions"><div class="action"><button id="mute" onclick="toggleMute()">🎙</button><span class="smallLabel">الميكروفون</span></div>
 <div class="action" id="cameraAction"><button id="camera" onclick="toggleCamera()">📷</button><span class="smallLabel">الكاميرا</span></div>
 <div class="action"><button class="danger" onclick="window.__attaEndCall()">☎</button><span class="smallLabel">إنهاء</span></div></div></div>
@@ -29,14 +30,14 @@ button.danger{background:#c84040;color:white;width:70px;height:70px}button:activ
 const cfg=__CONFIG_JSON__;
 const BASE='https://tawasol-alatta.omaratta077-4fd.workers.dev';
 const types=new Set(['call-request','call-accept','call-reject','offer','answer','ice','hangup']);
-let active=true,pc=null,local=null,remote=null,ws=null,offerSent=false;
+let active=true,pc=null,local=null,remote=null,ws=null,offerSent=false,peerPromise=null;
 let pending=[],seen=new Set(),candidateCount=0,pollHandle=0,timeoutHandle=0,connectionStarted=Date.now();
 const $=id=>document.getElementById(id);
 $('peer').textContent=cfg.peer;$('initial').textContent=cfg.peer.slice(0,1).toUpperCase();
 $('cameraAction').style.display=cfg.type==='video'?'flex':'none';
 $('bigAvatar').textContent=cfg.type==='video'?'📹':'☎';
 function status(t){$('status').textContent=t;$('hint').textContent=t;try{AttaBridge.onStatus(t)}catch(e){}}
-function error(t){$('error').textContent=t;$('error').style.display='block';status(t)}
+function error(t,canRetry=false){$('errorText').textContent=t;$('error').style.display='block';$('retry').style.display=canRetry?'block':'none';status(t)}
 function id(){return (crypto.randomUUID?crypto.randomUUID():Date.now().toString(36)+Math.random().toString(36).slice(2));}
 function isFresh(m){return Date.now()-Number(m.createdAt||m.ts||0)<120000;}
 async function req(path,method='GET',body){
@@ -80,12 +81,40 @@ async function poll(){
  for(const m of d.messages||[])if(m.mediaType==='call-signal'&&m.to===cfg.me)receiveRaw(m);
  }catch(e){/* live socket may still work */}
 }
+async function captureMedia(){
+ const video=cfg.type==='video'?{width:{ideal:640},height:{ideal:360},frameRate:{ideal:15,max:20},facingMode:'user'}:false;
+ const attempts=[
+   {audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true},video},
+   {audio:true,video:cfg.type==='video'?{width:{ideal:320},height:{ideal:240}}:false},
+   {audio:true,video:cfg.type==='video'?true:false}
+ ];
+ let lastError;
+ for(let i=0;i<attempts.length;i++){
+   if(!active)return null;
+   try{return await navigator.mediaDevices.getUserMedia(attempts[i]);}
+   catch(e){
+     lastError=e;
+     if(!['NotReadableError','AbortError','OverconstrainedError'].includes(e.name))break;
+     // Release a device temporarily held by another capture before retrying.
+     await new Promise(r=>setTimeout(r,420+i*320));
+   }
+ }
+ throw lastError||Error('تعذر تشغيل مصدر الصوت');
+}
 async function mediaAndPeer(){
  if(pc)return pc;
+ // Inbound answer/accept and initial startup may overlap. Only one mic capture is allowed.
+ if(peerPromise)return peerPromise;
+ peerPromise=createPeer();
+ try{return await peerPromise;}finally{peerPromise=null;}
+}
+async function createPeer(){
  status('جاري تشغيل الميكروفون'+(cfg.type==='video'?' والكاميرا':'')+'...');
  const turn=req('/api/turn-credentials?token='+encodeURIComponent(cfg.token)).catch(()=>null);
- local=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true},video:cfg.type==='video'?{width:{ideal:640},height:{ideal:360},frameRate:{ideal:15,max:20},facingMode:'user'}:false});
+ local=await captureMedia();
+ if(!local)return null;
  if(!active){local.getTracks().forEach(t=>t.stop());return null}
+ try{AttaBridge.mediaReady()}catch(e){}
  if(cfg.type==='video'){$('localVideo').srcObject=local;$('localVideo').style.display='block';$('localVideo').play().catch(()=>{});}
  const turnData=await Promise.race([turn,new Promise(resolve=>setTimeout(()=>resolve(null),2200))]);
  const servers=(turnData&&turnData.iceServers&&turnData.iceServers.length)?turnData.iceServers:[{urls:'stun:stun.cloudflare.com:3478'},{urls:'stun:stun.l.google.com:19302'}];
@@ -154,7 +183,24 @@ async function start(){
   await mediaAndPeer();if(!active)return;
   if(cfg.incoming){status('جارٍ الرد على المكالمة');await transmit('call-accept');}
   else{status('يرن الآن...');await transmit('call-request');}
- }catch(e){error('تعذر فتح الميكروفون أو الكاميرا: '+e.message);}
+ }catch(e){
+  const name=e?.name||'';
+  const hint=name==='NotReadableError'||name==='AbortError'
+   ?'الميكروفون مشغول أو متوقف من إعدادات الخصوصية. اقفل أي تسجيل أو مكالمة ثانية، وتأكد من السماح للميكروفون ثم جرّب مرة أخرى.'
+   :name==='NotAllowedError'||name==='PermissionDeniedError'
+   ?'اسمح لتواصل العطا باستخدام الميكروفون والكاميرا من إعدادات التطبيقات.'
+   :'تعذر فتح الميكروفون أو الكاميرا: '+(e?.message||name);
+  error(hint,true);
+ }
+}
+async function retryStart(){
+ if(!active||pc)return;
+ $('error').style.display='none';
+ try{
+   await mediaAndPeer();if(!active)return;
+   if(cfg.incoming){status('جارٍ الرد على المكالمة');await transmit('call-accept');}
+   else{status('يرن الآن...');await transmit('call-request');}
+ }catch(e){error('تعذر تشغيل مصدر الصوت: '+(e?.message||e?.name||'خطأ غير معروف'),true);}
 }
 function toggleMute(){if(!local)return;const tracks=local.getAudioTracks();tracks.forEach(t=>t.enabled=!t.enabled);$('mute').classList.toggle('off',!tracks[0]?.enabled);}
 function toggleCamera(){if(!local)return;const tracks=local.getVideoTracks();tracks.forEach(t=>t.enabled=!t.enabled);$('camera').classList.toggle('off',!tracks[0]?.enabled);}
