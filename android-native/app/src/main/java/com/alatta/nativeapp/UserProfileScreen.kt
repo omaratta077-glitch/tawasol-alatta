@@ -81,30 +81,81 @@ internal fun PublicUserProfile(
                     val friendCount = profile?.optInt("friendCount", -1) ?: -1
                     if (friendCount >= 0) Text("$friendCount صديق", color = profileGold, fontSize = 12.sp,
                         modifier = Modifier.padding(bottom = 9.dp))
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-                        Button(onClick = onMessage, modifier = Modifier.weight(1f),
-                            colors = ButtonDefaults.buttonColors(containerColor = profileGold,
-                                contentColor = Color.Black)) { Text("محادثة") }
-                        OutlinedButton(onClick = onVoiceCall, modifier = Modifier.weight(1f)) {
-                            SiteIcon("phone", size = 18.dp, tint = profileGold)
-                            Spacer(Modifier.width(5.dp))
-                            Text("صوتي", color = profileGold, fontSize = 11.sp)
+                    // Compact, accessible profile actions: no Arabic words split over two lines.
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Button(
+                            onClick = onMessage,
+                            modifier = Modifier.weight(1f).height(76.dp),
+                            shape = RoundedCornerShape(18.dp),
+                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 6.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = profileGold, contentColor = Color.Black
+                            )
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                SiteIcon("message-circle", size = 23.dp, tint = Color.Black)
+                                Spacer(Modifier.height(5.dp))
+                                Text("محادثة", color = Color.Black, fontSize = 13.sp,
+                                    fontWeight = FontWeight.SemiBold, maxLines = 1,
+                                    softWrap = false, overflow = TextOverflow.Ellipsis)
+                            }
                         }
-                        OutlinedButton(onClick = onVideoCall, modifier = Modifier.weight(1f)) {
-                            SiteIcon("video", size = 18.dp, tint = profileGold)
-                            Spacer(Modifier.width(4.dp))
-                            Text("مرئي", color = profileGold, fontSize = 11.sp)
+                        OutlinedButton(
+                            onClick = onVoiceCall,
+                            modifier = Modifier.weight(1f).height(76.dp),
+                            shape = RoundedCornerShape(18.dp),
+                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 6.dp),
+                            border = BorderStroke(1.dp, profileGold.copy(alpha = 0.8f))
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                SiteIcon("phone", size = 23.dp, tint = profileGold)
+                                Spacer(Modifier.height(5.dp))
+                                Text("صوتي", color = profileGold, fontSize = 13.sp,
+                                    fontWeight = FontWeight.SemiBold, maxLines = 1,
+                                    softWrap = false, overflow = TextOverflow.Ellipsis)
+                            }
+                        }
+                        OutlinedButton(
+                            onClick = onVideoCall,
+                            modifier = Modifier.weight(1f).height(76.dp),
+                            shape = RoundedCornerShape(18.dp),
+                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 6.dp),
+                            border = BorderStroke(1.dp, profileGold.copy(alpha = 0.8f))
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                SiteIcon("video", size = 23.dp, tint = profileGold)
+                                Spacer(Modifier.height(5.dp))
+                                Text("مرئي", color = profileGold, fontSize = 13.sp,
+                                    fontWeight = FontWeight.SemiBold, maxLines = 1,
+                                    softWrap = false, overflow = TextOverflow.Ellipsis)
+                            }
                         }
                     }
                 }
-                Row(Modifier.fillMaxWidth().padding(vertical = 12.dp, horizontal = 14.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth()
+                        .padding(vertical = 12.dp, horizontal = 14.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
                     listOf("المنشورات", "الصور", "الفيديوهات").forEach { option ->
-                        Box(Modifier.clip(RoundedCornerShape(14.dp))
-                            .background(if (filter == option) profileGold else profilePanel)
-                            .clickable { filter = option }.padding(horizontal = 13.dp, vertical = 9.dp)) {
-                            Text(option, fontSize = 12.sp,
-                                color = if (filter == option) Color.Black else profileMuted)
+                        Box(
+                            modifier = Modifier.weight(1f)
+                                .height(42.dp)
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(if (filter == option) profileGold else profilePanel)
+                                .clickable { filter = option },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                option, fontSize = 12.sp,
+                                fontWeight = FontWeight.Medium,
+                                maxLines = 1, softWrap = false,
+                                overflow = TextOverflow.Ellipsis,
+                                color = if (filter == option) Color.Black else profileMuted
+                            )
                         }
                     }
                 }
