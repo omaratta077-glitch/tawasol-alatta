@@ -7,13 +7,29 @@ import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import android.provider.Settings
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.height
-import androidx.compose.material3.AlertDialog
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Surface
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -34,6 +50,12 @@ private const val UPDATE_PREFS = "alatta_apk_updater"
 private const val SAVED_DOWNLOAD_ID = "id"
 private const val SAVED_DOWNLOAD_VERSION = "version"
 private val UpdateGold = Color(0xFFE6B94E)
+private val UpdateGoldLight = Color(0xFFF6D776)
+private val UpdatePanel = Color(0xFF0D1012)
+private val UpdateTrack = Color(0xFF423923)
+private val UpdateSeparator = Color(0xFF4F4127)
+private val UpdateWhite = Color(0xFFF3F4F6)
+private val UpdateError = Color(0xFFFFB4AB)
 
 internal data class AvailableAppUpdate(val version: String, val apkUrl: String)
 private enum class UpdateStage { OFFER, DOWNLOADING, READY, PERMISSION, FAILED }
@@ -219,77 +241,164 @@ internal fun AppUpdatePrompt() {
     }
 
     update?.let { release ->
-        AlertDialog(
-            onDismissRequest = { update = null },
-            title = { Text("تحديث جديد لتواصل العطا") },
-            text = {
-                Column {
-                    Text("الإصدار ${release.version} متاح الآن.")
-                    Spacer(Modifier.height(8.dp))
-                    when (stage) {
-                        UpdateStage.OFFER -> Text("يمكن تنزيله من داخل التطبيق، ثم الموافقة على تثبيته دون الدخول إلى GitHub.")
-                        UpdateStage.DOWNLOADING -> {
-                            Text("جارٍ تنزيل التحديث${percent?.let { " — $it%" } ?: "..."}")
-                            Spacer(Modifier.height(8.dp))
-                            if (percent != null) LinearProgressIndicator(progress = { (percent ?: 0) / 100f })
-                            else LinearProgressIndicator()
-                        }
-                        UpdateStage.READY -> Text("اكتمل التنزيل. اضغط تثبيت لفتح نافذة التثبيت الرسمية من أندرويد.")
-                        UpdateStage.PERMISSION -> Text("اسمح لتواصل العطا بتثبيت التطبيقات من إعدادات أندرويد، ثم ارجع واضغط تثبيت.")
-                        UpdateStage.FAILED -> Text(error)
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(
-                    enabled = stage != UpdateStage.DOWNLOADING,
-                    onClick = {
-                        when (stage) {
-                            UpdateStage.OFFER, UpdateStage.FAILED -> {
-                                try {
-                                    val id = beginDownload(context, release)
-                                    prefs.edit()
-                                        .putLong(SAVED_DOWNLOAD_ID, id)
-                                        .putString(SAVED_DOWNLOAD_VERSION, release.version)
-                                        .apply()
-                                    error = ""
-                                    percent = null
-                                    stage = UpdateStage.DOWNLOADING
-                                    downloadId = id
-                                } catch (t: Exception) {
-                                    stage = UpdateStage.FAILED
-                                    error = "تعذر بدء التنزيل: ${t.message ?: "خطأ غير معروف"}"
-                                }
-                            }
-                            UpdateStage.READY, UpdateStage.PERMISSION -> {
-                                try {
-                                    if (openInstaller(context, release)) {
-                                        update = null
-                                    } else {
-                                        stage = UpdateStage.PERMISSION
-                                    }
-                                } catch (t: Exception) {
-                                    stage = UpdateStage.FAILED
-                                    error = "تعذر فتح مثبت أندرويد: ${t.message ?: "خطأ غير معروف"}"
-                                }
-                            }
-                            UpdateStage.DOWNLOADING -> Unit
-                        }
-                    }
+        val progress = when (stage) {
+            UpdateStage.READY, UpdateStage.PERMISSION -> 100
+            UpdateStage.DOWNLOADING -> percent
+            else -> 0
+        }
+        val primaryLabel = when (stage) {
+            UpdateStage.OFFER -> "تنزيل التحديث"
+            UpdateStage.DOWNLOADING -> "جارٍ التنزيل"
+            UpdateStage.READY -> "تثبيت الآن"
+            UpdateStage.PERMISSION -> "متابعة التثبيت"
+            UpdateStage.FAILED -> "إعادة المحاولة"
+        }
+
+        // Custom dark/gold modal: Material 3 default AlertDialog uses the system color scheme.
+        CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
+            Dialog(onDismissRequest = { update = null }) {
+                Surface(
+                    modifier = Modifier.fillMaxWidth().widthIn(max = 440.dp),
+                    shape = RoundedCornerShape(28.dp),
+                    color = UpdatePanel,
+                    border = BorderStroke(1.dp, UpdateGold.copy(alpha = 0.88f)),
+                    tonalElevation = 0.dp,
+                    shadowElevation = 18.dp
                 ) {
-                    Text(
-                        when (stage) {
-                            UpdateStage.OFFER -> "تنزيل التحديث"
-                            UpdateStage.DOWNLOADING -> "جارٍ التنزيل"
-                            UpdateStage.READY, UpdateStage.PERMISSION -> "تثبيت التحديث"
-                            UpdateStage.FAILED -> "إعادة المحاولة"
-                        }, color = UpdateGold
-                    )
+                    Column(
+                        modifier = Modifier
+                            .background(
+                                Brush.verticalGradient(
+                                    listOf(Color(0xFF18191A), UpdatePanel, Color(0xFF08090B))
+                                )
+                            )
+                            .padding(top = 24.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Image(
+                                painter = painterResource(R.drawable.logo_premium),
+                                contentDescription = "شعار تواصل العطا",
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier
+                                    .size(68.dp)
+                                    .clip(CircleShape)
+                                    .border(1.dp, UpdateGold, CircleShape)
+                            )
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "تحديث جديد لتواصل العطا",
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 20.sp,
+                                    lineHeight = 28.sp
+                                )
+                                Spacer(Modifier.height(5.dp))
+                                Text(
+                                    text = "الإصدار ${release.version} متاح الآن",
+                                    color = UpdateGoldLight,
+                                    fontSize = 14.sp
+                                )
+                            }
+                        }
+                        Spacer(Modifier.height(24.dp))
+                        val message = when (stage) {
+                            UpdateStage.OFFER -> "نزّل الإصدار الرسمي مباشرة من داخل التطبيق. سيطلب أندرويد موافقتك قبل التثبيت."
+                            UpdateStage.DOWNLOADING -> "جارٍ تنزيل التحديث${progress?.let { " — $it%" } ?: "..."}"
+                            UpdateStage.READY -> "اكتمل التنزيل. اضغط تثبيت لفتح نافذة أندرويد الرسمية."
+                            UpdateStage.PERMISSION -> "اسمح للتطبيق بتثبيت التحديث من إعدادات أندرويد، ثم اضغط متابعة التثبيت."
+                            UpdateStage.FAILED -> error.ifBlank { "تعذر تنزيل التحديث، حاول مرة أخرى." }
+                        }
+                        Text(
+                            text = message,
+                            color = if (stage == UpdateStage.FAILED) UpdateError else UpdateWhite,
+                            fontSize = 14.sp,
+                            lineHeight = 22.sp,
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 22.dp)
+                        )
+                        Spacer(Modifier.height(18.dp))
+                        if (stage == UpdateStage.DOWNLOADING && progress == null) {
+                            LinearProgressIndicator(
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = 22.dp)
+                                    .height(6.dp).clip(RoundedCornerShape(6.dp)),
+                                color = UpdateGold,
+                                trackColor = UpdateTrack
+                            )
+                        } else {
+                            LinearProgressIndicator(
+                                progress = { (progress ?: 0).coerceIn(0, 100) / 100f },
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = 22.dp)
+                                    .height(6.dp).clip(RoundedCornerShape(6.dp)),
+                                color = UpdateGold,
+                                trackColor = UpdateTrack
+                            )
+                        }
+                        Spacer(Modifier.height(24.dp))
+                        Spacer(Modifier.fillMaxWidth().height(1.dp).background(UpdateSeparator))
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Button(
+                                modifier = Modifier.weight(1f).heightIn(min = 50.dp),
+                                enabled = stage != UpdateStage.DOWNLOADING,
+                                shape = RoundedCornerShape(16.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = UpdateGold,
+                                    contentColor = Color(0xFF12100C),
+                                    disabledContainerColor = Color(0xFF514528),
+                                    disabledContentColor = Color(0xFFCEC2A9)
+                                ),
+                                onClick = {
+                                    when (stage) {
+                                        UpdateStage.OFFER, UpdateStage.FAILED -> {
+                                            try {
+                                                val id = beginDownload(context, release)
+                                                prefs.edit()
+                                                    .putLong(SAVED_DOWNLOAD_ID, id)
+                                                    .putString(SAVED_DOWNLOAD_VERSION, release.version)
+                                                    .apply()
+                                                error = ""
+                                                percent = null
+                                                stage = UpdateStage.DOWNLOADING
+                                                downloadId = id
+                                            } catch (t: Exception) {
+                                                stage = UpdateStage.FAILED
+                                                error = "تعذر بدء التنزيل: ${t.message ?: "خطأ غير معروف"}"
+                                            }
+                                        }
+                                        UpdateStage.READY, UpdateStage.PERMISSION -> {
+                                            try {
+                                                if (openInstaller(context, release)) {
+                                                    update = null
+                                                } else {
+                                                    stage = UpdateStage.PERMISSION
+                                                }
+                                            } catch (t: Exception) {
+                                                stage = UpdateStage.FAILED
+                                                error = "تعذر فتح مثبت أندرويد: ${t.message ?: "خطأ غير معروف"}"
+                                            }
+                                        }
+                                        UpdateStage.DOWNLOADING -> Unit
+                                    }
+                                }
+                            ) {
+                                Text(primaryLabel, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                            }
+                            TextButton(
+                                onClick = { update = null },
+                                modifier = Modifier.heightIn(min = 48.dp)
+                            ) {
+                                Text("لاحقًا", color = UpdateGoldLight, fontSize = 15.sp)
+                            }
+                        }
+                    }
                 }
-            },
-            dismissButton = {
-                TextButton(onClick = { update = null }) { Text("لاحقًا") }
             }
-        )
+        }
     }
 }
