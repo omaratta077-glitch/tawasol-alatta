@@ -2,9 +2,20 @@ name: Build AL-ATTA Official Release APK
 
 on:
   workflow_dispatch:
+  # Build and publish a public APK after pushing a new Android version to main.
+  push:
+    branches:
+      - main
+    paths:
+      - 'android-native/**'
+      - '.github/workflows/build-native-release.yml'
 
 permissions:
   contents: write
+
+concurrency:
+  group: alatta-release-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   release:
@@ -168,7 +179,9 @@ jobs:
           }
           mkdir -p release-output
           cp "$APK" "release-output/tawasol-alatta-v${RELEASE_VERSION}.apk"
-          (cd release-output && sha256sum "tawasol-alatta-v${RELEASE_VERSION}.apk" > SHA256SUMS.txt)
+          # The stable filename is for /releases/latest/download/ on the website.
+          cp "$APK" release-output/tawasol-alatta-latest.apk
+          (cd release-output && sha256sum "tawasol-alatta-v${RELEASE_VERSION}.apk" tawasol-alatta-latest.apk > SHA256SUMS.txt)
 
       - name: Upload official signed APK
         uses: actions/upload-artifact@v4
@@ -187,6 +200,7 @@ jobs:
           TAG="v${RELEASE_VERSION}"
           APK="release-output/tawasol-alatta-v${RELEASE_VERSION}.apk"
           test -s "$APK"
+          test -s release-output/tawasol-alatta-latest.apk
           test -s release-output/SHA256SUMS.txt
           if gh release view "$TAG" >/dev/null 2>&1; then
             echo "::notice::Release $TAG already exists; not overwriting a published version."
@@ -196,7 +210,7 @@ jobs:
             echo "::error::Tag $TAG already exists without a release. Do not overwrite a tagged version."
             exit 1
           fi
-          gh release create "$TAG" "$APK" release-output/SHA256SUMS.txt \
+          gh release create "$TAG" "$APK" release-output/tawasol-alatta-latest.apk release-output/SHA256SUMS.txt \
             --target "$GITHUB_SHA" \
             --title "تواصل العطا $TAG" \
             --notes "الإصدار الرسمي لتطبيق تواصل العطا Android، موقّع بمفتاح الإصدار الرسمي. يحفظ إمكانية التحديث من داخل التطبيق؛ ويتطلب التثبيت موافقة المستخدم عبر نظام أندرويد. احتفظ بنفس مفتاح التوقيع لكل الإصدارات القادمة."
