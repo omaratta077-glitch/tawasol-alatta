@@ -244,15 +244,29 @@ private fun openYouTube(context: android.content.Context, id: String) {
     }
 }
 
-/** Official YouTube iframe in a self-contained Android WebView.
- *  Do not fetch /native-youtube-player.html: that page is not shipped with the site.
- *  Google's WebView guidance recommends loadDataWithBaseURL with an HTTPS origin.
+/** YouTube's supported embedded player, with a real HTTPS Referer supplied by WebView.
+ *  The previous v1.0.18 player could show an endless spinner because it only
+ *  watched the outer HTML page, not the YouTube player lifecycle.
  */
-private class AttaYoutubeFullscreenChrome(private val context: android.content.Context) : WebChromeClient() {
+private class AttaYoutubeFullscreenChrome(
+    private val context: android.content.Context,
+    private val onPlayerEvent: (String) -> Unit
+) : WebChromeClient() {
     private var fullscreenView: android.view.View? = null
     private var callback: CustomViewCallback? = null
     private var root: android.view.ViewGroup? = null
     private var owner: android.app.Activity? = null
+
+    override fun onConsoleMessage(message: android.webkit.ConsoleMessage?): Boolean {
+        val line = message?.message().orEmpty()
+        if (line.startsWith("ALATTA_YT:")) {
+            android.os.Handler(android.os.Looper.getMainLooper()).post {
+                onPlayerEvent(line.removePrefix("ALATTA_YT:"))
+            }
+            return true
+        }
+        return super.onConsoleMessage(message)
+    }
 
     override fun onShowCustomView(view: android.view.View?, cb: CustomViewCallback?) {
         val activity = context as? android.app.Activity
@@ -286,32 +300,75 @@ private class AttaYoutubeFullscreenChrome(private val context: android.content.C
 }
 
 private fun attaYouTubeHtml(videoId: String): String {
-    // videoId is strictly validated before this function is called.
-    val source = "https://www.youtube.com/embed/$videoId?playsinline=1&rel=0&origin=${enc(BASE)}"
+    // Embed is created by YouTube's official IFrame API. The HTML document's
+    // HTTPS base URL supplies the HTTP Referer; do not use file:/// or about:blank.
     return """<!doctype html><html lang="ar"><head>
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
       <meta name="referrer" content="strict-origin-when-cross-origin">
-      <style>html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#000}
+      <style>html,body,#player{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#000}
       iframe{display:block;border:0;width:100%;height:100%}</style></head>
-      <body><iframe title="YouTube" src="$source" allowfullscreen
-      referrerpolicy="strict-origin-when-cross-origin"
-      allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture; fullscreen">
-      </iframe></body></html>"""
+      <body><div id="player"></div><script>
+      function report(v){console.log('ALATTA_YT:'+v);}
+      function onYouTubeIframeAPIReady(){
+        try {
+          new YT.Player('player', {
+            width:'100%', height:'100%', videoId:'$videoId',
+            playerVars:{playsinline:1,rel:0,fs:1,origin:'$BASE'},
+            events:{
+              onReady:function(){report('READY');},
+              onStateChange:function(ev){if(ev.data===1){report('PLAYING');}},
+              onError:function(ev){report('ERROR:'+ev.data);}
+            }
+          });
+        } catch(e){report('ERROR:INIT');}
+      }
+      var script=document.createElement('script');
+      script.src='https://www.youtube.com/iframe_api';
+      script.onerror=function(){report('ERROR:SCRIPT');};
+      document.head.appendChild(script);
+      </script></body></html>"""
+}
+
+private fun attaYoutubeError(code: String): String = when (code) {
+    "100" -> "الفيديو محذوف أو خاص؛ اختر فيديو آخر."
+    "101", "150" -> "صاحب الفيديو منع تشغيله داخل التطبيقات. افتحه في YouTube."
+    "153" -> "YouTube رفض تعريف مصدر المشغّل (153). جرّب التشغيل المباشر أو YouTube."
+    "5" -> "الفيديو لم يعمل في مشغّل HTML5 على هذا الجهاز."
+    "SCRIPT", "INIT" -> "تعذّر تشغيل خدمة YouTube المضمّنة على الجهاز."
+    else -> "تعذّر تشغيل الفيديو داخل التطبيق (رمز $code)."
 }
 
 @Composable private fun YouTubePlayer(id: String) {
     val safeId = id.takeIf { Regex("[A-Za-z0-9_-]{11}").matches(it) } ?: return
     val ctx = LocalContext.current
-    var useDirectEmbed by remember(safeId) { mutableStateOf(false) }
+    // First try the official direct embed with an explicit HTTP Referer.
+    // Alternative uses the YouTube IFrame API to report READY/ERROR back to Android.
+    var useDirectEmbed by remember(safeId) { mutableStateOf(true) }
     var retryCounter by remember(safeId) { mutableIntStateOf(0) }
     var loadError by remember(safeId, useDirectEmbed, retryCounter) { mutableStateOf("") }
     var loading by remember(safeId, useDirectEmbed, retryCounter) { mutableStateOf(true) }
+    var playerReady by remember(safeId, useDirectEmbed, retryCounter) { mutableStateOf(false) }
 
-    val chrome = remember(ctx, safeId, useDirectEmbed, retryCounter) { AttaYoutubeFullscreenChrome(ctx) }
+    val chrome = remember(ctx, safeId, useDirectEmbed, retryCounter) {
+        AttaYoutubeFullscreenChrome(ctx) { event ->
+            when {
+                event == "READY" || event == "PLAYING" -> {
+                    playerReady = true
+                    loading = false
+                    loadError = ""
+                }
+                event.startsWith("ERROR:") -> {
+                    loading = false
+                    loadError = attaYoutubeError(event.removePrefix("ERROR:"))
+                }
+            }
+        }
+    }
     val webView = remember(ctx, safeId, useDirectEmbed, retryCounter) {
         WebView(ctx).apply {
             setBackgroundColor(android.graphics.Color.BLACK)
+            setLayerType(android.view.View.LAYER_TYPE_HARDWARE, null)
             settings.javaScriptEnabled = true
             settings.domStorageEnabled = true
             settings.mediaPlaybackRequiresUserGesture = true
@@ -322,7 +379,12 @@ private fun attaYouTubeHtml(videoId: String): String {
             webChromeClient = chrome
             webViewClient = object : WebViewClient() {
                 override fun onPageFinished(view: WebView?, url: String?) {
-                    loading = false
+                    // Only the direct embed page can be considered loaded here.
+                    // The HTML/IFrame API mode waits for YouTube's actual READY callback.
+                    if (useDirectEmbed && !playerReady && loadError.isEmpty()) {
+                        playerReady = true
+                        loading = false
+                    }
                 }
                 override fun onReceivedError(
                     view: WebView?, request: android.webkit.WebResourceRequest?,
@@ -330,7 +392,7 @@ private fun attaYouTubeHtml(videoId: String): String {
                 ) {
                     if (request?.isForMainFrame == true) {
                         loading = false
-                        loadError = "تعذّر تحميل المشغّل. جرّب طريقة التشغيل البديلة."
+                        loadError = "تعذّر فتح YouTube. جرّب المشغّل البديل أو تطبيق YouTube."
                     }
                 }
                 override fun onReceivedHttpError(
@@ -339,7 +401,7 @@ private fun attaYouTubeHtml(videoId: String): String {
                 ) {
                     if (request?.isForMainFrame == true && (response?.statusCode ?: 0) >= 400) {
                         loading = false
-                        loadError = "خادم الفيديو لم يسمح بتحميل المشغّل."
+                        loadError = "خادم YouTube رفض تحميل الفيديو (${response?.statusCode})."
                     }
                 }
             }
@@ -353,6 +415,15 @@ private fun attaYouTubeHtml(videoId: String): String {
             webView.destroy()
         }
     }
+    // A WebView may never call onPageFinished when the remote player hangs.
+    // Never leave the user with a spinner that continues forever.
+    LaunchedEffect(safeId, useDirectEmbed, retryCounter) {
+        delay(15000)
+        if (!playerReady && loadError.isEmpty()) {
+            loading = false
+            loadError = "استغرق تشغيل الفيديو وقتًا طويلًا. جرّب المشغّل البديل أو افتحه في YouTube."
+        }
+    }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Box(
             Modifier.fillMaxWidth().aspectRatio(16f / 9f)
@@ -362,15 +433,12 @@ private fun attaYouTubeHtml(videoId: String): String {
             AndroidView(
                 factory = { webView },
                 update = { view ->
-                    // AndroidView update can run repeatedly: load once per WebView instance.
-                    if (view.tag != "atta-youtube-ready") {
-                        view.tag = "atta-youtube-ready"
+                    if (view.tag != "atta-youtube-loaded") {
+                        view.tag = "atta-youtube-loaded"
                         if (useDirectEmbed) {
-                            // Official fallback for Android WebViews: identify our app via Referer.
-                            val url = "https://www.youtube.com/embed/$safeId?playsinline=1&origin=${enc(BASE)}"
+                            val url = "https://www.youtube.com/embed/$safeId?playsinline=1&rel=0&origin=${enc(BASE)}"
                             view.loadUrl(url, mapOf("Referer" to "$BASE/"))
                         } else {
-                            // No Cloudflare HTML deployment necessary. HTTPS base sets Referer.
                             view.loadDataWithBaseURL("$BASE/", attaYouTubeHtml(safeId),
                                 "text/html", "UTF-8", null)
                         }
@@ -381,24 +449,24 @@ private fun attaYouTubeHtml(videoId: String): String {
             if (loading) CircularProgressIndicator(color = Gold, modifier = Modifier.size(32.dp))
             if (loadError.isNotEmpty()) {
                 Text(loadError, color = GoldLight, textAlign = TextAlign.Center,
-                    modifier = Modifier.background(Color.Black.copy(alpha = .88f))
+                    modifier = Modifier.background(Color.Black.copy(alpha = .93f))
                         .padding(14.dp))
             }
         }
-        Text("اضغط ▶ داخل الفيديو للتشغيل. بعض الفيديوهات تمنع التضمين بقرار من صاحبها.",
+        Text("شغّل الفيديو من داخل الإطار. لو YouTube منع التضمين، استخدم فتح في YouTube.",
             color = Muted, fontSize = 12.sp)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             TextButton(onClick = {
                 useDirectEmbed = !useDirectEmbed
                 retryCounter += 1
-            }) { Text(if (useDirectEmbed) "المشغّل الأساسي" else "تشغيل بديل", color = GoldLight) }
+            }) {
+                Text(if (useDirectEmbed) "تجربة مشغّل IFrame" else "التشغيل المباشر", color = GoldLight)
+            }
             TextButton(onClick = { retryCounter += 1 }) {
                 Text("إعادة المحاولة", color = GoldLight)
             }
         }
-        TextButton(onClick = { openYouTube(ctx, safeId) }) {
-            Text("فتح في يوتيوب إذا رفض الفيديو التضمين", color = GoldLight, fontSize = 12.sp)
-        }
+        GoldButton("▶ فتح الفيديو في YouTube") { openYouTube(ctx, safeId) }
     }
 }
 
