@@ -365,6 +365,7 @@ private fun ChatBubble(message: JSONObject, mine: Boolean) {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun MessengerThread(
     person: JSONObject,
