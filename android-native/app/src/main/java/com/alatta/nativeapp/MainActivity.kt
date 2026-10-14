@@ -598,31 +598,31 @@ private fun AttaYoutubeControls(
         zoom = 1f
     }
 
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        if (!fullscreen) {
+    // The v1.0.21 direct embed is intentionally preserved. The YouTube player
+    // owns its own playback controls: no duplicate instructional panel below it.
+    if (!fullscreen) {
+        Box(Modifier.fillMaxWidth().height(390.dp)) {
             AttaYoutubeDisplay(
                 webView = webView, modeDirect = useDirectEmbed, videoId = safeId,
                 loading = loading, error = loadError, zoom = zoom,
-                modifier = Modifier.fillMaxWidth().height(320.dp)
+                modifier = Modifier.fillMaxSize()
             )
-            AttaYoutubeControls(
-                canSeek = playerReady && !useDirectEmbed, isPlaying = isPlaying,
-                position = position, duration = duration, zoom = zoom,
-                onCommand = { action, amount -> send(action, amount) }, onZoom = { zoom = it },
-                onFullscreen = { fullscreen = true }, isFullscreen = false
-            )
-        }
-        Text("المشغّل المباشر كما في v1.0.21. عرض أطول للفيديو مع إمكانية ملء الشاشة والتكبير.",
-            color = Muted, fontSize = 12.sp)
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            TextButton(onClick = { switchMode() }) {
-                Text(if (useDirectEmbed) "تجربة أزرار التقديم ±10 ثوانٍ (IFrame)" else "العودة للتشغيل المباشر", color = GoldLight)
-            }
-            TextButton(onClick = { fullscreen = false; retryCounter += 1 }) {
-                Text("إعادة المحاولة", color = GoldLight)
+            Box(Modifier.align(Alignment.TopEnd).padding(8.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(Color.Black.copy(alpha = .78f))
+                .clickable { fullscreen = true }
+                .padding(horizontal = 12.dp, vertical = 7.dp)) {
+                Text("⛶ ملء الشاشة", color = GoldLight, fontSize = 13.sp, maxLines = 1)
             }
         }
-        GoldButton("▶ فتح في YouTube") { openYouTube(ctx, safeId) }
+        // Only troubleshooting controls show if the player actually reports a failure.
+        if (loadError.isNotBlank()) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                TextButton(onClick = { switchMode() }) { Text("مشغّل بديل", color = GoldLight) }
+                TextButton(onClick = { fullscreen = false; retryCounter += 1 }) { Text("إعادة المحاولة", color = GoldLight) }
+                TextButton(onClick = { openYouTube(ctx, safeId) }) { Text("فتح YouTube", color = GoldLight) }
+            }
+        }
     }
     if (fullscreen) {
         Dialog(onDismissRequest = { fullscreen = false },
@@ -641,12 +641,14 @@ private fun AttaYoutubeControls(
                     loading = loading, error = loadError, zoom = zoom,
                     modifier = Modifier.fillMaxWidth().weight(1f)
                 )
-                AttaYoutubeControls(
-                    canSeek = playerReady && !useDirectEmbed, isPlaying = isPlaying,
-                    position = position, duration = duration, zoom = zoom,
-                    onCommand = { action, amount -> send(action, amount) }, onZoom = { zoom = it },
-                    onFullscreen = { fullscreen = false }, isFullscreen = true
-                )
+                if (!useDirectEmbed) {
+                    AttaYoutubeControls(
+                        canSeek = playerReady, isPlaying = isPlaying,
+                        position = position, duration = duration, zoom = zoom,
+                        onCommand = { action, amount -> send(action, amount) }, onZoom = { zoom = it },
+                        onFullscreen = { fullscreen = false }, isFullscreen = true
+                    )
+                }
             }
         }
     }
@@ -744,6 +746,9 @@ private fun AttaYoutubeControls(
     var youtubeItems by remember { mutableStateOf(emptyList<JSONObject>()) }
     var youtubeId by remember { mutableStateOf("") }
     val youtubeListState = rememberLazyListState()
+    // Persist the last successfully acknowledged reaction across feed refreshes.
+    val acknowledgedReactions = remember(token) { mutableStateMapOf<String, String>() }
+    val reactionRequests = remember(token) { mutableStateMapOf<String, Boolean>() }
     var profileBio by remember { mutableStateOf("") }
     var profileCountry by remember { mutableStateOf("") }
     var profileCity by remember { mutableStateOf("") }
@@ -1128,11 +1133,27 @@ private fun AttaYoutubeControls(
         },
         dismissButton = { TextButton(onClick = { changePasswordDialog = false }) { Text("إلغاء") } }
     )
+    var incomingCallerName by remember { mutableStateOf("") }
+    LaunchedEffect(incomingCall?.peer, token) {
+        incomingCallerName = ""
+        val caller = incomingCall?.peer?.takeIf { it.isNotBlank() } ?: return@LaunchedEffect
+        if (token.isBlank()) return@LaunchedEffect
+        try {
+            val detail = get("/api/profile-public?username=${enc(caller)}")
+            val person = detail.optJSONObject("user") ?: detail
+            incomingCallerName = listOf("fullName", "displayName", "name")
+                .map { person.optString(it).trim() }
+                .firstOrNull { it.isNotBlank() && it != "null" } ?: ""
+        } catch (cancelled: CancellationException) { throw cancelled }
+        catch (_: Exception) { /* Private call IDs must not become display names. */ }
+    }
     incomingCall?.let { invitation ->
         AlertDialog(
             onDismissRequest = { sendCallResponse(invitation, "rejected"); incomingCall = null },
             title = { Text(if (invitation.type == "video") "مكالمة فيديو واردة" else "مكالمة صوتية واردة", color = GoldLight) },
-            text = { Text("${invitation.peer} يتصل بك عبر تواصل العطا") },
+            text = { Text(if (incomingCallerName.isNotBlank())
+                "$incomingCallerName يتصل بك عبر تواصل العطا"
+                else "مكالمة واردة من مستخدم في تواصل العطا") },
             confirmButton = { TextButton(onClick = {
                 incomingCall = null
                 openCall(invitation.peer, invitation.type, true, invitation.callId)
@@ -1318,8 +1339,17 @@ private fun AttaYoutubeControls(
                             }) { Text("إعادة إرسال الكود", color = GoldLight) }
                             PremiumAuthOutlineButton("الرجوع") { authMode = "register" }
                         } else if (authMode == "googleProfile") {
-                            Text("إنشاء حساب عن طريق Google", color = GoldLight, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                            Text(googleEmail, color = Muted, textAlign = TextAlign.Center, fontSize = 13.sp)
+                            Box(Modifier.fillMaxWidth()
+                                .border(1.dp, GoldLight, RoundedCornerShape(18.dp))
+                                .background(Color(0xFF171307), RoundedCornerShape(18.dp))
+                                .padding(horizontal = 12.dp, vertical = 17.dp),
+                                contentAlignment = Alignment.Center) {
+                                Text("إنشاء حساب عن طريق Google", color = GoldLight,
+                                    textAlign = TextAlign.Center, fontSize = 19.sp,
+                                    fontWeight = FontWeight.Bold, maxLines = 2)
+                            }
+                            Text(googleEmail, color = Muted, textAlign = TextAlign.Center,
+                                fontSize = 13.sp, modifier = Modifier.fillMaxWidth())
                             PremiumAuthTextField(googleName, { googleName = it }, "الاسم الكامل")
                             PremiumAuthTextField(googleUsername,
                                 { googleUsername = it.lowercase().filter { c -> (c in 'a'..'z') || (c in '0'..'9') || c == '_' }.take(24) },
@@ -1507,9 +1537,7 @@ private fun AttaYoutubeControls(
                                 val reactionTotal = listOf("like", "love", "haha", "wow", "sad", "angry", "dislike")
                                     .sumOf { reactionCounts.optInt(it) }
                                 val baseTotal = p.optInt("likeCount") + reactionTotal
-                                var selectedReaction by remember(postId, serverReaction) {
-                                    mutableStateOf(serverReaction)
-                                }
+                                val selectedReaction = acknowledgedReactions[postId] ?: serverReaction
                                 val visibleLikeCount = (baseTotal +
                                     (if (selectedReaction.isNotBlank()) 1 else 0) -
                                     (if (serverReaction.isNotBlank()) 1 else 0)).coerceAtLeast(0)
@@ -1522,7 +1550,7 @@ private fun AttaYoutubeControls(
                                     val image = media(p.optString("image")); val video = media(p.optString("video"))
                                     if (image.isNotBlank()) ExpandableProfileMedia(image, "صورة المنشور",
                                         Modifier.fillMaxWidth().padding(vertical = 6.dp)
-                                            .aspectRatio(1.15f).clip(RoundedCornerShape(11.dp))
+                                            .aspectRatio(1.03f).clip(RoundedCornerShape(11.dp))
                                             .border(.6.dp, Border.copy(alpha = .75f), RoundedCornerShape(11.dp)),
                                         contentScale = ContentScale.Crop)
                                     if (video.isNotBlank()) NativeVideo(video)
@@ -1538,35 +1566,32 @@ private fun AttaYoutubeControls(
                                                 liked = selectedReaction == "like",
                                                 selectedReaction = selectedReaction,
                                                 onLike = {
-                                                    val previous = selectedReaction
-                                                    val next = if (previous == "like") "" else "like"
-                                                    selectedReaction = next
-                                                    task {
-                                                        try {
-                                                            if (previous == "like" && !remoteLiked) {
-                                                                post("/api/post-react", JSONObject().put("postId", postId)
-                                                                    .put("reaction", "like").put("remove", true))
-                                                            } else {
-                                                                post("/api/post-like", JSONObject().put("postId", postId))
-                                                            }
-                                                            load(tab)
-                                                        } catch (e: Exception) {
-                                                            selectedReaction = previous
-                                                            throw e
+                                                    if (reactionRequests[postId] != true) {
+                                                        val next = if (selectedReaction == "like") "" else "like"
+                                                        reactionRequests[postId] = true
+                                                        task {
+                                                            try {
+                                                                post("/api/post-react", JSONObject()
+                                                                    .put("postId", postId).put("reaction", "like")
+                                                                    .put("remove", next.isEmpty()))
+                                                                acknowledgedReactions[postId] = next
+                                                                load(tab)
+                                                            } finally { reactionRequests.remove(postId) }
                                                         }
                                                     }
                                                 },
                                                 onReact = { reaction ->
-                                                    val previous = selectedReaction
-                                                    selectedReaction = reaction
-                                                    task {
-                                                        try {
-                                                            post("/api/post-react", JSONObject()
-                                                                .put("postId", postId).put("reaction", reaction))
-                                                            load(tab)
-                                                        } catch (e: Exception) {
-                                                            selectedReaction = previous
-                                                            throw e
+                                                    if (reactionRequests[postId] != true) {
+                                                        reactionRequests[postId] = true
+                                                        task {
+                                                            try {
+                                                                post("/api/post-react", JSONObject()
+                                                                    .put("postId", postId).put("reaction", reaction))
+                                                                // Update only after HTTP acknowledgement. Do not clear
+                                                                // the selected emoji when a refreshed feed omits myReaction.
+                                                                acknowledgedReactions[postId] = reaction
+                                                                load(tab)
+                                                            } finally { reactionRequests.remove(postId) }
                                                         }
                                                     }
                                                 }
@@ -1742,11 +1767,11 @@ private fun AttaYoutubeControls(
                                                 Brush.horizontalGradient(listOf(Color(0xFF282014), Color(0xFF090C0F)))))
                                         }
                                         Box(Modifier.align(Alignment.BottomEnd).padding(8.dp)) {
-                                            Box(Modifier.size(34.dp).clip(CircleShape)
+                                            Box(Modifier.size(29.dp).clip(CircleShape)
                                                 .background(Gold).clickable(enabled = !busy) {
                                                     profileCoverPicker.launch("image/*")
                                                 }, contentAlignment = Alignment.Center) {
-                                                SiteIcon("camera", size = 18.dp, tint = Black)
+                                                SiteIcon("camera", size = 15.dp, tint = Black)
                                             }
                                         }
                                     }
@@ -1763,12 +1788,12 @@ private fun AttaYoutubeControls(
                                                         Modifier.fillMaxSize())
                                                 } else Text(profile.name().take(1), color = GoldLight, fontSize = 35.sp)
                                             }
-                                            Box(Modifier.align(Alignment.BottomEnd).size(29.dp)
-                                                .border(2.dp, Black, CircleShape).clip(CircleShape)
+                                            Box(Modifier.align(Alignment.BottomEnd).size(25.dp)
+                                                .border(1.dp, Black, CircleShape).clip(CircleShape)
                                                 .background(Gold).clickable(enabled = !busy) {
                                                     profileAvatarPicker.launch("image/*")
                                                 }, contentAlignment = Alignment.Center) {
-                                                SiteIcon("camera", size = 16.dp, tint = Black)
+                                                SiteIcon("camera", size = 14.dp, tint = Black)
                                             }
                                         }
                                         Column(Modifier.weight(1f)) {
@@ -1776,6 +1801,8 @@ private fun AttaYoutubeControls(
                                                 fontSize = 17.sp, fontWeight = FontWeight.Bold)
                                         }
                                     }
+                                    Spacer(Modifier.height(10.dp))
+                                    ProfileInfoSummary(profile)
                                     Spacer(Modifier.height(14.dp))
                                     SectionTitle("معلومات عني")
                                     OutlinedTextField(profileBio, { profileBio = it.take(300) },
