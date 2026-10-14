@@ -45,6 +45,9 @@ export class SignalingRoom extends DurableObject {
       displayName:u.displayName||u.username,
       fullName:u.fullName||u.displayName||u.username,
       country:u.country||"",
+      city:u.city||"",
+      education:u.education||"",
+      work:u.work||"",
       bio:u.bio||"",
       cover:u.cover||"",
       accountPrivate:!!u.accountPrivate,
@@ -84,8 +87,7 @@ export class SignalingRoom extends DurableObject {
 
   async createSession(username){
     const token=crypto.randomUUID()+crypto.randomUUID();
-    const sessionUser=await this.user(username);
-    await this.ctx.storage.put(`session:${token}`,{username,createdAt:Date.now(),authVersion:Number(sessionUser?.authVersion||0)});
+    await this.ctx.storage.put(`session:${token}`,{username,createdAt:Date.now()});
     return token;
   }
 
@@ -94,7 +96,6 @@ export class SignalingRoom extends DurableObject {
     if(!session)return null;
     const u=await this.user(session.username);
     if(!u || u.banned)return null;
-    if(Number(session.authVersion||0)!==Number(u.authVersion||0))return null;
     return session;
   }
 
@@ -117,16 +118,29 @@ export class SignalingRoom extends DurableObject {
     return {session,role};
   }
 
+  // v1.0.14: calendar date is authoritative; do not trust submitted numeric age.
+  birthDateAge(value){
+    const raw=String(value||"").trim();
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(raw))return null;
+    const [y,m,d]=raw.split("-").map(Number);
+    const birth=new Date(Date.UTC(y,m-1,d));
+    if(birth.getUTCFullYear()!==y || birth.getUTCMonth()!==m-1 || birth.getUTCDate()!==d)return null;
+    const now=new Date();
+    let age=now.getUTCFullYear()-y;
+    if(now.getUTCMonth()+1<m || (now.getUTCMonth()+1===m && now.getUTCDate()<d))age--;
+    return age>=13 && age<=120 ? age : null;
+  }
+
   normalizeRegistration(body={}){
     return {
       fullName:String(body.fullName||"").trim(),
       username:String(body.username||"").trim().toLowerCase(),
-      age:Number(body.age||0),
+      birthDate:String(body.birthDate||"").trim(),
+      age:this.birthDateAge(body.birthDate),
       phone:String(body.phone||"").trim().replace(/\s+/g,""),
       email:String(body.email||"").trim().toLowerCase(),
       gender:String(body.gender||"").trim(),
       country:String(body.country||"").trim(),
-      city:String(body.city||"").trim().slice(0,80),
       password:String(body.password||""),
       confirmPassword:String(body.confirmPassword||"")
     };
@@ -135,7 +149,7 @@ export class SignalingRoom extends DurableObject {
   async validateRegistration(reg){
     if(reg.fullName.length<3)return "اكتب الاسم الكامل";
     if(reg.username.length<3)return "اسم المستخدم 3 أحرف على الأقل";
-    if(!Number.isFinite(reg.age) || reg.age<13 || reg.age>120)return "اكتب عمرًا صحيحًا من 13 إلى 120";
+    if(reg.age===null)return "اختر تاريخ ميلاد صحيحًا من التقويم (الحد الأدنى للعمر 13 عامًا)";
     if(!reg.email)return "أدخل البريد الإلكتروني لاستلام كود التأكيد";
     if(reg.phone && !/^\+?[0-9]{8,15}$/.test(reg.phone))return "رقم الهاتف غير صحيح";
     if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(reg.email))return "البريد الإلكتروني غير صحيح";
@@ -162,7 +176,7 @@ export class SignalingRoom extends DurableObject {
     return `${visible}${"*".repeat(Math.max(2,name.length-visible.length))}@${domain}`;
   }
 
-  async sendVerificationEmail(email,code,purpose="registration"){
+  async sendVerificationEmail(email,code){
     const apiKey=String(this.env.RESEND_API_KEY||"").trim();
     const from=String(
       this.env.VERIFY_FROM_EMAIL||
@@ -182,15 +196,15 @@ export class SignalingRoom extends DurableObject {
       body:JSON.stringify({
         from,
         to:[email],
-        subject:purpose==="passwordReset" ? "كود استعادة كلمة سر تواصل العطا" : "كود تأكيد حساب تواصل العطا",
+        subject:"كود تأكيد حساب تواصل العطا",
         html:`<!doctype html>
           <html dir="rtl" lang="ar">
             <body style="margin:0;background:#0a0d10;font-family:Arial,sans-serif;color:#fff">
               <div style="max-width:520px;margin:30px auto;padding:28px;background:#11161a;border:1px solid #d7a936;border-radius:18px;text-align:center">
                 <h2 style="color:#f1c75b;margin:0 0 14px">تواصل العطا</h2>
-                <p style="line-height:1.8;color:#ddd">${purpose==="passwordReset" ? "استخدم الكود التالي لاستعادة كلمة السر:" : "استخدم الكود التالي لتأكيد إنشاء حسابك:"}</p>
+                <p style="line-height:1.8;color:#ddd">استخدم الكود التالي لتأكيد إنشاء حسابك:</p>
                 <div style="font-size:34px;letter-spacing:9px;font-weight:800;color:#f7d778;padding:18px 8px">${code}</div>
-                <p style="color:#aaa;font-size:13px">الكود صالح لمدة 10 دقائق. إذا لم تطلب هذه العملية فتجاهل الرسالة.</p>
+                <p style="color:#aaa;font-size:13px">الكود صالح لمدة 10 دقائق. إذا لم تطلب إنشاء الحساب فتجاهل الرسالة.</p>
               </div>
             </body>
           </html>`
@@ -244,7 +258,7 @@ export class SignalingRoom extends DurableObject {
     // Google Client ID is public; never return any secret here.
     if(url.pathname==="/api/google-config" && request.method==="GET"){
       const clientId=String(this.env.GOOGLE_CLIENT_ID||"").trim();
-      return j({ok:true,enabled:!!clientId,clientId,nativeUsernameSignup:true});
+      return j({ok:true,enabled:!!clientId,clientId,nativeUsernameSignup:true,birthDateSignup:true});
     }
     if(url.pathname==="/api/media-upload" && request.method==="POST"){
       const session=await this.session(String(url.searchParams.get("token")||""));
@@ -288,45 +302,6 @@ export class SignalingRoom extends DurableObject {
     let body={};
     if(request.method!=="GET"){
       try{body=await request.json()}catch{}
-    }
-
-    // ALATTA_ANDROID_GOOGLE_BRIDGE_V104
-    // Google login is completed in the first-party website on the real system browser.
-    // An ephemeral code is bound to the app's SHA-256 verifier. It is NOT an ID token.
-    if(url.pathname==="/api/android-google-bridge/start" && request.method==="POST"){
-      if(request.headers.get("Origin")!==url.origin)
-        return j({ok:false,error:"غير مسموح بطلب مصادقة من مصدر آخر"},403);
-      if(!String(this.env.GOOGLE_CLIENT_ID||"").trim())
-        return j({ok:false,error:"تسجيل Google غير مفعّل على الموقع"},503);
-      const challenge=String(body.challenge||"");
-      const credential=String(body.credential||"");
-      if(!/^[A-Za-z0-9_-]{43}$/.test(challenge)||credential.length<100||credential.length>10000)
-        return j({ok:false,error:"طلب تأكيد Google غير صالح"},400);
-      const ip=String(request.headers.get("CF-Connecting-IP")||"unknown");
-      const rateKey=`google-bridge-rate:${(await hashPassword(ip)).slice(0,32)}`;
-      const rate=await this.ctx.storage.get(rateKey)||{count:0};
-      if(rate.count>=12)return j({ok:false,error:"محاولات كثيرة. حاول بعد دقيقة"},429);
-      await this.ctx.storage.put(rateKey,{count:rate.count+1},{expirationTtl:60});
-      const code=crypto.randomUUID().replaceAll("-","")+crypto.randomUUID().replaceAll("-","");
-      const key=`google-bridge:${await hashPassword(code)}`;
-      await this.ctx.storage.put(key,{credential,challenge,expiresAt:Date.now()+300000},{expirationTtl:320});
-      return j({ok:true,code,expiresIn:300});
-    }
-    if(url.pathname==="/api/android-google-bridge/exchange" && request.method==="POST"){
-      const code=String(body.code||"");
-      const verifier=String(body.verifier||"");
-      if(!/^[a-f0-9]{64}$/.test(code)||!/^[A-Za-z0-9_-]{43}$/.test(verifier))
-        return j({ok:false,error:"رابط المصادقة غير صالح"},400);
-      const key=`google-bridge:${await hashPassword(code)}`;
-      const saved=await this.ctx.storage.get(key);
-      if(!saved||Date.now()>saved.expiresAt)return j({ok:false,error:"انتهت جلسة Google، حاول مرة أخرى"},410);
-      const digest=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(verifier));
-      const challenge=btoa(String.fromCharCode(...new Uint8Array(digest))).replaceAll("+","-").replaceAll("/","_").replace(/=+$/g,"");
-      if(challenge!==saved.challenge)return j({ok:false,error:"تعذّر التحقق من ربط الجهاز"},403);
-      await this.ctx.storage.delete(key); // one time, prevents replay
-      // Signature, audience, issuer, email verification and expiration are checked
-      // by the UNMODIFIED /api/google-login endpoint before any session is created.
-      return j({ok:true,credential:saved.credential});
     }
 
     if(url.pathname==="/api/turn-credentials" && request.method==="GET"){
@@ -429,11 +404,11 @@ export class SignalingRoom extends DurableObject {
           username:reg.username,
           fullName:reg.fullName,
           age:reg.age,
+          birthDate:reg.birthDate,
           phone:reg.phone,
           email:reg.email,
           gender:reg.gender,
           country:reg.country,
-          city:reg.city,
           passwordHash:await hashPassword(reg.password)
         },
         codeHash,
@@ -546,13 +521,13 @@ export class SignalingRoom extends DurableObject {
         displayName:reg.fullName,
         fullName:reg.fullName,
         age:reg.age,
+        birthDate:reg.birthDate,
         phone:reg.phone,
         email:reg.email,
         emailVerified:true,
         emailVerifiedAt:Date.now(),
         gender:reg.gender,
         country:reg.country,
-        city:reg.city||"",
         passwordHash:reg.passwordHash,
         avatar:"",
         createdAt:Date.now()
@@ -626,97 +601,6 @@ export class SignalingRoom extends DurableObject {
       });
     }
 
-    // ALATTA_NATIVE_AUTH_V103: one-time, email-verified reset tokens (not logged in URLs).
-    if(url.pathname==="/api/password-reset-request" && request.method==="POST"){
-      const email=String(body.email||"").trim().toLowerCase().slice(0,255);
-      if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))return j({ok:false,error:"اكتب بريدًا إلكترونيًا صحيحًا"},400);
-      if(!String(this.env.RESEND_API_KEY||"").trim())return j({ok:false,error:"خدمة البريد غير مفعّلة على السيرفر"},503);
-      const now=Date.now();
-      const addressHash=await hashPassword(email);
-      const rateKey=`reset-rate:${addressHash}`;
-      const ip=String(request.headers.get("CF-Connecting-IP")||"unknown").slice(0,64);
-      const ipKey=`reset-ip:${(await hashPassword(ip)).slice(0,20)}`;
-      const ipInfo=await this.ctx.storage.get(ipKey)||{count:0};
-      // Always use the same response to prevent account enumeration.
-      const resetId=crypto.randomUUID();
-      const generic=j({ok:true,requestId:resetId,expiresIn:600,
-          message:"إذا كان البريد مرتبطًا بحساب بكلمة مرور، سيصلك كود استعادة خلال دقائق"});
-      if((await this.ctx.storage.get(rateKey)) || Number(ipInfo.count||0)>=8)return generic;
-      await this.ctx.storage.put(rateKey,now,{expirationTtl:90});
-      await this.ctx.storage.put(ipKey,{count:Number(ipInfo.count||0)+1},{expirationTtl:3600});
-      const names=await this.ctx.storage.get("usernames")||[];
-      let account=null;
-      for(const name of names){
-        const candidate=await this.user(name);
-        if(candidate?.email===email && candidate.passwordHash){account=candidate;break;}
-      }
-      if(!account)return generic;
-      const code=String(crypto.getRandomValues(new Uint32Array(1))[0]%1000000).padStart(6,"0");
-      try{
-        await this.sendVerificationEmail(email,code,"passwordReset");
-      }catch(err){
-        console.error("Password reset email send failed",String(err?.message||err));
-        return generic;
-      }
-      await this.ctx.storage.put(`pending-password-reset:${resetId}`,{
-        username:account.username,email,
-        codeHash:await hashPassword(`pwreset:${resetId}:${code}`),
-        expiresAt:now+600000, attempts:0
-      },{expirationTtl:900});
-      return generic;
-    }
-
-    if(url.pathname==="/api/password-reset-confirm" && request.method==="POST"){
-      const requestId=String(body.requestId||"").trim().slice(0,120);
-      const code=String(body.code||"").trim();
-      const password=String(body.newPassword||"");
-      const confirm=String(body.confirmPassword||"");
-      if(!/^[0-9]{6}$/.test(code) || !requestId)return j({ok:false,error:"أدخل كود التأكيد المكون من 6 أرقام"},400);
-      if(password.length<8 || password.length>128)return j({ok:false,error:"كلمة المرور يجب أن تكون بين 8 و128 حرفًا"},400);
-      if(password!==confirm)return j({ok:false,error:"تأكيد كلمة المرور غير مطابق"},400);
-      const key=`pending-password-reset:${requestId}`;
-      const pending=await this.ctx.storage.get(key);
-      if(!pending || Date.now()>Number(pending.expiresAt||0))return j({ok:false,error:"الكود غير صحيح أو انتهت صلاحيته"},410);
-      pending.attempts=Number(pending.attempts||0)+1;
-      if(pending.attempts>5){await this.ctx.storage.delete(key);return j({ok:false,error:"انتهت محاولات التأكيد. اطلب كودًا جديدًا"},429);}
-      if(await hashPassword(`pwreset:${requestId}:${code}`)!==pending.codeHash){
-        await this.ctx.storage.put(key,pending,{expirationTtl:900});
-        return j({ok:false,error:"الكود غير صحيح أو انتهت صلاحيته"},400);
-      }
-      const u=await this.user(pending.username);
-      if(!u || u.email!==pending.email || !u.passwordHash)return j({ok:false,error:"تعذّر تحديث كلمة المرور"},400);
-      u.passwordHash=await hashPassword(password); // Uses same legacy password format as /api/login.
-      u.passwordChangedAt=Date.now(); // Audit-only timestamp.
-      u.authVersion=Number(u.authVersion||0)+1; // Invalidate pre-change sessions.
-      await this.ctx.storage.put(`user:${u.username}`,u);
-      await this.ctx.storage.delete(key); // Code is single-use.
-      return j({ok:true,message:"تم تغيير كلمة المرور. يمكنك تسجيل الدخول الآن"});
-    }
-
-    // Authenticated password change. Google-only accounts use Google to authenticate.
-    if(url.pathname==="/api/change-password" && request.method==="POST"){
-      const session=await this.session(String(body.token||""));
-      if(!session)return j({ok:false,error:"سجل الدخول أولًا"},401);
-      const oldPassword=String(body.oldPassword||"");
-      const newPassword=String(body.newPassword||"");
-      const confirm=String(body.confirmPassword||"");
-      const user=await this.user(session.username);
-      if(!user?.passwordHash)return j({ok:false,error:"هذا الحساب يدخل بواسطة Google؛ لا توجد كلمة مرور محلية لتغييرها"},400);
-      const attemptKey=`change-password-rate:${session.username}`;
-      const info=await this.ctx.storage.get(attemptKey)||{count:0};
-      if(Number(info.count||0)>=6)return j({ok:false,error:"محاولات كثيرة. حاول بعد ساعة"},429);
-      await this.ctx.storage.put(attemptKey,{count:Number(info.count||0)+1},{expirationTtl:3600});
-      if(user.passwordHash!==await hashPassword(oldPassword))return j({ok:false,error:"كلمة المرور الحالية غير صحيحة"},401);
-      if(newPassword.length<8 || newPassword.length>128)return j({ok:false,error:"اختر كلمة مرور من 8 إلى 128 حرفًا"},400);
-      if(newPassword!==confirm)return j({ok:false,error:"تأكيد كلمة المرور غير مطابق"},400);
-      user.passwordHash=await hashPassword(newPassword);
-      user.passwordChangedAt=Date.now();
-      user.authVersion=Number(user.authVersion||0)+1;
-      await this.ctx.storage.put(`user:${user.username}`,user);
-      await this.ctx.storage.delete(attemptKey);
-      return j({ok:true,message:"تم تغيير كلمة المرور، سجّل الدخول من جديد"});
-    }
-
     if(url.pathname==="/api/logout" && request.method==="POST"){
       const sessionToken=String(body.token||url.searchParams.get("token")||"").trim();
 
@@ -751,7 +635,6 @@ export class SignalingRoom extends DurableObject {
       let username=await this.ctx.storage.get(googleKey);
       if(username && !(await this.user(username)))username=null;
       if(!username){
-        if(body.signupFlow==="android-login")return j({ok:false,error:"لا يوجد حساب Google سابق. اختر «إنشاء حساب عن طريق Google» أولًا."},404);
         const all=await this.ctx.storage.get("usernames")||[];
         for(const name of all){
           const existing=await this.user(name);
@@ -765,18 +648,18 @@ export class SignalingRoom extends DurableObject {
           return j({ok:false,error:"USERNAME_REQUIRED: اختر اسم مستخدم من 3 إلى 24 حرفًا إنجليزيًا أو رقمًا أو _",code:"USERNAME_REQUIRED"},409);
         }
         const chosenFullName=String(body.fullName||"").trim();
-        const chosenAge=Number(body.age);
-        if(chosenFullName.length<2 || chosenFullName.length>60 || !Number.isInteger(chosenAge) || chosenAge<13 || chosenAge>120){
-          return j({ok:false,error:"اكتب الاسم الظاهر والعمر الصحيح لإنشاء حساب Google",code:"PROFILE_REQUIRED"},400);
+        const chosenBirthDate=String(body.birthDate||"").trim();
+        const chosenAge=this.birthDateAge(chosenBirthDate);
+        if(chosenFullName.length<2 || chosenFullName.length>60 || chosenAge===null){
+          return j({ok:false,error:"اختر الاسم الظاهر وتاريخ الميلاد الصحيح لإنشاء حساب Google",code:"PROFILE_REQUIRED"},400);
         }
         username=chosenUsername;
         if(await this.user(username))return j({ok:false,error:"تعذر إنشاء الحساب. تواصل مع الإدارة."},409);
-        // Full name and age are required when a new Google account is created.
         const fullName=chosenFullName.slice(0,60);
         const age=chosenAge;
         const city=String(body.city||"").trim().slice(0,80);
         await this.ctx.storage.put(`user:${username}`,{
-          username,displayName:fullName,fullName,age,city,phone:"",email,
+          username,displayName:fullName,fullName,age,birthDate:chosenBirthDate,city,phone:"",email,
           emailVerified:true,emailVerifiedAt:Date.now(),googleIdHash:idHash,
           gender:"",country:"",passwordHash:null,avatar:"",createdAt:Date.now()
         });
@@ -874,6 +757,10 @@ export class SignalingRoom extends DurableObject {
         u.cover=nextCover;
       }
       if(typeof body.bio==="string")u.bio=body.bio.slice(0,300);
+      if(typeof body.country==="string")u.country=body.country.trim().slice(0,60);
+      if(typeof body.city==="string")u.city=body.city.trim().slice(0,60);
+      if(typeof body.education==="string")u.education=body.education.trim().slice(0,100);
+      if(typeof body.work==="string")u.work=body.work.trim().slice(0,100);
       if(typeof body.accountPrivate==="boolean")u.accountPrivate=body.accountPrivate;
 
       await this.ctx.storage.put(`user:${u.username}`,u);
@@ -1163,6 +1050,12 @@ export class SignalingRoom extends DurableObject {
       if(!post)return j({ok:false,error:"المنشور غير موجود"},404);
 
       post.likes=post.likes||[];
+      // A classic heart replaces an existing emoji, instead of duplicating it.
+      if(post.reactions){
+        for(const k of Object.keys(post.reactions)){
+          if(Array.isArray(post.reactions[k]))post.reactions[k]=post.reactions[k].filter(x=>x!==s.username);
+        }
+      }
       const idx=post.likes.indexOf(s.username);
       let liked=false;
 
@@ -1431,6 +1324,8 @@ export class SignalingRoom extends DurableObject {
       if(!allowed.includes(reaction))return j({ok:false,error:"تفاعل غير صالح"},400);
 
       post.reactions=post.reactions||{};
+      // One reaction per person: selecting an emoji replaces a classic heart.
+      if(Array.isArray(post.likes))post.likes=post.likes.filter(x=>x!==s.username);
       for(const key of allowed){
         post.reactions[key]=Array.isArray(post.reactions[key])?post.reactions[key]:[];
         post.reactions[key]=post.reactions[key].filter(x=>x!==s.username);
@@ -1645,6 +1540,9 @@ export class SignalingRoom extends DurableObject {
         email:u.email||"",
         gender:u.gender||"",
         country:u.country||"",
+        city:u.city||"",
+        education:u.education||"",
+        work:u.work||"",
         bio:u.bio||"",
         cover:u.cover||"",
         accountPrivate:!!u.accountPrivate,

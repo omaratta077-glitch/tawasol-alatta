@@ -641,7 +641,8 @@ private fun AttaYoutubeControls(
 }
 
 @Composable private fun NativeApp() {
-    AppUpdatePrompt()
+    var updateCheckRequest by remember { mutableIntStateOf(0) }
+    AppUpdatePrompt(updateCheckRequest)
     val ctx = LocalContext.current
     val prefs = remember { ctx.getSharedPreferences("alatta_native", 0) }
     var token by remember { mutableStateOf(prefs.getString("token", "") ?: "") }
@@ -724,6 +725,10 @@ private fun AttaYoutubeControls(
     var youtubeId by remember { mutableStateOf("") }
     val youtubeListState = rememberLazyListState()
     var profileBio by remember { mutableStateOf("") }
+    var profileCountry by remember { mutableStateOf("") }
+    var profileCity by remember { mutableStateOf("") }
+    var profileEducation by remember { mutableStateOf("") }
+    var profileWork by remember { mutableStateOf("") }
     // An Activity-scoped job is not cancelled just because login or a tab leaves composition.
     val scope = (ctx as ComponentActivity).lifecycleScope
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
@@ -996,7 +1001,15 @@ private fun AttaYoutubeControls(
             }
             "الإشعارات" -> notifications = get("/api/notifications").arr("notifications")
             "المجموعات" -> groups = get("/api/groups").arr("groups")
-            "الملف" -> { profile = get("/api/me").optJSONObject("user") ?: JSONObject(); profileBio = profile.optString("bio"); myAvatar = profile.optString("avatar") }
+            "الملف" -> {
+                profile = get("/api/me").optJSONObject("user") ?: JSONObject()
+                profileBio = profile.optString("bio")
+                profileCountry = profile.optString("country")
+                profileCity = profile.optString("city")
+                profileEducation = profile.optString("education")
+                profileWork = profile.optString("work")
+                myAvatar = profile.optString("avatar")
+            }
             "المحفوظات" -> posts = get("/api/saved-posts").arr("posts")
             "يوتيوب" -> youtubeItems = withContext(Dispatchers.IO) { api("/api/youtube?q=${enc(youtubeSearch)}") }.arr("items")
         }
@@ -1437,9 +1450,19 @@ private fun AttaYoutubeControls(
                                 var comment by remember(postId) { mutableStateOf("") }
                                 var showComments by remember(postId) { mutableStateOf(false) }
                                 val remoteLiked = p.optBoolean("likedByMe")
-                                var likedNow by remember(postId, remoteLiked) { mutableStateOf(remoteLiked) }
-                                val visibleLikeCount = (p.optInt("likeCount") +
-                                    (if (likedNow) 1 else 0) - (if (remoteLiked) 1 else 0)).coerceAtLeast(0)
+                                val remoteReaction = p.optString("myReaction")
+                                val serverReaction = if (remoteReaction.isNotBlank()) remoteReaction
+                                    else if (remoteLiked) "like" else ""
+                                val reactionCounts = p.optJSONObject("reactionCounts") ?: JSONObject()
+                                val reactionTotal = listOf("like", "love", "haha", "wow", "sad", "angry", "dislike")
+                                    .sumOf { reactionCounts.optInt(it) }
+                                val baseTotal = p.optInt("likeCount") + reactionTotal
+                                var selectedReaction by remember(postId, serverReaction) {
+                                    mutableStateOf(serverReaction)
+                                }
+                                val visibleLikeCount = (baseTotal +
+                                    (if (selectedReaction.isNotBlank()) 1 else 0) -
+                                    (if (serverReaction.isNotBlank()) 1 else 0)).coerceAtLeast(0)
                                 CardBox {
                                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                                         Avatar(author.optString("avatar"), author.name(), onClick = { openPublicProfile(author.optString("username")) })
@@ -1447,7 +1470,11 @@ private fun AttaYoutubeControls(
                                     }
                                     if (p.optString("text").isNotBlank()) Text(p.optString("text"), color = White, modifier = Modifier.padding(vertical = 10.dp))
                                     val image = media(p.optString("image")); val video = media(p.optString("video"))
-                                    if (image.isNotBlank()) ProfileMediaImage(image, "صورة المنشور", Modifier.fillMaxWidth().padding(vertical = 6.dp).heightIn(min = 120.dp, max = 450.dp).clip(RoundedCornerShape(11.dp)).border(.6.dp, Border.copy(alpha = .75f), RoundedCornerShape(11.dp)), contentScale = ContentScale.Fit)
+                                    if (image.isNotBlank()) ExpandableProfileMedia(image, "صورة المنشور",
+                                        Modifier.fillMaxWidth().padding(vertical = 6.dp)
+                                            .aspectRatio(1.15f).clip(RoundedCornerShape(11.dp))
+                                            .border(.6.dp, Border.copy(alpha = .75f), RoundedCornerShape(11.dp)),
+                                        contentScale = ContentScale.Crop)
                                     if (video.isNotBlank()) NativeVideo(video)
                                     p.optJSONObject("sharedPost")?.let { shared -> Text("مشاركة: ${shared.optString("text")}", color = GoldLight) }
                                     HorizontalDivider(color = Border.copy(alpha = .5f), modifier = Modifier.padding(vertical = 7.dp))
@@ -1458,24 +1485,39 @@ private fun AttaYoutubeControls(
                                             horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                                             PremiumReactionAction(
                                                 count = visibleLikeCount,
-                                                liked = likedNow,
+                                                liked = selectedReaction == "like",
+                                                selectedReaction = selectedReaction,
                                                 onLike = {
-                                                    likedNow = !likedNow // Gold feedback without waiting for the network.
+                                                    val previous = selectedReaction
+                                                    val next = if (previous == "like") "" else "like"
+                                                    selectedReaction = next
                                                     task {
                                                         try {
-                                                            post("/api/post-like", JSONObject().put("postId", postId))
+                                                            if (previous == "like" && !remoteLiked) {
+                                                                post("/api/post-react", JSONObject().put("postId", postId)
+                                                                    .put("reaction", "like").put("remove", true))
+                                                            } else {
+                                                                post("/api/post-like", JSONObject().put("postId", postId))
+                                                            }
                                                             load(tab)
                                                         } catch (e: Exception) {
-                                                            likedNow = !likedNow // Revert if the server rejects the request.
+                                                            selectedReaction = previous
                                                             throw e
                                                         }
                                                     }
                                                 },
                                                 onReact = { reaction ->
+                                                    val previous = selectedReaction
+                                                    selectedReaction = reaction
                                                     task {
-                                                        post("/api/post-react", JSONObject()
-                                                            .put("postId", postId).put("reaction", reaction))
-                                                        load(tab)
+                                                        try {
+                                                            post("/api/post-react", JSONObject()
+                                                                .put("postId", postId).put("reaction", reaction))
+                                                            load(tab)
+                                                        } catch (e: Exception) {
+                                                            selectedReaction = previous
+                                                            throw e
+                                                        }
                                                     }
                                                 }
                                             )
@@ -1520,6 +1562,8 @@ private fun AttaYoutubeControls(
                                     PremiumMenuEntry("users", "المجموعات") { navigate("المجموعات") }
                                     HorizontalDivider(color = Border.copy(alpha = .5f))
                                     PremiumMenuEntry("bell", "الإشعارات") { navigate("الإشعارات") }
+                                    HorizontalDivider(color = Border.copy(alpha = .5f))
+                                    PremiumMenuEntry("check", "فحص تحديث التطبيق") { updateCheckRequest++ }
                                     HorizontalDivider(color = Border.copy(alpha = .5f))
                                     PremiumMenuEntry("lock", "تغيير كلمة السر") { changePasswordDialog = true }
                                 }
@@ -1641,14 +1685,19 @@ private fun AttaYoutubeControls(
                                     Box(Modifier.fillMaxWidth().height(174.dp)
                                         .clip(RoundedCornerShape(16.dp)).background(Panel)) {
                                         if (media(profile.optString("cover")).isNotBlank()) {
-                                            ProfileMediaImage(profile.optString("cover"), "صورة الغلاف",
+                                            ExpandableProfileMedia(profile.optString("cover"), "صورة الغلاف",
                                                 Modifier.fillMaxSize(), ContentScale.Crop)
                                         } else {
                                             Box(Modifier.fillMaxSize().background(
                                                 Brush.horizontalGradient(listOf(Color(0xFF282014), Color(0xFF090C0F)))))
                                         }
                                         Box(Modifier.align(Alignment.BottomEnd).padding(8.dp)) {
-                                            GoldButton("تغيير الغلاف", !busy) { profileCoverPicker.launch("image/*") }
+                                            Box(Modifier.size(34.dp).clip(CircleShape)
+                                                .background(Gold).clickable(enabled = !busy) {
+                                                    profileCoverPicker.launch("image/*")
+                                                }, contentAlignment = Alignment.Center) {
+                                                SiteIcon("camera", size = 18.dp, tint = Black)
+                                            }
                                         }
                                     }
                                     Spacer(Modifier.height(10.dp))
@@ -1658,7 +1707,7 @@ private fun AttaYoutubeControls(
                                             .padding(3.dp).clip(CircleShape).background(Panel),
                                             contentAlignment = Alignment.Center) {
                                             if (media(profile.optString("avatar")).isNotBlank()) {
-                                                ProfileMediaImage(profile.optString("avatar"), "الصورة الشخصية",
+                                                ExpandableProfileMedia(profile.optString("avatar"), "الصورة الشخصية",
                                                     Modifier.fillMaxSize())
                                             } else Text(profile.name().take(1), color = GoldLight, fontSize = 35.sp)
                                         }
@@ -1666,19 +1715,41 @@ private fun AttaYoutubeControls(
                                             Text(profile.name(), color = White,
                                                 fontSize = 17.sp, fontWeight = FontWeight.Bold)
                                             Spacer(Modifier.height(5.dp))
-                                            GoldButton("تغيير الصورة", !busy) {
-                                                profileAvatarPicker.launch("image/*")
+                                            Box(Modifier.size(34.dp).clip(CircleShape)
+                                                .background(Gold).clickable(enabled = !busy) {
+                                                    profileAvatarPicker.launch("image/*")
+                                                }, contentAlignment = Alignment.Center) {
+                                                SiteIcon("camera", size = 18.dp, tint = Black)
                                             }
                                         }
                                     }
                                     Spacer(Modifier.height(14.dp))
-                                    OutlinedTextField(profileBio, { profileBio = it },
+                                    SectionTitle("معلومات عني")
+                                    OutlinedTextField(profileBio, { profileBio = it.take(300) },
                                         label = { Text("نبذة عني") }, modifier = Modifier.fillMaxWidth())
+                                    Spacer(Modifier.height(6.dp))
+                                    OutlinedTextField(profileCountry, { profileCountry = it.take(60) },
+                                        label = { Text("البلد") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                                    Spacer(Modifier.height(6.dp))
+                                    OutlinedTextField(profileCity, { profileCity = it.take(60) },
+                                        label = { Text("المدينة") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                                    Spacer(Modifier.height(6.dp))
+                                    OutlinedTextField(profileEducation, { profileEducation = it.take(100) },
+                                        label = { Text("التعليم / الجامعة") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                                    Spacer(Modifier.height(6.dp))
+                                    OutlinedTextField(profileWork, { profileWork = it.take(100) },
+                                        label = { Text("العمل") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
                                     Spacer(Modifier.height(8.dp))
-                                    GoldButton("حفظ النبذة", !busy) {
+                                    GoldButton("حفظ المعلومات", !busy) {
                                         task {
-                                            val updated = post("/api/profile", JSONObject().put("bio", profileBio))
+                                            val updated = post("/api/profile", JSONObject()
+                                                .put("bio", profileBio)
+                                                .put("country", profileCountry)
+                                                .put("city", profileCity)
+                                                .put("education", profileEducation)
+                                                .put("work", profileWork))
                                             profile = updated.optJSONObject("user") ?: profile
+                                            featureMessage = "تم حفظ معلومات الملف الشخصي"
                                         }
                                     }
                                     Spacer(Modifier.height(6.dp))

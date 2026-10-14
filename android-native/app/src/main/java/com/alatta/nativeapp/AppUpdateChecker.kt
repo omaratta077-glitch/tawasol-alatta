@@ -82,36 +82,54 @@ private fun installedVersion(context: Context): String {
     return context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "0.0.0"
 }
 
-/** Only accept signed, non-prerelease APK assets from our exact GitHub repository release. */
-internal suspend fun findAppUpdate(context: Context): AvailableAppUpdate? = withContext(Dispatchers.IO) {
+/** Human-readable result for manual checking, not just silent "no updates". */
+private data class ReleaseInspection(val available: AvailableAppUpdate?, val status: String)
+
+private suspend fun inspectRelease(context: Context): ReleaseInspection = withContext(Dispatchers.IO) {
     var connection: HttpURLConnection? = null
     try {
         val activeConnection = (URL(RELEASE_API).openConnection() as HttpURLConnection).apply {
             connectTimeout = 9000
             readTimeout = 9000
+            useCaches = false
+            setRequestProperty("Cache-Control", "no-cache")
             setRequestProperty("Accept", "application/vnd.github+json")
             setRequestProperty("User-Agent", "AL-ATTA-Android-Updater")
         }
         connection = activeConnection
-        if (activeConnection.responseCode != 200) return@withContext null
+        val code = activeConnection.responseCode
+        if (code != 200) return@withContext ReleaseInspection(null,
+            "تعذر فحص GitHub Releases (رمز $code). تأكد من نشر Release رسمي ووجود الإنترنت.")
         val json = JSONObject(activeConnection.inputStream.bufferedReader().use { it.readText() })
-        if (json.optBoolean("draft") || json.optBoolean("prerelease")) return@withContext null
+        if (json.optBoolean("draft") || json.optBoolean("prerelease")) {
+            return@withContext ReleaseInspection(null, "الإصدار الموجود مسودة أو تجريبي، ولن يظهر كتحديث رسمي.")
+        }
         val tag = json.optString("tag_name")
-        if (!newer(tag, installedVersion(context))) return@withContext null
-        if (!json.optString("html_url").startsWith("$RELEASES_URL/tag/")) return@withContext null
+        val current = installedVersion(context)
+        if (!newer(tag, current)) {
+            return@withContext ReleaseInspection(null,
+                "نسختك المثبّتة $current. آخر إصدار رسمي على GitHub هو $tag، ولا يوجد إصدار أحدث.")
+        }
+        if (!json.optString("html_url").startsWith("$RELEASES_URL/tag/")) {
+            return@withContext ReleaseInspection(null, "تعذر التحقق من رابط الإصدار الرسمي على GitHub.")
+        }
         val expectedAsset = "tawasol-alatta-$tag.apk"
-        val assets = json.optJSONArray("assets") ?: return@withContext null
+        val assets = json.optJSONArray("assets")
+            ?: return@withContext ReleaseInspection(null, "الإصدار $tag ليس به ملفات APK منشورة.")
         for (i in 0 until assets.length()) {
             val asset = assets.optJSONObject(i) ?: continue
             if (asset.optString("name") != expectedAsset) continue
             val download = asset.optString("browser_download_url")
-            if (download.startsWith("$RELEASES_URL/download/$tag/") && download.endsWith("/$expectedAsset")) {
-                return@withContext AvailableAppUpdate(tag, download)
+            if (download.startsWith("$RELEASES_URL/download/$tag/") &&
+                download.endsWith("/$expectedAsset")) {
+                return@withContext ReleaseInspection(AvailableAppUpdate(tag, download),
+                    "يتوفر تحديث رسمي جديد $tag")
             }
         }
-        null
-    } catch (_: Exception) {
-        null // Network problems never prevent the user from opening the app.
+        ReleaseInspection(null, "الإصدار $tag منشور لكن ملف $expectedAsset غير موجود في Assets.")
+    } catch (e: Exception) {
+        ReleaseInspection(null,
+            "تعذر الاتصال بـGitHub للتحقق من التحديثات. افحص الإنترنت وحاول مجددًا.")
     } finally {
         connection?.disconnect()
     }
@@ -182,7 +200,7 @@ private fun openInstaller(context: Context, update: AvailableAppUpdate): Boolean
 
 /** In-app APK download; Android's official package installer performs user-approved installation. */
 @Composable
-internal fun AppUpdatePrompt() {
+internal fun AppUpdatePrompt(manualCheckRequest: Int = 0) {
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences(UPDATE_PREFS, Context.MODE_PRIVATE) }
     var update by remember { mutableStateOf<AvailableAppUpdate?>(null) }
@@ -190,9 +208,16 @@ internal fun AppUpdatePrompt() {
     var downloadId by remember { mutableLongStateOf(-1L) }
     var percent by remember { mutableStateOf<Int?>(null) }
     var error by remember { mutableStateOf("") }
+    var checkStatus by remember { mutableStateOf("") }
 
-    LaunchedEffect(Unit) {
-        val available = findAppUpdate(context) ?: return@LaunchedEffect
+    LaunchedEffect(manualCheckRequest) {
+        val result = inspectRelease(context)
+        val available = result.available
+        if (available == null) {
+            if (manualCheckRequest > 0) checkStatus = result.status
+            return@LaunchedEffect
+        }
+        checkStatus = ""
         update = available
         val previousId = prefs.getLong(SAVED_DOWNLOAD_ID, -1L)
         if (previousId > 0L && prefs.getString(SAVED_DOWNLOAD_VERSION, "") == available.version) {
@@ -237,6 +262,24 @@ internal fun AppUpdatePrompt() {
                 }
             }
             delay(1200L)
+        }
+    }
+
+    if (checkStatus.isNotBlank()) {
+        Dialog(onDismissRequest = { checkStatus = "" }) {
+            Surface(
+                modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(21.dp),
+                color = UpdatePanel, border = BorderStroke(1.dp, UpdateGold)
+            ) {
+                Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text("فحص تحديث تواصل العطا", color = UpdateGoldLight,
+                        fontWeight = FontWeight.Bold, fontSize = 19.sp)
+                    Text(checkStatus, color = UpdateWhite, fontSize = 14.sp)
+                    TextButton(onClick = { checkStatus = "" }) {
+                        Text("حسنًا", color = UpdateGoldLight)
+                    }
+                }
+            }
         }
     }
 

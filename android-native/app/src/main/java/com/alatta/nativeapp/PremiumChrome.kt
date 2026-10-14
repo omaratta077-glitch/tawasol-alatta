@@ -253,6 +253,7 @@ internal fun PremiumPostAction(icon: String, label: String, color: Color = Premi
 internal fun PremiumReactionAction(
     count: Int,
     liked: Boolean,
+    selectedReaction: String = "",
     onLike: () -> Unit,
     onReact: (String) -> Unit
 ) {
@@ -270,8 +271,23 @@ internal fun PremiumReactionAction(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(5.dp)
         ) {
-            SiteIcon(if (liked) "heart-filled" else "heart", size = 23.dp, tint = if (liked) PremiumGoldLight else PremiumMuted)
-            Text(count.coerceAtLeast(0).toString(), color = if (liked) PremiumGoldLight else PremiumMuted, fontSize = 12.sp)
+            val reactionGlyph = when (selectedReaction) {
+                "love" -> "❤️"
+                "haha" -> "😂"
+                "wow" -> "😮"
+                "sad" -> "😢"
+                "angry" -> "😡"
+                else -> ""
+            }
+            if (reactionGlyph.isNotBlank()) {
+                Text(reactionGlyph, fontSize = 21.sp)
+            } else {
+                SiteIcon(if (liked) "heart-filled" else "heart", size = 23.dp,
+                    tint = if (liked) PremiumGoldLight else PremiumMuted)
+            }
+            Text(count.coerceAtLeast(0).toString(),
+                color = if (selectedReaction.isNotBlank() || liked) PremiumGoldLight else PremiumMuted,
+                fontSize = 12.sp)
         }
         DropdownMenu(
             expanded = expanded,
