@@ -1964,9 +1964,25 @@ export class SignalingRoom extends DurableObject {
   async webSocketError(){ await this.broadcastUsers(); }
 }
 
+
+// Tawasol Al-Atta: optional public APK download button for the landing page.
+// This only affects HTML; it does not modify account, chat, calls or any API route.
+const AL_ATTA_DOWNLOAD_BUTTON_SCRIPT = "/* Tawasol Al-Atta — download button above the Arabic language selector. */\n(() => {\n  \"use strict\";\n  const ID = \"alatta-android-download-above-language\";\n  const APK = \"https://github.com/omaratta077-glitch/tawasol-alatta/releases/latest/download/tawasol-alatta-latest.apk\";\n  let scheduled = false;\n\n  const isVisible = (el) => {\n    if (!el || !el.isConnected) return false;\n    const s = window.getComputedStyle(el);\n    return s.display !== \"none\" && s.visibility !== \"hidden\" && el.getClientRects().length > 0;\n  };\n  const exactArabic = (value) => /^(?:🌐\\s*)?العربية(?:\\s*[⌄▼▾▽↧])?$/.test(String(value || \"\").replace(/\\s+/g, \" \").trim());\n\n  function findLanguageSelector() {\n    // Native language dropdowns and accessible comboboxes first.\n    for (const el of document.querySelectorAll('select, [role=\"combobox\"]')) {\n      const opts = el.tagName === \"SELECT\" ? Array.from(el.options) : [];\n      if (opts.some(o => exactArabic(o.textContent)) || exactArabic(el.getAttribute(\"aria-label\")) || exactArabic(el.textContent)) {\n        if (isVisible(el)) return el;\n      }\n    }\n    // Custom dropdowns, buttons, labels, or small text nodes.\n    for (const el of document.querySelectorAll('button, [role=\"button\"], [data-lang], .language-selector, .language-switcher')) {\n      if (exactArabic(el.textContent) && isVisible(el)) return el;\n    }\n    if (!document.body || typeof document.createTreeWalker !== \"function\") return null;\n    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);\n    let node;\n    while ((node = walker.nextNode())) {\n      if (!exactArabic(node.textContent)) continue;\n      const parent = node.parentElement;\n      if (!isVisible(parent)) continue;\n      const selector = parent.closest('button, select, label, [role=\"combobox\"], [role=\"button\"]');\n      return selector || parent;\n    }\n    return null;\n  }\n\n  function findPosition(anchor) {\n    // A whole widget is preferable to placing the button inside a narrow selector.\n    const block = anchor.closest('.language-selector, .language-switcher, .language-picker, .lang-switcher, .lang-picker, .language-control, .lang-control, .locale-picker, .locale-selector');\n    if (block && block.parentElement) return block;\n    const parent = anchor.parentElement;\n    if (parent && parent !== document.body && parent.getBoundingClientRect().height < 130) return parent;\n    return anchor;\n  }\n\n  function createButton() {\n    const wrap = document.createElement('div');\n    wrap.id = ID;\n    wrap.dir = 'rtl';\n    wrap.style.cssText = 'box-sizing:border-box;width:100%;max-width:480px;margin:0 auto 14px;text-align:center;display:block;position:relative;z-index:1;';\n    const a = document.createElement('a');\n    a.href = APK;\n    a.target = '_self';\n    a.rel = 'noopener noreferrer';\n    a.setAttribute('aria-label', 'تحميل تطبيق Tawasol Al-Atta للأندرويد');\n    a.style.cssText = 'box-sizing:border-box;display:flex;align-items:center;justify-content:center;gap:9px;min-height:52px;padding:12px 16px;width:100%;border:1px solid #f0ce76;border-radius:13px;background:linear-gradient(120deg,#eac366,#d7a944,#f4d681);color:#18140b;font:700 clamp(14px,3.6vw,18px)/1.4 system-ui,Tahoma,Arial,sans-serif;text-decoration:none;box-shadow:0 7px 18px rgba(218,168,55,.17);white-space:normal;overflow-wrap:anywhere;';\n    a.textContent = '⬇ تحميل تطبيق Tawasol Al-Atta';\n    a.onfocus = () => { a.style.outline = '3px solid #fff';a.style.outlineOffset='3px'; };\n    a.onblur = () => { a.style.outline='none'; };\n    wrap.appendChild(a);\n    return wrap;\n  }\n\n  function install() {\n    scheduled = false;\n    const anchor = findLanguageSelector();\n    const existing = document.getElementById(ID);\n    if (!anchor) {\n      // Never show an extra download CTA inside authenticated pages without a language control.\n      if (existing) existing.remove();\n      return;\n    }\n    const target = findPosition(anchor);\n    const host = target.parentElement;\n    if (!host || target.id === ID || target.contains(existing)) return;\n    const button = existing || createButton();\n    if (button.parentElement !== host || button.nextSibling !== target) {\n      host.insertBefore(button, target);\n    }\n  }\n  function schedule() {\n    if (scheduled) return;\n    scheduled = true;\n    // Microtask batching prevents repeated work during React/SPA rerenders.\n    queueMicrotask(install);\n  }\n  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', schedule, {once:true});\n  else schedule();\n  new MutationObserver(schedule).observe(document.documentElement, {childList:true, subtree:true});\n})();";
+
 export default {
   async fetch(request,env){
     const url=new URL(request.url);
+
+    // Public, stable asset URL. Served directly from this Worker — no ASSETS file required.
+    if(url.pathname==="/_alatta/download-button.js" && request.method==="GET"){
+      return new Response(AL_ATTA_DOWNLOAD_BUTTON_SCRIPT,{
+        headers:{
+          "content-type":"application/javascript; charset=utf-8",
+          "cache-control":"public, max-age=300",
+          "x-content-type-options":"nosniff"
+        }
+      });
+    }
 
     if(url.pathname==="/health"){
       return Response.json({
@@ -2053,6 +2069,17 @@ export default {
       return env.SIGNALING.get(id).fetch(request);
     }
 
-    return env.ASSETS.fetch(request);
+    // Leave APIs, media, WebSockets and non-HTML assets untouched.
+    const assetResponse=await env.ASSETS.fetch(request);
+    if(request.method!=="GET" || !assetResponse.ok ||
+       !(assetResponse.headers.get("content-type")||"").toLowerCase().includes("text/html")){
+      return assetResponse;
+    }
+    if(typeof HTMLRewriter==="undefined")return assetResponse;
+    return new HTMLRewriter().on("body",{
+      element(element){
+        element.append('<script src="/_alatta/download-button.js" defer></script>',{html:true});
+      }
+    }).transform(assetResponse);
   }
 };
