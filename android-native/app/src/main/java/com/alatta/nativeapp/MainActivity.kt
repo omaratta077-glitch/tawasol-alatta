@@ -244,34 +244,164 @@ private fun openYouTube(context: android.content.Context, id: String) {
     }
 }
 
+/** Official YouTube iframe in a self-contained Android WebView.
+ *  Do not fetch /native-youtube-player.html: that page is not shipped with the site.
+ *  Google's WebView guidance recommends loadDataWithBaseURL with an HTTPS origin.
+ */
+private class AttaYoutubeFullscreenChrome(private val context: android.content.Context) : WebChromeClient() {
+    private var fullscreenView: android.view.View? = null
+    private var callback: CustomViewCallback? = null
+    private var root: android.view.ViewGroup? = null
+    private var owner: android.app.Activity? = null
+
+    override fun onShowCustomView(view: android.view.View?, cb: CustomViewCallback?) {
+        val activity = context as? android.app.Activity
+        val container = activity?.window?.decorView as? android.view.ViewGroup
+        if (activity == null || view == null || container == null || fullscreenView != null) {
+            cb?.onCustomViewHidden()
+            return
+        }
+        owner = activity
+        root = container
+        callback = cb
+        fullscreenView = view
+        container.addView(view, android.view.ViewGroup.LayoutParams(-1, -1))
+        activity.window.addFlags(android.view.WindowManager.LayoutParams.FLAG_FULLSCREEN)
+    }
+
+    override fun onHideCustomView() {
+        fullscreenView?.let { root?.removeView(it) }
+        owner?.window?.clearFlags(android.view.WindowManager.LayoutParams.FLAG_FULLSCREEN)
+        val oldCallback = callback
+        fullscreenView = null
+        callback = null
+        root = null
+        owner = null
+        oldCallback?.onCustomViewHidden()
+    }
+
+    fun release() {
+        if (fullscreenView != null) onHideCustomView()
+    }
+}
+
+private fun attaYouTubeHtml(videoId: String): String {
+    // videoId is strictly validated before this function is called.
+    val source = "https://www.youtube.com/embed/$videoId?playsinline=1&rel=0&origin=${enc(BASE)}"
+    return """<!doctype html><html lang="ar"><head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+      <meta name="referrer" content="strict-origin-when-cross-origin">
+      <style>html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#000}
+      iframe{display:block;border:0;width:100%;height:100%}</style></head>
+      <body><iframe title="YouTube" src="$source" allowfullscreen
+      referrerpolicy="strict-origin-when-cross-origin"
+      allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture; fullscreen">
+      </iframe></body></html>"""
+}
+
 @Composable private fun YouTubePlayer(id: String) {
-    // The player document is served by OUR Cloudflare domain, exactly as on the website.
-    // YouTube receives a real HTTPS referrer, unlike loadDataWithBaseURL/inline HTML.
     val safeId = id.takeIf { Regex("[A-Za-z0-9_-]{11}").matches(it) } ?: return
     val ctx = LocalContext.current
-    val player = remember(safeId) {
+    var useDirectEmbed by remember(safeId) { mutableStateOf(false) }
+    var retryCounter by remember(safeId) { mutableIntStateOf(0) }
+    var loadError by remember(safeId, useDirectEmbed, retryCounter) { mutableStateOf("") }
+    var loading by remember(safeId, useDirectEmbed, retryCounter) { mutableStateOf(true) }
+
+    val chrome = remember(ctx, safeId, useDirectEmbed, retryCounter) { AttaYoutubeFullscreenChrome(ctx) }
+    val webView = remember(ctx, safeId, useDirectEmbed, retryCounter) {
         WebView(ctx).apply {
+            setBackgroundColor(android.graphics.Color.BLACK)
             settings.javaScriptEnabled = true
             settings.domStorageEnabled = true
             settings.mediaPlaybackRequiresUserGesture = true
             settings.allowFileAccess = false
             settings.allowContentAccess = false
-            webChromeClient = WebChromeClient()
-            webViewClient = WebViewClient()
-            loadUrl("$BASE/native-youtube-player.html?id=$safeId")
+            settings.javaScriptCanOpenWindowsAutomatically = false
+            settings.loadsImagesAutomatically = true
+            webChromeClient = chrome
+            webViewClient = object : WebViewClient() {
+                override fun onPageFinished(view: WebView?, url: String?) {
+                    loading = false
+                }
+                override fun onReceivedError(
+                    view: WebView?, request: android.webkit.WebResourceRequest?,
+                    error: android.webkit.WebResourceError?
+                ) {
+                    if (request?.isForMainFrame == true) {
+                        loading = false
+                        loadError = "تعذّر تحميل المشغّل. جرّب طريقة التشغيل البديلة."
+                    }
+                }
+                override fun onReceivedHttpError(
+                    view: WebView?, request: android.webkit.WebResourceRequest?,
+                    response: android.webkit.WebResourceResponse?
+                ) {
+                    if (request?.isForMainFrame == true && (response?.statusCode ?: 0) >= 400) {
+                        loading = false
+                        loadError = "خادم الفيديو لم يسمح بتحميل المشغّل."
+                    }
+                }
+            }
         }
     }
-    DisposableEffect(player) {
-        onDispose { player.stopLoading(); player.loadUrl("about:blank"); player.destroy() }
+    DisposableEffect(webView, chrome) {
+        onDispose {
+            chrome.release()
+            webView.stopLoading()
+            webView.loadUrl("about:blank")
+            webView.destroy()
+        }
     }
-    Column {
-        AndroidView(factory = { player }, modifier = Modifier.fillMaxWidth().height(235.dp))
-        Text("المشغّل الرسمي داخل تواصل العطا. اضغط تشغيل على الفيديو.", color = Muted, fontSize = 11.sp)
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Box(
+            Modifier.fillMaxWidth().aspectRatio(16f / 9f)
+                .clip(RoundedCornerShape(12.dp)).background(Color.Black),
+            contentAlignment = Alignment.Center
+        ) {
+            AndroidView(
+                factory = { webView },
+                update = { view ->
+                    // AndroidView update can run repeatedly: load once per WebView instance.
+                    if (view.tag != "atta-youtube-ready") {
+                        view.tag = "atta-youtube-ready"
+                        if (useDirectEmbed) {
+                            // Official fallback for Android WebViews: identify our app via Referer.
+                            val url = "https://www.youtube.com/embed/$safeId?playsinline=1&origin=${enc(BASE)}"
+                            view.loadUrl(url, mapOf("Referer" to "$BASE/"))
+                        } else {
+                            // No Cloudflare HTML deployment necessary. HTTPS base sets Referer.
+                            view.loadDataWithBaseURL("$BASE/", attaYouTubeHtml(safeId),
+                                "text/html", "UTF-8", null)
+                        }
+                    }
+                },
+                modifier = Modifier.fillMaxSize()
+            )
+            if (loading) CircularProgressIndicator(color = Gold, modifier = Modifier.size(32.dp))
+            if (loadError.isNotEmpty()) {
+                Text(loadError, color = GoldLight, textAlign = TextAlign.Center,
+                    modifier = Modifier.background(Color.Black.copy(alpha = .88f))
+                        .padding(14.dp))
+            }
+        }
+        Text("اضغط ▶ داخل الفيديو للتشغيل. بعض الفيديوهات تمنع التضمين بقرار من صاحبها.",
+            color = Muted, fontSize = 12.sp)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            TextButton(onClick = {
+                useDirectEmbed = !useDirectEmbed
+                retryCounter += 1
+            }) { Text(if (useDirectEmbed) "المشغّل الأساسي" else "تشغيل بديل", color = GoldLight) }
+            TextButton(onClick = { retryCounter += 1 }) {
+                Text("إعادة المحاولة", color = GoldLight)
+            }
+        }
         TextButton(onClick = { openYouTube(ctx, safeId) }) {
-            Text("فتح على يوتيوب فقط إذا رفض صاحب الفيديو تضمينه", color = GoldLight, fontSize = 12.sp)
+            Text("فتح في يوتيوب إذا رفض الفيديو التضمين", color = GoldLight, fontSize = 12.sp)
         }
     }
 }
+
 @Composable private fun Avatar(url: String, label: String, onClick: (() -> Unit)? = null) {
     if (media(url).isNotBlank()) ProfileMediaImage(value = url, description = label, modifier = Modifier.size(42.dp).then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier).border(1.dp, Gold, CircleShape).clip(CircleShape), contentScale = ContentScale.Crop)
     else Box(Modifier.size(42.dp).background(Gold, CircleShape).then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier), contentAlignment = Alignment.Center) { Text(label.take(1), color = Black, fontWeight = FontWeight.Bold) }
