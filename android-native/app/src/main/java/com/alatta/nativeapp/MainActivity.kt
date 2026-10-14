@@ -898,7 +898,7 @@ private fun openYouTube(context: android.content.Context, id: String) {
                                 color = Color(0xFFFFC78E), fontSize = 12.sp)
                             PremiumAuthGoldButton("تأكيد إنشاء حساب Google", !busy && nativeUsernameSignup && birthDateSignup &&
                                 googleIdToken.isNotBlank() && googleUsername.matches(Regex("[a-z0-9_]{3,24}")) &&
-                                googleName.trim().length >= 2 && attaAgeFromBirthDate(googleBirthDate) != null {
+                                googleName.trim().length >= 2 && attaAgeFromBirthDate(googleBirthDate) != null) {
                                 task {
                                     val data = JSONObject()
                                         .put("credential", googleIdToken)
