@@ -39,6 +39,9 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.draw.shadow
 import androidx.compose.animation.core.*
@@ -300,24 +303,55 @@ private class AttaYoutubeFullscreenChrome(
 }
 
 private fun attaYouTubeHtml(videoId: String): String {
-    // Embed is created by YouTube's official IFrame API. The HTML document's
-    // HTTPS base URL supplies the HTTP Referer; do not use file:/// or about:blank.
+    // The YouTube IFrame API is the documented interface for play/pause/seek.
+    // An HTTPS origin is essential: file:/// and about:blank are not valid.
     return """<!doctype html><html lang="ar"><head>
       <meta charset="utf-8">
-      <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+      <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=yes">
       <meta name="referrer" content="strict-origin-when-cross-origin">
       <style>html,body,#player{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#000}
       iframe{display:block;border:0;width:100%;height:100%}</style></head>
       <body><div id="player"></div><script>
+      var alattaPlayer=null, alattaTicker=null;
       function report(v){console.log('ALATTA_YT:'+v);}
+      function alattaTime(){
+        try {
+          if(!alattaPlayer || !alattaPlayer.getCurrentTime) return;
+          var t=alattaPlayer.getCurrentTime(), d=alattaPlayer.getDuration();
+          if(Number.isFinite(t) && Number.isFinite(d))
+            report('TIME:'+Math.max(0,Math.floor(t))+':'+Math.max(0,Math.floor(d)));
+        } catch(e) {}
+      }
+      window.alattaControl=function(action,value){
+        if(!alattaPlayer) return;
+        try {
+          if(action==='seekBy') alattaPlayer.seekTo(Math.max(0,alattaPlayer.getCurrentTime()+value),true);
+          if(action==='seek') alattaPlayer.seekTo(Math.max(0,value),true);
+          if(action==='toggle') {
+            if(alattaPlayer.getPlayerState()===1) alattaPlayer.pauseVideo();
+            else alattaPlayer.playVideo();
+          }
+          alattaTime();
+        } catch(e){ report('CONTROL_ERROR'); }
+      };
       function onYouTubeIframeAPIReady(){
         try {
-          new YT.Player('player', {
-            width:'100%', height:'100%', videoId:'$videoId',
-            playerVars:{playsinline:1,rel:0,fs:1,origin:'$BASE'},
+          alattaPlayer=new YT.Player('player',{
+            width:'100%',height:'100%',videoId:'$videoId',
+            playerVars:{playsinline:1,rel:0,fs:1,controls:1,origin:'$BASE'},
             events:{
-              onReady:function(){report('READY');},
-              onStateChange:function(ev){if(ev.data===1){report('PLAYING');}},
+              onReady:function(){
+                report('READY');
+                alattaTime();
+                if(alattaTicker) clearInterval(alattaTicker);
+                alattaTicker=setInterval(alattaTime,850);
+              },
+              onStateChange:function(ev){
+                if(ev.data===1) report('PLAYING');
+                if(ev.data===2) report('PAUSED');
+                if(ev.data===0) report('ENDED');
+                alattaTime();
+              },
               onError:function(ev){report('ERROR:'+ev.data);}
             }
           });
@@ -327,6 +361,7 @@ private fun attaYouTubeHtml(videoId: String): String {
       script.src='https://www.youtube.com/iframe_api';
       script.onerror=function(){report('ERROR:SCRIPT');};
       document.head.appendChild(script);
+      window.addEventListener('pagehide',function(){if(alattaTicker) clearInterval(alattaTicker);});
       </script></body></html>"""
 }
 
@@ -339,16 +374,120 @@ private fun attaYoutubeError(code: String): String = when (code) {
     else -> "تعذّر تشغيل الفيديو داخل التطبيق (رمز $code)."
 }
 
+private fun attaYoutubeTimestamp(seconds: Int): String =
+    "%02d:%02d".format(seconds.coerceAtLeast(0) / 60, seconds.coerceAtLeast(0) % 60)
+
+@Composable
+private fun AttaYoutubeDisplay(
+    webView: WebView,
+    modeDirect: Boolean,
+    videoId: String,
+    loading: Boolean,
+    error: String,
+    zoom: Float,
+    modifier: Modifier = Modifier
+) {
+    Box(modifier.clip(RoundedCornerShape(12.dp)).background(Color.Black), contentAlignment = Alignment.Center) {
+        AndroidView(
+            factory = {
+                // The same WebView must survive entry/exit from the fullscreen dialog:
+                // reparent it rather than reloading the video and losing playback time.
+                (webView.parent as? android.view.ViewGroup)?.removeView(webView)
+                webView
+            },
+            update = { view ->
+                if (view.tag != "atta-youtube-loaded") {
+                    view.tag = "atta-youtube-loaded"
+                    if (modeDirect) {
+                        val address = "https://www.youtube.com/embed/$videoId?playsinline=1&rel=0&fs=1&origin=${enc(BASE)}"
+                        view.loadUrl(address, mapOf("Referer" to "$BASE/"))
+                    } else {
+                        view.loadDataWithBaseURL("$BASE/", attaYouTubeHtml(videoId), "text/html", "UTF-8", null)
+                    }
+                }
+            },
+            modifier = Modifier.fillMaxSize().graphicsLayer(scaleX = zoom, scaleY = zoom)
+        )
+        if (loading) CircularProgressIndicator(color = Gold, modifier = Modifier.size(32.dp))
+        if (error.isNotEmpty()) {
+            Text(error, color = GoldLight, textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth().background(Color.Black.copy(alpha = .94f)).padding(12.dp))
+        }
+    }
+}
+
+@Composable
+private fun AttaYoutubeControls(
+    canSeek: Boolean,
+    isPlaying: Boolean,
+    position: Int,
+    duration: Int,
+    zoom: Float,
+    onCommand: (String, Int) -> Unit,
+    onZoom: (Float) -> Unit,
+    onFullscreen: () -> Unit,
+    isFullscreen: Boolean
+) {
+    var dragging by remember { mutableStateOf(false) }
+    var dragTime by remember { mutableFloatStateOf(0f) }
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(attaYoutubeTimestamp(if (dragging) dragTime.toInt() else position), color = GoldLight, fontSize = 11.sp)
+            Slider(
+                value = (if (dragging) dragTime else position.toFloat()).coerceIn(0f, duration.coerceAtLeast(1).toFloat()),
+                onValueChange = { dragging = true; dragTime = it },
+                onValueChangeFinished = {
+                    if (dragging) onCommand("seek", dragTime.toInt())
+                    dragging = false
+                },
+                valueRange = 0f..duration.coerceAtLeast(1).toFloat(),
+                enabled = canSeek && duration > 0,
+                colors = SliderDefaults.colors(thumbColor = Gold, activeTrackColor = GoldLight, inactiveTrackColor = Border),
+                modifier = Modifier.weight(1f).padding(horizontal = 8.dp)
+            )
+            Text(attaYoutubeTimestamp(duration), color = Muted, fontSize = 11.sp)
+        }
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly,
+            verticalAlignment = Alignment.CenterVertically) {
+            TextButton(onClick = { onCommand("seekBy", -10) }, enabled = canSeek) {
+                Text("↶ 10ث", color = if (canSeek) GoldLight else Muted, fontSize = 13.sp)
+            }
+            TextButton(onClick = { onCommand("toggle", 0) }, enabled = canSeek) {
+                Text(if (isPlaying) "❚❚" else "▶", color = if (canSeek) Gold else Muted, fontSize = 18.sp)
+            }
+            TextButton(onClick = { onCommand("seekBy", 10) }, enabled = canSeek) {
+                Text("10ث ↷", color = if (canSeek) GoldLight else Muted, fontSize = 13.sp)
+            }
+            TextButton(onClick = { onZoom((zoom - .25f).coerceAtLeast(1f)) }) {
+                Text("−", color = GoldLight, fontSize = 20.sp)
+            }
+            TextButton(onClick = { onZoom((zoom + .25f).coerceAtMost(2.5f)) }) {
+                Text("+", color = GoldLight, fontSize = 20.sp)
+            }
+            TextButton(onClick = onFullscreen) {
+                Text(if (isFullscreen) "⤢" else "⛶", color = GoldLight, fontSize = 23.sp)
+            }
+        }
+        if (!canSeek) Text("التقديم والسحب يعملان في وضع التحكم التفاعلي IFrame.",
+            color = Muted, fontSize = 11.sp)
+    }
+}
+
 @Composable private fun YouTubePlayer(id: String) {
     val safeId = id.takeIf { Regex("[A-Za-z0-9_-]{11}").matches(it) } ?: return
     val ctx = LocalContext.current
-    // First try the official direct embed with an explicit HTTP Referer.
-    // Alternative uses the YouTube IFrame API to report READY/ERROR back to Android.
-    var useDirectEmbed by remember(safeId) { mutableStateOf(true) }
+    // Start with the documented IFrame API for functional seek/play controls.
+    // Keep the previously working direct player available as fallback.
+    var useDirectEmbed by remember(safeId) { mutableStateOf(false) }
     var retryCounter by remember(safeId) { mutableIntStateOf(0) }
     var loadError by remember(safeId, useDirectEmbed, retryCounter) { mutableStateOf("") }
     var loading by remember(safeId, useDirectEmbed, retryCounter) { mutableStateOf(true) }
     var playerReady by remember(safeId, useDirectEmbed, retryCounter) { mutableStateOf(false) }
+    var isPlaying by remember(safeId, useDirectEmbed, retryCounter) { mutableStateOf(false) }
+    var position by remember(safeId, useDirectEmbed, retryCounter) { mutableIntStateOf(0) }
+    var duration by remember(safeId, useDirectEmbed, retryCounter) { mutableIntStateOf(0) }
+    var zoom by remember(safeId) { mutableFloatStateOf(1f) }
+    var fullscreen by remember(safeId) { mutableStateOf(false) }
 
     val chrome = remember(ctx, safeId, useDirectEmbed, retryCounter) {
         AttaYoutubeFullscreenChrome(ctx) { event ->
@@ -357,6 +496,15 @@ private fun attaYoutubeError(code: String): String = when (code) {
                     playerReady = true
                     loading = false
                     loadError = ""
+                    if (event == "PLAYING") isPlaying = true
+                }
+                event == "PAUSED" || event == "ENDED" -> isPlaying = false
+                event.startsWith("TIME:") -> {
+                    val parts = event.removePrefix("TIME:").split(':')
+                    if (parts.size == 2) {
+                        position = parts[0].toIntOrNull()?.coerceAtLeast(0) ?: position
+                        duration = parts[1].toIntOrNull()?.coerceAtLeast(0) ?: duration
+                    }
                 }
                 event.startsWith("ERROR:") -> {
                     loading = false
@@ -376,29 +524,26 @@ private fun attaYoutubeError(code: String): String = when (code) {
             settings.allowContentAccess = false
             settings.javaScriptCanOpenWindowsAutomatically = false
             settings.loadsImagesAutomatically = true
+            settings.setSupportZoom(true)
+            settings.builtInZoomControls = true
+            settings.displayZoomControls = false
             webChromeClient = chrome
             webViewClient = object : WebViewClient() {
                 override fun onPageFinished(view: WebView?, url: String?) {
-                    // Only the direct embed page can be considered loaded here.
-                    // The HTML/IFrame API mode waits for YouTube's actual READY callback.
                     if (useDirectEmbed && !playerReady && loadError.isEmpty()) {
                         playerReady = true
                         loading = false
                     }
                 }
-                override fun onReceivedError(
-                    view: WebView?, request: android.webkit.WebResourceRequest?,
-                    error: android.webkit.WebResourceError?
-                ) {
+                override fun onReceivedError(view: WebView?, request: android.webkit.WebResourceRequest?,
+                                             error: android.webkit.WebResourceError?) {
                     if (request?.isForMainFrame == true) {
                         loading = false
-                        loadError = "تعذّر فتح YouTube. جرّب المشغّل البديل أو تطبيق YouTube."
+                        loadError = "تعذّر فتح YouTube. جرّب التشغيل المباشر أو تطبيق YouTube."
                     }
                 }
-                override fun onReceivedHttpError(
-                    view: WebView?, request: android.webkit.WebResourceRequest?,
-                    response: android.webkit.WebResourceResponse?
-                ) {
+                override fun onReceivedHttpError(view: WebView?, request: android.webkit.WebResourceRequest?,
+                                                 response: android.webkit.WebResourceResponse?) {
                     if (request?.isForMainFrame == true && (response?.statusCode ?: 0) >= 400) {
                         loading = false
                         loadError = "خادم YouTube رفض تحميل الفيديو (${response?.statusCode})."
@@ -410,63 +555,83 @@ private fun attaYoutubeError(code: String): String = when (code) {
     DisposableEffect(webView, chrome) {
         onDispose {
             chrome.release()
+            (webView.parent as? android.view.ViewGroup)?.removeView(webView)
             webView.stopLoading()
             webView.loadUrl("about:blank")
             webView.destroy()
         }
     }
-    // A WebView may never call onPageFinished when the remote player hangs.
-    // Never leave the user with a spinner that continues forever.
     LaunchedEffect(safeId, useDirectEmbed, retryCounter) {
         delay(15000)
         if (!playerReady && loadError.isEmpty()) {
             loading = false
-            loadError = "استغرق تشغيل الفيديو وقتًا طويلًا. جرّب المشغّل البديل أو افتحه في YouTube."
+            loadError = "استغرق تشغيل الفيديو وقتًا طويلًا. جرّب التشغيل المباشر أو افتحه في YouTube."
         }
     }
+    fun send(command: String, value: Int) {
+        if (useDirectEmbed || !playerReady) return
+        // Only fixed command names and integer arguments reach the HTML player.
+        if (command !in setOf("seek", "seekBy", "toggle")) return
+        webView.evaluateJavascript("window.alattaControl && window.alattaControl('$command',$value);", null)
+    }
+    fun switchMode() {
+        fullscreen = false
+        useDirectEmbed = !useDirectEmbed
+        retryCounter += 1
+        zoom = 1f
+    }
+
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Box(
-            Modifier.fillMaxWidth().aspectRatio(16f / 9f)
-                .clip(RoundedCornerShape(12.dp)).background(Color.Black),
-            contentAlignment = Alignment.Center
-        ) {
-            AndroidView(
-                factory = { webView },
-                update = { view ->
-                    if (view.tag != "atta-youtube-loaded") {
-                        view.tag = "atta-youtube-loaded"
-                        if (useDirectEmbed) {
-                            val url = "https://www.youtube.com/embed/$safeId?playsinline=1&rel=0&origin=${enc(BASE)}"
-                            view.loadUrl(url, mapOf("Referer" to "$BASE/"))
-                        } else {
-                            view.loadDataWithBaseURL("$BASE/", attaYouTubeHtml(safeId),
-                                "text/html", "UTF-8", null)
-                        }
-                    }
-                },
-                modifier = Modifier.fillMaxSize()
+        if (!fullscreen) {
+            AttaYoutubeDisplay(
+                webView = webView, modeDirect = useDirectEmbed, videoId = safeId,
+                loading = loading, error = loadError, zoom = zoom,
+                modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f)
             )
-            if (loading) CircularProgressIndicator(color = Gold, modifier = Modifier.size(32.dp))
-            if (loadError.isNotEmpty()) {
-                Text(loadError, color = GoldLight, textAlign = TextAlign.Center,
-                    modifier = Modifier.background(Color.Black.copy(alpha = .93f))
-                        .padding(14.dp))
-            }
+            AttaYoutubeControls(
+                canSeek = playerReady && !useDirectEmbed, isPlaying = isPlaying,
+                position = position, duration = duration, zoom = zoom,
+                onCommand = { action, amount -> send(action, amount) }, onZoom = { zoom = it },
+                onFullscreen = { fullscreen = true }, isFullscreen = false
+            )
         }
-        Text("شغّل الفيديو من داخل الإطار. لو YouTube منع التضمين، استخدم فتح في YouTube.",
+        Text("تحكم في الفيديو: تقديم وتأخير 10 ثوانٍ، سحب الشريط، تكبير، تصغير وملء الشاشة.",
             color = Muted, fontSize = 12.sp)
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            TextButton(onClick = {
-                useDirectEmbed = !useDirectEmbed
-                retryCounter += 1
-            }) {
-                Text(if (useDirectEmbed) "تجربة مشغّل IFrame" else "التشغيل المباشر", color = GoldLight)
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            TextButton(onClick = { switchMode() }) {
+                Text(if (useDirectEmbed) "تشغيل التحكم التفاعلي" else "التشغيل المباشر (بديل)", color = GoldLight)
             }
-            TextButton(onClick = { retryCounter += 1 }) {
+            TextButton(onClick = { fullscreen = false; retryCounter += 1 }) {
                 Text("إعادة المحاولة", color = GoldLight)
             }
         }
-        GoldButton("▶ فتح الفيديو في YouTube") { openYouTube(ctx, safeId) }
+        GoldButton("▶ فتح في YouTube") { openYouTube(ctx, safeId) }
+    }
+    if (fullscreen) {
+        Dialog(onDismissRequest = { fullscreen = false },
+            properties = DialogProperties(usePlatformDefaultWidth = false)) {
+            Column(Modifier.fillMaxSize().background(Black).padding(10.dp),
+                verticalArrangement = Arrangement.Center) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text("يوتيوب • تواصل العطا", color = GoldLight, fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold)
+                    TextButton(onClick = { fullscreen = false }) {
+                        Text("إغلاق ✕", color = GoldLight)
+                    }
+                }
+                AttaYoutubeDisplay(
+                    webView = webView, modeDirect = useDirectEmbed, videoId = safeId,
+                    loading = loading, error = loadError, zoom = zoom,
+                    modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f)
+                )
+                AttaYoutubeControls(
+                    canSeek = playerReady && !useDirectEmbed, isPlaying = isPlaying,
+                    position = position, duration = duration, zoom = zoom,
+                    onCommand = { action, amount -> send(action, amount) }, onZoom = { zoom = it },
+                    onFullscreen = { fullscreen = false }, isFullscreen = true
+                )
+            }
+        }
     }
 }
 
