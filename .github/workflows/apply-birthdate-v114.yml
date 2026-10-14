@@ -1,0 +1,49 @@
+name: Apply AL-ATTA Birth Date and Name v1.0.14
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  birthdate-update:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: true
+      - name: Patch current Cloudflare auth safely
+        run: python3 scripts/patch_birthdate_v114.py
+      - name: Check Worker and website JS
+        run: |
+          node --check cloudflare-site/src/worker.js
+          node --check cloudflare-site/public/app.js
+      - name: Ensure date of birth is not publicly exposed
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          s=Path('cloudflare-site/src/worker.js').read_text()
+          block=s.split('async publicUser(',1)[1].split('async friends(',1)[0]
+          assert 'birthDate:' not in block, 'DOB must stay private'
+          assert 'birthDateSignup:true' in s
+          assert 'chosenAge=this.birthDateAge(chosenBirthDate)' in s
+          print('Safe auth markers verified')
+          PY
+      - name: Commit validated site update to main
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- cloudflare-site/src/worker.js cloudflare-site/public/app.js cloudflare-site/public/index.html; then
+            echo 'Already applied. No commit needed.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add cloudflare-site/src/worker.js cloudflare-site/public/app.js cloudflare-site/public/index.html
+          git commit -m 'Require calendar date of birth and private DOB storage for new accounts'
+          git push origin HEAD:main
