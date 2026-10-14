@@ -128,7 +128,20 @@ private fun api(path: String, payload: JSONObject? = null): JSONObject {
         val status = conn.responseCode
         val content = (if (status in 200..299) conn.inputStream else conn.errorStream)?.bufferedReader()?.use { it.readText() } ?: "{}"
         val obj = JSONObject(content)
-        if (status !in 200..299 || obj.optBoolean("ok", true) == false) throw IllegalStateException(obj.optString("error", "HTTP $status"))
+        if (status !in 200..299 || obj.optBoolean("ok", true) == false) {
+            val serverMessage = obj.optString("error").ifBlank { "HTTP $status" }
+            val googleSignup = path.startsWith("/api/google-login") &&
+                payload?.optString("signupFlow") == "android-signup"
+            // Legacy Cloudflare Worker used this generic message exclusively for
+            // the `await this.user(username)` conflict (HTTP 409). Recognise it
+            // only on the Google signup request; do not disguise other failures.
+            val duplicateUsername = status == 409 && googleSignup && (
+                obj.optString("code") == "USERNAME_TAKEN" ||
+                serverMessage.trim() == "تعذر إنشاء الحساب. تواصل مع الإدارة."
+            )
+            throw IllegalStateException(if (duplicateUsername)
+                "اسم المستخدم موجود بالفعل، اختر اسمًا آخر." else serverMessage)
+        }
         obj
     } finally { conn.disconnect() }
 }
@@ -399,7 +412,7 @@ private fun AttaYoutubeDisplay(
                 if (view.tag != "atta-youtube-loaded") {
                     view.tag = "atta-youtube-loaded"
                     if (modeDirect) {
-                        val address = "https://www.youtube.com/embed/$videoId?playsinline=1&rel=0&fs=1&controls=1&origin=${enc(BASE)}"
+                        val address = "https://www.youtube.com/embed/$videoId?playsinline=1&rel=0&fs=1&origin=${enc(BASE)}"
                         view.loadUrl(address, mapOf("Referer" to "$BASE/"))
                     } else {
                         view.loadDataWithBaseURL("$BASE/", attaYouTubeHtml(videoId), "text/html", "UTF-8", null)
@@ -447,6 +460,7 @@ private fun AttaYoutubeControls(
             )
             Text(attaYoutubeTimestamp(duration), color = Muted, fontSize = 11.sp)
         }
+        // Separate rows prevent controls from overflowing on narrow phones.
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically) {
             TextButton(onClick = { onCommand("seekBy", -10) }, enabled = canSeek) {
@@ -468,10 +482,10 @@ private fun AttaYoutubeControls(
                 Text("+ تكبير", color = GoldLight, fontSize = 14.sp)
             }
             TextButton(onClick = onFullscreen) {
-                Text(if (isFullscreen) "⤢ تصغير الشاشة" else "⛶ ملء الشاشة", color = GoldLight, fontSize = 14.sp)
+                Text(if (isFullscreen) "تصغير الشاشة" else "⛶ ملء الشاشة", color = GoldLight, fontSize = 14.sp)
             }
         }
-        if (!canSeek) Text("استعمل شريط YouTube داخل الفيديو للتقديم إذا لم تتوفر أدوات التحكّم الخارجية.",
+        if (!canSeek) Text("المشغّل المباشر يتيح التحكم من أزرار YouTube داخل الفيديو؛ لأزرار ±10 ثوانٍ اختر وضع IFrame التفاعلي.",
             color = Muted, fontSize = 11.sp)
     }
 }
@@ -481,16 +495,11 @@ private fun AttaYoutubeControls(
     val ctx = LocalContext.current
     // Start with the documented IFrame API for functional seek/play controls.
     // Keep the previously working direct player available as fallback.
-    val youtubePrefs = remember(ctx) { ctx.getSharedPreferences("alatta_youtube", 0) }
-    // Preserve the last successful playback choice across videos and app restarts.
-    var useDirectEmbed by remember(safeId) {
-        mutableStateOf(youtubePrefs.getBoolean("prefer_direct", false))
-    }
+    var useDirectEmbed by remember(safeId) { mutableStateOf(true) }
     var retryCounter by remember(safeId) { mutableIntStateOf(0) }
     var loadError by remember(safeId, useDirectEmbed, retryCounter) { mutableStateOf("") }
     var loading by remember(safeId, useDirectEmbed, retryCounter) { mutableStateOf(true) }
     var playerReady by remember(safeId, useDirectEmbed, retryCounter) { mutableStateOf(false) }
-    var directControlsAvailable by remember(safeId, useDirectEmbed, retryCounter) { mutableStateOf(false) }
     var isPlaying by remember(safeId, useDirectEmbed, retryCounter) { mutableStateOf(false) }
     var position by remember(safeId, useDirectEmbed, retryCounter) { mutableIntStateOf(0) }
     var duration by remember(safeId, useDirectEmbed, retryCounter) { mutableIntStateOf(0) }
@@ -515,17 +524,8 @@ private fun AttaYoutubeControls(
                     }
                 }
                 event.startsWith("ERROR:") -> {
-                    val code = event.removePrefix("ERROR:")
-                    if (!useDirectEmbed && code in setOf("5", "153", "SCRIPT", "INIT")) {
-                        // The interactive embedded player may be rejected by YouTube.
-                        // Fall back to a plain embed rather than leaving inert controls.
-                        youtubePrefs.edit().putBoolean("prefer_direct", true).apply()
-                        useDirectEmbed = true
-                        retryCounter += 1
-                    } else {
-                        loading = false
-                        loadError = attaYoutubeError(code)
-                    }
+                    loading = false
+                    loadError = attaYoutubeError(event.removePrefix("ERROR:"))
                 }
             }
         }
@@ -579,60 +579,21 @@ private fun AttaYoutubeControls(
         }
     }
     LaunchedEffect(safeId, useDirectEmbed, retryCounter) {
-        delay(11000)
+        delay(15000)
         if (!playerReady && loadError.isEmpty()) {
-            if (!useDirectEmbed) {
-                youtubePrefs.edit().putBoolean("prefer_direct", true).apply()
-                useDirectEmbed = true // automatic recovery: keep video usable
-                retryCounter += 1
-            } else {
-                loading = false
-                loadError = "تعذّر تشغيل الفيديو داخل التطبيق. افتحه في YouTube أو أعد المحاولة."
-            }
-        }
-    }
-    // In the direct https://youtube.com/embed page, a native WebView JavaScript
-    // evaluation can reach the page's HTML5 video if YouTube exposes it.
-    // A version of the YouTube player may not expose that element; its own
-    // on-screen controls always remain the supported fallback.
-    LaunchedEffect(webView, useDirectEmbed, retryCounter) {
-        if (useDirectEmbed) {
-            while (true) {
-                delay(1200)
-                try {
-                    webView.evaluateJavascript("""(function(){var v=document.querySelector('video');return v ? Math.floor(v.currentTime)+'|'+Math.floor(v.duration||0)+'|'+(v.paused?'0':'1') : 'NO_VIDEO';})();""") { raw ->
-                        val parts = raw.trim().removeSurrounding("\"").split('|')
-                        directControlsAvailable = parts.size == 3
-                        if (parts.size == 3) {
-                            position = parts[0].toIntOrNull()?.coerceAtLeast(0) ?: position
-                            duration = parts[1].toIntOrNull()?.coerceAtLeast(0) ?: duration
-                            isPlaying = parts[2] == "1"
-                            playerReady = true
-                            loading = false
-                        }
-                    }
-                } catch (_: Exception) { /* Player's own controls remain available. */ }
-            }
+            loading = false
+            loadError = "استغرق تشغيل الفيديو وقتًا طويلًا. جرّب التشغيل المباشر أو افتحه في YouTube."
         }
     }
     fun send(command: String, value: Int) {
-        if (!playerReady || command !in setOf("seek", "seekBy", "toggle")) return
-        if (!useDirectEmbed) {
-            webView.evaluateJavascript("window.alattaControl && window.alattaControl('$command',$value);", null)
-            return
-        }
-        // Never evaluate user text as JS. Command and value are fixed/native-only.
-        val code = when (command) {
-            "seek" -> "v.currentTime=Math.max(0,$value)"
-            "seekBy" -> "v.currentTime=Math.max(0,v.currentTime+($value))"
-            else -> "if(v.paused){v.play()}else{v.pause()}"
-        }
-        webView.evaluateJavascript("(function(){var v=document.querySelector('video');if(!v)return 'NO_VIDEO';$code;return 'OK';})();", null)
+        if (useDirectEmbed || !playerReady) return
+        // Only fixed command names and integer arguments reach the HTML player.
+        if (command !in setOf("seek", "seekBy", "toggle")) return
+        webView.evaluateJavascript("window.alattaControl && window.alattaControl('$command',$value);", null)
     }
     fun switchMode() {
         fullscreen = false
         useDirectEmbed = !useDirectEmbed
-        youtubePrefs.edit().putBoolean("prefer_direct", useDirectEmbed).apply()
         retryCounter += 1
         zoom = 1f
     }
@@ -642,20 +603,20 @@ private fun AttaYoutubeControls(
             AttaYoutubeDisplay(
                 webView = webView, modeDirect = useDirectEmbed, videoId = safeId,
                 loading = loading, error = loadError, zoom = zoom,
-                modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f)
+                modifier = Modifier.fillMaxWidth().height(320.dp)
             )
             AttaYoutubeControls(
-                canSeek = playerReady && (!useDirectEmbed || directControlsAvailable), isPlaying = isPlaying,
+                canSeek = playerReady && !useDirectEmbed, isPlaying = isPlaying,
                 position = position, duration = duration, zoom = zoom,
                 onCommand = { action, amount -> send(action, amount) }, onZoom = { zoom = it },
                 onFullscreen = { fullscreen = true }, isFullscreen = false
             )
         }
-        Text("التحكم التفاعلي يعمل عند جاهزية مشغّل YouTube. عند فشل تحميله يتم التحويل تلقائيًا إلى المشغّل المباشر، وتظل أدوات الفيديو الأصلية متاحة.",
+        Text("المشغّل المباشر كما في v1.0.21. عرض أطول للفيديو مع إمكانية ملء الشاشة والتكبير.",
             color = Muted, fontSize = 12.sp)
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             TextButton(onClick = { switchMode() }) {
-                Text(if (useDirectEmbed) "تجربة التحكم التفاعلي" else "تشغيل بديل", color = GoldLight)
+                Text(if (useDirectEmbed) "تجربة أزرار التقديم ±10 ثوانٍ (IFrame)" else "العودة للتشغيل المباشر", color = GoldLight)
             }
             TextButton(onClick = { fullscreen = false; retryCounter += 1 }) {
                 Text("إعادة المحاولة", color = GoldLight)
@@ -678,11 +639,10 @@ private fun AttaYoutubeControls(
                 AttaYoutubeDisplay(
                     webView = webView, modeDirect = useDirectEmbed, videoId = safeId,
                     loading = loading, error = loadError, zoom = zoom,
-                    // Fullscreen fills the available screen area (not just a 16:9 strip).
                     modifier = Modifier.fillMaxWidth().weight(1f)
                 )
                 AttaYoutubeControls(
-                    canSeek = playerReady && (!useDirectEmbed || directControlsAvailable), isPlaying = isPlaying,
+                    canSeek = playerReady && !useDirectEmbed, isPlaying = isPlaying,
                     position = position, duration = duration, zoom = zoom,
                     onCommand = { action, amount -> send(action, amount) }, onZoom = { zoom = it },
                     onFullscreen = { fullscreen = false }, isFullscreen = true
