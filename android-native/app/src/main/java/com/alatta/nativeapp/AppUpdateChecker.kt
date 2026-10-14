@@ -290,7 +290,7 @@ internal fun AppUpdatePrompt(manualCheckRequest: Int = 0) {
             else -> 0
         }
         val primaryLabel = when (stage) {
-            UpdateStage.OFFER -> "تنزيل التحديث"
+            UpdateStage.OFFER -> "تحديث الآن"
             UpdateStage.DOWNLOADING -> "جارٍ التنزيل"
             UpdateStage.READY -> "تثبيت الآن"
             UpdateStage.PERMISSION -> "متابعة التثبيت"
@@ -349,7 +349,7 @@ internal fun AppUpdatePrompt(manualCheckRequest: Int = 0) {
                         }
                         Spacer(Modifier.height(24.dp))
                         val message = when (stage) {
-                            UpdateStage.OFFER -> "نزّل الإصدار الرسمي مباشرة من داخل التطبيق. سيطلب أندرويد موافقتك قبل التثبيت."
+                            UpdateStage.OFFER -> "يتوفر إصدار أحدث. التحديث اختياري؛ اضغط تحديث الآن لتنزيله، أو لاحقًا للاستمرار في استخدام التطبيق. سيطلب أندرويد موافقتك قبل التثبيت."
                             UpdateStage.DOWNLOADING -> "جارٍ تنزيل التحديث${progress?.let { " — $it%" } ?: "..."}"
                             UpdateStage.READY -> "اكتمل التنزيل. اضغط تثبيت لفتح نافذة أندرويد الرسمية."
                             UpdateStage.PERMISSION -> "اسمح للتطبيق بتثبيت التحديث من إعدادات أندرويد، ثم اضغط متابعة التثبيت."
