@@ -109,7 +109,7 @@ private fun JSONObject.arr(name: String): List<JSONObject> {
     val a = optJSONArray(name) ?: return emptyList()
     return (0 until a.length()).mapNotNull { a.optJSONObject(it) }
 }
-private fun JSONObject.name(): String = optString("fullName").ifBlank { optString("displayName").ifBlank { optString("username", "مستخدم") } }
+private fun JSONObject.name(): String = optString("fullName").ifBlank { optString("displayName").ifBlank { "مستخدم" } }
 private fun api(path: String, payload: JSONObject? = null): JSONObject {
     val conn = (URL(BASE + path).openConnection() as HttpURLConnection).apply {
         requestMethod = if (payload == null) "GET" else "POST"
@@ -287,7 +287,7 @@ private fun openYouTube(context: android.content.Context, id: String) {
     var authMode by remember { mutableStateOf("login") }
     var regName by remember { mutableStateOf("") }
     var regUsername by remember { mutableStateOf("") }
-    var regAge by remember { mutableStateOf("") }
+    var regBirthDate by remember { mutableStateOf("") }
     var regPhone by remember { mutableStateOf("") }
     var regEmail by remember { mutableStateOf("") }
     var regCountry by remember { mutableStateOf("") }
@@ -295,10 +295,11 @@ private fun openYouTube(context: android.content.Context, id: String) {
     var googleIdToken by remember { mutableStateOf("") }
     var googleEmail by remember { mutableStateOf("") }
     var googleName by remember { mutableStateOf("") }
-    var googleAge by remember { mutableStateOf("") }
+    var googleBirthDate by remember { mutableStateOf("") }
     var googleCity by remember { mutableStateOf("") }
     var googleUsername by remember { mutableStateOf("") }
     var nativeUsernameSignup by remember { mutableStateOf(false) }
+    var birthDateSignup by remember { mutableStateOf(false) }
     var changePasswordDialog by remember { mutableStateOf(false) }
     var currentPassword by remember { mutableStateOf("") }
     var nextPassword by remember { mutableStateOf("") }
@@ -384,6 +385,7 @@ private fun openYouTube(context: android.content.Context, id: String) {
         password = ""; regPass = ""; regConfirm = ""; googleIdToken = ""
         resetPassword = ""; resetConfirm = ""; authMode = "login"; tab = "الرئيسية"
     }
+    @Suppress("UNUSED_PARAMETER")
     fun chooseGoogle(signup: Boolean) {
         if (busy) return
         if (!googleEnabled || googleClientId.isBlank()) {
@@ -395,22 +397,25 @@ private fun openYouTube(context: android.content.Context, id: String) {
             // The existing Cloudflare /api/google-login still verifies the ID token.
             val pickedToken = GoogleNativeSignIn.pickAccount(ctx as ComponentActivity, googleClientId)
                 ?: return@task // User intentionally closed the account picker.
-            if (signup) {
-                val claims = googleTokenDetails(pickedToken) // UI preview only; server verifies.
-                googleIdToken = pickedToken
-                googleEmail = claims.optString("email")
-                googleName = claims.optString("name").ifBlank { claims.optString("given_name") }
-                googleAge = ""
-                googleCity = ""
-                googleUsername = ""
-                authMode = "googleProfile"
-            } else {
+            // Existing Google users sign in immediately from either button;
+            // only NEW users see the chosen name/username/date-of-birth form.
+            try {
                 val result = withContext(Dispatchers.IO) {
                     api("/api/google-login", JSONObject()
                         .put("credential", pickedToken)
                         .put("signupFlow", "android-login"))
                 }
                 applySession(result, "Google")
+            } catch (e: IllegalStateException) {
+                if (!e.message.orEmpty().contains("USERNAME_REQUIRED")) throw e
+                val claims = googleTokenDetails(pickedToken) // Preview; Worker verifies.
+                googleIdToken = pickedToken
+                googleEmail = claims.optString("email")
+                googleName = claims.optString("name").ifBlank { claims.optString("given_name") }
+                googleBirthDate = ""
+                googleCity = ""
+                googleUsername = ""
+                authMode = "googleProfile"
             }
         }
     }
@@ -720,7 +725,7 @@ private fun openYouTube(context: android.content.Context, id: String) {
     selectedStory?.let { st ->
         AlertDialog(
             onDismissRequest = { selectedStory = null },
-            title = { Text(st.optString("author", "قصة")) },
+            title = { Text(st.optJSONObject("authorInfo")?.name() ?: "قصة") },
             text = {
                 Column {
                     Text(st.optString("text"))
@@ -755,6 +760,7 @@ private fun openYouTube(context: android.content.Context, id: String) {
             googleEnabled = conf.optBoolean("enabled")
             googleClientId = conf.optString("clientId")
             nativeUsernameSignup = conf.optBoolean("nativeUsernameSignup", false)
+            birthDateSignup = conf.optBoolean("birthDateSignup", false)
         } catch (cancelled: CancellationException) { throw cancelled }
         catch (_: Exception) { googleEnabled = false }
     }
@@ -827,9 +833,9 @@ private fun openYouTube(context: android.content.Context, id: String) {
                             Text("أو أنشئ حسابًا بالبريد الإلكتروني", color = GoldLight, fontSize = 13.sp)
                             PremiumAuthTextField(regName, { regName = it }, "الاسم الكامل")
                             PremiumAuthTextField(regUsername, { regUsername = it.lowercase().filter { c -> c.isLetterOrDigit() && c.code < 128 || c == '_' }.take(24) }, "اختر اسم مستخدم فريد (مطلوب)")
-                            Text("اسم المستخدم تختاره بنفسك، ويُستخدم للبحث وتسجيل الدخول، ولا يظهر تحت اسمك في الملف الشخصي.",
+                            Text("اختَر معرّفًا فريدًا لتسجيل الدخول؛ الاسم الكامل وحده هو الذي يظهر للآخرين.",
                                 color = Muted, fontSize = 11.sp)
-                            PremiumAuthTextField(regAge, { regAge = it }, "العمر")
+                            AttaBirthDatePicker(regBirthDate, { regBirthDate = it })
                             PremiumAuthTextField(regPhone, { regPhone = it }, "رقم الهاتف (اختياري)")
                             PremiumAuthTextField(regEmail, { regEmail = it }, "البريد الإلكتروني لاستقبال كود التأكيد")
                             PremiumAuthTextField(regGender, { regGender = it }, "النوع (اختياري)")
@@ -837,11 +843,12 @@ private fun openYouTube(context: android.content.Context, id: String) {
                             PremiumAuthTextField(regCity, { regCity = it }, "المدينة (اختياري)")
                             PremiumAuthTextField(regPass, { regPass = it }, "كلمة المرور", password = true)
                             PremiumAuthTextField(regConfirm, { regConfirm = it }, "تأكيد كلمة المرور", password = true)
-                            PremiumAuthGoldButton("إرسال كود التأكيد", !busy && regName.isNotBlank() && regUsername.isNotBlank() && regEmail.isNotBlank() && regPass.isNotBlank()) {
+                            if (!birthDateSignup) Text("إنشاء حساب بتاريخ الميلاد يحتاج نشر تحديث Cloudflare v1.0.14 أولًا.", color = Color(0xFFFFC78E), fontSize = 12.sp)
+                            PremiumAuthGoldButton("إرسال كود التأكيد", !busy && birthDateSignup && regName.trim().length >= 3 && regUsername.matches(Regex("[a-z0-9_]{3,24}")) && attaAgeFromBirthDate(regBirthDate) != null && regEmail.isNotBlank() && regPass.isNotBlank()) {
                                 task {
                                     val body = JSONObject()
                                         .put("fullName", regName.trim()).put("username", regUsername.trim())
-                                        .put("age", regAge.toIntOrNull() ?: 0).put("phone", regPhone.trim())
+                                        .put("birthDate", regBirthDate).put("age", attaAgeFromBirthDate(regBirthDate) ?: 0).put("phone", regPhone.trim())
                                         .put("email", regEmail.trim()).put("gender", regGender.trim())
                                         .put("country", regCountry.trim()).put("city", regCity.trim()).put("password", regPass)
                                         .put("confirmPassword", regConfirm)
@@ -881,24 +888,25 @@ private fun openYouTube(context: android.content.Context, id: String) {
                             PremiumAuthTextField(googleUsername,
                                 { googleUsername = it.lowercase().filter { c -> (c in 'a'..'z') || (c in '0'..'9') || c == '_' }.take(24) },
                                 "اختر اسم مستخدم لحسابك")
-                            Text("اسم المستخدم لا يظهر في صفحتك؛ الاسم الكامل هو الذي يظهر للناس.",
+                            Text("المعرّف لا يظهر تحت اسمك؛ الاسم الكامل الذي تختاره هو الظاهر للناس.",
                                 color = Muted, fontSize = 11.sp)
-                            PremiumAuthTextField(googleAge, { googleAge = it.filter(Char::isDigit).take(3) }, "العمر (مطلوب)")
+                            AttaBirthDatePicker(googleBirthDate, { googleBirthDate = it })
                             PremiumAuthTextField(googleCity, { googleCity = it.take(80) }, "المدينة (اختياري)")
                             Text("الحسابات الحالية بواسطة Google ستفتح مباشرة دون تغيير بياناتها", color = Muted, fontSize = 11.sp)
                             if (!nativeUsernameSignup) Text(
                                 "إنشاء حساب Google جديد يحتاج تفعيل اختيار اسم المستخدم على خادم Cloudflare أولًا. حسابات Google الحالية تستمر في الدخول بشكل طبيعي.",
                                 color = Color(0xFFFFC78E), fontSize = 12.sp)
-                            PremiumAuthGoldButton("تأكيد إنشاء حساب Google", !busy && nativeUsernameSignup &&
+                            PremiumAuthGoldButton("تأكيد إنشاء حساب Google", !busy && nativeUsernameSignup && birthDateSignup &&
                                 googleIdToken.isNotBlank() && googleUsername.matches(Regex("[a-z0-9_]{3,24}")) &&
-                                googleName.trim().length >= 2 && (googleAge.toIntOrNull() ?: 0) in 13..120) {
+                                googleName.trim().length >= 2 && attaAgeFromBirthDate(googleBirthDate) != null {
                                 task {
                                     val data = JSONObject()
                                         .put("credential", googleIdToken)
                                         .put("signupFlow", "android-signup")
                                         .put("fullName", googleName.trim())
                                         .put("username", googleUsername.trim())
-                                        .put("age", googleAge.toIntOrNull())
+                                        .put("birthDate", googleBirthDate)
+                                        .put("age", attaAgeFromBirthDate(googleBirthDate))
                                         .put("city", googleCity.trim())
                                     val result = withContext(Dispatchers.IO) { api("/api/google-login", data) }
                                     require(result.optJSONObject("user")?.optString("username") == googleUsername.trim()) {
@@ -1031,7 +1039,7 @@ private fun openYouTube(context: android.content.Context, id: String) {
                                             StoryRing("إضافة قصة", "", true) { showStoryComposer = true }
                                             stories.take(20).forEach { st ->
                                                 val storyPhoto = media(st.optString("media").ifBlank { st.optString("image") })
-                                                StoryRing(st.optString("author", "مستخدم"), storyPhoto, false) {
+                                                StoryRing(st.optJSONObject("authorInfo")?.name() ?: "مستخدم", storyPhoto, false) {
                                                     selectedStory = st
                                                 }
                                             }
@@ -1047,7 +1055,7 @@ private fun openYouTube(context: android.content.Context, id: String) {
                                 CardBox {
                                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                                         Avatar(author.optString("avatar"), author.name(), onClick = { openPublicProfile(author.optString("username")) })
-                                        Column { Text(author.name().ifBlank { p.optString("author") }, color = GoldLight, fontWeight = FontWeight.Bold); Text(p.optString("author"), fontSize = 11.sp, color = Color.LightGray) }
+                                        Column { Text(author.name().ifBlank { p.optString("author") }, color = GoldLight, fontWeight = FontWeight.Bold); /* المعرّف الداخلي مخفي؛ يظهر الاسم الحقيقي فقط. */ }
                                     }
                                     if (p.optString("text").isNotBlank()) Text(p.optString("text"), color = White, modifier = Modifier.padding(vertical = 10.dp))
                                     val image = media(p.optString("image")); val video = media(p.optString("video"))

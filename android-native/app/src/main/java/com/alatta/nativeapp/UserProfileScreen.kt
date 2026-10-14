@@ -37,7 +37,7 @@ internal fun PublicUserProfile(
     onVideoCall: () -> Unit
 ) {
     val user = profile?.optJSONObject("user") ?: JSONObject().put("username", username)
-    val fullName = user.optString("fullName").ifBlank { user.optString("displayName").ifBlank { username } }
+    val fullName = user.optString("fullName").ifBlank { user.optString("displayName").ifBlank { "مستخدم" } }
     val avatar = media(user.optString("avatar"))
     val cover = media(user.optString("cover"))
     var filter by remember(username) { mutableStateOf("المنشورات") }

@@ -53,7 +53,7 @@ private val ChatGold = Color(0xFFE6B94E)
 private val ChatGoldBright = Color(0xFFF6D776)
 
 private fun contactName(person: JSONObject): String = person.optString("fullName").ifBlank {
-    person.optString("displayName").ifBlank { person.optString("username", "مستخدم") }
+    person.optString("displayName").ifBlank { "مستخدم" }
 }
 private fun prettyTime(ms: Long): String {
     if (ms <= 0) return ""

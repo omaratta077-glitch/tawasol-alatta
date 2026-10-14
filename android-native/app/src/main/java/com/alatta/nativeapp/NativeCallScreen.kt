@@ -60,6 +60,13 @@ internal fun NativeCallScreen(
                 @JavascriptInterface
                 fun onStatus(message: String) { /* Status displayed inside trusted call document. */ }
                 @JavascriptInterface
+                fun setSpeaker(enabled: Boolean) {
+                    activity?.runOnUiThread {
+                        @Suppress("DEPRECATION")
+                        audioManager.isSpeakerphoneOn = enabled
+                    }
+                }
+                @JavascriptInterface
                 fun mediaReady() {
                     // Configure communication routing AFTER WebRTC has captured the microphone.
                     // Some Android devices report NotReadableError if audio mode is changed first.

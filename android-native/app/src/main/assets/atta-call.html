@@ -1,30 +1,51 @@
 <!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1"/>
 <style>
-:root{color-scheme:dark;font-family:system-ui,-apple-system,sans-serif;background:#050709;color:#faf9f5}
-*{box-sizing:border-box}body{margin:0;overflow:hidden}.page{height:100dvh;min-height:320px;display:flex;flex-direction:column;position:relative}
-.header{z-index:3;background:#101419;padding:20px 18px;border-bottom:1px solid #27211a;display:flex;gap:14px;align-items:center}
-.avatar{display:grid;place-items:center;width:53px;height:53px;border-radius:50%;border:2px solid #e6b94e;font-size:25px;background:#32251a}
-.title{font-weight:750;font-size:20px}.subtitle{color:#edca80;font-size:12px;margin-top:5px}
-.stage{flex:1;min-height:0;display:flex;flex-direction:column;align-items:center;justify-content:center;position:relative;overflow:hidden;background:radial-gradient(ellipse at 50% 25%,#23201a 0%,#050709 66%)}
+:root {color-scheme:dark;font-family:system-ui,-apple-system,sans-serif;background:#050709;color:#faf9f5}
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden}
+.page{height:100dvh;display:flex;flex-direction:column;position:relative;background:radial-gradient(ellipse at 50% 33%,#20180e 0%,#080b0e 40%,#050709 80%)}
+.header{display:flex;justify-content:space-between;align-items:center;flex-shrink:0;padding:16px 19px;background:transparent;z-index:3;direction:ltr}
+.header button{width:43px;height:43px;border-radius:50%;background:#1a1e22;color:#fff;border:1px solid #34383b;display:grid;place-items:center}
+.header .callKind{font-size:14px;color:#e6b94e;direction:rtl}
+.stage{flex:1;min-height:0;display:flex;align-items:center;flex-direction:column;justify-content:center;position:relative;overflow:hidden;padding:8px 16px}
 #remoteVideo{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#080b0d;display:none}
-#localVideo{position:absolute;bottom:16px;right:15px;width:112px;height:151px;object-fit:cover;border:2px solid #dfb557;border-radius:15px;z-index:2;transform:scaleX(-1);background:#101419;display:none}
-#bigAvatar{width:132px;height:132px;border-radius:50%;display:grid;place-items:center;background:linear-gradient(135deg,#705327,#201508);border:3px solid #e6b94e;font-size:58px;margin-bottom:25px}
-#hint{color:#c8beb2;font-size:14px;padding:0 22px;text-align:center;line-height:1.7}
-.actions{z-index:3;display:flex;justify-content:center;align-items:center;gap:19px;padding:22px 8px max(30px,env(safe-area-inset-bottom));background:#101419}
-button{border:0;border-radius:50%;background:#282d30;color:#ebc76d;font-size:25px;width:59px;height:59px;display:grid;place-items:center;cursor:pointer}
-button.danger{background:#c84040;color:white;width:70px;height:70px}button:active{transform:scale(.95)}button.off{background:#594020;color:#fff}
-.smallLabel{color:#d3bb85;font-size:11px;margin-top:4px}.action{display:flex;align-items:center;flex-direction:column;gap:2px}
-#error{position:absolute;bottom:140px;left:12px;right:12px;padding:12px;border-radius:11px;background:#662626;color:#fff;text-align:center;display:none;z-index:6;font-size:13px}
-#retry{display:none;position:relative;width:auto;height:auto;border-radius:14px;padding:10px 18px;background:#d8af51;color:#16120a;font-size:14px;margin:10px auto 0}
-</style></head><body><div class="page"><header class="header">
-<div class="avatar" id="initial">؟</div><div><div class="title" id="peer"></div><div class="subtitle" id="status">جاري التهيئة...</div></div></header>
-<div class="stage"><div id="bigAvatar">☎</div><div id="hint">مكالمة آمنة داخل تواصل العطا</div>
-<video id="remoteVideo" autoplay playsinline muted></video><video id="localVideo" autoplay playsinline muted></video>
-<audio id="remoteAudio" autoplay playsinline></audio><div id="error"><span id="errorText"></span><button id="retry" onclick="retryStart()">إعادة محاولة الميكروفون</button></div></div>
-<div class="actions"><div class="action"><button id="mute" onclick="toggleMute()">🎙</button><span class="smallLabel">الميكروفون</span></div>
-<div class="action" id="cameraAction"><button id="camera" onclick="toggleCamera()">📷</button><span class="smallLabel">الكاميرا</span></div>
-<div class="action"><button class="danger" onclick="window.__attaEndCall()">☎</button><span class="smallLabel">إنهاء</span></div></div></div>
+#localVideo{position:absolute;bottom:12px;right:13px;width:115px;height:156px;object-fit:cover;border:2px solid #dfb557;border-radius:17px;z-index:2;transform:scaleX(-1);background:#101419;display:none}
+#bigAvatar{width:min(47vw,180px);height:min(47vw,180px);min-width:125px;min-height:125px;flex-shrink:0;border-radius:50%;display:grid;place-items:center;overflow:hidden;background:linear-gradient(140deg,#6d5126,#15100c);border:3px solid #e6b94e;box-shadow:0 0 0 12px rgba(230,185,78,.035),0 0 42px rgba(230,185,78,.14);margin-bottom:26px}
+#bigInitial{font-size:70px;color:#fff;font-weight:600;line-height:1}
+#bigAvatarImg{width:100%;height:100%;object-fit:cover;display:none}
+#peer{font-weight:750;font-size:clamp(25px,7vw,34px);line-height:1.3;max-width:96%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:center;color:#fff}
+#hint{font-size:17px;color:#c5c9cc;text-align:center;line-height:1.6;margin-top:10px;max-width:94%;overflow-wrap:anywhere}
+#duration{font-size:15px;color:#d8b766;letter-spacing:1px;min-height:22px;margin-top:9px;direction:ltr}
+.actions{z-index:3;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));align-items:start;gap:4px;background:transparent;padding:12px 12px max(25px,env(safe-area-inset-bottom));flex-shrink:0}
+button{border:0;cursor:pointer}button:active{transform:scale(.94)}
+.actions button{width:64px;height:64px;max-width:100%;margin:auto;border-radius:50%;background:#202429;color:white;border:1px solid #343a3e;display:grid;place-items:center;padding:16px}
+.actions button svg,.header button svg{width:100%;height:100%;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+.actions button.danger{background:#ef3535;border-color:#fa5555;color:white;box-shadow:0 3px 22px rgba(239,53,53,.2)}
+.actions button.off{background:#574320;border-color:#b99343;color:#fff}
+.smallLabel{color:#d6d8da;font-size:12px;text-align:center;margin-top:9px;white-space:nowrap}
+.action{display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:0;min-width:0}
+#error{position:absolute;bottom:10px;left:12px;right:12px;padding:10px;border-radius:11px;background:#662626;color:#fff;text-align:center;display:none;z-index:6;font-size:12px}
+#retry{display:none;position:relative;width:auto;height:auto;border-radius:12px;padding:9px 15px;background:#d8af51;color:#16120a;font-size:13px;margin:8px auto 0}
+@media(max-height:630px){#bigAvatar{min-width:94px;min-height:94px;width:110px;height:110px;margin-bottom:12px}#bigInitial{font-size:48px}.actions button{width:53px;height:53px;padding:13px}.actions{padding-bottom:16px}#peer{font-size:24px}.header{padding:7px 15px}}
+</style></head><body><div class="page">
+<header class="header"><button aria-label="رجوع وإنهاء المكالمة" onclick="window.__attaEndCall()"><svg viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg></button><span class="callKind" id="callKind">مكالمة صوتية</span><span style="width:43px"></span></header>
+<div class="stage">
+ <div id="bigAvatar"><img id="bigAvatarImg" alt=""><span id="bigInitial">•</span></div>
+ <div id="peer">جاري تحميل الاسم...</div>
+ <div id="hint">جاري التهيئة...</div>
+ <div id="duration"></div>
+ <video id="remoteVideo" autoplay playsinline muted></video>
+ <video id="localVideo" autoplay playsinline muted></video>
+ <audio id="remoteAudio" autoplay playsinline></audio>
+ <div id="error"><span id="errorText"></span><button id="retry" onclick="retryStart()">إعادة المحاولة</button></div>
+</div>
+<div class="actions">
+ <div class="action"><button id="mute" onclick="toggleMute()" aria-label="كتم الميكروفون"><svg viewBox="0 0 24 24"><rect x="9" y="2" width="6" height="13" rx="3"/><path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3M8 22h8"/></svg></button><span class="smallLabel">الميكروفون</span></div>
+ <div class="action" id="cameraAction"><button id="camera" onclick="toggleCamera()" aria-label="تشغيل أو إيقاف الكاميرا"><svg viewBox="0 0 24 24"><rect x="2" y="5" width="14" height="14" rx="3"/><path d="m16 10 6-4v12l-6-4"/></svg></button><span class="smallLabel">الكاميرا</span></div>
+ <div class="action"><button id="speaker" onclick="toggleSpeaker()" aria-label="السماعة"><svg viewBox="0 0 24 24"><path d="M11 5 6 9H3v6h3l5 4V5ZM15 9c2 1 2 5 0 6M18 6c4 3 4 9 0 12"/></svg></button><span class="smallLabel">السماعة</span></div>
+ <div class="action"><button class="danger" id="hangup" onclick="window.__attaEndCall()" aria-label="إنهاء المكالمة"><svg viewBox="0 0 24 24"><path d="M3 15v-3c5-5 13-5 18 0v3l-4 2-2-4H9l-2 4-4-2Z"/></svg></button><span class="smallLabel">إنهاء</span></div>
+</div>
+</div>
 <script>
 'use strict';
 const cfg=__CONFIG_JSON__;
@@ -33,10 +54,37 @@ const types=new Set(['call-request','call-accept','call-reject','offer','answer'
 let active=true,pc=null,local=null,remote=null,ws=null,offerSent=false,peerPromise=null;
 let pending=[],seen=new Set(),candidateCount=0,pollHandle=0,timeoutHandle=0,connectionStarted=Date.now();
 const $=id=>document.getElementById(id);
-$('peer').textContent=cfg.peer;$('initial').textContent=cfg.peer.slice(0,1).toUpperCase();
-$('cameraAction').style.display=cfg.type==='video'?'flex':'none';
-$('bigAvatar').textContent=cfg.type==='video'?'📹':'☎';
-function status(t){$('status').textContent=t;$('hint').textContent=t;try{AttaBridge.onStatus(t)}catch(e){}}
+$('callKind').textContent=cfg.type==='video'?'مكالمة فيديو':'مكالمة صوتية';
+$('cameraAction').style.visibility=cfg.type==='video'?'visible':'hidden';
+// Technical usernames are used for signaling only: never print them on screen.
+async function showPeerProfile(){
+ try{
+   const d=await req('/api/profile-public?username='+encodeURIComponent(cfg.peer)+'&token='+encodeURIComponent(cfg.token));
+   const u=d.user||{};
+   const name=String(u.fullName||u.displayName||'').trim();
+   $('peer').textContent=name||'مستخدم تواصل العطا';
+   $('bigInitial').textContent=(name||'م').charAt(0);
+   const image=String(u.avatar||'');
+   if(image.startsWith('data:image/')||image.startsWith('https://')){
+     $('bigAvatarImg').src=image;
+     $('bigAvatarImg').style.display='block';
+     $('bigInitial').style.display='none';
+     $('bigAvatarImg').onerror=()=>{$('bigAvatarImg').style.display='none';$('bigInitial').style.display='block'};
+   }
+ }catch(_){$('peer').textContent='مستخدم تواصل العطا';$('bigInitial').textContent='م';}
+}
+showPeerProfile();
+let connectedAt=0;
+function status(t){
+ $('hint').textContent=t;
+ if((t==='متصل الآن'||t==='مكالمة جارية')&&!connectedAt)connectedAt=Date.now();
+ try{AttaBridge.onStatus(t)}catch(e){}
+}
+setInterval(()=>{
+ if(!connectedAt||!active)return;
+ const total=Math.floor((Date.now()-connectedAt)/1000);
+ $('duration').textContent=String(Math.floor(total/60)).padStart(2,'0')+':'+String(total%60).padStart(2,'0');
+},1000);
 function error(t,canRetry=false){$('errorText').textContent=t;$('error').style.display='block';$('retry').style.display=canRetry?'block':'none';status(t)}
 function id(){return (crypto.randomUUID?crypto.randomUUID():Date.now().toString(36)+Math.random().toString(36).slice(2));}
 function isFresh(m){return Date.now()-Number(m.createdAt||m.ts||0)<120000;}
@@ -201,6 +249,12 @@ async function retryStart(){
    if(cfg.incoming){status('جارٍ الرد على المكالمة');await transmit('call-accept');}
    else{status('يرن الآن...');await transmit('call-request');}
  }catch(e){error('تعذر تشغيل مصدر الصوت: '+(e?.message||e?.name||'خطأ غير معروف'),true);}
+}
+let speakerEnabled=cfg.type==='video';
+function toggleSpeaker(){
+ speakerEnabled=!speakerEnabled;
+ $('speaker').classList.toggle('off',speakerEnabled);
+ try{AttaBridge.setSpeaker(speakerEnabled)}catch(e){}
 }
 function toggleMute(){if(!local)return;const tracks=local.getAudioTracks();tracks.forEach(t=>t.enabled=!t.enabled);$('mute').classList.toggle('off',!tracks[0]?.enabled);}
 function toggleCamera(){if(!local)return;const tracks=local.getVideoTracks();tracks.forEach(t=>t.enabled=!t.enabled);$('camera').classList.toggle('off',!tracks[0]?.enabled);}
