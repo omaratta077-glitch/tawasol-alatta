@@ -426,6 +426,37 @@ html.mobile-device .atta-footer-brand{font-size:clamp(22px,2.8dvh,28px)!importan
 
 /* Login styles moved to style.css — V13.59 login-only update */
 </style>
+<style id="atta-apk-download-button">
+/* Official APK button inside login card, above language */
+#authView .atta-login-card .atta-official-apk-download {
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  min-height: 48px;
+  padding: 11px 12px;
+  margin: 0 0 14px;
+  border: 1px solid #ecc564;
+  border-radius: 12px;
+  background: linear-gradient(110deg,#ab781e,#f1c75b);
+  color: #101010 !important;
+  font: 700 15px/1.45 inherit;
+  text-decoration: none !important;
+  text-align: center;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+#authView .atta-login-card .atta-official-apk-download:focus-visible {
+  outline: 3px solid #fff0b4;
+  outline-offset: 3px;
+}
+#authView .atta-login-card .atta-official-apk-download b {font-weight: 800;}
+html.mobile-device #authView .atta-login-card .atta-official-apk-download {font-size: clamp(17px,2.3dvh,23px);min-height: 58px;}
+</style>
 </head>
 <body>
 
@@ -438,6 +469,12 @@ html.mobile-device .atta-footer-brand{font-size:clamp(22px,2.8dvh,28px)!importan
     </div>
 
     <div class="atta-login-card">
+      <!-- Tawasol Al-Atta: official Android download, visible before login -->
+      <a id="attaOfficialApkDownload" href="https://github.com/omaratta077-glitch/tawasol-alatta/releases/latest/download/tawasol-alatta-latest.apk"
+         class="atta-official-apk-download" aria-label="تحميل تطبيق Tawasol Al-Atta للأندرويد">
+        <span aria-hidden="true">↓</span>
+        <span>تحميل تطبيق <b dir="ltr">Tawasol Al-Atta</b></span>
+      </a>
       <div class="atta-language">العربية</div>
 
       <div class="atta-login-brand">
