@@ -427,35 +427,40 @@ html.mobile-device .atta-footer-brand{font-size:clamp(22px,2.8dvh,28px)!importan
 /* Login styles moved to style.css — V13.59 login-only update */
 </style>
 <style id="atta-apk-download-button">
-/* Official APK button inside login card, above language */
+/* Official download entry — intentional two-line label; no mixed RTL/LTR wrapping. */
 #authView .atta-login-card .atta-official-apk-download {
-  display: flex !important;
-  align-items: center;
-  justify-content: center;
-  gap: 9px;
-  box-sizing: border-box;
-  width: 100%;
-  max-width: 100%;
-  min-height: 48px;
-  padding: 11px 12px;
-  margin: 0 0 14px;
-  border: 1px solid #ecc564;
-  border-radius: 12px;
-  background: linear-gradient(110deg,#ab781e,#f1c75b);
-  color: #101010 !important;
-  font: 700 15px/1.45 inherit;
-  text-decoration: none !important;
-  text-align: center;
-  white-space: normal;
-  overflow-wrap: anywhere;
-  cursor: pointer;
+  display:flex!important;flex-direction:row!important;align-items:center!important;
+  justify-content:center!important;gap:12px!important;width:100%!important;
+  min-height:64px!important;box-sizing:border-box!important;padding:10px 14px!important;
+  margin:0 0 16px!important;border:1px solid #e9bd55!important;border-radius:13px!important;
+  background:linear-gradient(120deg,#f4cc68 0%,#dba637 100%)!important;
+  color:#15110a!important;text-decoration:none!important;text-align:center!important;
+  box-shadow:0 3px 12px rgba(201,153,52,.16)!important;
+  direction:rtl!important;cursor:pointer!important;
 }
-#authView .atta-login-card .atta-official-apk-download:focus-visible {
-  outline: 3px solid #fff0b4;
-  outline-offset: 3px;
+#authView .atta-login-card .atta-official-apk-download .atta-apk-icon {
+  flex:0 0 34px;display:grid;place-items:center;width:34px;height:34px;
+  border:1px solid rgba(48,33,8,.28);border-radius:10px;background:rgba(255,255,255,.21);
 }
-#authView .atta-login-card .atta-official-apk-download b {font-weight: 800;}
-html.mobile-device #authView .atta-login-card .atta-official-apk-download {font-size: clamp(17px,2.3dvh,23px);min-height: 58px;}
+#authView .atta-login-card .atta-official-apk-download .atta-apk-icon svg {width:20px;height:20px;display:block}
+#authView .atta-login-card .atta-official-apk-download .atta-apk-copy {
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  min-width:0;gap:2px;line-height:1.25;letter-spacing:0;
+}
+#authView .atta-login-card .atta-official-apk-download .atta-apk-title {
+  font-family:inherit!important;font-size:15px!important;font-weight:800!important;
+  white-space:nowrap!important;
+}
+#authView .atta-login-card .atta-official-apk-download .atta-apk-name {
+  font-family:Arial,sans-serif!important;font-size:13px!important;font-weight:800!important;
+  direction:ltr!important;unicode-bidi:isolate!important;white-space:nowrap!important;
+}
+#authView .atta-login-card .atta-official-apk-download:hover {filter:brightness(1.05)}
+#authView .atta-login-card .atta-official-apk-download:focus-visible {outline:3px solid #fff0b4;outline-offset:3px}
+@media(max-width:360px){
+ #authView .atta-login-card .atta-official-apk-download {gap:8px!important;padding-inline:8px!important}
+ #authView .atta-login-card .atta-official-apk-download .atta-apk-title {font-size:14px!important}
+}
 </style>
 </head>
 <body>
@@ -472,8 +477,8 @@ html.mobile-device #authView .atta-login-card .atta-official-apk-download {font-
       <!-- Tawasol Al-Atta: official Android download, visible before login -->
       <a id="attaOfficialApkDownload" href="https://github.com/omaratta077-glitch/tawasol-alatta/releases/latest/download/tawasol-alatta-latest.apk"
          class="atta-official-apk-download" aria-label="تحميل تطبيق Tawasol Al-Atta للأندرويد">
-        <span aria-hidden="true">↓</span>
-        <span>تحميل تطبيق <b dir="ltr">Tawasol Al-Atta</b></span>
+        <span class="atta-apk-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m-4-4 4 4 4-4"/><path d="M4 17v3h16v-3"/></svg></span>
+        <span class="atta-apk-copy"><span class="atta-apk-title">تحميل التطبيق للأندرويد</span><span class="atta-apk-name" lang="en" dir="ltr">Tawasol Al-Atta</span></span>
       </a>
       <div class="atta-language">العربية</div>
 
