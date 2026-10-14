@@ -4,10 +4,11 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   release:
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout
@@ -24,7 +25,7 @@ jobs:
         with:
           gradle-version: '8.9'
 
-      - name: Verify v1.0.11 native source
+      - name: Verify native source and version
         shell: bash
         run: |
           set -euo pipefail
@@ -34,8 +35,14 @@ jobs:
           test -f "$BUILD_FILE"
           test -f "$MAIN_FILE"
           test -f "$GOOGLE_FILE"
-          grep -Eq 'versionCode[[:space:]]*=[[:space:]]*111' "$BUILD_FILE"
-          grep -Eq 'versionName[[:space:]]*=[[:space:]]*"1\.0\.11"' "$BUILD_FILE"
+          RELEASE_VERSION="$(sed -nE 's/^[[:space:]]*versionName[[:space:]]*=[[:space:]]*"([0-9]+\.[0-9]+\.[0-9]+)".*/\1/p' "$BUILD_FILE" | head -n 1)"
+          RELEASE_CODE="$(sed -nE 's/^[[:space:]]*versionCode[[:space:]]*=[[:space:]]*([0-9]+).*/\1/p' "$BUILD_FILE" | head -n 1)"
+          test -n "$RELEASE_VERSION" && test -n "$RELEASE_CODE" || {
+            echo '::error::Could not extract Android versionName/versionCode'
+            exit 1
+          }
+          echo "RELEASE_VERSION=$RELEASE_VERSION" >> "$GITHUB_ENV"
+          echo "Release version $RELEASE_VERSION (code $RELEASE_CODE)"
           grep -q 'GoogleNativeSignIn.pickAccount' "$MAIN_FILE"
           if grep -Eq 'GoogleWebBridge\.begin|android-google-auth\.html' "$MAIN_FILE"; then
             echo '::error::Old browser-based Google login still present in MainActivity.kt'
@@ -79,7 +86,7 @@ jobs:
             echo '::error::Username is still shown under public display name'
             exit 1
           fi
-          echo 'Native Google sign-in, Messenger, profile media editor, and v1.0.11 verified.' 
+          echo 'Native Google sign-in, Messenger, profile media editor, and release version verified.' 
 
       - name: Install Android SDK components
         shell: bash
@@ -160,13 +167,37 @@ jobs:
             exit 1
           }
           mkdir -p release-output
-          cp "$APK" release-output/tawasol-alatta-v1.0.11.apk
-          sha256sum release-output/tawasol-alatta-v1.0.11.apk > release-output/SHA256SUMS.txt
+          cp "$APK" "release-output/tawasol-alatta-v${RELEASE_VERSION}.apk"
+          (cd release-output && sha256sum "tawasol-alatta-v${RELEASE_VERSION}.apk" > SHA256SUMS.txt)
 
-      - name: Upload official APK v1.0.11
+      - name: Upload official signed APK
         uses: actions/upload-artifact@v4
         with:
-          name: Tawasol-Alatta-Official-v1.0.11
+          name: Tawasol-Alatta-Official-v${{ env.RELEASE_VERSION }}
           path: release-output/
           if-no-files-found: error
           retention-days: 30
+
+      - name: Publish verified APK to official GitHub Releases
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TAG="v${RELEASE_VERSION}"
+          APK="release-output/tawasol-alatta-v${RELEASE_VERSION}.apk"
+          test -s "$APK"
+          test -s release-output/SHA256SUMS.txt
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "::notice::Release $TAG already exists; not overwriting a published version."
+            exit 0
+          fi
+          if git ls-remote --tags origin "refs/tags/$TAG" | grep -q .; then
+            echo "::error::Tag $TAG already exists without a release. Do not overwrite a tagged version."
+            exit 1
+          fi
+          gh release create "$TAG" "$APK" release-output/SHA256SUMS.txt \
+            --target "$GITHUB_SHA" \
+            --title "تواصل العطا $TAG" \
+            --notes "الإصدار الرسمي لتطبيق تواصل العطا Android، موقّع بمفتاح الإصدار الرسمي. يحفظ إمكانية التحديث من داخل التطبيق؛ ويتطلب التثبيت موافقة المستخدم عبر نظام أندرويد. احتفظ بنفس مفتاح التوقيع لكل الإصدارات القادمة."
+          echo "Release published: https://github.com/omaratta077-glitch/tawasol-alatta/releases/tag/$TAG"
