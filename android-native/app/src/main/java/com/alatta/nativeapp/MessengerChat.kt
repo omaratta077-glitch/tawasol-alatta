@@ -19,6 +19,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
@@ -467,31 +468,70 @@ internal fun MessengerThread(
             }
         }
         HorizontalDivider(color = ChatDivider)
-        Row(Modifier.fillMaxWidth().background(ChatPanel).padding(horizontal = 10.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.Bottom,
-            horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            Box(Modifier.size(39.dp).clip(CircleShape)
-                .background(Color(0xFF292419))
-                .clickable(enabled = !sending) { showAttachments = true },
-                contentAlignment = Alignment.Center) {
-                SiteIcon("plus", size = 24.dp, tint = ChatGoldBright)
+        // Composer stays at the BOTTOM of the conversation, just above the IME.
+        // Deliberately keep the plus / send actions outside the text field.
+        Row(
+            modifier = Modifier.fillMaxWidth()
+                .background(ChatPanel)
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Box(
+                modifier = Modifier.size(52.dp)
+                    .clip(CircleShape)
+                    .background(Color(0xFF332919))
+                    .border(1.dp, ChatGold.copy(alpha = 0.55f), CircleShape)
+                    .clickable(enabled = !sending) { showAttachments = true },
+                contentAlignment = Alignment.Center
+            ) {
+                SiteIcon("plus", size = 28.dp, tint = ChatGoldBright)
             }
-            OutlinedTextField(value = chatText, onValueChange = onTextChange,
-                modifier = Modifier.weight(1f).heightIn(min = 49.dp, max = 124.dp),
-                maxLines = 4, shape = RoundedCornerShape(26.dp),
-                placeholder = { Text("اكتب رسالة...", fontSize = 14.sp, color = ChatSecondary) },
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedTextColor = ChatText, unfocusedTextColor = ChatText,
-                    focusedBorderColor = ChatGold, unfocusedBorderColor = ChatDivider,
-                    focusedContainerColor = ChatBackground, unfocusedContainerColor = ChatBackground),
+
+            // BasicTextField avoids TextField's large built-in vertical insets.
+            // Keep the entered characters white on black, even while focused.
+            BasicTextField(
+                value = chatText,
+                onValueChange = onTextChange,
+                modifier = Modifier.weight(1f)
+                    .heightIn(min = 52.dp, max = 122.dp)
+                    .border(1.5.dp, ChatGold, RoundedCornerShape(27.dp))
+                    .background(ChatBackground, RoundedCornerShape(27.dp))
+                    .padding(horizontal = 16.dp, vertical = 13.dp),
+                textStyle = TextStyle(
+                    color = ChatText,
+                    fontSize = 16.sp,
+                    textAlign = TextAlign.Start
+                ),
+                cursorBrush = SolidColor(ChatGoldBright),
+                maxLines = 4,
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
-                keyboardActions = KeyboardActions(onSend = { if (chatText.isNotBlank() && !sending) onSend() }))
-            Box(Modifier.size(44.dp).clip(CircleShape)
-                .background(if (chatText.isNotBlank() && !sending) ChatGold else Color(0xFF3C3324))
-                .clickable(enabled = chatText.isNotBlank() && !sending, onClick = onSend),
-                contentAlignment = Alignment.Center) {
-                SiteIcon("send", size = 22.dp,
-                    tint = if (chatText.isNotBlank() && !sending) Color(0xFF080909) else ChatSecondary)
+                keyboardActions = KeyboardActions(
+                    onSend = { if (chatText.isNotBlank() && !sending) onSend() }
+                ),
+                decorationBox = { innerTextField ->
+                    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterStart) {
+                        if (chatText.isEmpty()) {
+                            Text("اكتب رسالة...", color = ChatSecondary, fontSize = 15.sp)
+                        }
+                        innerTextField()
+                    }
+                }
+            )
+
+            val canSend = chatText.isNotBlank() && !sending
+            Box(
+                modifier = Modifier.size(52.dp)
+                    .clip(CircleShape)
+                    .background(if (canSend) ChatGold else Color(0xFF332919))
+                    .border(1.dp, ChatGold.copy(alpha = 0.5f), CircleShape)
+                    .clickable(enabled = canSend, onClick = onSend),
+                contentAlignment = Alignment.Center
+            ) {
+                SiteIcon(
+                    "send", size = 26.dp,
+                    tint = if (canSend) ChatBackground else ChatGoldBright
+                )
             }
         }
     }
