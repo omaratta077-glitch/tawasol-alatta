@@ -322,6 +322,7 @@ private fun openYouTube(context: android.content.Context, id: String) {
     var tab by remember { mutableStateOf("الرئيسية") }
     val visited = remember { mutableStateListOf<String>() }
     var confirmExit by remember { mutableStateOf(false) }
+    var confirmLogout by remember { mutableStateOf(false) }
     var showStoryComposer by remember { mutableStateOf(false) }
     var selectedStory by remember { mutableStateOf<JSONObject?>(null) }
     var featureMessage by remember { mutableStateOf("") }
@@ -660,6 +661,27 @@ private fun openYouTube(context: android.content.Context, id: String) {
         confirmButton = { TextButton(onClick = { confirmExit = false; (ctx as? ComponentActivity)?.finish() }) { Text("خروج") } },
         dismissButton = { TextButton(onClick = { confirmExit = false }) { Text("إلغاء") } }
     )
+    if (confirmLogout) AlertDialog(
+        onDismissRequest = { confirmLogout = false },
+        containerColor = Panel,
+        titleContentColor = GoldLight,
+        textContentColor = White,
+        title = { Text("تسجيل الخروج") },
+        text = { Text("هل تريد تسجيل الخروج من حسابك على هذا الجهاز؟") },
+        confirmButton = {
+            TextButton(onClick = {
+                confirmLogout = false
+                activeCall = null; incomingCall = null
+                chatWith = ""; messages = emptyList(); inboxPreviews = emptyList()
+                posts = emptyList(); notifications = emptyList(); friends = emptyList()
+                profile = JSONObject(); displayName = ""; myUsername = ""; myAvatar = ""
+                visited.clear(); tab = "الرئيسية"
+                token = ""
+                prefs.edit().clear().apply()
+            }) { Text("تسجيل الخروج", color = GoldLight) }
+        },
+        dismissButton = { TextButton(onClick = { confirmLogout = false }) { Text("إلغاء", color = White) } }
+    )
     if (changePasswordDialog) AlertDialog(
         onDismissRequest = { changePasswordDialog = false; currentPassword = ""; nextPassword = ""; nextPasswordAgain = "" },
         title = { Text("تغيير كلمة السر", color = GoldLight) },
@@ -973,8 +995,7 @@ private fun openYouTube(context: android.content.Context, id: String) {
                     if (tab != "الرئيسية" && tab != "الرسائل") {
                         Row(Modifier.fillMaxWidth().padding(horizontal = 13.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                             Text(tab, color = GoldLight, fontWeight = FontWeight.Bold, fontSize = 16.sp, modifier = Modifier.weight(1f))
-                            TextButton(onClick = { refresh() }) { Text("تحديث", fontSize = 12.sp) }
-                            TextButton(onClick = { token = ""; posts = emptyList(); prefs.edit().clear().apply() }) { Text("خروج", fontSize = 12.sp) }
+                            if (tab != "القائمة") TextButton(onClick = { refresh() }) { Text("تحديث", fontSize = 12.sp) }
                         }
                     }
                     when (tab) {
@@ -1052,6 +1073,10 @@ private fun openYouTube(context: android.content.Context, id: String) {
                                 val postId = p.optString("id")
                                 var comment by remember(postId) { mutableStateOf("") }
                                 var showComments by remember(postId) { mutableStateOf(false) }
+                                val remoteLiked = p.optBoolean("likedByMe")
+                                var likedNow by remember(postId, remoteLiked) { mutableStateOf(remoteLiked) }
+                                val visibleLikeCount = (p.optInt("likeCount") +
+                                    (if (likedNow) 1 else 0) - (if (remoteLiked) 1 else 0)).coerceAtLeast(0)
                                 CardBox {
                                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                                         Avatar(author.optString("avatar"), author.name(), onClick = { openPublicProfile(author.optString("username")) })
@@ -1068,10 +1093,29 @@ private fun openYouTube(context: android.content.Context, id: String) {
                                         verticalAlignment = Alignment.CenterVertically) {
                                         Row(Modifier.weight(1f).horizontalScroll(rememberScrollState()),
                                             horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                                            PremiumPostAction("heart", p.optInt("likeCount").toString(),
-                                                color = if (p.optBoolean("likedByMe")) GoldLight else Muted) {
-                                                task { post("/api/post-like", JSONObject().put("postId", postId)); load(tab) }
-                                            }
+                                            PremiumReactionAction(
+                                                count = visibleLikeCount,
+                                                liked = likedNow,
+                                                onLike = {
+                                                    likedNow = !likedNow // Gold feedback without waiting for the network.
+                                                    task {
+                                                        try {
+                                                            post("/api/post-like", JSONObject().put("postId", postId))
+                                                            load(tab)
+                                                        } catch (e: Exception) {
+                                                            likedNow = !likedNow // Revert if the server rejects the request.
+                                                            throw e
+                                                        }
+                                                    }
+                                                },
+                                                onReact = { reaction ->
+                                                    task {
+                                                        post("/api/post-react", JSONObject()
+                                                            .put("postId", postId).put("reaction", reaction))
+                                                        load(tab)
+                                                    }
+                                                }
+                                            )
                                             PremiumPostAction("message-circle", p.optInt("commentCount").toString(), Muted) {
                                                 showComments = !showComments
                                             }
@@ -1085,17 +1129,43 @@ private fun openYouTube(context: android.content.Context, id: String) {
                                             task { post("/api/post-save", JSONObject().put("postId", postId)); load(tab) }
                                         }
                                     }
-                                    Row(Modifier.horizontalScroll(rememberScrollState())) {
-                                        listOf("love" to "❤️", "haha" to "😂", "wow" to "😮", "sad" to "😢", "angry" to "😡").forEach { (reaction, emoji) ->
-                                            TextButton(onClick = { task { post("/api/post-react", JSONObject().put("postId", postId).put("reaction", reaction)); load(tab) } }) { Text(emoji) }
-                                        }
-                                    }
                                     if (showComments) {
                                         p.arr("comments").takeLast(15).forEach { c -> Text("${c.optString("author")}: ${c.optString("text")}", modifier = Modifier.padding(4.dp)) }
                                         OutlinedTextField(comment, { comment = it }, label = { Text("اكتب تعليقًا") }, modifier = Modifier.fillMaxWidth())
                                         GoldButton("إرسال التعليق", !busy && comment.isNotBlank()) { task { post("/api/post-comment", JSONObject().put("postId", postId).put("text", comment)); comment = ""; load(tab) } }
                                     }
                                     if (p.optString("author") == myUsername) TextButton(onClick = { task { post("/api/post-delete", JSONObject().put("postId", postId)); load(tab) } }) { Text("حذف المنشور", color = Color(0xFFFF8B8B)) }
+                                }
+                            }
+                        }
+                        "القائمة" -> LazyColumn(
+                            Modifier.weight(1f).padding(horizontal = 12.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            item {
+                                CardBox {
+                                    SectionTitle("القائمة")
+                                    Text("تواصل العطا", color = Muted, fontSize = 12.sp)
+                                }
+                            }
+                            item {
+                                CardBox {
+                                    PremiumMenuEntry("user", "الملف الشخصي") { navigate("الملف") }
+                                    HorizontalDivider(color = Border.copy(alpha = .5f))
+                                    PremiumMenuEntry("bookmark", "المنشورات المحفوظة") { navigate("المحفوظات") }
+                                    HorizontalDivider(color = Border.copy(alpha = .5f))
+                                    PremiumMenuEntry("users", "المجموعات") { navigate("المجموعات") }
+                                    HorizontalDivider(color = Border.copy(alpha = .5f))
+                                    PremiumMenuEntry("bell", "الإشعارات") { navigate("الإشعارات") }
+                                    HorizontalDivider(color = Border.copy(alpha = .5f))
+                                    PremiumMenuEntry("lock", "تغيير كلمة السر") { changePasswordDialog = true }
+                                }
+                            }
+                            item {
+                                CardBox {
+                                    PremiumMenuEntry("log-out", "تسجيل الخروج", danger = true) {
+                                        confirmLogout = true
+                                    }
                                 }
                             }
                         }

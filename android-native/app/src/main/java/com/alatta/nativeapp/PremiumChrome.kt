@@ -6,14 +6,20 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
+import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -54,6 +60,7 @@ internal fun SiteIcon(name: String, modifier: Modifier = Modifier, tint: Color =
         "users" -> R.drawable.atta_ic_users
         "bookmark" -> R.drawable.atta_ic_bookmark
         "ellipsis" -> R.drawable.atta_ic_ellipsis
+        "menu" -> R.drawable.atta_ic_menu
         "plus" -> R.drawable.atta_ic_plus
         "image" -> R.drawable.atta_ic_image
         "video" -> R.drawable.atta_ic_video
@@ -72,6 +79,7 @@ internal fun SiteIcon(name: String, modifier: Modifier = Modifier, tint: Color =
         "monitor" -> R.drawable.atta_ic_monitor
         "volume" -> R.drawable.atta_ic_volume
         "heart" -> R.drawable.atta_ic_heart
+        "heart-filled" -> R.drawable.atta_ic_heart_filled
         "repeat" -> R.drawable.atta_ic_repeat
         "share" -> R.drawable.atta_ic_share
         "globe" -> R.drawable.atta_ic_globe
@@ -80,6 +88,7 @@ internal fun SiteIcon(name: String, modifier: Modifier = Modifier, tint: Color =
         "x" -> R.drawable.atta_ic_x
         "square" -> R.drawable.atta_ic_square
         "log-out" -> R.drawable.atta_ic_log_out
+        "lock" -> R.drawable.atta_ic_lock
         "youtube" -> R.drawable.atta_ic_youtube
         "play" -> R.drawable.atta_ic_play
         "arrow-left" -> R.drawable.atta_ic_arrow_left
@@ -172,12 +181,14 @@ internal fun PremiumSearchBar(onClick: () -> Unit) {
 internal fun PremiumBottomNav(current: String, go: (String) -> Unit) {
     // This bar is inside safeDrawingPadding() in the parent, ABOVE Android's
     // system back/home controls, not overlapping them.
+    // RTL order: Home | Profile | Messages (center) | Friends | Menu.
+    // Search is already in the header; do not duplicate it at the bottom.
     val destinations = listOf(
         Triple("الرئيسية", "home", "الرئيسية"),
-        Triple("استكشاف", "search", "استكشف"),
-        Triple("الأصدقاء", "users", "الأصدقاء"),
+        Triple("الملف", "user", "ملفي"),
         Triple("الرسائل", "mail", "الرسائل"),
-        Triple("الملف", "user", "الملف الشخصي")
+        Triple("الأصدقاء", "users", "الأصدقاء"),
+        Triple("القائمة", "menu", "القائمة")
     )
     Row(
         Modifier.fillMaxWidth().height(71.dp)
@@ -231,6 +242,73 @@ internal fun PremiumPostAction(icon: String, label: String, color: Color = Premi
     ) {
         SiteIcon(icon, size = 21.dp, tint = color)
         if (label.isNotEmpty()) Text(label, fontSize = 11.sp, maxLines = 1, color = color)
+    }
+}
+
+
+// Tap to toggle the normal like (highlighted gold). Long-press to reveal
+// advanced reactions. No reaction row is rendered below every post.
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+internal fun PremiumReactionAction(
+    count: Int,
+    liked: Boolean,
+    onLike: () -> Unit,
+    onReact: (String) -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+    Box {
+        Row(
+            Modifier.height(44.dp)
+                .combinedClickable(
+                    onClick = onLike,
+                    onLongClick = { expanded = true },
+                    onClickLabel = if (liked) "إلغاء الإعجاب" else "إعجاب",
+                    onLongClickLabel = "عرض التفاعلات"
+                )
+                .padding(horizontal = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(5.dp)
+        ) {
+            SiteIcon(if (liked) "heart-filled" else "heart", size = 23.dp, tint = if (liked) PremiumGoldLight else PremiumMuted)
+            Text(count.coerceAtLeast(0).toString(), color = if (liked) PremiumGoldLight else PremiumMuted, fontSize = 12.sp)
+        }
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+            modifier = Modifier.background(PremiumPanel)
+                .border(1.dp, PremiumBorder, RoundedCornerShape(16.dp))
+        ) {
+            Text("اختر تفاعلك", color = PremiumGoldLight, fontSize = 12.sp,
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 3.dp))
+            Row(Modifier.padding(horizontal = 7.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                listOf("love" to "❤️", "haha" to "😂", "wow" to "😮", "sad" to "😢", "angry" to "😡")
+                    .forEach { (reaction, emoji) ->
+                        Text(emoji,
+                            modifier = Modifier.clickable {
+                                expanded = false
+                                onReact(reaction)
+                            }.padding(horizontal = 7.dp, vertical = 9.dp),
+                            fontSize = 25.sp
+                        )
+                    }
+            }
+        }
+    }
+}
+
+
+@Composable
+internal fun PremiumMenuEntry(icon: String, label: String, danger: Boolean = false, onClick: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().height(55.dp).clickable(onClick = onClick).padding(horizontal = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        SiteIcon(icon, size = 22.dp, tint = if (danger) Color(0xFFFF8989) else PremiumGoldLight)
+        Text(label, color = if (danger) Color(0xFFFF8989) else Color.White,
+            fontSize = 15.sp, fontWeight = FontWeight.Medium)
     }
 }
 
