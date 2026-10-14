@@ -3172,6 +3172,16 @@ if($("refreshSavedPageBtn"))$("refreshSavedPageBtn").onclick=loadSavedPostsPage;
 
 
 let authMode="login";
+// AL-ATTA v1.0.14: use real calendar birthdays, not a typed age.
+function attaCalendarLimit(offsetYears){
+  const now=new Date();
+  const d=new Date(now.getFullYear()+offsetYears,now.getMonth(),now.getDate());
+  const p=n=>String(n).padStart(2,"0");
+  return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`;
+}
+const birthDateInput=document.getElementById("ageInput");
+if(birthDateInput){birthDateInput.min=attaCalendarLimit(-120);birthDateInput.max=attaCalendarLimit(-13);}
+
 let pendingVerificationId="";
 // AL-ATTA v1.0.10 login/register hint
 function refreshLoginIdentifierHint(){
@@ -3323,7 +3333,7 @@ $("authBtn").onclick=async()=>{
 
     if(authMode==="register"){
       body.fullName=$("fullNameInput").value.trim();
-      body.age=$("ageInput").value;
+      body.birthDate=$("ageInput").value;
       body.phone=$("phoneInput").value.trim();
       body.email=$("emailInput").value.trim();
       body.gender=$("genderInput").value;
@@ -3668,7 +3678,8 @@ function requestGoogleProfile(){
       <p style="margin:0;color:#b8bec1;font-size:13px">اختَر اسمك بنفسك. اسم المستخدم لا يظهر تحت اسمك في الملف الشخصي.</p>
       <input name="fullName" required minlength="2" maxlength="60" placeholder="اسمك الذي يظهر للآخرين" style="padding:13px;border-radius:11px;background:#080b0d;color:#fff;border:1px solid #514125">
       <input name="username" required minlength="3" maxlength="24" pattern="[a-zA-Z0-9_]{3,24}" placeholder="اسم مستخدم فريد (إنجليزي/أرقام)" style="padding:13px;border-radius:11px;background:#080b0d;color:#fff;border:1px solid #514125" autocapitalize="off">
-      <input name="age" type="number" required min="13" max="120" placeholder="العمر" style="padding:13px;border-radius:11px;background:#080b0d;color:#fff;border:1px solid #514125">
+      <label style="color:#e6b94e;font-size:13px">تاريخ الميلاد (اليوم / الشهر / السنة)</label>
+      <input name="birthDate" type="date" required aria-label="تاريخ الميلاد" style="padding:13px;border-radius:11px;background:#080b0d;color:#fff;border:1px solid #514125">
       <input name="city" maxlength="80" placeholder="المدينة (اختياري)" style="padding:13px;border-radius:11px;background:#080b0d;color:#fff;border:1px solid #514125">
       <button type="submit" style="border:0;background:#e6b94e;color:#070707;padding:13px;border-radius:13px;font-weight:800">تأكيد وإنشاء الحساب</button>
       <button type="button" data-cancel style="background:transparent;color:#d9c89a;border:1px solid #6b5429;padding:11px;border-radius:13px">إلغاء</button>
@@ -3678,9 +3689,11 @@ function requestGoogleProfile(){
     overlay.querySelector("[data-cancel]").onclick=()=>finish(null);
     form.onsubmit=e=>{
       e.preventDefault();
-      finish({fullName:form.elements.fullName.value.trim(),username:form.elements.username.value.trim().toLowerCase(),age:Number(form.elements.age.value),city:form.elements.city.value.trim()});
+      finish({fullName:form.elements.fullName.value.trim(),username:form.elements.username.value.trim().toLowerCase(),birthDate:form.elements.birthDate.value,city:form.elements.city.value.trim()});
     };
     document.body.appendChild(overlay);
+    const born=form.elements.birthDate;
+    if(born){ born.min=attaCalendarLimit(-120); born.max=attaCalendarLimit(-13); }
     form.elements.fullName.focus();
   });
 }

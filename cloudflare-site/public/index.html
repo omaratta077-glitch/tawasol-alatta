@@ -453,7 +453,8 @@ html.mobile-device .atta-footer-brand{font-size:clamp(22px,2.8dvh,28px)!importan
       <div id="authMainFields">
         <div id="registerFields" class="hidden">
           <input id="fullNameInput" placeholder="الاسم الكامل">
-          <input id="ageInput" type="number" min="13" max="120" placeholder="العمر">
+          <label for="ageInput" style="display:block;color:#e6b94e;font-size:13px;margin:6px 0 3px">تاريخ الميلاد (اليوم / الشهر / السنة)</label>
+          <input id="ageInput" type="date" required aria-label="تاريخ الميلاد" title="تاريخ الميلاد">
           <input id="phoneInput" type="tel" placeholder="رقم الهاتف">
           <input id="emailInput" type="email" placeholder="البريد الإلكتروني لاستلام كود التأكيد">
           <select id="genderInput">

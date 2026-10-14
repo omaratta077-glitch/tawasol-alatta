@@ -1703,24 +1703,27 @@ private fun AttaYoutubeControls(
                                     Spacer(Modifier.height(10.dp))
                                     Row(verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                                        Box(Modifier.size(83.dp).border(2.dp, Gold, CircleShape)
-                                            .padding(3.dp).clip(CircleShape).background(Panel),
-                                            contentAlignment = Alignment.Center) {
-                                            if (media(profile.optString("avatar")).isNotBlank()) {
-                                                ExpandableProfileMedia(profile.optString("avatar"), "الصورة الشخصية",
-                                                    Modifier.fillMaxSize())
-                                            } else Text(profile.name().take(1), color = GoldLight, fontSize = 35.sp)
+                                        Box(Modifier.size(100.dp)) {
+                                            Box(Modifier.size(87.dp).align(Alignment.TopStart)
+                                                .border(2.dp, Gold, CircleShape).padding(3.dp)
+                                                .clip(CircleShape).background(Panel),
+                                                contentAlignment = Alignment.Center) {
+                                                if (media(profile.optString("avatar")).isNotBlank()) {
+                                                    ExpandableProfileMedia(profile.optString("avatar"), "الصورة الشخصية",
+                                                        Modifier.fillMaxSize())
+                                                } else Text(profile.name().take(1), color = GoldLight, fontSize = 35.sp)
+                                            }
+                                            Box(Modifier.align(Alignment.BottomEnd).size(29.dp)
+                                                .border(2.dp, Black, CircleShape).clip(CircleShape)
+                                                .background(Gold).clickable(enabled = !busy) {
+                                                    profileAvatarPicker.launch("image/*")
+                                                }, contentAlignment = Alignment.Center) {
+                                                SiteIcon("camera", size = 16.dp, tint = Black)
+                                            }
                                         }
                                         Column(Modifier.weight(1f)) {
                                             Text(profile.name(), color = White,
                                                 fontSize = 17.sp, fontWeight = FontWeight.Bold)
-                                            Spacer(Modifier.height(5.dp))
-                                            Box(Modifier.size(34.dp).clip(CircleShape)
-                                                .background(Gold).clickable(enabled = !busy) {
-                                                    profileAvatarPicker.launch("image/*")
-                                                }, contentAlignment = Alignment.Center) {
-                                                SiteIcon("camera", size = 18.dp, tint = Black)
-                                            }
                                         }
                                     }
                                     Spacer(Modifier.height(14.dp))
