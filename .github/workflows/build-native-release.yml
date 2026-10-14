@@ -24,7 +24,7 @@ jobs:
         with:
           gradle-version: '8.9'
 
-      - name: Verify v1.0.9 native source
+      - name: Verify v1.0.10 native source
         shell: bash
         run: |
           set -euo pipefail
@@ -34,8 +34,8 @@ jobs:
           test -f "$BUILD_FILE"
           test -f "$MAIN_FILE"
           test -f "$GOOGLE_FILE"
-          grep -Eq 'versionCode[[:space:]]*=[[:space:]]*109' "$BUILD_FILE"
-          grep -Eq 'versionName[[:space:]]*=[[:space:]]*"1\.0\.9"' "$BUILD_FILE"
+          grep -Eq 'versionCode[[:space:]]*=[[:space:]]*110' "$BUILD_FILE"
+          grep -Eq 'versionName[[:space:]]*=[[:space:]]*"1\.0\.10"' "$BUILD_FILE"
           grep -q 'GoogleNativeSignIn.pickAccount' "$MAIN_FILE"
           if grep -Eq 'GoogleWebBridge\.begin|android-google-auth\.html' "$MAIN_FILE"; then
             echo '::error::Old browser-based Google login still present in MainActivity.kt'
@@ -66,7 +66,15 @@ jobs:
           grep -q 'profileCoverPicker.launch' "$MAIN_FILE"
           grep -q 'encodeProfileImage' "$MAIN_FILE"
           grep -q 'ProfileMediaImage' "$PROFILE_FILE"
-          echo 'Native Google sign-in, Messenger, profile media editor, and v1.0.9 verified.' 
+          grep -q 'onPickDocument' "$MAIN_FILE"
+          grep -q 'onPickAudio' "$MAIN_FILE"
+          grep -q 'ModalBottomSheet' "$CHAT_FILE"
+          grep -q 'nativeUsernameSignup' "$MAIN_FILE"
+          if grep -q 'Text("@\$username"' android-native/app/src/main/java/com/alatta/nativeapp/UserProfileScreen.kt; then
+            echo '::error::Username is still shown under public display name'
+            exit 1
+          fi
+          echo 'Native Google sign-in, Messenger, profile media editor, and v1.0.10 verified.' 
 
       - name: Install Android SDK components
         shell: bash
@@ -135,13 +143,13 @@ jobs:
             exit 1
           }
           mkdir -p release-output
-          cp "$APK" release-output/tawasol-alatta-v1.0.9.apk
-          sha256sum release-output/tawasol-alatta-v1.0.9.apk > release-output/SHA256SUMS.txt
+          cp "$APK" release-output/tawasol-alatta-v1.0.10.apk
+          sha256sum release-output/tawasol-alatta-v1.0.10.apk > release-output/SHA256SUMS.txt
 
-      - name: Upload official APK v1.0.9
+      - name: Upload official APK v1.0.10
         uses: actions/upload-artifact@v4
         with:
-          name: Tawasol-Alatta-Official-v1.0.9
+          name: Tawasol-Alatta-Official-v1.0.10
           path: release-output/
           if-no-files-found: error
           retention-days: 30

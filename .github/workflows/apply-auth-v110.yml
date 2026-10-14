@@ -1,0 +1,31 @@
+name: Apply AL-ATTA Profile & Auth v1.0.10
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  patch-auth:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout latest repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - name: Patch current Cloudflare site (safe marker checks)
+        run: python3 scripts/patch_auth_v110.py
+      - name: Check worker JavaScript syntax
+        run: node --check cloudflare-site/src/worker.js
+      - name: Check website JavaScript syntax
+        run: node --check cloudflare-site/public/app.js
+      - name: Commit validated patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add cloudflare-site/src/worker.js cloudflare-site/public/app.js cloudflare-site/public/index.html
+          if ! git diff --cached --quiet; then
+            git commit -m 'Fix manual Google usernames and login identifiers v1.0.10'
+            git push
+          fi
+          echo 'Site files committed. Cloudflare still needs deployment if not auto-publishing.'
