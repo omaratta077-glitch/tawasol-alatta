@@ -45,9 +45,6 @@ export class SignalingRoom extends DurableObject {
       displayName:u.displayName||u.username,
       fullName:u.fullName||u.displayName||u.username,
       country:u.country||"",
-      city:u.city||"",
-      education:u.education||"",
-      work:u.work||"",
       bio:u.bio||"",
       cover:u.cover||"",
       accountPrivate:!!u.accountPrivate,
@@ -757,10 +754,6 @@ export class SignalingRoom extends DurableObject {
         u.cover=nextCover;
       }
       if(typeof body.bio==="string")u.bio=body.bio.slice(0,300);
-      if(typeof body.country==="string")u.country=body.country.trim().slice(0,60);
-      if(typeof body.city==="string")u.city=body.city.trim().slice(0,60);
-      if(typeof body.education==="string")u.education=body.education.trim().slice(0,100);
-      if(typeof body.work==="string")u.work=body.work.trim().slice(0,100);
       if(typeof body.accountPrivate==="boolean")u.accountPrivate=body.accountPrivate;
 
       await this.ctx.storage.put(`user:${u.username}`,u);
@@ -1050,12 +1043,6 @@ export class SignalingRoom extends DurableObject {
       if(!post)return j({ok:false,error:"المنشور غير موجود"},404);
 
       post.likes=post.likes||[];
-      // A classic heart replaces an existing emoji, instead of duplicating it.
-      if(post.reactions){
-        for(const k of Object.keys(post.reactions)){
-          if(Array.isArray(post.reactions[k]))post.reactions[k]=post.reactions[k].filter(x=>x!==s.username);
-        }
-      }
       const idx=post.likes.indexOf(s.username);
       let liked=false;
 
@@ -1324,8 +1311,6 @@ export class SignalingRoom extends DurableObject {
       if(!allowed.includes(reaction))return j({ok:false,error:"تفاعل غير صالح"},400);
 
       post.reactions=post.reactions||{};
-      // One reaction per person: selecting an emoji replaces a classic heart.
-      if(Array.isArray(post.likes))post.likes=post.likes.filter(x=>x!==s.username);
       for(const key of allowed){
         post.reactions[key]=Array.isArray(post.reactions[key])?post.reactions[key]:[];
         post.reactions[key]=post.reactions[key].filter(x=>x!==s.username);
@@ -1540,9 +1525,6 @@ export class SignalingRoom extends DurableObject {
         email:u.email||"",
         gender:u.gender||"",
         country:u.country||"",
-        city:u.city||"",
-        education:u.education||"",
-        work:u.work||"",
         bio:u.bio||"",
         cover:u.cover||"",
         accountPrivate:!!u.accountPrivate,

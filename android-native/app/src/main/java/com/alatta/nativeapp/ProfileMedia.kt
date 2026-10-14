@@ -9,18 +9,6 @@ import android.os.Build
 import android.util.Base64
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectTransformGestures
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.Surface
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
-import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.Box
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
@@ -30,8 +18,6 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
@@ -89,67 +75,6 @@ internal fun ProfileMediaImage(
         }
     } else {
         Box(modifier.background(Color(0xFF282119)))
-    }
-}
-
-
-/** View an avatar, cover or feed image full-screen. Pinch to zoom, drag and reset. */
-@Composable
-internal fun ExpandableProfileMedia(
-    value: String,
-    description: String,
-    modifier: Modifier = Modifier,
-    contentScale: ContentScale = ContentScale.Crop
-) {
-    var fullscreen by remember(value) { mutableStateOf(false) }
-    ProfileMediaImage(value, description,
-        modifier.then(if (media(value).isNotBlank()) Modifier.clickable { fullscreen = true } else Modifier),
-        contentScale)
-    if (fullscreen) {
-        var zoom by remember(value) { mutableFloatStateOf(1f) }
-        var shift by remember(value) { mutableStateOf(Offset.Zero) }
-        Dialog(onDismissRequest = { fullscreen = false },
-            properties = DialogProperties(usePlatformDefaultWidth = false)) {
-            Box(Modifier.fillMaxSize().background(Color(0xFF030405))) {
-                ProfileMediaImage(value, description,
-                    Modifier.fillMaxSize()
-                        .graphicsLayer {
-                            scaleX = zoom
-                            scaleY = zoom
-                            translationX = shift.x
-                            translationY = shift.y
-                        }
-                        .pointerInput(value) {
-                            detectTransformGestures { _, pan, gestureZoom, _ ->
-                                zoom = (zoom * gestureZoom).coerceIn(1f, 5f)
-                                shift = if (zoom <= 1f) Offset.Zero else shift + pan
-                            }
-                        }, ContentScale.Fit)
-                Row(Modifier.fillMaxWidth().align(Alignment.TopCenter)
-                        .background(Color(0xDA0C1013)).padding(top = 30.dp, start = 12.dp, end = 12.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically) {
-                    TextButton(onClick = { fullscreen = false }) {
-                        Text("✕ إغلاق", color = Color(0xFFE6B94E))
-                    }
-                    Text(description, color = Color.White)
-                }
-                Row(Modifier.align(Alignment.BottomCenter).fillMaxWidth()
-                        .background(Color(0xDA0C1013)).padding(bottom = 27.dp),
-                    horizontalArrangement = Arrangement.SpaceEvenly,
-                    verticalAlignment = Alignment.CenterVertically) {
-                    TextButton(onClick = { zoom = (zoom / 1.35f).coerceAtLeast(1f); if (zoom == 1f) shift = Offset.Zero }) {
-                        Text("− تصغير", color = Color(0xFFE6B94E))
-                    }
-                    TextButton(onClick = { zoom = 1f; shift = Offset.Zero }) {
-                        Text("الملاءمة", color = Color.White)
-                    }
-                    TextButton(onClick = { zoom = (zoom * 1.35f).coerceAtMost(5f) }) {
-                        Text("+ تكبير", color = Color(0xFFE6B94E))
-                    }
-                }
-            }
-        }
     }
 }
 

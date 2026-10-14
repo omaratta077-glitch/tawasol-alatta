@@ -61,7 +61,7 @@ internal fun PublicUserProfile(
         LazyColumn(Modifier.fillMaxSize()) {
             item {
                 Box(Modifier.fillMaxWidth().height(164.dp).background(profilePanel)) {
-                    if (cover.isNotBlank()) ExpandableProfileMedia(cover, "صورة الغلاف", Modifier.fillMaxSize(),
+                    if (cover.isNotBlank()) ProfileMediaImage(cover, "صورة الغلاف", Modifier.fillMaxSize(),
                         contentScale = ContentScale.Crop)
                 }
                 Column(Modifier.fillMaxWidth().padding(horizontal = 18.dp),
@@ -69,7 +69,7 @@ internal fun PublicUserProfile(
                     Box(Modifier.offset(y = (-44).dp).size(96.dp).border(3.dp, profileGold, CircleShape)
                         .padding(3.dp).clip(CircleShape).background(Color(0xFF41311A)),
                         contentAlignment = Alignment.Center) {
-                        if (avatar.isNotBlank()) ExpandableProfileMedia(avatar, fullName, Modifier.fillMaxSize(),
+                        if (avatar.isNotBlank()) ProfileMediaImage(avatar, fullName, Modifier.fillMaxSize(),
                             contentScale = ContentScale.Crop)
                         else Text(fullName.take(1), fontSize = 36.sp, color = profileGold)
                     }
@@ -81,23 +81,6 @@ internal fun PublicUserProfile(
                     val friendCount = profile?.optInt("friendCount", -1) ?: -1
                     if (friendCount >= 0) Text("$friendCount صديق", color = profileGold, fontSize = 12.sp,
                         modifier = Modifier.padding(bottom = 9.dp))
-                    val details = listOf(
-                        "البلد" to user.optString("country"),
-                        "المدينة" to user.optString("city"),
-                        "التعليم" to user.optString("education"),
-                        "العمل" to user.optString("work")
-                    ).filter { it.second.isNotBlank() }
-                    if (details.isNotEmpty()) {
-                        Column(Modifier.fillMaxWidth().padding(bottom = 11.dp)
-                            .background(profilePanel, RoundedCornerShape(13.dp)).padding(12.dp),
-                            verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                            Text("معلومات عن المستخدم", color = profileGold,
-                                fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                            details.forEach { (label, value) ->
-                                Text("$label: $value", color = Color.White, fontSize = 13.sp)
-                            }
-                        }
-                    }
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(9.dp)) {
                         Button(onClick = onMessage, modifier = Modifier.weight(1f),
                             colors = ButtonDefaults.buttonColors(containerColor = profileGold,
@@ -139,8 +122,8 @@ internal fun PublicUserProfile(
                         fontSize = 14.sp, modifier = Modifier.padding(bottom = 10.dp))
                     val photo = media(post.optString("image"))
                     val video = media(post.optString("video"))
-                    if (photo.isNotBlank()) ExpandableProfileMedia(photo, "صورة المنشور", Modifier.fillMaxWidth()
-                        .aspectRatio(1.15f).clip(RoundedCornerShape(11.dp)), contentScale = ContentScale.Crop)
+                    if (photo.isNotBlank()) ProfileMediaImage(photo, "صورة المنشور", Modifier.fillMaxWidth()
+                        .heightIn(min = 120.dp, max = 420.dp).clip(RoundedCornerShape(11.dp)), contentScale = ContentScale.Fit)
                     if (video.isNotBlank()) {
                         if (playing == post.optString("id")) {
                             NativeVideo(video)
