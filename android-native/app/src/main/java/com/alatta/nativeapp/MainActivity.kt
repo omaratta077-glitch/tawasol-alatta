@@ -447,6 +447,7 @@ private fun AttaYoutubeControls(
             )
             Text(attaYoutubeTimestamp(duration), color = Muted, fontSize = 11.sp)
         }
+        // Separate rows prevent controls from overflowing on narrow phones.
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically) {
             TextButton(onClick = { onCommand("seekBy", -10) }, enabled = canSeek) {
@@ -458,17 +459,20 @@ private fun AttaYoutubeControls(
             TextButton(onClick = { onCommand("seekBy", 10) }, enabled = canSeek) {
                 Text("10ث ↷", color = if (canSeek) GoldLight else Muted, fontSize = 13.sp)
             }
+        }
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly,
+            verticalAlignment = Alignment.CenterVertically) {
             TextButton(onClick = { onZoom((zoom - .25f).coerceAtLeast(1f)) }) {
-                Text("−", color = GoldLight, fontSize = 20.sp)
+                Text("− تصغير", color = GoldLight, fontSize = 14.sp)
             }
             TextButton(onClick = { onZoom((zoom + .25f).coerceAtMost(2.5f)) }) {
-                Text("+", color = GoldLight, fontSize = 20.sp)
+                Text("+ تكبير", color = GoldLight, fontSize = 14.sp)
             }
             TextButton(onClick = onFullscreen) {
-                Text(if (isFullscreen) "⤢" else "⛶", color = GoldLight, fontSize = 23.sp)
+                Text(if (isFullscreen) "تصغير الشاشة" else "⛶ ملء الشاشة", color = GoldLight, fontSize = 14.sp)
             }
         }
-        if (!canSeek) Text("التقديم والسحب يعملان في وضع التحكم التفاعلي IFrame.",
+        if (!canSeek) Text("المشغّل المباشر يتيح التحكم من أزرار YouTube داخل الفيديو؛ لأزرار ±10 ثوانٍ اختر وضع IFrame التفاعلي.",
             color = Muted, fontSize = 11.sp)
     }
 }
@@ -478,7 +482,7 @@ private fun AttaYoutubeControls(
     val ctx = LocalContext.current
     // Start with the documented IFrame API for functional seek/play controls.
     // Keep the previously working direct player available as fallback.
-    var useDirectEmbed by remember(safeId) { mutableStateOf(false) }
+    var useDirectEmbed by remember(safeId) { mutableStateOf(true) }
     var retryCounter by remember(safeId) { mutableIntStateOf(0) }
     var loadError by remember(safeId, useDirectEmbed, retryCounter) { mutableStateOf("") }
     var loading by remember(safeId, useDirectEmbed, retryCounter) { mutableStateOf(true) }
@@ -595,11 +599,11 @@ private fun AttaYoutubeControls(
                 onFullscreen = { fullscreen = true }, isFullscreen = false
             )
         }
-        Text("تحكم في الفيديو: تقديم وتأخير 10 ثوانٍ، سحب الشريط، تكبير، تصغير وملء الشاشة.",
+        Text("التشغيل المباشر هو الافتراضي لضمان ظهور الفيديو. التكبير وملء الشاشة متاحان، وأزرار التقديم الخارجية تعمل بوضع IFrame فقط.",
             color = Muted, fontSize = 12.sp)
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             TextButton(onClick = { switchMode() }) {
-                Text(if (useDirectEmbed) "تشغيل التحكم التفاعلي" else "التشغيل المباشر (بديل)", color = GoldLight)
+                Text(if (useDirectEmbed) "تجربة أزرار التقديم ±10 ثوانٍ (IFrame)" else "العودة للتشغيل المباشر", color = GoldLight)
             }
             TextButton(onClick = { fullscreen = false; retryCounter += 1 }) {
                 Text("إعادة المحاولة", color = GoldLight)
@@ -749,30 +753,21 @@ private fun AttaYoutubeControls(
         password = ""; regPass = ""; regConfirm = ""; googleIdToken = ""
         resetPassword = ""; resetConfirm = ""; authMode = "login"; tab = "الرئيسية"
     }
-    @Suppress("UNUSED_PARAMETER")
     fun chooseGoogle(signup: Boolean) {
         if (busy) return
         if (!googleEnabled || googleClientId.isBlank()) {
-            error = "تسجيل Google غير مُفعّل على الموقع. راجع GOOGLE_CLIENT_ID في Cloudflare."
+            error = "تسجيل Google غير متاح الآن. تأكد من إعدادات Google في الموقع."
             return
         }
         task {
-            // Native Google account picker shown over this Activity. No Chrome or WebView.
-            // The existing Cloudflare /api/google-login still verifies the ID token.
+            // The native chooser authenticates the Google account. The server
+            // MUST verify the ID token again when the new account is created.
             val pickedToken = GoogleNativeSignIn.pickAccount(ctx as ComponentActivity, googleClientId)
-                ?: return@task // User intentionally closed the account picker.
-            // Existing Google users sign in immediately from either button;
-            // only NEW users see the chosen name/username/date-of-birth form.
-            try {
-                val result = withContext(Dispatchers.IO) {
-                    api("/api/google-login", JSONObject()
-                        .put("credential", pickedToken)
-                        .put("signupFlow", "android-login"))
-                }
-                applySession(result, "Google")
-            } catch (e: IllegalStateException) {
-                if (!e.message.orEmpty().contains("USERNAME_REQUIRED")) throw e
-                val claims = googleTokenDetails(pickedToken) // Preview; Worker verifies.
+                ?: return@task
+            val claims = googleTokenDetails(pickedToken) // Display only, never trusted by the server.
+            if (signup) {
+                // New Google signups go straight to profile completion. No email OTP:
+                // Google's verified ID token is checked at the final submit.
                 googleIdToken = pickedToken
                 googleEmail = claims.optString("email")
                 googleName = claims.optString("name").ifBlank { claims.optString("given_name") }
@@ -780,6 +775,29 @@ private fun AttaYoutubeControls(
                 googleCity = ""
                 googleUsername = ""
                 authMode = "googleProfile"
+            } else {
+                try {
+                    val result = withContext(Dispatchers.IO) {
+                        api("/api/google-login", JSONObject()
+                            .put("credential", pickedToken)
+                            .put("signupFlow", "android-login"))
+                    }
+                    applySession(result, "Google")
+                } catch (e: IllegalStateException) {
+                    val message = e.message.orEmpty()
+                    // Support deployed Workers returning either the stable machine
+                    // code or the older readable response for a new Google account.
+                    if (!message.contains("USERNAME_REQUIRED") &&
+                        !message.contains("اختر اسم مستخدم") &&
+                        !message.contains("لا يوجد حساب Google سابق")) throw e
+                    googleIdToken = pickedToken
+                    googleEmail = claims.optString("email")
+                    googleName = claims.optString("name").ifBlank { claims.optString("given_name") }
+                    googleBirthDate = ""
+                    googleCity = ""
+                    googleUsername = ""
+                    authMode = "googleProfile"
+                }
             }
         }
     }
@@ -1278,10 +1296,10 @@ private fun AttaYoutubeControls(
                             AttaBirthDatePicker(googleBirthDate, { googleBirthDate = it })
                             PremiumAuthTextField(googleCity, { googleCity = it.take(80) }, "المدينة (اختياري)")
                             Text("الحسابات الحالية بواسطة Google ستفتح مباشرة دون تغيير بياناتها", color = Muted, fontSize = 11.sp)
-                            if (!nativeUsernameSignup) Text(
-                                "إنشاء حساب Google جديد يحتاج تفعيل اختيار اسم المستخدم على خادم Cloudflare أولًا. حسابات Google الحالية تستمر في الدخول بشكل طبيعي.",
+                            if (!nativeUsernameSignup || !birthDateSignup) Text(
+                                "التطبيق سيتحقق من دعم إنشاء حساب Google عند الحفظ. لا يلزم إرسال كود بريد للتسجيل بواسطة Google.",
                                 color = Color(0xFFFFC78E), fontSize = 12.sp)
-                            PremiumAuthGoldButton("تأكيد إنشاء حساب Google", !busy && nativeUsernameSignup && birthDateSignup &&
+                            PremiumAuthGoldButton("إنشاء الحساب بحساب Google الموثّق", !busy &&
                                 googleIdToken.isNotBlank() && googleUsername.matches(Regex("[a-z0-9_]{3,24}")) &&
                                 googleName.trim().length >= 2 && attaAgeFromBirthDate(googleBirthDate) != null) {
                                 task {
@@ -1295,7 +1313,7 @@ private fun AttaYoutubeControls(
                                         .put("city", googleCity.trim())
                                     val result = withContext(Dispatchers.IO) { api("/api/google-login", data) }
                                     require(result.optJSONObject("user")?.optString("username") == googleUsername.trim()) {
-                                        "الخادم لم يحفظ اسم المستخدم الذي اخترته؛ راجع تحديث Cloudflare."
+                                        "هذا الحساب موجود من قبل باسم مستخدم مختلف؛ اختر تسجيل الدخول بحساب Google بدل إنشاء حساب جديد."
                                     }
                                     applySession(result, googleName)
                                 }
