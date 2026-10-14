@@ -244,7 +244,7 @@ export class SignalingRoom extends DurableObject {
     // Google Client ID is public; never return any secret here.
     if(url.pathname==="/api/google-config" && request.method==="GET"){
       const clientId=String(this.env.GOOGLE_CLIENT_ID||"").trim();
-      return j({ok:true,enabled:!!clientId,clientId});
+      return j({ok:true,enabled:!!clientId,clientId,nativeUsernameSignup:true});
     }
     if(url.pathname==="/api/media-upload" && request.method==="POST"){
       const session=await this.session(String(url.searchParams.get("token")||""));
@@ -759,17 +759,22 @@ export class SignalingRoom extends DurableObject {
             return j({ok:false,error:"هذا البريد مرتبط بحساب موجود. ادخل بكلمة المرور القديمة أولًا؛ لن نربط الحساب تلقائيًا حفاظًا على أمانه."},409);
           }
         }
-        username="g_"+idHash;
+        // AL-ATTA v1.0.10: New Google users select their own username.
+        const chosenUsername=String(body.username||"").trim().toLowerCase();
+        if(!/^[a-z0-9_]{3,24}$/.test(chosenUsername)){
+          return j({ok:false,error:"USERNAME_REQUIRED: اختر اسم مستخدم من 3 إلى 24 حرفًا إنجليزيًا أو رقمًا أو _",code:"USERNAME_REQUIRED"},409);
+        }
+        const chosenFullName=String(body.fullName||"").trim();
+        const chosenAge=Number(body.age);
+        if(chosenFullName.length<2 || chosenFullName.length>60 || !Number.isInteger(chosenAge) || chosenAge<13 || chosenAge>120){
+          return j({ok:false,error:"اكتب الاسم الظاهر والعمر الصحيح لإنشاء حساب Google",code:"PROFILE_REQUIRED"},400);
+        }
+        username=chosenUsername;
         if(await this.user(username))return j({ok:false,error:"تعذر إنشاء الحساب. تواصل مع الإدارة."},409);
-        // Android signup verifies the Google ID token first and lets the user
-        // edit the suggested name, provide age and optionally city.
-        const androidSignup=body.signupFlow==="android-signup";
-        const suggested=String(claims.name||claims.given_name||"مستخدم Google").trim();
-        const fullName=(androidSignup?String(body.fullName||""):suggested).trim().slice(0,60);
-        const age=androidSignup?Number(body.age):0;
-        const city=androidSignup?String(body.city||"").trim().slice(0,80):"";
-        if(androidSignup && (fullName.length<2 || !Number.isInteger(age) || age<13 || age>120))
-          return j({ok:false,error:"اكتب الاسم والعمر الصحيح (13 إلى 120) قبل إنشاء حساب Google"},400);
+        // Full name and age are required when a new Google account is created.
+        const fullName=chosenFullName.slice(0,60);
+        const age=chosenAge;
+        const city=String(body.city||"").trim().slice(0,80);
         await this.ctx.storage.put(`user:${username}`,{
           username,displayName:fullName,fullName,age,city,phone:"",email,
           emailVerified:true,emailVerifiedAt:Date.now(),googleIdHash:idHash,
@@ -787,15 +792,24 @@ export class SignalingRoom extends DurableObject {
     if(url.pathname==="/api/login" && request.method==="POST"){
       const username=String(body.username||"").trim().toLowerCase();
       const password=String(body.password||"");
-      const u=await this.user(username);
+      let u=await this.user(username);
+      if(!u && (username.includes("@") || /^\+?[0-9]{8,15}$/.test(username))){
+        const names=await this.ctx.storage.get("usernames")||[];
+        for(const name of names){
+          const candidate=await this.user(name);
+          if(candidate && (String(candidate.email||"").toLowerCase()===username || String(candidate.phone||"")===username)){
+            u=candidate;break;
+          }
+        }
+      }
 
       if(!u || u.passwordHash!==await hashPassword(password)){
         return j({ok:false,error:"اسم المستخدم أو كلمة المرور غير صحيحة"},401);
       }
       if(u.banned)return j({ok:false,error:"تم إيقاف هذا الحساب بواسطة الإدارة"},403);
 
-      const token=await this.createSession(username);
-      return j({ok:true,token,user:await this.publicUser(username)});
+      const token=await this.createSession(u.username);
+      return j({ok:true,token,user:await this.publicUser(u.username)});
     }
 
     if(url.pathname==="/api/profile-media" && request.method==="POST"){

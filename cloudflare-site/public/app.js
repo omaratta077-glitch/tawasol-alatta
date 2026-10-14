@@ -2116,7 +2116,7 @@ async function renderProfilePage(username=me?.username){
 
     $("profileAvatarLarge").src=p.avatar||avatarFallback(p.fullName||p.displayName||p.username);
     $("profileName").textContent=p.fullName||p.displayName||p.username;
-    $("profileUsername").textContent="@"+p.username;
+    $("profileUsername").textContent=""; $("profileUsername").hidden=true; $("profileUsername").style.display="none";
     $("profileBio").textContent=p.bio||"لا توجد نبذة بعد";
     const coverImg=$("profileCoverImage");
     if(coverImg){
@@ -3173,6 +3173,12 @@ if($("refreshSavedPageBtn"))$("refreshSavedPageBtn").onclick=loadSavedPostsPage;
 
 let authMode="login";
 let pendingVerificationId="";
+// AL-ATTA v1.0.10 login/register hint
+function refreshLoginIdentifierHint(){
+  const field=document.getElementById("usernameInput");
+  if(field)field.placeholder=authMode==="register" ? "اختر اسم مستخدم لحسابك" : "الهاتف أو البريد أو اسم المستخدم";
+}
+["loginTab","registerTab","attaRegisterShortcut"].forEach(id=>document.getElementById(id)?.addEventListener("click",refreshLoginIdentifierHint));
 let verificationCountdownTimer=null;
 
 
@@ -3652,6 +3658,33 @@ queueMicrotask(()=>{
 
 // V13.8 — Google Identity Services (free verified-email signup/login).
 // Google checks email ownership. No verification code is sent or exposed.
+// AL-ATTA v1.0.10: manually choose profile for first-time Google accounts.
+function requestGoogleProfile(){
+  return new Promise(resolve=>{
+    const overlay=document.createElement("div");
+    overlay.style.cssText="position:fixed;inset:0;z-index:999999;background:rgba(0,0,0,.85);display:grid;place-items:center;padding:18px;direction:rtl";
+    overlay.innerHTML=`<form style="width:min(94vw,420px);background:#111619;border:1px solid #e6b94e;border-radius:22px;padding:24px;display:grid;gap:12px;box-shadow:0 12px 50px #000;color:#fff" autocomplete="on">
+      <h2 style="margin:0;color:#e6b94e;font-size:21px">إنشاء حساب تواصل العطا</h2>
+      <p style="margin:0;color:#b8bec1;font-size:13px">اختَر اسمك بنفسك. اسم المستخدم لا يظهر تحت اسمك في الملف الشخصي.</p>
+      <input name="fullName" required minlength="2" maxlength="60" placeholder="اسمك الذي يظهر للآخرين" style="padding:13px;border-radius:11px;background:#080b0d;color:#fff;border:1px solid #514125">
+      <input name="username" required minlength="3" maxlength="24" pattern="[a-zA-Z0-9_]{3,24}" placeholder="اسم مستخدم فريد (إنجليزي/أرقام)" style="padding:13px;border-radius:11px;background:#080b0d;color:#fff;border:1px solid #514125" autocapitalize="off">
+      <input name="age" type="number" required min="13" max="120" placeholder="العمر" style="padding:13px;border-radius:11px;background:#080b0d;color:#fff;border:1px solid #514125">
+      <input name="city" maxlength="80" placeholder="المدينة (اختياري)" style="padding:13px;border-radius:11px;background:#080b0d;color:#fff;border:1px solid #514125">
+      <button type="submit" style="border:0;background:#e6b94e;color:#070707;padding:13px;border-radius:13px;font-weight:800">تأكيد وإنشاء الحساب</button>
+      <button type="button" data-cancel style="background:transparent;color:#d9c89a;border:1px solid #6b5429;padding:11px;border-radius:13px">إلغاء</button>
+    </form>`;
+    const form=overlay.querySelector("form");
+    const finish=value=>{overlay.remove();resolve(value)};
+    overlay.querySelector("[data-cancel]").onclick=()=>finish(null);
+    form.onsubmit=e=>{
+      e.preventDefault();
+      finish({fullName:form.elements.fullName.value.trim(),username:form.elements.username.value.trim().toLowerCase(),age:Number(form.elements.age.value),city:form.elements.city.value.trim()});
+    };
+    document.body.appendChild(overlay);
+    form.elements.fullName.focus();
+  });
+}
+
 let googleWidgetStarted=false;
 async function setupGoogleSignIn(){
   const hint=document.getElementById("googleSetupHint");
@@ -3678,9 +3711,19 @@ async function setupGoogleSignIn(){
       callback:async ({credential})=>{
         try{
           hint.textContent="جاري تأكيد البريد بواسطة Google...";
-          const result=await api("/api/google-login",{
-            method:"POST",body:JSON.stringify({credential})
-          });
+          let result;
+          try{
+            result=await api("/api/google-login",{
+              method:"POST",body:JSON.stringify({credential})
+            });
+          }catch(firstError){
+            if(!String(firstError.message||"").includes("USERNAME_REQUIRED"))throw firstError;
+            const profile=await requestGoogleProfile();
+            if(!profile){hint.textContent="لم يتم إنشاء الحساب";return;}
+            result=await api("/api/google-login",{
+              method:"POST",body:JSON.stringify({credential,...profile})
+            });
+          }
           await startAuthenticatedApp(result.token,result.user);
         }catch(e){hint.textContent=e.message||"تعذر تسجيل الدخول بواسطة Google";}
       }
