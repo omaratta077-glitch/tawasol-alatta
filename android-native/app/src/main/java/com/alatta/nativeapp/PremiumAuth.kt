@@ -34,7 +34,7 @@ private val AuthPanel = Color(0xFF0D1113)
 internal fun PremiumAuthTextField(value: String, onChange: (String) -> Unit, hint: String, password: Boolean = false) {
     OutlinedTextField(
         value = value, onValueChange = onChange,
-        placeholder = { Text(hint, color = Color(0xFFBFC0C0), fontSize = 13.sp, maxLines = 2) },
+        placeholder = { Text(hint, color = Color(0xFFBFC0C0), fontSize = 14.sp, maxLines = 1) },
         textStyle = androidx.compose.ui.text.TextStyle(color = Color.White, fontSize = 15.sp),
         visualTransformation = if (password) PasswordVisualTransformation() else androidx.compose.ui.text.input.VisualTransformation.None,
         singleLine = true, shape = RoundedCornerShape(14.dp),
@@ -43,7 +43,7 @@ internal fun PremiumAuthTextField(value: String, onChange: (String) -> Unit, hin
             focusedContainerColor = AuthPanel, unfocusedContainerColor = AuthPanel,
             cursorColor = AuthGold, focusedTextColor = Color.White, unfocusedTextColor = Color.White
         ),
-        modifier = Modifier.fillMaxWidth().heightIn(min = 61.dp)
+        modifier = Modifier.fillMaxWidth().heightIn(min = 64.dp)
     )
 }
 

@@ -76,10 +76,8 @@ internal fun PublicUserProfile(
                     Text(fullName, color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold,
                         modifier = Modifier.offset(y = (-37).dp), maxLines = 1,
                         overflow = TextOverflow.Ellipsis)
-                    Text("@$username", color = profileMuted, fontSize = 13.sp,
-                        modifier = Modifier.offset(y = (-31).dp))
                     if (user.optString("bio").isNotBlank()) Text(user.optString("bio"),
-                        color = profileMuted, fontSize = 13.sp, modifier = Modifier.offset(y = (-18).dp))
+                        color = profileMuted, fontSize = 13.sp, modifier = Modifier.offset(y = (-25).dp))
                     val friendCount = profile?.optInt("friendCount", -1) ?: -1
                     if (friendCount >= 0) Text("$friendCount صديق", color = profileGold, fontSize = 12.sp,
                         modifier = Modifier.padding(bottom = 9.dp))
