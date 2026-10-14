@@ -22,6 +22,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
@@ -81,16 +82,40 @@ internal fun PremiumAuthOutlineButton(label: String, onClick: () -> Unit) {
 }
 
 @Composable
-internal fun PremiumGoogleButton(enabled: Boolean = true, label: String = "المواصلة باستخدام Google", onClick: () -> Unit) {
-    OutlinedButton(onClick = onClick, enabled = enabled,
-        modifier = Modifier.fillMaxWidth().height(47.dp), shape = RoundedCornerShape(24.dp),
+internal fun PremiumGoogleButton(enabled: Boolean = true, label: String = "المواصلة باستخدام جوجل", onClick: () -> Unit) {
+    // RTL: the icon stays on the right. The label may wrap instead of being
+    // silently cropped by a fixed 47dp height on phones with larger font scale.
+    OutlinedButton(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = Modifier.fillMaxWidth().heightIn(min = 62.dp),
+        shape = RoundedCornerShape(25.dp),
+        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 9.dp),
         border = BorderStroke(1.dp, Color(0xFF555960)),
-        colors = ButtonDefaults.outlinedButtonColors(containerColor = Color(0xFF202124), contentColor = Color.White)) {
-        Box(Modifier.size(23.dp).background(Color.White, CircleShape), contentAlignment = Alignment.Center) {
-            Image(painter = androidx.compose.ui.res.painterResource(R.drawable.google_g_mark),
-                contentDescription = "Google", modifier = Modifier.size(18.dp))
+        colors = ButtonDefaults.outlinedButtonColors(
+            containerColor = Color(0xFF202124), contentColor = Color.White
+        )
+    ) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(28.dp).background(Color.White, CircleShape), contentAlignment = Alignment.Center) {
+                Image(
+                    painter = androidx.compose.ui.res.painterResource(R.drawable.google_g_mark),
+                    contentDescription = "Google", modifier = Modifier.size(22.dp)
+                )
+            }
+            Spacer(Modifier.width(9.dp))
+            Text(
+                text = label,
+                modifier = Modifier.weight(1f),
+                fontSize = 14.sp,
+                lineHeight = 18.sp,
+                maxLines = 2,
+                softWrap = true,
+                overflow = TextOverflow.Clip,
+                textAlign = TextAlign.Center,
+                fontWeight = FontWeight.SemiBold,
+                color = Color.White
+            )
         }
-        Spacer(Modifier.width(9.dp))
-        Text(label, fontSize = 14.sp, fontWeight = FontWeight.Medium)
     }
 }

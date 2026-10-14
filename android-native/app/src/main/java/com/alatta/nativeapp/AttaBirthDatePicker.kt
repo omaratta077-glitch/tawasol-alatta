@@ -3,6 +3,7 @@ package com.alatta.nativeapp
 import android.app.DatePickerDialog
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -10,6 +11,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import java.time.LocalDate
 import java.time.Period
@@ -32,7 +34,7 @@ internal fun AttaBirthDatePicker(value: String, onChange: (String) -> Unit) {
     val latest = today.minusYears(13)
     val initial = try { LocalDate.parse(value) } catch (_: Exception) { today.minusYears(20) }
     OutlinedButton(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth().heightIn(min = 64.dp),
         border = BorderStroke(1.dp, Color(0xFFE6B94E)),
         onClick = {
             DatePickerDialog(context, { _, year, month, day ->
@@ -45,8 +47,9 @@ internal fun AttaBirthDatePicker(value: String, onChange: (String) -> Unit) {
             }.show()
         }
     ) {
-        Text(if (value.isBlank()) "تاريخ الميلاد (اليوم / الشهر / السنة) *"
+        Text(if (value.isBlank()) "تاريخ الميلاد"
              else "تاريخ الميلاد: ${value.substring(8, 10)}/${value.substring(5, 7)}/${value.substring(0, 4)}",
-             color = if (value.isBlank()) Color(0xFFD0C7B6) else Color(0xFFE6B94E), fontSize = 14.sp)
+             color = if (value.isBlank()) Color(0xFFD0C7B6) else Color(0xFFE6B94E),
+             fontSize = 14.sp, textAlign = TextAlign.Center)
     }
 }

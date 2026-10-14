@@ -399,7 +399,7 @@ private fun AttaYoutubeDisplay(
                 if (view.tag != "atta-youtube-loaded") {
                     view.tag = "atta-youtube-loaded"
                     if (modeDirect) {
-                        val address = "https://www.youtube.com/embed/$videoId?playsinline=1&rel=0&fs=1&origin=${enc(BASE)}"
+                        val address = "https://www.youtube.com/embed/$videoId?playsinline=1&rel=0&fs=1&controls=1&origin=${enc(BASE)}"
                         view.loadUrl(address, mapOf("Referer" to "$BASE/"))
                     } else {
                         view.loadDataWithBaseURL("$BASE/", attaYouTubeHtml(videoId), "text/html", "UTF-8", null)
@@ -447,7 +447,6 @@ private fun AttaYoutubeControls(
             )
             Text(attaYoutubeTimestamp(duration), color = Muted, fontSize = 11.sp)
         }
-        // Separate rows prevent controls from overflowing on narrow phones.
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically) {
             TextButton(onClick = { onCommand("seekBy", -10) }, enabled = canSeek) {
@@ -469,10 +468,10 @@ private fun AttaYoutubeControls(
                 Text("+ تكبير", color = GoldLight, fontSize = 14.sp)
             }
             TextButton(onClick = onFullscreen) {
-                Text(if (isFullscreen) "تصغير الشاشة" else "⛶ ملء الشاشة", color = GoldLight, fontSize = 14.sp)
+                Text(if (isFullscreen) "⤢ تصغير الشاشة" else "⛶ ملء الشاشة", color = GoldLight, fontSize = 14.sp)
             }
         }
-        if (!canSeek) Text("المشغّل المباشر يتيح التحكم من أزرار YouTube داخل الفيديو؛ لأزرار ±10 ثوانٍ اختر وضع IFrame التفاعلي.",
+        if (!canSeek) Text("استعمل شريط YouTube داخل الفيديو للتقديم إذا لم تتوفر أدوات التحكّم الخارجية.",
             color = Muted, fontSize = 11.sp)
     }
 }
@@ -482,11 +481,16 @@ private fun AttaYoutubeControls(
     val ctx = LocalContext.current
     // Start with the documented IFrame API for functional seek/play controls.
     // Keep the previously working direct player available as fallback.
-    var useDirectEmbed by remember(safeId) { mutableStateOf(true) }
+    val youtubePrefs = remember(ctx) { ctx.getSharedPreferences("alatta_youtube", 0) }
+    // Preserve the last successful playback choice across videos and app restarts.
+    var useDirectEmbed by remember(safeId) {
+        mutableStateOf(youtubePrefs.getBoolean("prefer_direct", false))
+    }
     var retryCounter by remember(safeId) { mutableIntStateOf(0) }
     var loadError by remember(safeId, useDirectEmbed, retryCounter) { mutableStateOf("") }
     var loading by remember(safeId, useDirectEmbed, retryCounter) { mutableStateOf(true) }
     var playerReady by remember(safeId, useDirectEmbed, retryCounter) { mutableStateOf(false) }
+    var directControlsAvailable by remember(safeId, useDirectEmbed, retryCounter) { mutableStateOf(false) }
     var isPlaying by remember(safeId, useDirectEmbed, retryCounter) { mutableStateOf(false) }
     var position by remember(safeId, useDirectEmbed, retryCounter) { mutableIntStateOf(0) }
     var duration by remember(safeId, useDirectEmbed, retryCounter) { mutableIntStateOf(0) }
@@ -511,8 +515,17 @@ private fun AttaYoutubeControls(
                     }
                 }
                 event.startsWith("ERROR:") -> {
-                    loading = false
-                    loadError = attaYoutubeError(event.removePrefix("ERROR:"))
+                    val code = event.removePrefix("ERROR:")
+                    if (!useDirectEmbed && code in setOf("5", "153", "SCRIPT", "INIT")) {
+                        // The interactive embedded player may be rejected by YouTube.
+                        // Fall back to a plain embed rather than leaving inert controls.
+                        youtubePrefs.edit().putBoolean("prefer_direct", true).apply()
+                        useDirectEmbed = true
+                        retryCounter += 1
+                    } else {
+                        loading = false
+                        loadError = attaYoutubeError(code)
+                    }
                 }
             }
         }
@@ -566,21 +579,60 @@ private fun AttaYoutubeControls(
         }
     }
     LaunchedEffect(safeId, useDirectEmbed, retryCounter) {
-        delay(15000)
+        delay(11000)
         if (!playerReady && loadError.isEmpty()) {
-            loading = false
-            loadError = "استغرق تشغيل الفيديو وقتًا طويلًا. جرّب التشغيل المباشر أو افتحه في YouTube."
+            if (!useDirectEmbed) {
+                youtubePrefs.edit().putBoolean("prefer_direct", true).apply()
+                useDirectEmbed = true // automatic recovery: keep video usable
+                retryCounter += 1
+            } else {
+                loading = false
+                loadError = "تعذّر تشغيل الفيديو داخل التطبيق. افتحه في YouTube أو أعد المحاولة."
+            }
+        }
+    }
+    // In the direct https://youtube.com/embed page, a native WebView JavaScript
+    // evaluation can reach the page's HTML5 video if YouTube exposes it.
+    // A version of the YouTube player may not expose that element; its own
+    // on-screen controls always remain the supported fallback.
+    LaunchedEffect(webView, useDirectEmbed, retryCounter) {
+        if (useDirectEmbed) {
+            while (true) {
+                delay(1200)
+                try {
+                    webView.evaluateJavascript("""(function(){var v=document.querySelector('video');return v ? Math.floor(v.currentTime)+'|'+Math.floor(v.duration||0)+'|'+(v.paused?'0':'1') : 'NO_VIDEO';})();""") { raw ->
+                        val parts = raw.trim().removeSurrounding("\"").split('|')
+                        directControlsAvailable = parts.size == 3
+                        if (parts.size == 3) {
+                            position = parts[0].toIntOrNull()?.coerceAtLeast(0) ?: position
+                            duration = parts[1].toIntOrNull()?.coerceAtLeast(0) ?: duration
+                            isPlaying = parts[2] == "1"
+                            playerReady = true
+                            loading = false
+                        }
+                    }
+                } catch (_: Exception) { /* Player's own controls remain available. */ }
+            }
         }
     }
     fun send(command: String, value: Int) {
-        if (useDirectEmbed || !playerReady) return
-        // Only fixed command names and integer arguments reach the HTML player.
-        if (command !in setOf("seek", "seekBy", "toggle")) return
-        webView.evaluateJavascript("window.alattaControl && window.alattaControl('$command',$value);", null)
+        if (!playerReady || command !in setOf("seek", "seekBy", "toggle")) return
+        if (!useDirectEmbed) {
+            webView.evaluateJavascript("window.alattaControl && window.alattaControl('$command',$value);", null)
+            return
+        }
+        // Never evaluate user text as JS. Command and value are fixed/native-only.
+        val code = when (command) {
+            "seek" -> "v.currentTime=Math.max(0,$value)"
+            "seekBy" -> "v.currentTime=Math.max(0,v.currentTime+($value))"
+            else -> "if(v.paused){v.play()}else{v.pause()}"
+        }
+        webView.evaluateJavascript("(function(){var v=document.querySelector('video');if(!v)return 'NO_VIDEO';$code;return 'OK';})();", null)
     }
     fun switchMode() {
         fullscreen = false
         useDirectEmbed = !useDirectEmbed
+        youtubePrefs.edit().putBoolean("prefer_direct", useDirectEmbed).apply()
         retryCounter += 1
         zoom = 1f
     }
@@ -593,17 +645,17 @@ private fun AttaYoutubeControls(
                 modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f)
             )
             AttaYoutubeControls(
-                canSeek = playerReady && !useDirectEmbed, isPlaying = isPlaying,
+                canSeek = playerReady && (!useDirectEmbed || directControlsAvailable), isPlaying = isPlaying,
                 position = position, duration = duration, zoom = zoom,
                 onCommand = { action, amount -> send(action, amount) }, onZoom = { zoom = it },
                 onFullscreen = { fullscreen = true }, isFullscreen = false
             )
         }
-        Text("التشغيل المباشر هو الافتراضي لضمان ظهور الفيديو. التكبير وملء الشاشة متاحان، وأزرار التقديم الخارجية تعمل بوضع IFrame فقط.",
+        Text("التحكم التفاعلي يعمل عند جاهزية مشغّل YouTube. عند فشل تحميله يتم التحويل تلقائيًا إلى المشغّل المباشر، وتظل أدوات الفيديو الأصلية متاحة.",
             color = Muted, fontSize = 12.sp)
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             TextButton(onClick = { switchMode() }) {
-                Text(if (useDirectEmbed) "تجربة أزرار التقديم ±10 ثوانٍ (IFrame)" else "العودة للتشغيل المباشر", color = GoldLight)
+                Text(if (useDirectEmbed) "تجربة التحكم التفاعلي" else "تشغيل بديل", color = GoldLight)
             }
             TextButton(onClick = { fullscreen = false; retryCounter += 1 }) {
                 Text("إعادة المحاولة", color = GoldLight)
@@ -626,10 +678,11 @@ private fun AttaYoutubeControls(
                 AttaYoutubeDisplay(
                     webView = webView, modeDirect = useDirectEmbed, videoId = safeId,
                     loading = loading, error = loadError, zoom = zoom,
-                    modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f)
+                    // Fullscreen fills the available screen area (not just a 16:9 strip).
+                    modifier = Modifier.fillMaxWidth().weight(1f)
                 )
                 AttaYoutubeControls(
-                    canSeek = playerReady && !useDirectEmbed, isPlaying = isPlaying,
+                    canSeek = playerReady && (!useDirectEmbed || directControlsAvailable), isPlaying = isPlaying,
                     position = position, duration = duration, zoom = zoom,
                     onCommand = { action, amount -> send(action, amount) }, onZoom = { zoom = it },
                     onFullscreen = { fullscreen = false }, isFullscreen = true
@@ -645,7 +698,8 @@ private fun AttaYoutubeControls(
 }
 
 @Composable private fun NativeApp() {
-    AppUpdatePrompt()
+    var updateCheckRequest by remember { mutableIntStateOf(0) }
+    AppUpdatePrompt(updateCheckRequest)
     val ctx = LocalContext.current
     val prefs = remember { ctx.getSharedPreferences("alatta_native", 0) }
     var token by remember { mutableStateOf(prefs.getString("token", "") ?: "") }
@@ -728,6 +782,10 @@ private fun AttaYoutubeControls(
     var youtubeId by remember { mutableStateOf("") }
     val youtubeListState = rememberLazyListState()
     var profileBio by remember { mutableStateOf("") }
+    var profileCountry by remember { mutableStateOf("") }
+    var profileCity by remember { mutableStateOf("") }
+    var profileEducation by remember { mutableStateOf("") }
+    var profileWork by remember { mutableStateOf("") }
     // An Activity-scoped job is not cancelled just because login or a tab leaves composition.
     val scope = (ctx as ComponentActivity).lifecycleScope
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
@@ -755,19 +813,25 @@ private fun AttaYoutubeControls(
     }
     fun chooseGoogle(signup: Boolean) {
         if (busy) return
-        if (!googleEnabled || googleClientId.isBlank()) {
-            error = "تسجيل Google غير متاح الآن. تأكد من إعدادات Google في الموقع."
-            return
-        }
         task {
-            // The native chooser authenticates the Google account. The server
-            // MUST verify the ID token again when the new account is created.
-            val pickedToken = GoogleNativeSignIn.pickAccount(ctx as ComponentActivity, googleClientId)
+            // The sign-in button must never be a silent, permanently disabled control.
+            // Retry the public configuration at tap time (e.g. after temporary network loss).
+            var clientId = googleClientId
+            if (!googleEnabled || clientId.isBlank()) {
+                val conf = withContext(Dispatchers.IO) { api("/api/google-config") }
+                googleEnabled = conf.optBoolean("enabled", false)
+                googleClientId = conf.optString("clientId")
+                nativeUsernameSignup = conf.optBoolean("nativeUsernameSignup", false)
+                birthDateSignup = conf.optBoolean("birthDateSignup", false)
+                clientId = googleClientId
+            }
+            require(googleEnabled && clientId.endsWith(".apps.googleusercontent.com")) {
+                "Google غير مفعّل على الخادم. راجع GOOGLE_CLIENT_ID وإعداد OAuth ثم أعد المحاولة."
+            }
+            val pickedToken = GoogleNativeSignIn.pickAccount(ctx as ComponentActivity, clientId)
                 ?: return@task
-            val claims = googleTokenDetails(pickedToken) // Display only, never trusted by the server.
-            if (signup) {
-                // New Google signups go straight to profile completion. No email OTP:
-                // Google's verified ID token is checked at the final submit.
+            val claims = googleTokenDetails(pickedToken) // Hints only: server validates the token.
+            fun showGoogleProfile() {
                 googleIdToken = pickedToken
                 googleEmail = claims.optString("email")
                 googleName = claims.optString("name").ifBlank { claims.optString("given_name") }
@@ -775,29 +839,23 @@ private fun AttaYoutubeControls(
                 googleCity = ""
                 googleUsername = ""
                 authMode = "googleProfile"
-            } else {
-                try {
-                    val result = withContext(Dispatchers.IO) {
-                        api("/api/google-login", JSONObject()
-                            .put("credential", pickedToken)
-                            .put("signupFlow", "android-login"))
-                    }
-                    applySession(result, "Google")
-                } catch (e: IllegalStateException) {
-                    val message = e.message.orEmpty()
-                    // Support deployed Workers returning either the stable machine
-                    // code or the older readable response for a new Google account.
-                    if (!message.contains("USERNAME_REQUIRED") &&
-                        !message.contains("اختر اسم مستخدم") &&
-                        !message.contains("لا يوجد حساب Google سابق")) throw e
-                    googleIdToken = pickedToken
-                    googleEmail = claims.optString("email")
-                    googleName = claims.optString("name").ifBlank { claims.optString("given_name") }
-                    googleBirthDate = ""
-                    googleCity = ""
-                    googleUsername = ""
-                    authMode = "googleProfile"
+            }
+            // One validated server request decides whether this Google identity already
+            // owns an account. Existing users log in; new users complete required fields.
+            // New-account registration MUST NOT go through the email OTP endpoints.
+            try {
+                val result = withContext(Dispatchers.IO) {
+                    api("/api/google-login", JSONObject()
+                        .put("credential", pickedToken)
+                        .put("signupFlow", if (signup) "android-signup-check" else "android-login"))
                 }
+                applySession(result, googleName.ifBlank { "Google" })
+            } catch (e: IllegalStateException) {
+                val message = e.message.orEmpty()
+                val needsProfile = message.contains("USERNAME_REQUIRED") ||
+                    message.contains("اختر اسم مستخدم") ||
+                    message.contains("لا يوجد حساب Google سابق")
+                if (needsProfile) showGoogleProfile() else throw e
             }
         }
     }
@@ -1014,7 +1072,15 @@ private fun AttaYoutubeControls(
             }
             "الإشعارات" -> notifications = get("/api/notifications").arr("notifications")
             "المجموعات" -> groups = get("/api/groups").arr("groups")
-            "الملف" -> { profile = get("/api/me").optJSONObject("user") ?: JSONObject(); profileBio = profile.optString("bio"); myAvatar = profile.optString("avatar") }
+            "الملف" -> {
+                profile = get("/api/me").optJSONObject("user") ?: JSONObject()
+                profileBio = profile.optString("bio")
+                profileCountry = profile.optString("country")
+                profileCity = profile.optString("city")
+                profileEducation = profile.optString("education")
+                profileWork = profile.optString("work")
+                myAvatar = profile.optString("avatar")
+            }
             "المحفوظات" -> posts = get("/api/saved-posts").arr("posts")
             "يوتيوب" -> youtubeItems = withContext(Dispatchers.IO) { api("/api/youtube?q=${enc(youtubeSearch)}") }.arr("items")
         }
@@ -1219,20 +1285,20 @@ private fun AttaYoutubeControls(
                             }
                             Text("أو اختر حساب Google من داخل التطبيق", color = GoldLight,
                                 fontSize = 12.sp, textAlign = TextAlign.Center)
-                            PremiumGoogleButton(enabled = !busy && googleEnabled, label = "الدخول بحساب Google") {
+                            PremiumGoogleButton(enabled = !busy, label = "الدخول بحساب Google") {
                                 chooseGoogle(false)
                             }
-                            if (!googleEnabled) Text("يتطلب Google Play Services وإعداد OAuth لتطبيق Android.", color = Muted, fontSize = 11.sp)
+                            if (!googleEnabled) Text("يتطلب خدمات Google Play وتطابق OAuth مع توقيع التطبيق. اضغط لإعادة التحقق.", color = Muted, fontSize = 11.sp)
                             TextButton(onClick = { authMode = "forgot" }) {
                                 Text("هل نسيت كلمة السر؟", color = GoldLight, fontWeight = FontWeight.Bold)
                             }
                             PremiumAuthOutlineButton("إنشاء حساب جديد") { authMode = "register"; error = "" }
                         } else if (authMode == "register") {
                             Text("إنشاء حساب جديد", color = GoldLight, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                            PremiumGoogleButton(enabled = !busy && googleEnabled, label = "إنشاء حساب عن طريق Google") {
+                            PremiumGoogleButton(enabled = !busy, label = "إنشاء حساب عن طريق جوجل") {
                                 chooseGoogle(true)
                             }
-                            if (!googleEnabled) Text("سيظهر اختيار حساب Google مباشرة داخل التطبيق", color = Muted, fontSize = 11.sp)
+                            if (!googleEnabled) Text("اضغط Google للتحقق من الاتصال والإعداد. لو تعذر الاختيار ستظهر رسالة بالسبب.", color = Muted, fontSize = 11.sp)
                             Text("أو أنشئ حسابًا بالبريد الإلكتروني", color = GoldLight, fontSize = 13.sp)
                             PremiumAuthTextField(regName, { regName = it }, "الاسم الكامل")
                             PremiumAuthTextField(regUsername, { regUsername = it.lowercase().filter { c -> c.isLetterOrDigit() && c.code < 128 || c == '_' }.take(24) }, "اختر اسم مستخدم فريد (مطلوب)")
@@ -1284,7 +1350,7 @@ private fun AttaYoutubeControls(
                             PremiumAuthOutlineButton("الرجوع") { authMode = "register" }
                         } else if (authMode == "googleProfile") {
                             Text("إنشاء حساب عن طريق Google", color = GoldLight, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                            Text("البريد الذي تم تأكيده بواسطة Google: $googleEmail", color = Muted,
+                            Text("البريد من الحساب المختار: $googleEmail (يتحقق الخادم من Google عند إنشاء الحساب)", color = Muted,
                                 textAlign = TextAlign.Center, fontSize = 13.sp)
                             Text("الاسم المقترح من Google قابل للتعديل:", color = GoldLight, fontSize = 13.sp)
                             PremiumAuthTextField(googleName, { googleName = it }, "الاسم الذي يظهر للآخرين")
@@ -1296,26 +1362,35 @@ private fun AttaYoutubeControls(
                             AttaBirthDatePicker(googleBirthDate, { googleBirthDate = it })
                             PremiumAuthTextField(googleCity, { googleCity = it.take(80) }, "المدينة (اختياري)")
                             Text("الحسابات الحالية بواسطة Google ستفتح مباشرة دون تغيير بياناتها", color = Muted, fontSize = 11.sp)
+                            Text("حساب Google يثبت بريدك مباشرة. املأ الاسم واسم المستخدم وتاريخ الميلاد، ثم أنشئ الحساب دون كود تأكيد بالبريد.",
+                                color = GoldLight, fontSize = 12.sp)
                             if (!nativeUsernameSignup || !birthDateSignup) Text(
-                                "التطبيق سيتحقق من دعم إنشاء حساب Google عند الحفظ. لا يلزم إرسال كود بريد للتسجيل بواسطة Google.",
+                                "خادم Cloudflare الحالي لا يعلن دعمه لإكمال تسجيل Google. يجب نشر تحديث الخادم أولًا؛ لن نُنشئ اسم مستخدم تلقائيًا.",
                                 color = Color(0xFFFFC78E), fontSize = 12.sp)
-                            PremiumAuthGoldButton("إنشاء الحساب بحساب Google الموثّق", !busy &&
-                                googleIdToken.isNotBlank() && googleUsername.matches(Regex("[a-z0-9_]{3,24}")) &&
-                                googleName.trim().length >= 2 && attaAgeFromBirthDate(googleBirthDate) != null) {
-                                task {
-                                    val data = JSONObject()
-                                        .put("credential", googleIdToken)
-                                        .put("signupFlow", "android-signup")
-                                        .put("fullName", googleName.trim())
-                                        .put("username", googleUsername.trim())
-                                        .put("birthDate", googleBirthDate)
-                                        .put("age", attaAgeFromBirthDate(googleBirthDate))
-                                        .put("city", googleCity.trim())
-                                    val result = withContext(Dispatchers.IO) { api("/api/google-login", data) }
-                                    require(result.optJSONObject("user")?.optString("username") == googleUsername.trim()) {
-                                        "هذا الحساب موجود من قبل باسم مستخدم مختلف؛ اختر تسجيل الدخول بحساب Google بدل إنشاء حساب جديد."
+                            PremiumAuthGoldButton("تأكيد إنشاء الحساب", !busy && googleIdToken.isNotBlank()) {
+                                when {
+                                    !nativeUsernameSignup || !birthDateSignup ->
+                                        error = "إعداد Cloudflare قديم: يجب نشر تحديث إنشاء حساب Google وتاريخ الميلاد أولًا. لن نرسل كود بريد مع Google."
+                                    !googleUsername.matches(Regex("[a-z0-9_]{3,24}")) ->
+                                        error = "اختر اسم مستخدم من 3 إلى 24 حرفًا إنجليزيًا أو رقمًا أو _."
+                                    googleName.trim().length < 2 -> error = "اكتب اسمك الظاهر (حرفين على الأقل)."
+                                    attaAgeFromBirthDate(googleBirthDate) == null -> error = "اختر تاريخ ميلاد صحيحًا من التقويم."
+                                    else -> task {
+                                        val data = JSONObject()
+                                            .put("credential", googleIdToken)
+                                            .put("signupFlow", "android-signup")
+                                            .put("fullName", googleName.trim())
+                                            .put("username", googleUsername.trim())
+                                            .put("birthDate", googleBirthDate)
+                                            .put("age", attaAgeFromBirthDate(googleBirthDate))
+                                            .put("city", googleCity.trim())
+                                        val result = withContext(Dispatchers.IO) { api("/api/google-login", data) }
+                                        val actualUsername = result.optJSONObject("user")?.optString("username").orEmpty()
+                                        require(actualUsername == googleUsername.trim()) {
+                                            "الحساب مرتبط بالفعل باسم مختلف؛ ادخل بواسطة Google بدل إنشاء حساب جديد."
+                                        }
+                                        applySession(result, googleName)
                                     }
-                                    applySession(result, googleName)
                                 }
                             }
                             PremiumAuthOutlineButton("رجوع") { googleIdToken = ""; authMode = "register"; error = "" }
@@ -1455,9 +1530,19 @@ private fun AttaYoutubeControls(
                                 var comment by remember(postId) { mutableStateOf("") }
                                 var showComments by remember(postId) { mutableStateOf(false) }
                                 val remoteLiked = p.optBoolean("likedByMe")
-                                var likedNow by remember(postId, remoteLiked) { mutableStateOf(remoteLiked) }
-                                val visibleLikeCount = (p.optInt("likeCount") +
-                                    (if (likedNow) 1 else 0) - (if (remoteLiked) 1 else 0)).coerceAtLeast(0)
+                                val remoteReaction = p.optString("myReaction")
+                                val serverReaction = if (remoteReaction.isNotBlank()) remoteReaction
+                                    else if (remoteLiked) "like" else ""
+                                val reactionCounts = p.optJSONObject("reactionCounts") ?: JSONObject()
+                                val reactionTotal = listOf("like", "love", "haha", "wow", "sad", "angry", "dislike")
+                                    .sumOf { reactionCounts.optInt(it) }
+                                val baseTotal = p.optInt("likeCount") + reactionTotal
+                                var selectedReaction by remember(postId, serverReaction) {
+                                    mutableStateOf(serverReaction)
+                                }
+                                val visibleLikeCount = (baseTotal +
+                                    (if (selectedReaction.isNotBlank()) 1 else 0) -
+                                    (if (serverReaction.isNotBlank()) 1 else 0)).coerceAtLeast(0)
                                 CardBox {
                                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                                         Avatar(author.optString("avatar"), author.name(), onClick = { openPublicProfile(author.optString("username")) })
@@ -1465,7 +1550,11 @@ private fun AttaYoutubeControls(
                                     }
                                     if (p.optString("text").isNotBlank()) Text(p.optString("text"), color = White, modifier = Modifier.padding(vertical = 10.dp))
                                     val image = media(p.optString("image")); val video = media(p.optString("video"))
-                                    if (image.isNotBlank()) ProfileMediaImage(image, "صورة المنشور", Modifier.fillMaxWidth().padding(vertical = 6.dp).heightIn(min = 120.dp, max = 450.dp).clip(RoundedCornerShape(11.dp)).border(.6.dp, Border.copy(alpha = .75f), RoundedCornerShape(11.dp)), contentScale = ContentScale.Fit)
+                                    if (image.isNotBlank()) ExpandableProfileMedia(image, "صورة المنشور",
+                                        Modifier.fillMaxWidth().padding(vertical = 6.dp)
+                                            .aspectRatio(1.15f).clip(RoundedCornerShape(11.dp))
+                                            .border(.6.dp, Border.copy(alpha = .75f), RoundedCornerShape(11.dp)),
+                                        contentScale = ContentScale.Crop)
                                     if (video.isNotBlank()) NativeVideo(video)
                                     p.optJSONObject("sharedPost")?.let { shared -> Text("مشاركة: ${shared.optString("text")}", color = GoldLight) }
                                     HorizontalDivider(color = Border.copy(alpha = .5f), modifier = Modifier.padding(vertical = 7.dp))
@@ -1476,24 +1565,39 @@ private fun AttaYoutubeControls(
                                             horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                                             PremiumReactionAction(
                                                 count = visibleLikeCount,
-                                                liked = likedNow,
+                                                liked = selectedReaction == "like",
+                                                selectedReaction = selectedReaction,
                                                 onLike = {
-                                                    likedNow = !likedNow // Gold feedback without waiting for the network.
+                                                    val previous = selectedReaction
+                                                    val next = if (previous == "like") "" else "like"
+                                                    selectedReaction = next
                                                     task {
                                                         try {
-                                                            post("/api/post-like", JSONObject().put("postId", postId))
+                                                            if (previous == "like" && !remoteLiked) {
+                                                                post("/api/post-react", JSONObject().put("postId", postId)
+                                                                    .put("reaction", "like").put("remove", true))
+                                                            } else {
+                                                                post("/api/post-like", JSONObject().put("postId", postId))
+                                                            }
                                                             load(tab)
                                                         } catch (e: Exception) {
-                                                            likedNow = !likedNow // Revert if the server rejects the request.
+                                                            selectedReaction = previous
                                                             throw e
                                                         }
                                                     }
                                                 },
                                                 onReact = { reaction ->
+                                                    val previous = selectedReaction
+                                                    selectedReaction = reaction
                                                     task {
-                                                        post("/api/post-react", JSONObject()
-                                                            .put("postId", postId).put("reaction", reaction))
-                                                        load(tab)
+                                                        try {
+                                                            post("/api/post-react", JSONObject()
+                                                                .put("postId", postId).put("reaction", reaction))
+                                                            load(tab)
+                                                        } catch (e: Exception) {
+                                                            selectedReaction = previous
+                                                            throw e
+                                                        }
                                                     }
                                                 }
                                             )
@@ -1538,6 +1642,8 @@ private fun AttaYoutubeControls(
                                     PremiumMenuEntry("users", "المجموعات") { navigate("المجموعات") }
                                     HorizontalDivider(color = Border.copy(alpha = .5f))
                                     PremiumMenuEntry("bell", "الإشعارات") { navigate("الإشعارات") }
+                                    HorizontalDivider(color = Border.copy(alpha = .5f))
+                                    PremiumMenuEntry("check", "فحص تحديث التطبيق") { updateCheckRequest++ }
                                     HorizontalDivider(color = Border.copy(alpha = .5f))
                                     PremiumMenuEntry("lock", "تغيير كلمة السر") { changePasswordDialog = true }
                                 }
@@ -1659,44 +1765,74 @@ private fun AttaYoutubeControls(
                                     Box(Modifier.fillMaxWidth().height(174.dp)
                                         .clip(RoundedCornerShape(16.dp)).background(Panel)) {
                                         if (media(profile.optString("cover")).isNotBlank()) {
-                                            ProfileMediaImage(profile.optString("cover"), "صورة الغلاف",
+                                            ExpandableProfileMedia(profile.optString("cover"), "صورة الغلاف",
                                                 Modifier.fillMaxSize(), ContentScale.Crop)
                                         } else {
                                             Box(Modifier.fillMaxSize().background(
                                                 Brush.horizontalGradient(listOf(Color(0xFF282014), Color(0xFF090C0F)))))
                                         }
                                         Box(Modifier.align(Alignment.BottomEnd).padding(8.dp)) {
-                                            GoldButton("تغيير الغلاف", !busy) { profileCoverPicker.launch("image/*") }
+                                            Box(Modifier.size(34.dp).clip(CircleShape)
+                                                .background(Gold).clickable(enabled = !busy) {
+                                                    profileCoverPicker.launch("image/*")
+                                                }, contentAlignment = Alignment.Center) {
+                                                SiteIcon("camera", size = 18.dp, tint = Black)
+                                            }
                                         }
                                     }
                                     Spacer(Modifier.height(10.dp))
                                     Row(verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                                        Box(Modifier.size(83.dp).border(2.dp, Gold, CircleShape)
-                                            .padding(3.dp).clip(CircleShape).background(Panel),
-                                            contentAlignment = Alignment.Center) {
-                                            if (media(profile.optString("avatar")).isNotBlank()) {
-                                                ProfileMediaImage(profile.optString("avatar"), "الصورة الشخصية",
-                                                    Modifier.fillMaxSize())
-                                            } else Text(profile.name().take(1), color = GoldLight, fontSize = 35.sp)
+                                        Box(Modifier.size(100.dp)) {
+                                            Box(Modifier.size(87.dp).align(Alignment.TopStart)
+                                                .border(2.dp, Gold, CircleShape).padding(3.dp)
+                                                .clip(CircleShape).background(Panel),
+                                                contentAlignment = Alignment.Center) {
+                                                if (media(profile.optString("avatar")).isNotBlank()) {
+                                                    ExpandableProfileMedia(profile.optString("avatar"), "الصورة الشخصية",
+                                                        Modifier.fillMaxSize())
+                                                } else Text(profile.name().take(1), color = GoldLight, fontSize = 35.sp)
+                                            }
+                                            Box(Modifier.align(Alignment.BottomEnd).size(29.dp)
+                                                .border(2.dp, Black, CircleShape).clip(CircleShape)
+                                                .background(Gold).clickable(enabled = !busy) {
+                                                    profileAvatarPicker.launch("image/*")
+                                                }, contentAlignment = Alignment.Center) {
+                                                SiteIcon("camera", size = 16.dp, tint = Black)
+                                            }
                                         }
                                         Column(Modifier.weight(1f)) {
                                             Text(profile.name(), color = White,
                                                 fontSize = 17.sp, fontWeight = FontWeight.Bold)
-                                            Spacer(Modifier.height(5.dp))
-                                            GoldButton("تغيير الصورة", !busy) {
-                                                profileAvatarPicker.launch("image/*")
-                                            }
                                         }
                                     }
                                     Spacer(Modifier.height(14.dp))
-                                    OutlinedTextField(profileBio, { profileBio = it },
+                                    SectionTitle("معلومات عني")
+                                    OutlinedTextField(profileBio, { profileBio = it.take(300) },
                                         label = { Text("نبذة عني") }, modifier = Modifier.fillMaxWidth())
+                                    Spacer(Modifier.height(6.dp))
+                                    OutlinedTextField(profileCountry, { profileCountry = it.take(60) },
+                                        label = { Text("البلد") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                                    Spacer(Modifier.height(6.dp))
+                                    OutlinedTextField(profileCity, { profileCity = it.take(60) },
+                                        label = { Text("المدينة") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                                    Spacer(Modifier.height(6.dp))
+                                    OutlinedTextField(profileEducation, { profileEducation = it.take(100) },
+                                        label = { Text("التعليم / الجامعة") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                                    Spacer(Modifier.height(6.dp))
+                                    OutlinedTextField(profileWork, { profileWork = it.take(100) },
+                                        label = { Text("العمل") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
                                     Spacer(Modifier.height(8.dp))
-                                    GoldButton("حفظ النبذة", !busy) {
+                                    GoldButton("حفظ المعلومات", !busy) {
                                         task {
-                                            val updated = post("/api/profile", JSONObject().put("bio", profileBio))
+                                            val updated = post("/api/profile", JSONObject()
+                                                .put("bio", profileBio)
+                                                .put("country", profileCountry)
+                                                .put("city", profileCity)
+                                                .put("education", profileEducation)
+                                                .put("work", profileWork))
                                             profile = updated.optJSONObject("user") ?: profile
+                                            featureMessage = "تم حفظ معلومات الملف الشخصي"
                                         }
                                     }
                                     Spacer(Modifier.height(6.dp))
