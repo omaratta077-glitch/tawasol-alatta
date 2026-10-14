@@ -719,6 +719,9 @@ private fun AttaYoutubeControls(
     var googleBirthDate by remember { mutableStateOf("") }
     var googleCity by remember { mutableStateOf("") }
     var googleUsername by remember { mutableStateOf("") }
+    var googlePassword by remember { mutableStateOf("") }
+    var googlePasswordConfirm by remember { mutableStateOf("") }
+    var googleGender by remember { mutableStateOf("") }
     var nativeUsernameSignup by remember { mutableStateOf(false) }
     var birthDateSignup by remember { mutableStateOf(false) }
     var changePasswordDialog by remember { mutableStateOf(false) }
@@ -797,7 +800,12 @@ private fun AttaYoutubeControls(
             busy = true; error = ""
             try { block() }
             catch (cancelled: CancellationException) { throw cancelled }
-            catch (e: Exception) { error = e.message ?: "تعذر إتمام العملية" }
+            catch (e: Exception) {
+                val raw = e.message ?: "تعذر إتمام العملية"
+                error = if ((raw.contains("username", ignoreCase = true) || raw.contains("اسم المستخدم")) &&
+                    listOf("exist", "taken", "already", "duplicate", "موجود", "مستخدم").any { raw.contains(it, ignoreCase = true) })
+                    "اسم المستخدم موجود بالفعل، اختر اسمًا آخر." else raw
+            }
             finally { busy = false }
         }
     }
@@ -808,7 +816,7 @@ private fun AttaYoutubeControls(
         myUsername = u.optString("username", fallbackName).lowercase()
         myAvatar = u.optString("avatar")
         prefs.edit().putString("token", token).putString("name", displayName).putString("username", myUsername).apply()
-        password = ""; regPass = ""; regConfirm = ""; googleIdToken = ""
+        password = ""; regPass = ""; regConfirm = ""; googleIdToken = ""; googlePassword = ""; googlePasswordConfirm = ""
         resetPassword = ""; resetConfirm = ""; authMode = "login"; tab = "الرئيسية"
     }
     fun chooseGoogle(signup: Boolean) {
@@ -838,6 +846,9 @@ private fun AttaYoutubeControls(
                 googleBirthDate = ""
                 googleCity = ""
                 googleUsername = ""
+                googlePassword = ""
+                googlePasswordConfirm = ""
+                googleGender = ""
                 authMode = "googleProfile"
             }
             // One validated server request decides whether this Google identity already
@@ -1302,8 +1313,6 @@ private fun AttaYoutubeControls(
                             Text("أو أنشئ حسابًا بالبريد الإلكتروني", color = GoldLight, fontSize = 13.sp)
                             PremiumAuthTextField(regName, { regName = it }, "الاسم الكامل")
                             PremiumAuthTextField(regUsername, { regUsername = it.lowercase().filter { c -> c.isLetterOrDigit() && c.code < 128 || c == '_' }.take(24) }, "اختر اسم مستخدم فريد (مطلوب)")
-                            Text("اختَر معرّفًا فريدًا لتسجيل الدخول؛ الاسم الكامل وحده هو الذي يظهر للآخرين.",
-                                color = Muted, fontSize = 11.sp)
                             AttaBirthDatePicker(regBirthDate, { regBirthDate = it })
                             PremiumAuthTextField(regPhone, { regPhone = it }, "رقم الهاتف (اختياري)")
                             PremiumAuthTextField(regEmail, { regEmail = it }, "البريد الإلكتروني لاستقبال كود التأكيد")
@@ -1313,7 +1322,7 @@ private fun AttaYoutubeControls(
                             PremiumAuthTextField(regPass, { regPass = it }, "كلمة المرور", password = true)
                             PremiumAuthTextField(regConfirm, { regConfirm = it }, "تأكيد كلمة المرور", password = true)
                             if (!birthDateSignup) Text("إنشاء حساب بتاريخ الميلاد يحتاج نشر تحديث Cloudflare v1.0.14 أولًا.", color = Color(0xFFFFC78E), fontSize = 12.sp)
-                            PremiumAuthGoldButton("إرسال كود التأكيد", !busy && birthDateSignup && regName.trim().length >= 3 && regUsername.matches(Regex("[a-z0-9_]{3,24}")) && attaAgeFromBirthDate(regBirthDate) != null && regEmail.isNotBlank() && regPass.isNotBlank()) {
+                            PremiumAuthGoldButton("إرسال كود التأكيد", !busy && birthDateSignup && regName.trim().length >= 3 && regUsername.matches(Regex("[a-z0-9_]{3,24}")) && attaAgeFromBirthDate(regBirthDate) != null && regEmail.isNotBlank() && regPass.length >= 6 && regPass == regConfirm) {
                                 task {
                                     val body = JSONObject()
                                         .put("fullName", regName.trim()).put("username", regUsername.trim())
@@ -1350,20 +1359,16 @@ private fun AttaYoutubeControls(
                             PremiumAuthOutlineButton("الرجوع") { authMode = "register" }
                         } else if (authMode == "googleProfile") {
                             Text("إنشاء حساب عن طريق Google", color = GoldLight, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                            Text("البريد من الحساب المختار: $googleEmail (يتحقق الخادم من Google عند إنشاء الحساب)", color = Muted,
-                                textAlign = TextAlign.Center, fontSize = 13.sp)
-                            Text("الاسم المقترح من Google قابل للتعديل:", color = GoldLight, fontSize = 13.sp)
-                            PremiumAuthTextField(googleName, { googleName = it }, "الاسم الذي يظهر للآخرين")
+                            Text(googleEmail, color = Muted, textAlign = TextAlign.Center, fontSize = 13.sp)
+                            PremiumAuthTextField(googleName, { googleName = it }, "الاسم الكامل")
                             PremiumAuthTextField(googleUsername,
                                 { googleUsername = it.lowercase().filter { c -> (c in 'a'..'z') || (c in '0'..'9') || c == '_' }.take(24) },
-                                "اختر اسم مستخدم لحسابك")
-                            Text("المعرّف لا يظهر تحت اسمك؛ الاسم الكامل الذي تختاره هو الظاهر للناس.",
-                                color = Muted, fontSize = 11.sp)
+                                "اسم المستخدم")
+                            PremiumAuthTextField(googlePassword, { googlePassword = it }, "كلمة المرور (6 أحرف على الأقل)", password = true)
+                            PremiumAuthTextField(googlePasswordConfirm, { googlePasswordConfirm = it }, "تأكيد كلمة المرور", password = true)
                             AttaBirthDatePicker(googleBirthDate, { googleBirthDate = it })
                             PremiumAuthTextField(googleCity, { googleCity = it.take(80) }, "المدينة (اختياري)")
-                            Text("الحسابات الحالية بواسطة Google ستفتح مباشرة دون تغيير بياناتها", color = Muted, fontSize = 11.sp)
-                            Text("حساب Google يثبت بريدك مباشرة. املأ الاسم واسم المستخدم وتاريخ الميلاد، ثم أنشئ الحساب دون كود تأكيد بالبريد.",
-                                color = GoldLight, fontSize = 12.sp)
+                            PremiumAuthTextField(googleGender, { googleGender = it.take(20) }, "النوع: ذكر أو أنثى")
                             if (!nativeUsernameSignup || !birthDateSignup) Text(
                                 "خادم Cloudflare الحالي لا يعلن دعمه لإكمال تسجيل Google. يجب نشر تحديث الخادم أولًا؛ لن نُنشئ اسم مستخدم تلقائيًا.",
                                 color = Color(0xFFFFC78E), fontSize = 12.sp)
@@ -1374,6 +1379,8 @@ private fun AttaYoutubeControls(
                                     !googleUsername.matches(Regex("[a-z0-9_]{3,24}")) ->
                                         error = "اختر اسم مستخدم من 3 إلى 24 حرفًا إنجليزيًا أو رقمًا أو _."
                                     googleName.trim().length < 2 -> error = "اكتب اسمك الظاهر (حرفين على الأقل)."
+                                    googlePassword.length < 6 -> error = "كلمة المرور يجب أن تتكون من 6 أحرف على الأقل."
+                                    googlePassword != googlePasswordConfirm -> error = "تأكيد كلمة المرور غير مطابق."
                                     attaAgeFromBirthDate(googleBirthDate) == null -> error = "اختر تاريخ ميلاد صحيحًا من التقويم."
                                     else -> task {
                                         val data = JSONObject()
@@ -1384,6 +1391,9 @@ private fun AttaYoutubeControls(
                                             .put("birthDate", googleBirthDate)
                                             .put("age", attaAgeFromBirthDate(googleBirthDate))
                                             .put("city", googleCity.trim())
+                                            .put("gender", googleGender.trim())
+                                            .put("password", googlePassword)
+                                            .put("confirmPassword", googlePasswordConfirm)
                                         val result = withContext(Dispatchers.IO) { api("/api/google-login", data) }
                                         val actualUsername = result.optJSONObject("user")?.optString("username").orEmpty()
                                         require(actualUsername == googleUsername.trim()) {
