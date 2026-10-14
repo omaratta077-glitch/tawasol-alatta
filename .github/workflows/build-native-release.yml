@@ -60,7 +60,7 @@ jobs:
           grep -q 'peerPromise' android-native/app/src/main/assets/atta-call.html
           grep -q 'mediaReady' android-native/app/src/main/java/com/alatta/nativeapp/NativeCallScreen.kt
           test -s android-native/app/src/main/java/com/alatta/nativeapp/AttaExpandableVideo.kt
-          grep -q 'ProfileMediaImage(image' "$MAIN_FILE"
+          grep -Eq 'ProfileMediaImage\(image|ExpandableProfileMedia\(image' "$MAIN_FILE"
           grep -q 'AttaExpandableVideo(url)' "$MAIN_FILE"
           grep -q 'call-accept' android-native/app/src/main/assets/atta-call.html
           grep -q 'chatVideoPicker.launch' "$MAIN_FILE"

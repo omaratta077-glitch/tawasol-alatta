@@ -1,0 +1,32 @@
+name: Apply AL-ATTA Google Signup v1.0.23
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  patch-google-signup:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: true
+      - name: Verify and enable Google signup capabilities
+        run: python3 scripts/patch_google_signup_v123.py
+      - name: Validate Cloudflare Worker syntax
+        run: node --check cloudflare-site/src/worker.js
+      - name: Commit patch if needed
+        shell: bash
+        run: |
+          set -euo pipefail
+          git add cloudflare-site/src/worker.js
+          if git diff --cached --quiet; then
+            echo 'Cloudflare Worker already supports this signup flow.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'Declare native Google signup verified capability v1.0.23'
+          git push origin HEAD:main
