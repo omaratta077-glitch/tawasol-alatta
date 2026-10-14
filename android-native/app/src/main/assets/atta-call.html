@@ -27,6 +27,11 @@ button{border:0;cursor:pointer}button:active{transform:scale(.94)}
 #error{position:absolute;bottom:10px;left:12px;right:12px;padding:10px;border-radius:11px;background:#662626;color:#fff;text-align:center;display:none;z-index:6;font-size:12px}
 #retry{display:none;position:relative;width:auto;height:auto;border-radius:12px;padding:9px 15px;background:#d8af51;color:#16120a;font-size:13px;margin:8px auto 0}
 @media(max-height:630px){#bigAvatar{min-width:94px;min-height:94px;width:110px;height:110px;margin-bottom:12px}#bigInitial{font-size:48px}.actions button{width:53px;height:53px;padding:13px}.actions{padding-bottom:16px}#peer{font-size:24px}.header{padding:7px 15px}}
+html.native-host .page>.header,html.native-host .page>.actions{display:none!important}
+html.native-host .stage{padding:0}
+html.native-host #bigAvatar,html.native-host #peer,html.native-host #hint,
+html.native-host #duration,html.native-host #error{display:none!important}
+html.native-host #remoteVideo{object-fit:cover}
 </style></head><body><div class="page">
 <header class="header"><button aria-label="رجوع وإنهاء المكالمة" onclick="window.__attaEndCall()"><svg viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg></button><span class="callKind" id="callKind">مكالمة صوتية</span><span style="width:43px"></span></header>
 <div class="stage">
@@ -48,6 +53,7 @@ button{border:0;cursor:pointer}button:active{transform:scale(.94)}
 </div>
 <script>
 'use strict';
+document.documentElement.classList.add('native-host');
 const cfg=__CONFIG_JSON__;
 const BASE='https://tawasol-alatta.omaratta077-4fd.workers.dev';
 const types=new Set(['call-request','call-accept','call-reject','offer','answer','ice','hangup']);
@@ -179,7 +185,7 @@ async function createPeer(){
  pc.onicecandidate=e=>{if(e.candidate&&candidateCount++<24)transmit('ice',{candidate:e.candidate.toJSON()}).catch(()=>{});};
  pc.ontrack=e=>{
   if(!remote.getTracks().some(t=>t.id===e.track.id))remote.addTrack(e.track);
-  if(e.track.kind==='video'){$('remoteVideo').style.display='block';$('bigAvatar').style.display='none';$('remoteVideo').srcObject=remote;$('remoteVideo').play().catch(()=>{});}
+  if(e.track.kind==='video'){$('remoteVideo').onplaying=()=>{try{AttaBridge.remoteVideoPlaying()}catch(e){}};$('remoteVideo').style.display='block';$('bigAvatar').style.display='none';$('remoteVideo').srcObject=remote;$('remoteVideo').play().catch(()=>{});}
   if(e.track.kind==='audio'){$('remoteAudio').srcObject=new MediaStream(remote.getAudioTracks());$('remoteAudio').play().catch(()=>{});}
   status('مكالمة جارية');
  };
