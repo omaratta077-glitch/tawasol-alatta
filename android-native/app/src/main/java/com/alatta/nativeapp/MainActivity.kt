@@ -323,7 +323,7 @@ private fun attaYouTubeHtml(videoId: String): String {
       <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=yes">
       <meta name="referrer" content="strict-origin-when-cross-origin">
       <style>html,body,#player{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#000}
-      iframe{display:block;border:0;width:100%;height:100%;background:#000}</style></head>
+      iframe{display:block;border:0;width:100%;height:100%}</style></head>
       <body><div id="player"></div><script>
       var alattaPlayer=null, alattaTicker=null;
       function report(v){console.log('ALATTA_YT:'+v);}
@@ -400,55 +400,33 @@ private fun AttaYoutubeDisplay(
     zoom: Float,
     modifier: Modifier = Modifier
 ) {
-    Box(
-        modifier = modifier
-            .clip(RoundedCornerShape(16.dp))
-            .background(Color.Black),
-        contentAlignment = Alignment.Center
-    ) {
+    Box(modifier.clip(RoundedCornerShape(12.dp)).background(Color.Black), contentAlignment = Alignment.Center) {
         AndroidView(
             factory = {
-                // Keep the same WebView on entry and exit from fullscreen.
+                // The same WebView must survive entry/exit from the fullscreen dialog:
+                // reparent it rather than reloading the video and losing playback time.
                 (webView.parent as? android.view.ViewGroup)?.removeView(webView)
-                webView.apply {
-                    setBackgroundColor(android.graphics.Color.BLACK)
-                    isVerticalScrollBarEnabled = false
-                    isHorizontalScrollBarEnabled = false
-                }
+                webView
             },
             update = { view ->
                 if (view.tag != "atta-youtube-loaded") {
                     view.tag = "atta-youtube-loaded"
                     if (modeDirect) {
-                        val address = "https://www.youtube.com/embed/$videoId" +
-                            "?playsinline=1&rel=0&fs=1&origin=${enc(BASE)}"
+                        val address = "https://www.youtube.com/embed/$videoId?playsinline=1&rel=0&fs=1&origin=${enc(BASE)}"
                         view.loadUrl(address, mapOf("Referer" to "$BASE/"))
                     } else {
-                        view.loadDataWithBaseURL(
-                            "$BASE/", attaYouTubeHtml(videoId), "text/html", "UTF-8", null
-                        )
+                        view.loadDataWithBaseURL("$BASE/", attaYouTubeHtml(videoId), "text/html", "UTF-8", null)
                     }
                 }
             },
-            // Maintain the natural ratio of the YouTube embed without cropping.
-            modifier = Modifier
-                .fillMaxWidth(zoom.coerceIn(.70f, 1f))
-                .aspectRatio(16f / 9f)
+            // Fit the *entire* 16:9 YouTube player inside the larger black panel.
+            // Resizing the WebView (not scaling/cropping it) keeps the controls and thumbnail visible.
+            modifier = Modifier.fillMaxWidth(zoom.coerceIn(.65f, 1f)).aspectRatio(16f / 9f)
         )
-
-        if (loading) {
-            CircularProgressIndicator(color = Gold, modifier = Modifier.size(32.dp))
-        }
+        if (loading) CircularProgressIndicator(color = Gold, modifier = Modifier.size(32.dp))
         if (error.isNotEmpty()) {
-            Text(
-                error,
-                color = GoldLight,
-                textAlign = TextAlign.Center,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(Color.Black.copy(alpha = .94f))
-                    .padding(12.dp)
-            )
+            Text(error, color = GoldLight, textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth().background(Color.Black.copy(alpha = .94f)).padding(12.dp))
         }
     }
 }
@@ -497,55 +475,30 @@ private fun AttaYoutubeControls(
                 Text("10ث ↷", color = if (canSeek) GoldLight else Muted, fontSize = 13.sp)
             }
         }
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceEvenly,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            OutlinedButton(
-                onClick = { onZoom((zoom - .10f).coerceAtLeast(.70f)) },
-                enabled = zoom > .701f,
-                colors = ButtonDefaults.outlinedButtonColors(
-                    contentColor = GoldLight,
-                    disabledContentColor = Muted
-                ),
-                border = BorderStroke(1.dp, Border),
-                shape = RoundedCornerShape(18.dp),
-                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 3.dp),
-                modifier = Modifier.height(42.dp)
-            ) {
-                Text("−", fontSize = 25.sp, fontWeight = FontWeight.Bold)
+        Row(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp))
+                .background(Panel).border(1.dp, Border, RoundedCornerShape(18.dp))
+                .padding(horizontal = 8.dp, vertical = 5.dp),
+            horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
+            val small = zoom <= .651f
+            val large = zoom >= .999f
+            Box(Modifier.size(52.dp).clip(RoundedCornerShape(14.dp))
+                .background(if (small) Border.copy(alpha = .20f) else Border.copy(alpha = .42f))
+                .clickable(enabled = !small) { onZoom((zoom - .12f).coerceAtLeast(.65f)) },
+                contentAlignment = Alignment.Center) {
+                Text("−", color = if (small) Muted else GoldLight, fontSize = 30.sp, fontWeight = FontWeight.Bold)
             }
-
-            OutlinedButton(
-                onClick = { onZoom((zoom + .10f).coerceAtMost(1f)) },
-                enabled = zoom < .999f,
-                colors = ButtonDefaults.outlinedButtonColors(
-                    contentColor = GoldLight,
-                    disabledContentColor = Muted
-                ),
-                border = BorderStroke(1.dp, Border),
-                shape = RoundedCornerShape(18.dp),
-                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 3.dp),
-                modifier = Modifier.height(42.dp)
-            ) {
-                Text("+", fontSize = 24.sp, fontWeight = FontWeight.Bold)
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text("حجم الفيديو", color = GoldLight, fontSize = 12.sp)
+                Text("${(zoom * 100).toInt()}%", color = Muted, fontSize = 11.sp)
             }
-
-            OutlinedButton(
-                onClick = onFullscreen,
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = GoldLight),
-                border = BorderStroke(1.dp, Border),
-                shape = RoundedCornerShape(18.dp),
-                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 3.dp),
-                modifier = Modifier.height(42.dp)
-            ) {
-                Text(
-                    if (isFullscreen) "رجوع" else "⛶ ملء الشاشة",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1
-                )
+            Box(Modifier.size(52.dp).clip(RoundedCornerShape(14.dp))
+                .background(if (large) Border.copy(alpha = .20f) else Border.copy(alpha = .42f))
+                .clickable(enabled = !large) { onZoom((zoom + .12f).coerceAtMost(1f)) },
+                contentAlignment = Alignment.Center) {
+                Text("+", color = if (large) Muted else GoldLight, fontSize = 28.sp, fontWeight = FontWeight.Bold)
+            }
+            TextButton(onClick = onFullscreen) {
+                Text(if (isFullscreen) "عودة" else "⛶ ملء الشاشة", color = GoldLight, fontSize = 13.sp)
             }
         }
     }
@@ -594,7 +547,7 @@ private fun AttaYoutubeControls(
     val webView = remember(ctx, safeId, useDirectEmbed, retryCounter) {
         WebView(ctx).apply {
             setBackgroundColor(android.graphics.Color.BLACK)
-            setInitialScale(100)
+            setInitialScale(0)
             setLayerType(android.view.View.LAYER_TYPE_HARDWARE, null)
             settings.javaScriptEnabled = true
             settings.domStorageEnabled = true
@@ -603,6 +556,8 @@ private fun AttaYoutubeControls(
             settings.allowContentAccess = false
             settings.javaScriptCanOpenWindowsAutomatically = false
             settings.loadsImagesAutomatically = true
+            settings.useWideViewPort = true
+            settings.loadWithOverviewMode = true
             settings.setSupportZoom(false)
             settings.builtInZoomControls = false
             settings.displayZoomControls = false
@@ -665,7 +620,7 @@ private fun AttaYoutubeControls(
             AttaYoutubeDisplay(
                 webView = webView, modeDirect = useDirectEmbed, videoId = safeId,
                 loading = loading, error = loadError, zoom = zoom,
-                modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f)
+                modifier = Modifier.fillMaxWidth().height(260.dp)
             )
             AttaYoutubeControls(
                 canSeek = playerReady && !useDirectEmbed, isPlaying = isPlaying,
@@ -697,20 +652,11 @@ private fun AttaYoutubeControls(
                         Text("إغلاق ✕", color = GoldLight)
                     }
                 }
-                Box(
-                    modifier = Modifier.fillMaxWidth().weight(1f),
-                    contentAlignment = Alignment.Center
-                ) {
-                    AttaYoutubeDisplay(
-                        webView = webView,
-                        modeDirect = useDirectEmbed,
-                        videoId = safeId,
-                        loading = loading,
-                        error = loadError,
-                        zoom = zoom,
-                        modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f)
-                    )
-                }
+                AttaYoutubeDisplay(
+                    webView = webView, modeDirect = useDirectEmbed, videoId = safeId,
+                    loading = loading, error = loadError, zoom = zoom,
+                    modifier = Modifier.fillMaxWidth().weight(1f)
+                )
                 AttaYoutubeControls(
                     canSeek = playerReady && !useDirectEmbed, isPlaying = isPlaying,
                     position = position, duration = duration, zoom = zoom,
@@ -782,6 +728,8 @@ private fun AttaYoutubeControls(
     var confirmBanUser by remember { mutableStateOf("") }
     var adminRole by remember { mutableStateOf("") }
     var adminUsers by remember { mutableStateOf(emptyList<JSONObject>()) }
+    var adminStatus by remember { mutableStateOf("") }
+    var adminSummary by remember { mutableStateOf(JSONObject()) }
     var adminPosts by remember { mutableStateOf(emptyList<JSONObject>()) }
     var archivedPosts by remember { mutableStateOf(emptyList<JSONObject>()) }
     var selectedStory by remember { mutableStateOf<JSONObject?>(null) }
@@ -1138,9 +1086,23 @@ private fun AttaYoutubeControls(
             }
             "المحفوظات" -> posts = get("/api/saved-posts").arr("posts")
             "الإدارة" -> {
+                adminStatus = "جارٍ فحص الصلاحية وتحميل بيانات الإدارة..."
+                val identity = get("/api/me").optJSONObject("user") ?: throw IllegalStateException("تعذر قراءة بيانات الحساب من الخادم")
+                adminRole = identity.optString("role").trim().lowercase()
                 if (adminRole == "super_admin" || adminRole == "moderator") {
-                    adminUsers = get("/api/admin/users").arr("users")
-                    adminPosts = get("/api/admin/posts").arr("posts")
+                    try {
+                        adminSummary = get("/api/admin/summary")
+                        adminUsers = get("/api/admin/users").arr("users")
+                        adminPosts = get("/api/admin/posts").arr("posts")
+                        adminStatus = "تم التحميل: ${adminUsers.size} حساب، ${adminPosts.size} منشور"
+                    } catch (e: Exception) {
+                        adminStatus = "فشل تحميل بيانات الإدارة: ${e.message ?: "خطأ اتصال"}"
+                        throw e
+                    }
+                } else {
+                    adminUsers = emptyList()
+                    adminPosts = emptyList()
+                    adminStatus = "حساب @${identity.optString("username")} مسجل بصلاحية user على الخادم. اضبط SUPER_ADMIN_USERNAME على اسم المستخدم الصحيح في Cloudflare ثم أعد فتح القائمة."
                 }
             }
             "أرشيفي" -> archivedPosts = get("/api/post-archive-list").arr("posts")
@@ -1877,9 +1839,15 @@ private fun AttaYoutubeControls(
                             }
                         }
                         "الإدارة" -> LazyColumn(Modifier.weight(1f).padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                            item { SectionTitle("لوحة الإدارة • ${if (adminRole == "super_admin") "المدير الرئيسي" else "مشرف"}") }
+                            item { SectionTitle("لوحة الإدارة • ${if (adminRole == "super_admin") "المدير الرئيسي" else if (adminRole == "moderator") "مشرف" else "غير مصرح"}") }
+                            item { CardBox {
+                                Text(adminStatus, color = GoldLight)
+                                Text("الحساب: @$myUsername | الدور: ${adminRole.ifBlank { "غير معروف" }}", color = Muted, fontSize = 12.sp)
+                                TextButton(onClick = { task { load("الإدارة") } }) { Text("تحديث بيانات الإدارة", color = GoldLight) }
+                            } }
                             if (adminRole == "super_admin" || adminRole == "moderator") {
                                 item { SectionTitle("إدارة الحسابات") }
+                                if (adminUsers.isEmpty()) item { Text("لا توجد حسابات في نتيجة الخادم، أو لم يتم تحميلها بعد.", color = Muted) }
                                 items(adminUsers) { u ->
                                     val username = u.optString("username")
                                     CardBox {
@@ -1895,6 +1863,7 @@ private fun AttaYoutubeControls(
                                     }
                                 }
                                 item { SectionTitle("إدارة المنشورات") }
+                                if (adminPosts.isEmpty()) item { Text("لا توجد منشورات في نتيجة الخادم، أو لم يتم تحميلها بعد.", color = Muted) }
                                 items(adminPosts) { p ->
                                     CardBox {
                                         Text("@${p.optString("author")}", color = GoldLight)
@@ -2014,12 +1983,14 @@ private fun AttaYoutubeControls(
                             item { SectionTitle("يوتيوب داخل تواصل العطا"); OutlinedTextField(youtubeSearch, { youtubeSearch = it }, label = { Text("ابحث عن فيديو") }, modifier = Modifier.fillMaxWidth()); GoldButton("بحث") { refresh() } }
                             if (youtubeId.isNotBlank()) item { CardBox { YouTubePlayer(youtubeId); TextButton(onClick = { youtubeId = "" }) { Text("إغلاق المشغل") } } }
                             items(youtubeItems) { v -> CardBox {
-                                AsyncImage(v.optString("thumbnail"), "صورة الفيديو", Modifier.fillMaxWidth().height(160.dp), contentScale = ContentScale.Crop)
-                                Text(v.optString("title"), color = GoldLight, fontWeight = FontWeight.Bold)
+                                AsyncImage(v.optString("thumbnail"), "اضغط لتشغيل الفيديو",
+                                    Modifier.fillMaxWidth().height(180.dp)
+                                        .clip(RoundedCornerShape(14.dp))
+                                        .clickable { youtubeId = v.optString("id") },
+                                    contentScale = ContentScale.Fit)
+                                Text(v.optString("title"), color = GoldLight, fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.clickable { youtubeId = v.optString("id") })
                                 Text(v.optString("channel"), color = Color.LightGray)
-                                GoldButton("▶ تشغيل داخل التطبيق") {
-                                    youtubeId = v.optString("id")
-                                }
                             } }
                         }
                         "الملف" -> LazyColumn(Modifier.weight(1f).padding(8.dp),
