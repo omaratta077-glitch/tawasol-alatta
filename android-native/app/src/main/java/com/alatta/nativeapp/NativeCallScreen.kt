@@ -4,6 +4,16 @@ import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
 import android.media.AudioManager
+import android.media.Ringtone
+import android.media.RingtoneManager
+import android.media.ToneGenerator
+import android.os.Build
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.os.VibratorManager
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.LifecycleOwner
 import android.os.Handler
 import android.os.Looper
 import android.webkit.JavascriptInterface
@@ -44,6 +54,108 @@ import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
+
+/**
+ * Foreground incoming-call alert. It uses the user's ringtone and respects the
+ * ringer switch. A single controller is attached only while the incoming-call
+ * dialog exists; accepting, rejecting or leaving the Activity stops everything.
+ */
+private class IncomingCallAlert(private val context: Context) {
+    private val audio = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+    private var ringtone: Ringtone? = null
+    private var vibrator: Vibrator? = null
+    private var started = false
+
+    @Suppress("DEPRECATION")
+    fun start() {
+        if (started) return
+        started = true
+        val mode = audio.ringerMode
+        if (mode == AudioManager.RINGER_MODE_NORMAL) {
+            try {
+                val uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
+                ringtone = RingtoneManager.getRingtone(context, uri)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) ringtone?.isLooping = true
+                ringtone?.play()
+            } catch (_: Exception) { /* Silenced/missing ringtone: call dialog still works. */ }
+        }
+        val vibrate = mode == AudioManager.RINGER_MODE_VIBRATE ||
+            (mode == AudioManager.RINGER_MODE_NORMAL && audio.shouldVibrate(AudioManager.VIBRATE_TYPE_RINGER))
+        if (vibrate) {
+            try {
+                vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    (context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager).defaultVibrator
+                } else {
+                    context.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+                }
+                if (vibrator?.hasVibrator() == true) {
+                    vibrator?.vibrate(VibrationEffect.createWaveform(longArrayOf(0, 700, 1000, 700, 2400), 0))
+                }
+            } catch (_: Exception) { /* Some devices restrict vibration. */ }
+        }
+    }
+    fun stop() {
+        started = false
+        try { ringtone?.stop() } catch (_: Exception) {}
+        try { vibrator?.cancel() } catch (_: Exception) {}
+        ringtone = null
+        vibrator = null
+    }
+}
+
+/** Only an actively displayed incoming invitation is allowed to ring. */
+@Composable
+internal fun IncomingCallRingtone() {
+    val context = LocalContext.current
+    val lifecycleOwner = context as? LifecycleOwner
+    DisposableEffect(context, lifecycleOwner) {
+        val alert = IncomingCallAlert(context.applicationContext)
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_START -> alert.start()
+                Lifecycle.Event.ON_STOP, Lifecycle.Event.ON_DESTROY -> alert.stop()
+                else -> Unit
+            }
+        }
+        lifecycleOwner?.lifecycle?.addObserver(observer)
+        if (lifecycleOwner == null || lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) {
+            alert.start()
+        }
+        onDispose {
+            lifecycleOwner?.lifecycle?.removeObserver(observer)
+            alert.stop()
+        }
+    }
+}
+
+/** The caller hears a ringback ONLY after the recipient acknowledged ringing. */
+private class OutgoingRingback {
+    private val handler = Handler(Looper.getMainLooper())
+    private var tone: ToneGenerator? = null
+    private var running = false
+    private val repeat = object : Runnable {
+        override fun run() {
+            if (!running) return
+            try { tone?.startTone(ToneGenerator.TONE_SUP_RINGTONE, 1800) } catch (_: Exception) {}
+            handler.postDelayed(this, 4400)
+        }
+    }
+    fun start() {
+        if (running) return
+        try {
+            tone = ToneGenerator(AudioManager.STREAM_VOICE_CALL, 55)
+            running = true
+            handler.post(repeat)
+        } catch (_: Exception) { stop() }
+    }
+    fun stop() {
+        running = false
+        handler.removeCallbacks(repeat)
+        try { tone?.stopTone() } catch (_: Exception) {}
+        try { tone?.release() } catch (_: Exception) {}
+        tone = null
+    }
+}
 
 /** Call signalling keeps the private username; only display names go on screen. */
 internal data class NativeCallSession(
@@ -88,6 +200,15 @@ internal fun NativeCallScreen(
     var speakerOn by remember(session.callId) { mutableStateOf(videoCall) }
     var remoteVideoPlaying by remember(session.callId) { mutableStateOf(false) }
     var localCameraReady by remember(session.callId) { mutableStateOf(false) }
+    var hangingUp by remember(session.callId) { mutableStateOf(false) }
+
+    // Do not play ringback during call setup. The remote device must explicitly
+    // acknowledge showing its incoming-call UI before the caller hears ringing.
+    DisposableEffect(session.callId, session.incoming, callStatus, connectedAt, hangingUp) {
+        val ringback = if (!session.incoming && !hangingUp && connectedAt == 0L &&
+            callStatus == "يرن الآن...") OutgoingRingback().also { it.start() } else null
+        onDispose { ringback?.stop() }
+    }
 
     // Load the real display name and avatar independently of the media engine.
     LaunchedEffect(session.peer, token) {
@@ -212,6 +333,7 @@ internal fun NativeCallScreen(
         webView.evaluateJavascript(script, null)
     }
     fun endCall() {
+        hangingUp = true  // Stop ringback before waiting for signalling to finish.
         nativeAction("window.__attaEndCall && window.__attaEndCall()")
         // The media layer may have failed to start: allow the native hangup to exit.
         Handler(Looper.getMainLooper()).postDelayed({ onClose() }, 1700L)

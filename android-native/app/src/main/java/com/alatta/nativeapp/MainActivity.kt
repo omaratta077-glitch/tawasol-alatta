@@ -1159,6 +1159,16 @@ private fun AttaYoutubeControls(
                                         } else sendCallResponse(invite, "busy")
                                     }
                                 }
+                            } else if (signal?.optString("type") in setOf("hangup", "call-reject") && callId.isNotBlank()) {
+                                // The caller cancelled while the invitation was ringing.
+                                // Close its dialog immediately; Compose stops ringtone/vibration.
+                                scope.launch(Dispatchers.Main) {
+                                    val pending = incomingCall
+                                    if (pending != null && pending.callId == callId &&
+                                        pending.peer.equals(sender, ignoreCase = true)) {
+                                        incomingCall = null
+                                    }
+                                }
                             } else if (msg.optString("type") == "chat" && msg.optString("mediaType") != "call-signal") {
                                 val from = msg.optString("from").lowercase()
                                 val to = msg.optString("to").lowercase()
@@ -1310,6 +1320,9 @@ private fun AttaYoutubeControls(
         dismissButton = { TextButton(onClick = { changePasswordDialog = false }) { Text("إلغاء") } }
     )
     incomingCall?.let { invitation ->
+        // Start the device's ringtone and optional vibration while this dialog
+        // is on screen; accepting or rejecting disposes and silences the alert.
+        IncomingCallRingtone()
         AlertDialog(
             onDismissRequest = { sendCallResponse(invitation, "rejected"); incomingCall = null },
             title = { Text(if (invitation.type == "video") "مكالمة فيديو واردة" else "مكالمة صوتية واردة", color = GoldLight) },
