@@ -419,7 +419,9 @@ private fun AttaYoutubeDisplay(
                     }
                 }
             },
-            modifier = Modifier.fillMaxSize().graphicsLayer(scaleX = zoom, scaleY = zoom)
+            // Fit the *entire* 16:9 YouTube player inside the larger black panel.
+            // Resizing the WebView (not scaling/cropping it) keeps the controls and thumbnail visible.
+            modifier = Modifier.fillMaxWidth(zoom.coerceIn(.70f, 1f)).aspectRatio(16f / 9f)
         )
         if (loading) CircularProgressIndicator(color = Gold, modifier = Modifier.size(32.dp))
         if (error.isNotEmpty()) {
@@ -475,10 +477,10 @@ private fun AttaYoutubeControls(
         }
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically) {
-            TextButton(onClick = { onZoom((zoom - .25f).coerceAtLeast(1f)) }) {
+            TextButton(onClick = { onZoom((zoom - .15f).coerceAtLeast(.70f)) }, enabled = zoom > .70f) {
                 Text("− تصغير", color = GoldLight, fontSize = 14.sp)
             }
-            TextButton(onClick = { onZoom((zoom + .25f).coerceAtMost(2.5f)) }) {
+            TextButton(onClick = { onZoom((zoom + .15f).coerceAtMost(1f)) }, enabled = zoom < 1f) {
                 Text("+ تكبير", color = GoldLight, fontSize = 14.sp)
             }
             TextButton(onClick = onFullscreen) {
@@ -531,6 +533,7 @@ private fun AttaYoutubeControls(
     val webView = remember(ctx, safeId, useDirectEmbed, retryCounter) {
         WebView(ctx).apply {
             setBackgroundColor(android.graphics.Color.BLACK)
+            setInitialScale(100)
             setLayerType(android.view.View.LAYER_TYPE_HARDWARE, null)
             settings.javaScriptEnabled = true
             settings.domStorageEnabled = true
@@ -539,8 +542,8 @@ private fun AttaYoutubeControls(
             settings.allowContentAccess = false
             settings.javaScriptCanOpenWindowsAutomatically = false
             settings.loadsImagesAutomatically = true
-            settings.setSupportZoom(true)
-            settings.builtInZoomControls = true
+            settings.setSupportZoom(false)
+            settings.builtInZoomControls = false
             settings.displayZoomControls = false
             webChromeClient = chrome
             webViewClient = object : WebViewClient() {
@@ -601,13 +604,13 @@ private fun AttaYoutubeControls(
             AttaYoutubeDisplay(
                 webView = webView, modeDirect = useDirectEmbed, videoId = safeId,
                 loading = loading, error = loadError, zoom = zoom,
-                modifier = Modifier.fillMaxWidth().height(390.dp)
+                modifier = Modifier.fillMaxWidth().height(360.dp)
             )
             AttaYoutubeControls(
                 canSeek = playerReady && !useDirectEmbed, isPlaying = isPlaying,
                 position = position, duration = duration, zoom = zoom,
                 onCommand = { action, amount -> send(action, amount) }, onZoom = { zoom = it },
-                onFullscreen = { fullscreen = true }, isFullscreen = false
+                onFullscreen = { zoom = 1f; fullscreen = true }, isFullscreen = false
             )
         }
         // Keep the video uncluttered: fullscreen and zoom live above the player.
