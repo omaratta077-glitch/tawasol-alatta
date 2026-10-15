@@ -13,7 +13,129 @@ import androidx.activity.compose.setContent
 import androidx.activity.compose.BackHandler
 import androidx.lifecycle.lifecycleScope
 import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.result.contract.ActivityResultContrac
+private fun attaYouTubeIframeHtml(videoId: String): String = """
+    <!doctype html><html><head><meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="referrer" content="strict-origin-when-cross-origin" />
+    <style>
+      html, body { margin:0; padding:0; overflow:hidden; width:100%; height:100%; background:#000; }
+      iframe { display:block; width:100%; height:100%; border:0; background:#000; }
+    </style></head><body>
+    <iframe src="https://www.youtube.com/embed/$videoId?playsinline=1&amp;controls=1&amp;rel=0&amp;fs=1&amp;origin=$ATTA_YT_ORIGIN"
+      title="YouTube video" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"
+      allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>
+    </body></html>
+""".trimIndent()
+
+@Composable
+internal fun AlattaFixedYouTubePlayer(id: String) {
+    if (!Regex("[A-Za-z0-9_-]{11}").matches(id)) return
+    val context = LocalContext.current
+    val activity = context as? Activity
+    // One WebView and one Chrome client per video; never move the WebView between Compose dialogs.
+    var embedMode by remember(id) { mutableStateOf(false) }
+    var reloadKey by remember(id) { mutableIntStateOf(0) }
+    var zoom by remember(id) { mutableStateOf(1f) }
+    var error by remember(id, embedMode, reloadKey) { mutableStateOf("") }
+    var loaded by remember(id, embedMode, reloadKey) { mutableStateOf(false) }
+
+    val chrome = remember(activity, id, embedMode, reloadKey) { AttaYouTubeChrome(activity) }
+    val webView = remember(context, id, embedMode, reloadKey) {
+        WebView(context).apply {
+            setBackgroundColor(AndroidColor.BLACK)
+            // No forced software/hardware WebView layer: let Chromium choose video composition.
+            settings.javaScriptEnabled = true
+            settings.domStorageEnabled = true
+            settings.mediaPlaybackRequiresUserGesture = true
+            settings.loadsImagesAutomatically = true
+            settings.allowFileAccess = false
+            settings.allowContentAccess = false
+            settings.useWideViewPort = true
+            settings.loadWithOverviewMode = true
+            settings.setSupportZoom(false)
+            webChromeClient = chrome
+            webViewClient = object : WebViewClient() {
+                override fun onPageFinished(view: WebView?, url: String?) { loaded = true }
+                override fun onReceivedError(view: WebView?, request: WebResourceRequest?, problem: WebResourceError?) {
+                    if (request?.isForMainFrame == true) {
+                        loaded = true
+                        error = "تعذّر تحميل مشغّل يوتيوب. جرّب طريقة العرض الأخرى."
+                    }
+                }
+            }
+            if (embedMode) {
+                // Real HTTPS base URL gives YouTube a useful Referer / origin.
+                loadDataWithBaseURL("$ATTA_YT_ORIGIN/", attaYouTubeIframeHtml(id), "text/html", "UTF-8", null)
+            } else {
+                loadUrl("$ATTA_YT_ORIGIN/native-youtube-player.html?id=$id")
+            }
+        }
+    }
+    DisposableEffect(webView, chrome) {
+        onDispose {
+            chrome.leaveFullscreen()
+            webView.stopLoading()
+            webView.loadUrl("about:blank")
+            (webView.parent as? ViewGroup)?.removeView(webView)
+            webView.destroy()
+        }
+    }
+    BackHandler(enabled = chrome.fullscreen) { chrome.leaveFullscreen() }
+
+    Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
+        Box(
+            Modifier.fillMaxWidth().background(attaPanel, RoundedCornerShape(13.dp))
+                .border(1.dp, attaGold.copy(alpha = .38f), RoundedCornerShape(13.dp))
+                .padding(3.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            AndroidView(
+                factory = { webView },
+                modifier = Modifier.fillMaxWidth(zoom).aspectRatio(16f / 9f)
+            )
+            if (!loaded) CircularProgressIndicator(
+                color = attaGold, modifier = Modifier.size(26.dp)
+            )
+            if (error.isNotBlank()) Text(
+                error, color = attaGold, fontSize = 12.sp, textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth().background(Color.Black.copy(alpha = .94f)).padding(12.dp)
+            )
+        }
+        Row(
+            Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            TextButton(onClick = { zoom = (zoom - .1f).coerceAtLeast(.8f) }) {
+                Text("−", color = attaGold, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            }
+            Text("حجم الفيديو ${(zoom * 100).toInt()}%", color = attaGold, fontSize = 12.sp)
+            TextButton(onClick = { zoom = (zoom + .1f).coerceAtMost(1f) }) {
+                Text("+", color = attaGold, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            }
+        }
+        Row(
+            Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            TextButton(onClick = {
+                // YouTube requests fullscreen from its own player; WebChromeClient rotates then.
+                webView.evaluateJavascript("(function(){var f=document.querySelector('iframe'); var e=f||document.documentElement; if(e.requestFullscreen)e.requestFullscreen();})();", null)
+            }) { Text("ملء الشاشة ↗", color = attaGold, fontSize = 12.sp) }
+            TextButton(onClick = {
+                embedMode = !embedMode
+            }) { Text("طريقة عرض أخرى", color = attaGold, fontSize = 12.sp) }
+            TextButton(onClick = { reloadKey++ }) {
+                Text("إعادة تحميل", color = attaGold, fontSize = 12.sp)
+            }
+        }
+        TextButton(onClick = {
+            runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.youtube.com/watch?v=$id"))) }
+                .onFailure { error = "لا يوجد تطبيق قادر على فتح رابط يوتيوب." }
+        }) { Text("إذا استمرت الصورة البيضاء: فتح الفيديو في يوتيوب", color = Color(0xFFC9D0D4), fontSize = 11.sp) }
+    }
+}
+ts
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
