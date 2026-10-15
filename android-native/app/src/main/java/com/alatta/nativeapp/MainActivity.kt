@@ -323,7 +323,7 @@ private fun attaYouTubeHtml(videoId: String): String {
       <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=yes">
       <meta name="referrer" content="strict-origin-when-cross-origin">
       <style>html,body,#player{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#000}
-      iframe{display:block;border:0;width:100%;height:100%}</style></head>
+      iframe{display:block;border:0;width:100%;height:100%;background:#000}</style></head>
       <body><div id="player"></div><script>
       var alattaPlayer=null, alattaTicker=null;
       function report(v){console.log('ALATTA_YT:'+v);}
@@ -400,33 +400,55 @@ private fun AttaYoutubeDisplay(
     zoom: Float,
     modifier: Modifier = Modifier
 ) {
-    Box(modifier.clip(RoundedCornerShape(12.dp)).background(Color.Black), contentAlignment = Alignment.Center) {
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(16.dp))
+            .background(Color.Black),
+        contentAlignment = Alignment.Center
+    ) {
         AndroidView(
             factory = {
-                // The same WebView must survive entry/exit from the fullscreen dialog:
-                // reparent it rather than reloading the video and losing playback time.
+                // Keep the same WebView on entry and exit from fullscreen.
                 (webView.parent as? android.view.ViewGroup)?.removeView(webView)
-                webView
+                webView.apply {
+                    setBackgroundColor(android.graphics.Color.BLACK)
+                    isVerticalScrollBarEnabled = false
+                    isHorizontalScrollBarEnabled = false
+                }
             },
             update = { view ->
                 if (view.tag != "atta-youtube-loaded") {
                     view.tag = "atta-youtube-loaded"
                     if (modeDirect) {
-                        val address = "https://www.youtube.com/embed/$videoId?playsinline=1&rel=0&fs=1&origin=${enc(BASE)}"
+                        val address = "https://www.youtube.com/embed/$videoId" +
+                            "?playsinline=1&rel=0&fs=1&origin=${enc(BASE)}"
                         view.loadUrl(address, mapOf("Referer" to "$BASE/"))
                     } else {
-                        view.loadDataWithBaseURL("$BASE/", attaYouTubeHtml(videoId), "text/html", "UTF-8", null)
+                        view.loadDataWithBaseURL(
+                            "$BASE/", attaYouTubeHtml(videoId), "text/html", "UTF-8", null
+                        )
                     }
                 }
             },
-            // Fit the *entire* 16:9 YouTube player inside the larger black panel.
-            // Resizing the WebView (not scaling/cropping it) keeps the controls and thumbnail visible.
-            modifier = Modifier.fillMaxWidth(zoom.coerceIn(.70f, 1f)).aspectRatio(16f / 9f)
+            // Maintain the natural ratio of the YouTube embed without cropping.
+            modifier = Modifier
+                .fillMaxWidth(zoom.coerceIn(.70f, 1f))
+                .aspectRatio(16f / 9f)
         )
-        if (loading) CircularProgressIndicator(color = Gold, modifier = Modifier.size(32.dp))
+
+        if (loading) {
+            CircularProgressIndicator(color = Gold, modifier = Modifier.size(32.dp))
+        }
         if (error.isNotEmpty()) {
-            Text(error, color = GoldLight, textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth().background(Color.Black.copy(alpha = .94f)).padding(12.dp))
+            Text(
+                error,
+                color = GoldLight,
+                textAlign = TextAlign.Center,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color.Black.copy(alpha = .94f))
+                    .padding(12.dp)
+            )
         }
     }
 }
@@ -475,16 +497,55 @@ private fun AttaYoutubeControls(
                 Text("10ث ↷", color = if (canSeek) GoldLight else Muted, fontSize = 13.sp)
             }
         }
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly,
-            verticalAlignment = Alignment.CenterVertically) {
-            TextButton(onClick = { onZoom((zoom - .15f).coerceAtLeast(.70f)) }, enabled = zoom > .70f) {
-                Text("− تصغير", color = GoldLight, fontSize = 14.sp)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            OutlinedButton(
+                onClick = { onZoom((zoom - .10f).coerceAtLeast(.70f)) },
+                enabled = zoom > .701f,
+                colors = ButtonDefaults.outlinedButtonColors(
+                    contentColor = GoldLight,
+                    disabledContentColor = Muted
+                ),
+                border = BorderStroke(1.dp, Border),
+                shape = RoundedCornerShape(18.dp),
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 3.dp),
+                modifier = Modifier.height(42.dp)
+            ) {
+                Text("−", fontSize = 25.sp, fontWeight = FontWeight.Bold)
             }
-            TextButton(onClick = { onZoom((zoom + .15f).coerceAtMost(1f)) }, enabled = zoom < 1f) {
-                Text("+ تكبير", color = GoldLight, fontSize = 14.sp)
+
+            OutlinedButton(
+                onClick = { onZoom((zoom + .10f).coerceAtMost(1f)) },
+                enabled = zoom < .999f,
+                colors = ButtonDefaults.outlinedButtonColors(
+                    contentColor = GoldLight,
+                    disabledContentColor = Muted
+                ),
+                border = BorderStroke(1.dp, Border),
+                shape = RoundedCornerShape(18.dp),
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 3.dp),
+                modifier = Modifier.height(42.dp)
+            ) {
+                Text("+", fontSize = 24.sp, fontWeight = FontWeight.Bold)
             }
-            TextButton(onClick = onFullscreen) {
-                Text(if (isFullscreen) "تصغير الشاشة" else "⛶ ملء الشاشة", color = GoldLight, fontSize = 14.sp)
+
+            OutlinedButton(
+                onClick = onFullscreen,
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = GoldLight),
+                border = BorderStroke(1.dp, Border),
+                shape = RoundedCornerShape(18.dp),
+                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 3.dp),
+                modifier = Modifier.height(42.dp)
+            ) {
+                Text(
+                    if (isFullscreen) "رجوع" else "⛶ ملء الشاشة",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1
+                )
             }
         }
     }
@@ -604,7 +665,7 @@ private fun AttaYoutubeControls(
             AttaYoutubeDisplay(
                 webView = webView, modeDirect = useDirectEmbed, videoId = safeId,
                 loading = loading, error = loadError, zoom = zoom,
-                modifier = Modifier.fillMaxWidth().height(360.dp)
+                modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f)
             )
             AttaYoutubeControls(
                 canSeek = playerReady && !useDirectEmbed, isPlaying = isPlaying,
@@ -636,11 +697,20 @@ private fun AttaYoutubeControls(
                         Text("إغلاق ✕", color = GoldLight)
                     }
                 }
-                AttaYoutubeDisplay(
-                    webView = webView, modeDirect = useDirectEmbed, videoId = safeId,
-                    loading = loading, error = loadError, zoom = zoom,
-                    modifier = Modifier.fillMaxWidth().weight(1f)
-                )
+                Box(
+                    modifier = Modifier.fillMaxWidth().weight(1f),
+                    contentAlignment = Alignment.Center
+                ) {
+                    AttaYoutubeDisplay(
+                        webView = webView,
+                        modeDirect = useDirectEmbed,
+                        videoId = safeId,
+                        loading = loading,
+                        error = loadError,
+                        zoom = zoom,
+                        modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f)
+                    )
+                }
                 AttaYoutubeControls(
                     canSeek = playerReady && !useDirectEmbed, isPlaying = isPlaying,
                     position = position, duration = duration, zoom = zoom,
