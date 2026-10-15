@@ -1049,6 +1049,11 @@ private fun AttaYoutubeControls(
                     } finally { inboxLoading = false }
                 }
             }
+            "القائمة" -> {
+                // Fetch current server-granted role whenever the menu is opened.
+                val current = get("/api/me").optJSONObject("user")
+                adminRole = current?.optString("role").orEmpty().trim().lowercase()
+            }
             "الإشعارات" -> notifications = get("/api/notifications").arr("notifications")
             "المجموعات" -> groups = get("/api/groups").arr("groups")
             "الملف" -> {
@@ -1258,7 +1263,7 @@ private fun AttaYoutubeControls(
             try {
                 val user = get("/api/me").optJSONObject("user")
                 myAvatar = user?.optString("avatar").orEmpty()
-                adminRole = user?.optString("role").orEmpty()
+                adminRole = user?.optString("role").orEmpty().trim().lowercase()
             }
             catch (cancelled: CancellationException) { throw cancelled }
             catch (_: Exception) { /* UI can still use the account initial. */ }
@@ -1756,6 +1761,14 @@ private fun AttaYoutubeControls(
                                 CardBox {
                                     if (adminRole == "super_admin" || adminRole == "moderator") {
                                         PremiumMenuEntry("shield", "لوحة الإدارة") { navigate("الإدارة") }
+                                        HorizontalDivider(color = Border.copy(alpha = .5f))
+                                    }
+                                    if (adminRole != "super_admin" && adminRole != "moderator") {
+                                        Text("صلاحية الإدارة غير مفعّلة لهذا الحساب على الخادم", color = Muted, fontSize = 12.sp)
+                                        TextButton(onClick = { task {
+                                            try { load("القائمة") }
+                                            catch (e: Exception) { error = e.message ?: "تعذر فحص الصلاحية" }
+                                        } }) { Text("تحديث صلاحية المدير", color = GoldLight) }
                                         HorizontalDivider(color = Border.copy(alpha = .5f))
                                     }
                                     PremiumMenuEntry("bookmark", "أرشيف منشوراتي") { navigate("أرشيفي") }
