@@ -1,0 +1,70 @@
+--- a/android-native/app/src/main/java/com/alatta/nativeapp/MainActivity.kt
++++ b/android-native/app/src/main/java/com/alatta/nativeapp/MainActivity.kt
+@@ -4,6 +4,7 @@
+ import android.net.Uri
+ import android.Manifest
+ import android.content.pm.PackageManager
++import android.content.pm.ActivityInfo
+ import android.provider.OpenableColumns
+ import androidx.core.content.ContextCompat
+ import okhttp3.OkHttpClient
+@@ -272,6 +273,7 @@
+     private var callback: CustomViewCallback? = null
+     private var root: android.view.ViewGroup? = null
+     private var owner: android.app.Activity? = null
++    private var orientationBeforeYoutubeFullscreen: Int? = null
+ 
+     override fun onConsoleMessage(message: android.webkit.ConsoleMessage?): Boolean {
+         val line = message?.message().orEmpty()
+@@ -295,13 +297,21 @@
+         root = container
+         callback = cb
+         fullscreenView = view
++        orientationBeforeYoutubeFullscreen = activity.requestedOrientation
+         container.addView(view, android.view.ViewGroup.LayoutParams(-1, -1))
++        // Fullscreen requested from inside the YouTube WebView player.
++        activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+         activity.window.addFlags(android.view.WindowManager.LayoutParams.FLAG_FULLSCREEN)
+     }
+ 
+     override fun onHideCustomView() {
+         fullscreenView?.let { root?.removeView(it) }
+         owner?.window?.clearFlags(android.view.WindowManager.LayoutParams.FLAG_FULLSCREEN)
++        // Return to the device/app orientation that was in effect before fullscreen.
++        orientationBeforeYoutubeFullscreen?.let { previous ->
++            owner?.requestedOrientation = previous
++        }
++        orientationBeforeYoutubeFullscreen = null
+         val oldCallback = callback
+         fullscreenView = null
+         callback = null
+@@ -649,6 +659,18 @@
+         }
+     }
+     if (fullscreen) {
++        // Fullscreen requested using the golden in-app player button.
++        // Keep the activity instance alive during rotation (see AndroidManifest.xml).
++        DisposableEffect(ctx) {
++            val activity = ctx as? android.app.Activity
++            val orientationBefore = activity?.requestedOrientation
++            activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
++            onDispose {
++                if (activity != null && orientationBefore != null) {
++                    activity.requestedOrientation = orientationBefore
++                }
++            }
++        }
+         Dialog(onDismissRequest = { fullscreen = false },
+             properties = DialogProperties(usePlatformDefaultWidth = false)) {
+             Column(Modifier.fillMaxSize().background(Black).padding(10.dp),
+--- a/android-native/app/src/main/AndroidManifest.xml
++++ b/android-native/app/src/main/AndroidManifest.xml
+@@ -7,7 +7,7 @@
+     <uses-feature android:name="android.hardware.camera" android:required="false"/>
+     <uses-feature android:name="android.hardware.microphone" android:required="false"/>
+     <application android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher_round" android:allowBackup="false" android:label="تواصل العطا" android:theme="@android:style/Theme.Material.NoActionBar" android:usesCleartextTraffic="false" android:supportsRtl="true">
+-        <activity android:name=".MainActivity" android:exported="true" android:launchMode="singleTask" android:windowSoftInputMode="adjustResize">
++        <activity android:name=".MainActivity" android:exported="true" android:launchMode="singleTask" android:configChanges="orientation|screenSize|screenLayout|keyboardHidden" android:windowSoftInputMode="adjustResize">
+             <intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter>
+         </activity>
+         <provider android:name="androidx.core.content.FileProvider"
