@@ -408,20 +408,6 @@ private fun attaYoutubeError(code: String): String = when (code) {
 private fun attaYoutubeTimestamp(seconds: Int): String =
     "%02d:%02d".format(seconds.coerceAtLeast(0) / 60, seconds.coerceAtLeast(0) % 60)
 
-/** Height of the actual YouTube WebView, not web-page zoom.
- * On portrait phones use about half the available screen height;
- * landscape remains shorter unless the user chooses fullscreen.
- */
-@Composable
-private fun attaYoutubeExpandedHeight(): androidx.compose.ui.unit.Dp {
-    val config = androidx.compose.ui.platform.LocalConfiguration.current
-    return if (config.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE) {
-        (config.screenHeightDp * 0.68f).dp.coerceIn(180.dp, 330.dp)
-    } else {
-        (config.screenHeightDp * 0.55f).dp.coerceIn(340.dp, 540.dp)
-    }
-}
-
 @Composable
 private fun AttaYoutubeDisplay(
     webView: WebView,
@@ -451,9 +437,9 @@ private fun AttaYoutubeDisplay(
                     }
                 }
             },
-            // Let the WebView fill the taller container while YouTube itself preserves
-            // video aspect ratio. Do not zoom or crop the YouTube page.
-            modifier = Modifier.fillMaxSize()
+            // Fit the *entire* 16:9 YouTube player inside the larger black panel.
+            // Resizing the WebView (not scaling/cropping it) keeps the controls and thumbnail visible.
+            modifier = Modifier.fillMaxWidth(zoom.coerceIn(.72f, 1f)).aspectRatio(16f / 9f)
         )
         if (loading) CircularProgressIndicator(color = Gold, modifier = Modifier.size(32.dp))
         if (error.isNotEmpty()) {
@@ -512,7 +498,7 @@ private fun AttaYoutubeControls(
                 .padding(horizontal = 6.dp, vertical = 5.dp),
             horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
             val small = zoom <= .721f
-            val large = zoom >= 1.349f
+            val large = zoom >= .999f
             Box(Modifier.size(36.dp).clip(RoundedCornerShape(11.dp))
                 .background(if (small) Border.copy(alpha = .20f) else Border.copy(alpha = .42f))
                 .clickable(enabled = !small) { onZoom((zoom - .07f).coerceAtLeast(.72f)) },
@@ -525,7 +511,7 @@ private fun AttaYoutubeControls(
             }
             Box(Modifier.size(36.dp).clip(RoundedCornerShape(11.dp))
                 .background(if (large) Border.copy(alpha = .20f) else Border.copy(alpha = .42f))
-                .clickable(enabled = !large) { onZoom((zoom + .07f).coerceAtMost(1.35f)) },
+                .clickable(enabled = !large) { onZoom((zoom + .07f).coerceAtMost(1f)) },
                 contentAlignment = Alignment.Center) {
                 Text("+", color = if (large) Muted else GoldLight, fontSize = 22.sp, fontWeight = FontWeight.Bold)
             }
@@ -537,7 +523,6 @@ private fun AttaYoutubeControls(
 }
 
 @Composable private fun YouTubePlayer(id: String) {
-    val expandedPlayerHeight = attaYoutubeExpandedHeight()
     val safeId = id.takeIf { Regex("[A-Za-z0-9_-]{11}").matches(it) } ?: return
     val ctx = LocalContext.current
     // Start with the documented IFrame API for functional seek/play controls.
@@ -654,7 +639,7 @@ private fun AttaYoutubeControls(
             AttaYoutubeDisplay(
                 webView = webView, modeDirect = useDirectEmbed, videoId = safeId,
                 loading = loading, error = loadError, zoom = zoom,
-                modifier = Modifier.fillMaxWidth().height(expandedPlayerHeight * zoom)
+                modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f)
             )
             AttaYoutubeControls(
                 canSeek = playerReady && !useDirectEmbed, isPlaying = isPlaying,
@@ -805,11 +790,17 @@ private fun AttaYoutubeControls(
     var chatWith by remember { mutableStateOf("") }
     var messages by remember { mutableStateOf(emptyList<JSONObject>()) }
     var inboxPreviews by remember { mutableStateOf(emptyList<ChatPreview>()) }
+    // The Worker stores message history per conversation, not as a global inbox.
+    // Remember peers locally so an existing conversation remains visible even
+    // before a friend request is accepted. Never store message bodies locally.
+    val recentChatPeers = remember { mutableStateListOf<String>() }
     var inboxLoading by remember { mutableStateOf(false) }
     var activeChatPerson by remember { mutableStateOf<JSONObject?>(null) }
     var ownPosts by remember { mutableStateOf(emptyList<JSONObject>()) }
     var chatText by remember { mutableStateOf("") }
     var activeCall by remember { mutableStateOf<NativeCallSession?>(null) }
+    // Keep a call connected when the user returns to chats or browses the app.
+    var callMinimized by remember { mutableStateOf(false) }
     var incomingCall by remember { mutableStateOf<NativeCallSession?>(null) }
     var pendingPermissionCall by remember { mutableStateOf<NativeCallSession?>(null) }
     val knownCalls = remember(token) { mutableSetOf<String>() }
@@ -907,12 +898,24 @@ private fun AttaYoutubeControls(
             }
         }
     }
+    fun rememberChatPeer(peer: String) {
+        val key = peer.trim().lowercase()
+        if (key.isBlank() || key == myUsername.lowercase() || key.startsWith("g_")) return
+        recentChatPeers.remove(key)
+        recentChatPeers.add(0, key)
+        while (recentChatPeers.size > 45) recentChatPeers.removeAt(recentChatPeers.lastIndex)
+        prefs.edit().putString("recent_chats_${myUsername.lowercase()}",
+            JSONArray(recentChatPeers).toString()).apply()
+    }
     suspend fun get(path: String): JSONObject = withContext(Dispatchers.IO) { api("$path${if ('?' in path) "&" else "?"}token=${enc(token)}") }
     suspend fun post(path: String, data: JSONObject): JSONObject = withContext(Dispatchers.IO) { api(path, data.put("token", token)) }
     val callPermissions = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { granted ->
         val next = pendingPermissionCall
         pendingPermissionCall = null
-        if (next != null && granted.values.all { it }) activeCall = next
+        if (next != null && granted.values.all { it }) {
+            activeCall = next
+            callMinimized = false
+        }
         else {
             featureMessage = "لا يمكن إجراء المكالمة بدون السماح بالميكروفون والكاميرا عند الحاجة"
             if (next?.incoming == true) scope.launch {
@@ -940,7 +943,7 @@ private fun AttaYoutubeControls(
         val needed = permissionNames.filter {
             ContextCompat.checkSelfPermission(ctx, it) != PackageManager.PERMISSION_GRANTED
         }
-        if (needed.isEmpty()) activeCall = session
+        if (needed.isEmpty()) { activeCall = session; callMinimized = false }
         else { pendingPermissionCall = session; callPermissions.launch(needed.toTypedArray()) }
     }
     fun openPublicProfile(other: String) {
@@ -958,6 +961,23 @@ private fun AttaYoutubeControls(
             } catch (cancelled: CancellationException) { throw cancelled }
             catch (e: Exception) { if (profilePeer == other) featureMessage = e.message ?: "تعذر فتح صفحة المستخدم" }
             finally { if (profilePeer == other) publicProfileLoading = false }
+        }
+    }
+    fun sendCallRinging(session: NativeCallSession) {
+        // The remote device really received the invite and displayed its incoming dialog.
+        // Do NOT signal "ringing" merely because the caller initiated a request.
+        scope.launch {
+            try {
+                val data = JSONObject().put("type", "call-ringing").put("to", session.peer)
+                    .put("from", myUsername).put("callId", session.callId)
+                    .put("callType", session.type)
+                    .put("signalId", UUID.randomUUID().toString())
+                    .put("createdAt", System.currentTimeMillis())
+                post("/api/message-send", JSONObject().put("to", session.peer)
+                    .put("text", "").put("media", data.toString())
+                    .put("mediaType", "call-signal"))
+            } catch (cancelled: CancellationException) { throw cancelled }
+            catch (_: Exception) { /* If signal delivery fails, caller stays at "جارٍ الاتصال". */ }
         }
     }
     fun sendCallResponse(session: NativeCallSession, reason: String) {
@@ -993,6 +1013,7 @@ private fun AttaYoutubeControls(
                 val url = withContext(Dispatchers.IO) { uploadChatMedia(ctx, token, uri, mime, requiredType) }
                 post("/api/message-send", JSONObject().put("to", receiver)
                     .put("text", "").put("media", url).put("mediaType", requiredType))
+                rememberChatPeer(receiver)
                 if (chatWith == receiver && tab == "الرسائل")
                     messages = get("/api/conversation?with=${enc(receiver)}").arr("messages")
             } catch (cancelled: CancellationException) { throw cancelled }
@@ -1059,18 +1080,36 @@ private fun AttaYoutubeControls(
                                     if (knownCalls.add(callId)) {
                                         val invite = NativeCallSession(sender,
                                             signal.optString("callType", "audio"), callId, true)
-                                        if (activeCall == null && incomingCall == null) incomingCall = invite
-                                        else sendCallResponse(invite, "busy")
+                                        if (activeCall == null && incomingCall == null) {
+                                            incomingCall = invite
+                                            sendCallRinging(invite)
+                                        } else sendCallResponse(invite, "busy")
                                     }
                                 }
                             } else if (msg.optString("type") == "chat" && msg.optString("mediaType") != "call-signal") {
-                                val from = msg.optString("from"); val to = msg.optString("to")
+                                val from = msg.optString("from").lowercase()
+                                val to = msg.optString("to").lowercase()
                                 scope.launch(Dispatchers.Main) {
-                                    val other = chatWith
-                                    if (tab == "الرسائل" && other.isNotBlank() && (from == other || to == other)) {
-                                        try { messages = get("/api/conversation?with=${enc(other)}").arr("messages") }
+                                    val peer = if (from == myUsername.lowercase()) to else from
+                                    if (peer.isNotBlank()) rememberChatPeer(peer)
+                                    val opened = chatWith.lowercase()
+                                    if (tab == "الرسائل" && opened.isNotBlank() && peer == opened) {
+                                        try { messages = get("/api/conversation?with=${enc(opened)}").arr("messages") }
                                         catch (_: Exception) { }
+                                    } else if (tab == "الرسائل" && chatWith.isBlank()) {
+                                        try { load("الرسائل") } catch (_: Exception) { }
                                     }
+                                }
+                            } else if (msg.optString("type") in setOf("friend-request", "friend-accepted", "friends-changed")) {
+                                scope.launch(Dispatchers.Main) {
+                                    try {
+                                        friends = get("/api/friends").arr("friends")
+                                        requests = get("/api/friend-requests").arr("requests")
+                                        notifications = get("/api/notifications").arr("notifications")
+                                        if (tab == "الأصدقاء") users = get("/api/users?q=${enc(search)}").arr("users")
+                                        if (tab == "الرسائل" && chatWith.isBlank()) load("الرسائل")
+                                        if (profilePeer.isNotBlank()) publicProfile = get("/api/profile-public?username=${enc(profilePeer)}")
+                                    } catch (_: Exception) { }
                                 }
                             }
                         }
@@ -1096,20 +1135,29 @@ private fun AttaYoutubeControls(
                     try {
                         val people = get("/api/friends").arr("friends")
                         friends = people
-                        // Use the existing API; don't invent online/read states.
+                        // The Worker provides conversations by peer, not a unified inbox.
+                        // Include previously contacted peers alongside accepted friends.
+                        val known = people.map { it.optString("username").lowercase() }
+                        val peerIds = (recentChatPeers.toList() + known)
+                            .filter { it.isNotBlank() && it != myUsername.lowercase() && !it.startsWith("g_") }
+                            .distinct().take(50)
+                        val byId = people.associateBy { it.optString("username").lowercase() }
                         val limiter = Semaphore(5)
                         val cached = coroutineScope {
-                            people.take(45).map { user ->
+                            peerIds.map { id ->
                                 async {
                                     limiter.acquire()
                                     try {
-                                        val id = user.optString("username")
+                                        val person = byId[id] ?: try {
+                                            get("/api/profile-public?username=${enc(id)}").optJSONObject("user")
+                                        } catch (cancelled: CancellationException) { throw cancelled }
+                                        catch (_: Exception) { null } ?: JSONObject().put("username", id)
                                         val last = try {
                                             get("/api/conversation?with=${enc(id)}").arr("messages")
                                                 .lastOrNull { it.optString("mediaType") != "call-signal" }
                                         } catch (cancelled: CancellationException) { throw cancelled }
                                         catch (_: Exception) { null }
-                                        ChatPreview(user, last)
+                                        ChatPreview(person, last)
                                     } finally { limiter.release() }
                                 }
                             }.awaitAll()
@@ -1156,6 +1204,41 @@ private fun AttaYoutubeControls(
     fun refresh() = task { load(tab) }
     fun navigate(destination: String) {
         if (tab != destination) { visited.add(tab); tab = destination }
+    }
+    fun openChat(peer: String) {
+        val id = peer.trim().lowercase()
+        if (id.isBlank() || id == myUsername.lowercase()) return
+        rememberChatPeer(id)
+        chatWith = id
+        chatText = ""
+        messages = emptyList()
+        activeChatPerson = friends.firstOrNull { it.optString("username").equals(id, true) }
+            ?: inboxPreviews.firstOrNull { it.username.equals(id, true) }?.user
+        navigate("الرسائل")
+        scope.launch {
+            try {
+                val response = get("/api/conversation?with=${enc(id)}").arr("messages")
+                if (chatWith == id) messages = response
+                if (activeChatPerson == null || activeChatPerson?.optString("fullName").isNullOrBlank()) {
+                    val person = get("/api/profile-public?username=${enc(id)}").optJSONObject("user")
+                    if (chatWith == id && person != null) activeChatPerson = person
+                }
+            } catch (cancelled: CancellationException) { throw cancelled }
+            catch (e: Exception) { if (chatWith == id) error = e.message ?: "تعذر تحميل المحادثة" }
+        }
+    }
+    fun updateFriend(target: String, action: String) {
+        val id = target.trim().lowercase()
+        if (id.isBlank() || id == myUsername.lowercase()) return
+        task {
+            if (action == "request") post("/api/friend-request", JSONObject().put("username", id))
+            else post("/api/friend-action", JSONObject().put("username", id).put("action", action))
+            friends = get("/api/friends").arr("friends")
+            requests = get("/api/friend-requests").arr("requests")
+            if (tab == "الأصدقاء") users = get("/api/users?q=${enc(search)}").arr("users")
+            if (profilePeer == id) publicProfile = get("/api/profile-public?username=${enc(id)}")
+            if (tab == "الرسائل" && chatWith.isBlank()) load("الرسائل")
+        }
     }
     BackHandler(enabled = token.isNotBlank()) {
         when {
@@ -1229,7 +1312,7 @@ private fun AttaYoutubeControls(
         AlertDialog(
             onDismissRequest = { sendCallResponse(invitation, "rejected"); incomingCall = null },
             title = { Text(if (invitation.type == "video") "مكالمة فيديو واردة" else "مكالمة صوتية واردة", color = GoldLight) },
-            text = { Text("${invitation.peer} يتصل بك عبر تواصل العطا") },
+            text = { Text("مكالمة واردة من مستخدم تواصل العطا", color = White) },
             confirmButton = { TextButton(onClick = {
                 incomingCall = null
                 openCall(invitation.peer, invitation.type, true, invitation.callId)
@@ -1326,6 +1409,19 @@ private fun AttaYoutubeControls(
         }) { Text("إيقاف الحساب", color = Color(0xFFFF8B8B)) } },
         dismissButton = { TextButton(onClick = { confirmBanUser = "" }) { Text("إلغاء", color = GoldLight) } }
     )
+    LaunchedEffect(token, myUsername) {
+        recentChatPeers.clear()
+        if (token.isNotBlank() && myUsername.isNotBlank()) {
+            try {
+                val stored = JSONArray(prefs.getString("recent_chats_${myUsername.lowercase()}", "[]"))
+                for (i in 0 until stored.length().coerceAtMost(45)) {
+                    val peer = stored.optString(i).lowercase()
+                    if (peer.isNotBlank() && peer != myUsername.lowercase() && peer !in recentChatPeers)
+                        recentChatPeers.add(peer)
+                }
+            } catch (_: Exception) { }
+        }
+    }
     // Fetch our actual profile photo after login, even when opening the home feed first.
     LaunchedEffect(token) {
         if (token.isNotBlank()) {
@@ -1356,6 +1452,25 @@ private fun AttaYoutubeControls(
         catch (_: Exception) { googleEnabled = false }
     }
 
+    // The existing backend sends realtime socket events. Periodic reconciliation
+    // covers short disconnections and restores changes made from the website.
+    LaunchedEffect(tab, chatWith, token) {
+        if (token.isBlank()) return@LaunchedEffect
+        if (tab == "الأصدقاء") while (isActive) {
+            delay(18000)
+            try {
+                friends = get("/api/friends").arr("friends")
+                requests = get("/api/friend-requests").arr("requests")
+            } catch (cancelled: CancellationException) { throw cancelled }
+            catch (_: Exception) { }
+        }
+        if (tab == "الرسائل" && chatWith.isBlank()) while (isActive) {
+            delay(25000)
+            try { load("الرسائل") }
+            catch (cancelled: CancellationException) { throw cancelled }
+            catch (_: Exception) { }
+        }
+    }
     // Lightweight refresh of the opened chat; messages stay on Cloudflare.
     LaunchedEffect(tab, chatWith, token) {
         if (tab == "الرسائل" && chatWith.isNotBlank() && token.isNotBlank()) {
@@ -1907,23 +2022,68 @@ private fun AttaYoutubeControls(
                         }
                         "الأصدقاء" -> LazyColumn(Modifier.weight(1f).padding(horizontal = 8.dp)) {
                             item { SectionTitle("طلبات الصداقة") }
-                            items(requests) { r ->
+                            items(requests, key = { "request_" + it.optJSONObject("user")?.optString("username").orEmpty() }) { r ->
                                 val u = r.optJSONObject("user") ?: JSONObject()
-                                CardBox { Text(u.name(), color = GoldLight); Row {
-                                    GoldButton("قبول") { task { post("/api/friend-action", JSONObject().put("username", u.optString("username")).put("action", "accept")); load(tab) } }
-                                    TextButton(onClick = { task { post("/api/friend-action", JSONObject().put("username", u.optString("username")).put("action", "decline")); load(tab) } }) { Text("رفض") }
-                                } }
+                                val peer = u.optString("username")
+                                CardBox {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Avatar(u.optString("avatar"), u.name(), onClick = { openPublicProfile(peer) })
+                                        Spacer(Modifier.width(8.dp))
+                                        Text(u.name(), color = GoldLight, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                                    }
+                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        GoldButton("قبول", !busy) { updateFriend(peer, "accept") }
+                                        TextButton(onClick = { updateFriend(peer, "decline") }, enabled = !busy) { Text("رفض") }
+                                    }
+                                }
                             }
-                            item { SectionTitle("بحث عن أشخاص"); OutlinedTextField(search, { search = it }, label = { Text("اسم المستخدم") }, modifier = Modifier.fillMaxWidth()); GoldButton("بحث") { refresh() } }
-                            items(users) { u ->
-                                CardBox { Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Avatar(u.optString("avatar"), u.name(), onClick = { openPublicProfile(u.optString("username")) }); Spacer(Modifier.width(8.dp)); Text(u.name(), modifier = Modifier.weight(1f))
-                                    val state = u.optString("friendState")
-                                    TextButton(onClick = { task { if (state == "incoming") post("/api/friend-action", JSONObject().put("username", u.optString("username")).put("action", "accept")) else post("/api/friend-request", JSONObject().put("username", u.optString("username"))); load(tab) } }, enabled = state != "friends" && state != "outgoing" && u.optString("username") != myUsername) { Text(when (state) { "friends" -> "صديق"; "outgoing" -> "مرسل"; "incoming" -> "قبول"; else -> "إضافة" }) }
-                                } }
+                            item {
+                                SectionTitle("البحث وإضافة صديق")
+                                OutlinedTextField(search, { search = it }, label = { Text("ابحث بالاسم أو اسم المستخدم") }, modifier = Modifier.fillMaxWidth())
+                                GoldButton("بحث") { refresh() }
                             }
-                            item { SectionTitle("أصدقائي") }
-                            items(friends) { u -> CardBox { Text(u.name(), color = GoldLight); TextButton(onClick = { chatWith = u.optString("username"); navigate("الرسائل") }) { Text("مراسلة") } } }
+                            items(users.filter { !it.optString("username").equals(myUsername, true) },
+                                key = { "user_" + it.optString("username") }) { u ->
+                                val peer = u.optString("username")
+                                val state = u.optString("friendState")
+                                CardBox {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Avatar(u.optString("avatar"), u.name(), onClick = { openPublicProfile(peer) })
+                                        Spacer(Modifier.width(9.dp))
+                                        Text(u.name(), color = White, fontWeight = FontWeight.Bold,
+                                            modifier = Modifier.weight(1f).clickable { openPublicProfile(peer) })
+                                    }
+                                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        when (state) {
+                                            "friends" -> GoldButton("مراسلة") { openChat(peer) }
+                                            "incoming" -> GoldButton("قبول الصداقة", !busy) { updateFriend(peer, "accept") }
+                                            "outgoing" -> TextButton(onClick = { updateFriend(peer, "cancel") }, enabled = !busy) { Text("إلغاء الطلب", color = GoldLight) }
+                                            else -> GoldButton("إضافة صديق", !busy) { updateFriend(peer, "request") }
+                                        }
+                                    }
+                                }
+                            }
+                            item { SectionTitle("أصدقائي (${friends.size})") }
+                            if (friends.isEmpty()) item {
+                                Text("لم تضف أصدقاء بعد. ابحث عن شخص واضغط إضافة صديق.", color = Muted,
+                                    modifier = Modifier.padding(12.dp))
+                            }
+                            items(friends, key = { "friend_" + it.optString("username") }) { u ->
+                                val peer = u.optString("username")
+                                CardBox {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Avatar(u.optString("avatar"), u.name(), onClick = { openPublicProfile(peer) })
+                                        Spacer(Modifier.width(9.dp))
+                                        Text(u.name(), color = White, fontWeight = FontWeight.Bold,
+                                            modifier = Modifier.weight(1f).clickable { openPublicProfile(peer) })
+                                        TextButton(onClick = { openChat(peer) }) { Text("مراسلة", color = GoldLight) }
+                                    }
+                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        TextButton(onClick = { openCall(peer, "audio") }) { Text("اتصال صوتي", color = GoldLight) }
+                                        TextButton(onClick = { openCall(peer, "video") }) { Text("اتصال فيديو", color = GoldLight) }
+                                    }
+                                }
+                            }
                         }
                         "الرسائل" -> Box(Modifier.weight(1f)) {
                             if (chatWith.isBlank()) {
@@ -1931,28 +2091,7 @@ private fun AttaYoutubeControls(
                                     contacts = friends,
                                     inbox = inboxPreviews,
                                     loading = inboxLoading,
-                                    onOpen = { username ->
-                                        if (username.isNotBlank()) {
-                                            messages = emptyList()
-                                            chatText = ""
-                                            chatWith = username
-                                            activeChatPerson = friends.firstOrNull { it.optString("username") == username }
-                                            scope.launch {
-                                                try {
-                                                    if (username.startsWith("g_")) {
-                                                        val groupList = get("/api/groups").arr("groups")
-                                                        groups = groupList
-                                                        val match = groupList.firstOrNull { it.optString("id") == username || it.optString("groupId") == username }
-                                                        if (chatWith == username && match != null) activeChatPerson = match
-                                                    } else {
-                                                        val resolved = get("/api/profile-public?username=${enc(username)}").optJSONObject("user")
-                                                        if (chatWith == username && resolved != null) activeChatPerson = resolved
-                                                    }
-                                                } catch (_: Exception) {}
-                                            }
-                                            task { messages = get("/api/conversation?with=${enc(username)}").arr("messages") }
-                                        }
-                                    },
+                                    onOpen = { username -> openChat(username) },
                                     onProfile = { username -> openPublicProfile(username) },
                                     onRefresh = { refresh() }
                                 )
@@ -1973,6 +2112,7 @@ private fun AttaYoutubeControls(
                                             task {
                                                 post("/api/message-send", JSONObject()
                                                     .put("to", receiver).put("text", content))
+                                                rememberChatPeer(receiver)
                                                 chatText = ""
                                                 if (chatWith == receiver)
                                                     messages = get("/api/conversation?with=${enc(receiver)}").arr("messages")
@@ -2134,21 +2274,28 @@ private fun AttaYoutubeControls(
                         onMessage = {
                             val peer = profilePeer
                             profilePeer = ""; publicProfile = null
-                            chatWith = peer; chatText = ""; messages = emptyList()
-                            navigate("الرسائل")
-                            scope.launch { try { messages = get("/api/conversation?with=${enc(peer)}").arr("messages") }
-                                catch (e: Exception) { error = e.message ?: "تعذر تحميل المحادثة" } }
+                            openChat(peer)
                         },
+                        onFriendAction = { action -> updateFriend(profilePeer, action) },
                         onVoiceCall = { openCall(profilePeer, "audio") },
                         onVideoCall = { openCall(profilePeer, "video") }
                     )
                 }
             }
             activeCall?.let { session ->
-                Box(Modifier.fillMaxSize().background(Black).safeDrawingPadding()) {
-                    NativeCallScreen(session, token, myUsername,
-                        onClose = { activeCall = null })
-                }
+                // Keep the same Composable and WebView mounted while minimized.
+                // Removing/reattaching the WebView would destroy the WebRTC connection.
+                NativeCallScreen(
+                    session = session, token = token, myUsername = myUsername,
+                    minimized = callMinimized,
+                    modifier = if (callMinimized) {
+                        Modifier.align(Alignment.TopEnd)
+                            .padding(top = 72.dp, end = 10.dp).width(207.dp).height(94.dp)
+                    } else Modifier.fillMaxSize().safeDrawingPadding(),
+                    onMinimize = { callMinimized = true },
+                    onRestore = { callMinimized = false },
+                    onClose = { callMinimized = false; activeCall = null }
+                )
             }
             }
         }
@@ -2238,7 +2385,6 @@ private fun attaYouTubeIframeHtml(videoId: String): String = """
 
 @Composable
 internal fun AlattaFixedYouTubePlayer(id: String) {
-    val expandedPlayerHeight = attaYoutubeExpandedHeight()
     if (!Regex("[A-Za-z0-9_-]{11}").matches(id)) return
     val context = LocalContext.current
     val activity = context as? Activity
@@ -2301,8 +2447,7 @@ internal fun AlattaFixedYouTubePlayer(id: String) {
         ) {
             AndroidView(
                 factory = { webView },
-                // Expand the player vertically; unlike page zoom this grows the white/video panel.
-                modifier = Modifier.fillMaxWidth().height(expandedPlayerHeight * zoom)
+                modifier = Modifier.fillMaxWidth(zoom).aspectRatio(16f / 9f)
             )
             if (!loaded) CircularProgressIndicator(
                 color = attaGold, modifier = Modifier.size(26.dp)
@@ -2320,7 +2465,7 @@ internal fun AlattaFixedYouTubePlayer(id: String) {
                 Text("−", color = attaGold, fontSize = 20.sp, fontWeight = FontWeight.Bold)
             }
             Text("حجم الفيديو ${(zoom * 100).toInt()}%", color = attaGold, fontSize = 12.sp)
-            TextButton(onClick = { zoom = (zoom + .1f).coerceAtMost(1.35f) }) {
+            TextButton(onClick = { zoom = (zoom + .1f).coerceAtMost(1f) }) {
                 Text("+", color = attaGold, fontSize = 20.sp, fontWeight = FontWeight.Bold)
             }
         }

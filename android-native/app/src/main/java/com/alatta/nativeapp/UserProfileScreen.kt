@@ -33,6 +33,7 @@ internal fun PublicUserProfile(
     isLoading: Boolean,
     onBack: () -> Unit,
     onMessage: () -> Unit,
+    onFriendAction: (String) -> Unit,
     onVoiceCall: () -> Unit,
     onVideoCall: () -> Unit
 ) {
@@ -95,6 +96,46 @@ internal fun PublicUserProfile(
                                 fontSize = 14.sp, fontWeight = FontWeight.Bold)
                             details.forEach { (label, value) ->
                                 Text("$label: $value", color = Color.White, fontSize = 13.sp)
+                            }
+                        }
+                    }
+                    // Reflect the friend state returned by /api/profile-public.
+                    // All actions are verified by the Cloudflare backend.
+                    val friendState = profile?.optString("friendState").orEmpty()
+                    Row(Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically) {
+                        when (friendState) {
+                            "friends" -> {
+                                Text("✓ صديق", color = profileGold,
+                                    fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                                TextButton(onClick = { onFriendAction("remove") }) {
+                                    Text("إلغاء الصداقة", color = profileMuted, fontSize = 12.sp)
+                                }
+                            }
+                            "outgoing" -> {
+                                Text("تم إرسال طلب الصداقة", color = profileGold,
+                                    fontSize = 13.sp, modifier = Modifier.weight(1f))
+                                TextButton(onClick = { onFriendAction("cancel") }) {
+                                    Text("إلغاء الطلب", color = profileMuted)
+                                }
+                            }
+                            "incoming" -> {
+                                Button(onClick = { onFriendAction("accept") },
+                                    colors = ButtonDefaults.buttonColors(containerColor = profileGold,
+                                        contentColor = Color.Black)) { Text("قبول الصداقة") }
+                                TextButton(onClick = { onFriendAction("decline") }) {
+                                    Text("رفض", color = profileMuted)
+                                }
+                            }
+                            else -> {
+                                Button(onClick = { onFriendAction("request") },
+                                    colors = ButtonDefaults.buttonColors(containerColor = profileGold,
+                                        contentColor = Color.Black)) {
+                                    SiteIcon("user-plus", size = 18.dp, tint = Color.Black)
+                                    Spacer(Modifier.width(5.dp))
+                                    Text("إضافة صديق", fontWeight = FontWeight.Bold)
+                                }
                             }
                         }
                     }

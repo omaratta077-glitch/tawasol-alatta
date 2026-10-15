@@ -64,6 +64,10 @@ internal fun NativeCallScreen(
     session: NativeCallSession,
     token: String,
     myUsername: String,
+    minimized: Boolean = false,
+    modifier: Modifier = Modifier.fillMaxSize(),
+    onMinimize: () -> Unit = {},
+    onRestore: () -> Unit = {},
     onClose: () -> Unit
 ) {
     val context = LocalContext.current
@@ -83,6 +87,7 @@ internal fun NativeCallScreen(
     var cameraOff by remember(session.callId) { mutableStateOf(false) }
     var speakerOn by remember(session.callId) { mutableStateOf(videoCall) }
     var remoteVideoPlaying by remember(session.callId) { mutableStateOf(false) }
+    var localCameraReady by remember(session.callId) { mutableStateOf(false) }
 
     // Load the real display name and avatar independently of the media engine.
     LaunchedEffect(session.peer, token) {
@@ -122,7 +127,7 @@ internal fun NativeCallScreen(
             setBackgroundColor(android.graphics.Color.rgb(5, 7, 9))
             keepScreenOn = true
             settings.javaScriptEnabled = true
-            settings.domStorageEnabled = false
+            settings.domStorageEnabled = true
             settings.mediaPlaybackRequiresUserGesture = false
             settings.allowFileAccess = false
             settings.allowContentAccess = false
@@ -142,6 +147,11 @@ internal fun NativeCallScreen(
                             connectedAt = System.currentTimeMillis()
                         }
                     }
+                }
+
+                @JavascriptInterface
+                fun cameraReady() {
+                    activity?.runOnUiThread { localCameraReady = true }
                 }
 
                 @JavascriptInterface
@@ -188,7 +198,9 @@ internal fun NativeCallScreen(
                 override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean = true
                 override fun onReceivedError(view: WebView?, request: WebResourceRequest?, error: WebResourceError?) {
                     if (request?.isForMainFrame == true) {
-                        callStatus = "تعذر تشغيل محرك الاتصال. حاول مرة أخرى."
+                        activity?.runOnUiThread {
+                            callStatus = "تعذر تشغيل محرك الاتصال. حاول مرة أخرى."
+                        }
                     }
                 }
             }
@@ -214,15 +226,17 @@ internal fun NativeCallScreen(
             audioManager.isSpeakerphoneOn = oldSpeaker
         }
     }
-    BackHandler { endCall() }
+    BackHandler(enabled = !minimized) { onMinimize() }
 
-    Box(Modifier.fillMaxSize().background(CallBackground)) {
+    Box(modifier.clip(if (minimized) RoundedCornerShape(15.dp) else RoundedCornerShape(0.dp))
+        .background(CallBackground)) {
         // For voice, WebRTC runs in a tiny attached view. For video, the same
         // view occupies the stage; its remote stream becomes visible on play.
         AndroidView(
             factory = { webView },
-            modifier = if (videoCall) Modifier.fillMaxWidth().fillMaxHeight(.78f)
-                .align(Alignment.Center).alpha(if (remoteVideoPlaying) 1f else .01f)
+            modifier = if (minimized) Modifier.size(1.dp).alpha(.01f)
+            else if (videoCall) Modifier.fillMaxWidth().fillMaxHeight(.78f)
+                .align(Alignment.Center)
             else Modifier.fillMaxSize().alpha(.01f),
             update = { view ->
                 if (!pageLoaded) {
@@ -246,7 +260,27 @@ internal fun NativeCallScreen(
             }
         )
 
-        Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
+        if (minimized) {
+            Row(
+                Modifier.fillMaxSize().border(1.dp, CallGold.copy(alpha = .65f), RoundedCornerShape(15.dp))
+                    .clickable { onRestore() }.padding(horizontal = 10.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                SiteIcon(if (videoCall) "video" else "phone", tint = CallGold, size = 24.dp)
+                Spacer(Modifier.width(8.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(peerDisplayName, color = CallWhite, fontSize = 13.sp,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(if (connectedAt > 0) "مكالمة جارية — عودة" else callStatus,
+                        color = CallGold, fontSize = 10.sp, maxLines = 2)
+                }
+                Box(
+                    Modifier.size(37.dp).clip(CircleShape)
+                        .background(Color(0xFFE83838)).clickable { endCall() },
+                    contentAlignment = Alignment.Center
+                ) { SiteIcon("phone-off", tint = CallWhite, size = 20.dp) }
+            }
+        } else Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
             Row(
                 Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 14.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -254,7 +288,7 @@ internal fun NativeCallScreen(
             ) {
                 Box(
                     Modifier.size(44.dp).clip(CircleShape).background(CallPanel)
-                        .clickable { endCall() }, contentAlignment = Alignment.Center
+                        .clickable { onMinimize() }, contentAlignment = Alignment.Center
                 ) { SiteIcon("chevron-left", tint = CallWhite, size = 23.dp) }
                 Text(if (videoCall) "مكالمة فيديو" else "مكالمة صوتية",
                     fontSize = 14.sp, color = CallGold, fontWeight = FontWeight.Medium)
@@ -284,6 +318,10 @@ internal fun NativeCallScreen(
                         Spacer(Modifier.height(11.dp))
                         Text(callStatus, fontSize = 16.sp, color = CallMuted, maxLines = 3,
                             lineHeight = 23.sp)
+                        if (videoCall && localCameraReady) {
+                            Text("تم تفعيل الكاميرا — انتظار فيديو الطرف الآخر", color = CallGold,
+                                fontSize = 12.sp, modifier = Modifier.padding(top = 7.dp))
+                        }
                         if (connectedAt > 0) {
                             Spacer(Modifier.height(9.dp))
                             Text("%02d:%02d".format(elapsed / 60, elapsed % 60),

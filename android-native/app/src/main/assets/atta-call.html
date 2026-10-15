@@ -9,7 +9,7 @@
 .header .callKind{font-size:14px;color:#e6b94e;direction:rtl}
 .stage{flex:1;min-height:0;display:flex;align-items:center;flex-direction:column;justify-content:center;position:relative;overflow:hidden;padding:8px 16px}
 #remoteVideo{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#080b0d;display:none}
-#localVideo{position:absolute;bottom:12px;right:13px;width:115px;height:156px;object-fit:cover;border:2px solid #dfb557;border-radius:17px;z-index:2;transform:scaleX(-1);background:#101419;display:none}
+#localVideo{position:absolute;top:68px;bottom:auto;right:13px;width:115px;height:156px;object-fit:cover;border:2px solid #dfb557;border-radius:17px;z-index:2;transform:scaleX(-1);background:#101419;display:none}
 #bigAvatar{width:min(47vw,180px);height:min(47vw,180px);min-width:125px;min-height:125px;flex-shrink:0;border-radius:50%;display:grid;place-items:center;overflow:hidden;background:linear-gradient(140deg,#6d5126,#15100c);border:3px solid #e6b94e;box-shadow:0 0 0 12px rgba(230,185,78,.035),0 0 42px rgba(230,185,78,.14);margin-bottom:26px}
 #bigInitial{font-size:70px;color:#fff;font-weight:600;line-height:1}
 #bigAvatarImg{width:100%;height:100%;object-fit:cover;display:none}
@@ -31,7 +31,7 @@ html.native-host .page>.header,html.native-host .page>.actions{display:none!impo
 html.native-host .stage{padding:0}
 html.native-host #bigAvatar,html.native-host #peer,html.native-host #hint,
 html.native-host #duration,html.native-host #error{display:none!important}
-html.native-host #remoteVideo{object-fit:cover}
+html.native-host #remoteVideo{object-fit:contain}
 </style></head><body><div class="page">
 <header class="header"><button aria-label="رجوع وإنهاء المكالمة" onclick="window.__attaEndCall()"><svg viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg></button><span class="callKind" id="callKind">مكالمة صوتية</span><span style="width:43px"></span></header>
 <div class="stage">
@@ -56,7 +56,7 @@ html.native-host #remoteVideo{object-fit:cover}
 document.documentElement.classList.add('native-host');
 const cfg=__CONFIG_JSON__;
 const BASE='https://tawasol-alatta.omaratta077-4fd.workers.dev';
-const types=new Set(['call-request','call-accept','call-reject','offer','answer','ice','hangup']);
+const types=new Set(['call-request','call-ringing','call-accept','call-reject','offer','answer','ice','hangup']);
 let active=true,pc=null,local=null,remote=null,ws=null,offerSent=false,peerPromise=null;
 let pending=[],seen=new Set(),candidateCount=0,pollHandle=0,timeoutHandle=0,connectionStarted=Date.now();
 const $=id=>document.getElementById(id);
@@ -169,7 +169,19 @@ async function createPeer(){
  if(!local)return null;
  if(!active){local.getTracks().forEach(t=>t.stop());return null}
  try{AttaBridge.mediaReady()}catch(e){}
- if(cfg.type==='video'){$('localVideo').srcObject=local;$('localVideo').style.display='block';$('localVideo').play().catch(()=>{});}
+ if(cfg.type==='video'){
+  const cameraTracks=local.getVideoTracks();
+  if(!cameraTracks.length||cameraTracks[0].readyState!=='live'){
+    local.getTracks().forEach(track=>track.stop()); local=null;
+    throw Error('لم يتم تشغيل الكاميرا. تحقق من إذن الكاميرا ومن إعدادات خصوصية الهاتف.');
+  }
+  const preview=$('localVideo');
+  preview.srcObject=local;
+  preview.style.display='block';
+  preview.muted=true;
+  preview.play().catch(()=>{});
+  try{AttaBridge.cameraReady()}catch(e){}
+}
  const turnData=await Promise.race([turn,new Promise(resolve=>setTimeout(()=>resolve(null),2200))]);
  const servers=(turnData&&turnData.iceServers&&turnData.iceServers.length)?turnData.iceServers:[{urls:'stun:stun.cloudflare.com:3478'},{urls:'stun:stun.l.google.com:19302'}];
  pc=new RTCPeerConnection({iceServers:servers,iceCandidatePoolSize:2,bundlePolicy:'max-bundle',rtcpMuxPolicy:'require'});
@@ -187,11 +199,12 @@ async function createPeer(){
   if(!remote.getTracks().some(t=>t.id===e.track.id))remote.addTrack(e.track);
   if(e.track.kind==='video'){$('remoteVideo').onplaying=()=>{try{AttaBridge.remoteVideoPlaying()}catch(e){}};$('remoteVideo').style.display='block';$('bigAvatar').style.display='none';$('remoteVideo').srcObject=remote;$('remoteVideo').play().catch(()=>{});}
   if(e.track.kind==='audio'){$('remoteAudio').srcObject=new MediaStream(remote.getAudioTracks());$('remoteAudio').play().catch(()=>{});}
-  status('مكالمة جارية');
+  // A remote track can arrive before ICE connects. Only connectionState='connected'
+  // is evidence that both sides have established the media connection.
  };
  pc.onconnectionstatechange=()=>{if(!pc)return;const c=pc.connectionState;
   if(c==='connected'){status('متصل الآن');clearTimeout(timeoutHandle);}
-  if(c==='disconnected')status('الاتصال غير مستقر — جاري المحاولة');
+  if(c==='disconnected')status('الاتصال غير مستقر — جارٍ إعادة المحاولة...');
   if(c==='failed')error('فشل اتصال الوسائط. تأكد من إعداد TURN والإنترنت');
  };
  return pc;
@@ -206,16 +219,21 @@ async function flush(){if(!pc?.remoteDescription)return;
 }
 async function handle(s){
  if(!active)return;
+ if(s.type==='call-ringing'&&!cfg.incoming&&!offerSent&&!connectedAt){status('يرن الآن...');return;}
  if(s.type==='call-reject'){error(s.reason==='busy'?'المستخدم مشغول':'تم رفض المكالمة');setTimeout(finish,1600);return;}
  if(s.type==='hangup'){status('انتهت المكالمة');setTimeout(finish,900);return;}
  if(s.type==='call-accept'&&!cfg.incoming&&!offerSent){
-  status('تم الرد — جاري توصيل الوسائط');
-  await mediaAndPeer();
-  if(!active)return;
+  // WebSocket and persisted-message polling may deliver the same accept at once.
+  // Mark the offer as in-progress BEFORE awaiting media setup.
   offerSent=true;
-  const offer=await pc.createOffer({offerToReceiveAudio:true,offerToReceiveVideo:cfg.type==='video'});
-  await pc.setLocalDescription(offer);await gatheringWait();
-  await transmit('offer',{sdp:pc.localDescription,iceComplete:pc.iceGatheringState==='complete'});
+  status('تم الرد — جارٍ توصيل الصوت والصورة...');
+  try {
+   const conn=await mediaAndPeer();
+   if(!active||!conn)return;
+   const offer=await conn.createOffer({offerToReceiveAudio:true,offerToReceiveVideo:cfg.type==='video'});
+   await conn.setLocalDescription(offer);await gatheringWait();
+   await transmit('offer',{sdp:conn.localDescription,iceComplete:conn.iceGatheringState==='complete'});
+  } catch(e) { offerSent=false; throw e; }
   return;
  }
  if(s.type==='offer'){

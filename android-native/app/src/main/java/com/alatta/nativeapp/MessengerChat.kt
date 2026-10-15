@@ -154,11 +154,15 @@ internal fun MessengerInbox(
         )
     }
     val previews = remember(contacts, inbox) {
-        val byUser = inbox.associateBy { it.username }
-        contacts.filter { it.optString("username").isNotBlank() }
-            .map { byUser[it.optString("username")] ?: ChatPreview(it, null) }
-            .sortedWith(compareByDescending<ChatPreview> { it.timestamp }
-                .thenBy { contactName(it.user) })
+        val byUser = inbox.associateBy { it.username.lowercase() }
+        // Do not hide an existing chat just because the contact is not yet a friend.
+        val allUsers = (inbox.map { it.user } + contacts)
+            .filter { it.optString("username").isNotBlank() }
+            .distinctBy { it.optString("username").lowercase() }
+        allUsers.map { user ->
+            byUser[user.optString("username").lowercase()] ?: ChatPreview(user, null)
+        }.sortedWith(compareByDescending<ChatPreview> { it.timestamp }
+            .thenBy { contactName(it.user) })
     }
     val visible = previews.filter { item ->
         (segment != "محادثات" || item.lastMessage != null) &&
@@ -425,8 +429,11 @@ internal fun MessengerThread(
             }
         }
     }
-    LaunchedEffect(messages.size, fallbackUsername) {
-        if (messages.isNotEmpty()) listState.animateScrollToItem(messages.lastIndex)
+    val visibleMessages = remember(messages) {
+        messages.filter { it.optString("mediaType") != "call-signal" }
+    }
+    LaunchedEffect(visibleMessages.size, fallbackUsername) {
+        if (visibleMessages.isNotEmpty()) listState.animateScrollToItem(visibleMessages.lastIndex)
     }
     val name = contactName(person).takeIf { it != "مستخدم" } ?: "محادثة خاصة"
     Column(Modifier.fillMaxSize().background(ChatBackground).imePadding()) {
@@ -450,7 +457,7 @@ internal fun MessengerThread(
             ChatCircleAction("video", "اتصال مرئي", onVideoCall)
         }
         HorizontalDivider(color = ChatDivider)
-        if (messages.isEmpty()) {
+        if (visibleMessages.isEmpty()) {
             Column(Modifier.weight(1f).fillMaxWidth().padding(20.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center) {
@@ -463,10 +470,8 @@ internal fun MessengerThread(
         } else {
             LazyColumn(Modifier.weight(1f), state = listState,
                 contentPadding = PaddingValues(top = 15.dp, bottom = 12.dp)) {
-                items(messages, key = { it.optString("id").ifBlank { it.hashCode().toString() } }) { message ->
-                    if (message.optString("mediaType") != "call-signal") {
-                        ChatBubble(message, message.optString("from").equals(myUsername, ignoreCase = true))
-                    }
+                items(visibleMessages, key = { it.optString("id").ifBlank { it.hashCode().toString() } }) { message ->
+                    ChatBubble(message, message.optString("from").equals(myUsername, ignoreCase = true))
                 }
             }
         }
