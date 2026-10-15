@@ -548,7 +548,8 @@ private fun AttaYoutubeControls(
         WebView(ctx).apply {
             setBackgroundColor(android.graphics.Color.BLACK)
             setInitialScale(0)
-            setLayerType(android.view.View.LAYER_TYPE_HARDWARE, null)
+            // Let Android WebView select the compositing layer for HTML5 video.
+            // Forcing a hardware layer here can leave video frames blank on some GPUs.
             settings.javaScriptEnabled = true
             settings.domStorageEnabled = true
             settings.mediaPlaybackRequiresUserGesture = true
@@ -629,14 +630,21 @@ private fun AttaYoutubeControls(
                 onFullscreen = { zoom = 1f; fullscreen = true }, isFullscreen = false
             )
         }
-        // Keep the video uncluttered: fullscreen and zoom live above the player.
+        // A blank *video frame* does not trigger onReceivedError. Keep a player
+        // rendering fallback available even when the audio and controls work.
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly,
+            verticalAlignment = Alignment.CenterVertically) {
+            TextButton(onClick = { switchMode() }) {
+                Text(if (useDirectEmbed) "تغيير طريقة العرض" else "العودة للمشغّل الأصلي", color = GoldLight,
+                    fontSize = 12.sp)
+            }
+            TextButton(onClick = { retryCounter += 1 }) {
+                Text("إعادة تحميل", color = GoldLight, fontSize = 12.sp)
+            }
+        }
         if (loadError.isNotBlank()) {
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                TextButton(onClick = { switchMode() }) {
-                    Text(if (useDirectEmbed) "مشغّل بديل" else "المشغّل الأصلي", color = GoldLight)
-                }
-                TextButton(onClick = { retryCounter += 1 }) { Text("إعادة المحاولة", color = GoldLight) }
-                TextButton(onClick = { openYouTube(ctx, safeId) }) { Text("فتح في يوتيوب", color = GoldLight) }
+            TextButton(onClick = { openYouTube(ctx, safeId) }) {
+                Text("فتح في يوتيوب عند عدم دعم التضمين", color = GoldLight)
             }
         }
     }
@@ -728,8 +736,6 @@ private fun AttaYoutubeControls(
     var confirmBanUser by remember { mutableStateOf("") }
     var adminRole by remember { mutableStateOf("") }
     var adminUsers by remember { mutableStateOf(emptyList<JSONObject>()) }
-    var adminStatus by remember { mutableStateOf("") }
-    var adminSummary by remember { mutableStateOf(JSONObject()) }
     var adminPosts by remember { mutableStateOf(emptyList<JSONObject>()) }
     var archivedPosts by remember { mutableStateOf(emptyList<JSONObject>()) }
     var selectedStory by remember { mutableStateOf<JSONObject?>(null) }
@@ -1086,23 +1092,9 @@ private fun AttaYoutubeControls(
             }
             "المحفوظات" -> posts = get("/api/saved-posts").arr("posts")
             "الإدارة" -> {
-                adminStatus = "جارٍ فحص الصلاحية وتحميل بيانات الإدارة..."
-                val identity = get("/api/me").optJSONObject("user") ?: throw IllegalStateException("تعذر قراءة بيانات الحساب من الخادم")
-                adminRole = identity.optString("role").trim().lowercase()
                 if (adminRole == "super_admin" || adminRole == "moderator") {
-                    try {
-                        adminSummary = get("/api/admin/summary")
-                        adminUsers = get("/api/admin/users").arr("users")
-                        adminPosts = get("/api/admin/posts").arr("posts")
-                        adminStatus = "تم التحميل: ${adminUsers.size} حساب، ${adminPosts.size} منشور"
-                    } catch (e: Exception) {
-                        adminStatus = "فشل تحميل بيانات الإدارة: ${e.message ?: "خطأ اتصال"}"
-                        throw e
-                    }
-                } else {
-                    adminUsers = emptyList()
-                    adminPosts = emptyList()
-                    adminStatus = "حساب @${identity.optString("username")} مسجل بصلاحية user على الخادم. اضبط SUPER_ADMIN_USERNAME على اسم المستخدم الصحيح في Cloudflare ثم أعد فتح القائمة."
+                    adminUsers = get("/api/admin/users").arr("users")
+                    adminPosts = get("/api/admin/posts").arr("posts")
                 }
             }
             "أرشيفي" -> archivedPosts = get("/api/post-archive-list").arr("posts")
@@ -1839,15 +1831,9 @@ private fun AttaYoutubeControls(
                             }
                         }
                         "الإدارة" -> LazyColumn(Modifier.weight(1f).padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                            item { SectionTitle("لوحة الإدارة • ${if (adminRole == "super_admin") "المدير الرئيسي" else if (adminRole == "moderator") "مشرف" else "غير مصرح"}") }
-                            item { CardBox {
-                                Text(adminStatus, color = GoldLight)
-                                Text("الحساب: @$myUsername | الدور: ${adminRole.ifBlank { "غير معروف" }}", color = Muted, fontSize = 12.sp)
-                                TextButton(onClick = { task { load("الإدارة") } }) { Text("تحديث بيانات الإدارة", color = GoldLight) }
-                            } }
+                            item { SectionTitle("لوحة الإدارة • ${if (adminRole == "super_admin") "المدير الرئيسي" else "مشرف"}") }
                             if (adminRole == "super_admin" || adminRole == "moderator") {
                                 item { SectionTitle("إدارة الحسابات") }
-                                if (adminUsers.isEmpty()) item { Text("لا توجد حسابات في نتيجة الخادم، أو لم يتم تحميلها بعد.", color = Muted) }
                                 items(adminUsers) { u ->
                                     val username = u.optString("username")
                                     CardBox {
@@ -1863,7 +1849,6 @@ private fun AttaYoutubeControls(
                                     }
                                 }
                                 item { SectionTitle("إدارة المنشورات") }
-                                if (adminPosts.isEmpty()) item { Text("لا توجد منشورات في نتيجة الخادم، أو لم يتم تحميلها بعد.", color = Muted) }
                                 items(adminPosts) { p ->
                                     CardBox {
                                         Text("@${p.optString("author")}", color = GoldLight)
