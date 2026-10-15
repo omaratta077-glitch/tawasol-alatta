@@ -969,6 +969,32 @@ export class SignalingRoom extends DurableObject {
       return j({ok:true,post});
     }
 
+    // v1.0.33: archive and restore are restricted to the original author.
+    if(url.pathname==="/api/post-archive" && request.method==="POST"){
+      const s=await this.session(String(body.token||""));
+      if(!s)return j({ok:false,error:"الجلسة منتهية"},401);
+      const id=String(body.postId||"");
+      const post=await this.ctx.storage.get(`post:${id}`);
+      if(!post)return j({ok:false,error:"المنشور غير موجود"},404);
+      if(post.author!==s.username)return j({ok:false,error:"لا يمكنك أرشفة منشور شخص آخر"},403);
+      post.archived=body.archived===true;
+      await this.ctx.storage.put(`post:${id}`,post);
+      return j({ok:true,archived:post.archived});
+    }
+
+    if(url.pathname==="/api/post-archive-list" && request.method==="GET"){
+      const s=await this.session(url.searchParams.get("token")||"");
+      if(!s)return j({ok:false,error:"الجلسة منتهية"},401);
+      const ids=await this.ctx.storage.get("postIds")||[];
+      const posts=[];
+      for(const id of [...ids].reverse()){
+        const p=await this.ctx.storage.get(`post:${id}`);
+        if(p && p.author===s.username && p.archived===true)posts.push(p);
+        if(posts.length>=100)break;
+      }
+      return j({ok:true,posts});
+    }
+
     if(url.pathname==="/api/post-delete" && request.method==="POST"){
       const s=await this.session(String(body.token||""));
       if(!s)return j({ok:false,error:"الجلسة منتهية"},401);
@@ -976,8 +1002,8 @@ export class SignalingRoom extends DurableObject {
       if(!id)return j({ok:false,error:"المنشور غير محدد"},400);
       const post=await this.ctx.storage.get(`post:${id}`);
       if(!post)return j({ok:false,error:"المنشور غير موجود"},404);
-      const actor=await this.user(s.username);
-      const isAdmin=actor?.role==="super_admin" || actor?.role==="moderator" || s.username===this.ownerUsername();
+      const role=await this.roleFor(s.username);
+      const isAdmin=role==="super_admin" || role==="moderator";
       if(post.author!==s.username && !isAdmin)return j({ok:false,error:"غير مسموح لك بحذف هذا المنشور"},403);
       await this.ctx.storage.delete(`post:${id}`);
       const ids=await this.ctx.storage.get("postIds")||[];
@@ -997,7 +1023,7 @@ export class SignalingRoom extends DurableObject {
 
       for(const id of [...ids].reverse().slice(0,limit)){
         const p=await this.ctx.storage.get(`post:${id}`);
-        if(!p)continue;
+        if(!p || p.archived===true)continue;
         const reactionCounts={};
         const reactions=p.reactions||{};
         for(const key of ["like","love","haha","wow","sad","angry","dislike"]){

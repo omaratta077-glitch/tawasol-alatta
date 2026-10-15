@@ -705,6 +705,12 @@ private fun AttaYoutubeControls(
     var confirmExit by remember { mutableStateOf(false) }
     var confirmLogout by remember { mutableStateOf(false) }
     var showStoryComposer by remember { mutableStateOf(false) }
+    var confirmPostDelete by remember { mutableStateOf("") }
+    var confirmBanUser by remember { mutableStateOf("") }
+    var adminRole by remember { mutableStateOf("") }
+    var adminUsers by remember { mutableStateOf(emptyList<JSONObject>()) }
+    var adminPosts by remember { mutableStateOf(emptyList<JSONObject>()) }
+    var archivedPosts by remember { mutableStateOf(emptyList<JSONObject>()) }
     var selectedStory by remember { mutableStateOf<JSONObject?>(null) }
     var featureMessage by remember { mutableStateOf("") }
     var error by remember { mutableStateOf("") }
@@ -1053,6 +1059,13 @@ private fun AttaYoutubeControls(
                 myAvatar = profile.optString("avatar")
             }
             "المحفوظات" -> posts = get("/api/saved-posts").arr("posts")
+            "الإدارة" -> {
+                if (adminRole == "super_admin" || adminRole == "moderator") {
+                    adminUsers = get("/api/admin/users").arr("users")
+                    adminPosts = get("/api/admin/posts").arr("posts")
+                }
+            }
+            "أرشيفي" -> archivedPosts = get("/api/post-archive-list").arr("posts")
             "يوتيوب" -> youtubeItems = withContext(Dispatchers.IO) { api("/api/youtube?q=${enc(youtubeSearch)}") }.arr("items")
         }
     }
@@ -1156,8 +1169,28 @@ private fun AttaYoutubeControls(
     )
     if (showStoryComposer) AlertDialog(
         onDismissRequest = { showStoryComposer = false },
-        title = { Text("إضافة قصة") },
-        text = { OutlinedTextField(storyText, { storyText = it }, label = { Text("اكتب قصتك") }) },
+        containerColor = Panel,
+        titleContentColor = GoldLight,
+        textContentColor = White,
+        shape = RoundedCornerShape(24.dp),
+        title = { Text("إضافة قصة ✨", fontWeight = FontWeight.Bold) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("شارك أصدقاءك لحظة جميلة", color = Muted, fontSize = 14.sp)
+                OutlinedTextField(
+                    value = storyText, onValueChange = { storyText = it },
+                    label = { Text("اكتب قصتك", color = Muted) },
+                    textStyle = androidx.compose.ui.text.TextStyle(color = White, fontSize = 18.sp),
+                    minLines = 3,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Gold, unfocusedBorderColor = Border,
+                        focusedTextColor = White, unfocusedTextColor = White, cursorColor = Gold,
+                        focusedLabelColor = GoldLight, unfocusedLabelColor = Muted)
+                )
+            }
+        },
         confirmButton = {
             TextButton(onClick = {
                 showStoryComposer = false
@@ -1165,17 +1198,19 @@ private fun AttaYoutubeControls(
                     post("/api/stories", JSONObject().put("text", storyText))
                     storyText = ""; load("الرئيسية")
                 }
-            }, enabled = storyText.isNotBlank()) { Text("نشر القصة") }
+            }, enabled = storyText.isNotBlank()) { Text("نشر القصة", color = if (storyText.isNotBlank()) GoldLight else Muted) }
         },
-        dismissButton = { TextButton(onClick = { showStoryComposer = false }) { Text("إلغاء") } }
+        dismissButton = { TextButton(onClick = { showStoryComposer = false }) { Text("إلغاء", color = Muted) } }
     )
     selectedStory?.let { st ->
         AlertDialog(
             onDismissRequest = { selectedStory = null },
-            title = { Text(st.optJSONObject("authorInfo")?.name() ?: "قصة") },
+            containerColor = Panel, titleContentColor = GoldLight,
+            textContentColor = White, shape = RoundedCornerShape(24.dp),
+            title = { Text(st.optJSONObject("authorInfo")?.name() ?: "قصة", fontWeight = FontWeight.Bold) },
             text = {
-                Column {
-                    Text(st.optString("text"))
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(st.optString("text"), color = White, fontSize = 18.sp, lineHeight = 28.sp)
                     val storyMedia = media(st.optString("media"))
                     if (storyMedia.isNotBlank()) {
                         if (storyMedia.contains(".mp4", true)) NativeVideo(storyMedia)
@@ -1183,16 +1218,48 @@ private fun AttaYoutubeControls(
                     }
                 }
             },
-            confirmButton = { TextButton(onClick = { selectedStory = null }) { Text("إغلاق") } }
+            confirmButton = { TextButton(onClick = { selectedStory = null }) { Text("إغلاق", color = GoldLight) } }
         )
     }
+    if (confirmPostDelete.isNotBlank()) AlertDialog(
+        onDismissRequest = { confirmPostDelete = "" }, containerColor = Panel,
+        title = { Text("حذف المنشور؟", color = GoldLight) },
+        text = { Text("الحذف نهائي ولن تتمكن من استعادة المنشور.", color = White) },
+        confirmButton = { TextButton(onClick = {
+            val id = confirmPostDelete; confirmPostDelete = ""
+            task {
+                if (adminRole == "super_admin" || adminRole == "moderator") {
+                    post("/api/admin/action", JSONObject().put("action", "delete_post").put("postId", id))
+                } else post("/api/post-delete", JSONObject().put("postId", id))
+                load(tab)
+            }
+        }) { Text("حذف نهائي", color = Color(0xFFFF8B8B)) } },
+        dismissButton = { TextButton(onClick = { confirmPostDelete = "" }) { Text("إلغاء", color = GoldLight) } }
+    )
+    if (confirmBanUser.isNotBlank()) AlertDialog(
+        onDismissRequest = { confirmBanUser = "" }, containerColor = Panel,
+        title = { Text("إيقاف الحساب؟", color = GoldLight) },
+        text = { Text("سيُمنع هذا المستخدم من تسجيل الدخول حتى إعادة تفعيل حسابه.", color = White) },
+        confirmButton = { TextButton(onClick = {
+            val username = confirmBanUser; confirmBanUser = ""
+            task {
+                post("/api/admin/action", JSONObject().put("action", "ban").put("username", username))
+                adminUsers = get("/api/admin/users").arr("users")
+            }
+        }) { Text("إيقاف الحساب", color = Color(0xFFFF8B8B)) } },
+        dismissButton = { TextButton(onClick = { confirmBanUser = "" }) { Text("إلغاء", color = GoldLight) } }
+    )
     // Fetch our actual profile photo after login, even when opening the home feed first.
     LaunchedEffect(token) {
         if (token.isNotBlank()) {
-            try { myAvatar = get("/api/me").optJSONObject("user")?.optString("avatar").orEmpty() }
+            try {
+                val user = get("/api/me").optJSONObject("user")
+                myAvatar = user?.optString("avatar").orEmpty()
+                adminRole = user?.optString("role").orEmpty()
+            }
             catch (cancelled: CancellationException) { throw cancelled }
             catch (_: Exception) { /* UI can still use the account initial. */ }
-        } else myAvatar = ""
+        } else { myAvatar = ""; adminRole = "" }
     }
     LaunchedEffect(token, tab) {
         if (token.isNotBlank()) {
@@ -1554,9 +1621,47 @@ private fun AttaYoutubeControls(
                                     (if (selectedReaction.isNotBlank()) 1 else 0) -
                                     (if (serverReaction.isNotBlank()) 1 else 0)).coerceAtLeast(0)
                                 CardBox {
-                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    var postMenuExpanded by remember(postId) { mutableStateOf(false) }
+                                    val isMyPost = p.optString("author").equals(myUsername, ignoreCase = true)
+                                    val canModerate = adminRole == "super_admin" || adminRole == "moderator"
+                                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                                         Avatar(author.optString("avatar"), author.name(), onClick = { openPublicProfile(p.optString("author")) })
-                                        Column { Text(author.name().ifBlank { p.optString("author") }, color = GoldLight, fontWeight = FontWeight.Bold, modifier = Modifier.clickable { openPublicProfile(p.optString("author")) }); /* الاسم قابل للنقر */ }
+                                        Text(author.name().ifBlank { p.optString("author") }, color = GoldLight,
+                                            fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f).clickable { openPublicProfile(p.optString("author")) })
+                                        Box {
+                                            IconButton(onClick = { postMenuExpanded = true }) {
+                                                Text("⋮", color = GoldLight, fontSize = 27.sp, fontWeight = FontWeight.Bold)
+                                            }
+                                            DropdownMenu(expanded = postMenuExpanded, onDismissRequest = { postMenuExpanded = false },
+                                                modifier = Modifier.background(Panel).border(1.dp, Border, RoundedCornerShape(10.dp))) {
+                                                if (isMyPost) {
+                                                    DropdownMenuItem(text = { Text("أرشفة المنشور", color = GoldLight) }, onClick = {
+                                                        postMenuExpanded = false
+                                                        task { post("/api/post-archive", JSONObject().put("postId", postId).put("archived", true)); load(tab) }
+                                                    })
+                                                }
+                                                if (isMyPost || canModerate) {
+                                                    DropdownMenuItem(text = { Text("حذف المنشور", color = Color(0xFFFF8B8B)) }, onClick = {
+                                                        postMenuExpanded = false; confirmPostDelete = postId
+                                                    })
+                                                }
+                                                if (!isMyPost) {
+                                                    DropdownMenuItem(text = { Text("حظر صاحب المنشور", color = White) }, onClick = {
+                                                        postMenuExpanded = false
+                                                        task { post("/api/personal-block", JSONObject().put("username", p.optString("author")).put("action", "block")); load(tab) }
+                                                    })
+                                                    DropdownMenuItem(text = { Text("إلغاء الصداقة", color = White) }, onClick = {
+                                                        postMenuExpanded = false
+                                                        task { post("/api/friend-action", JSONObject().put("username", p.optString("author")).put("action", "remove")); load(tab) }
+                                                    })
+                                                }
+                                                if (!isMyPost && canModerate) {
+                                                    DropdownMenuItem(text = { Text("إيقاف حساب الناشر", color = Color(0xFFFF8B8B)) }, onClick = {
+                                                        postMenuExpanded = false; confirmBanUser = p.optString("author")
+                                                    })
+                                                }
+                                            }
+                                        }
                                     }
                                     if (p.optString("text").isNotBlank()) Text(p.optString("text"), color = White, modifier = Modifier.padding(vertical = 10.dp))
                                     val image = media(p.optString("image")); val video = media(p.optString("video"))
@@ -1631,7 +1736,6 @@ private fun AttaYoutubeControls(
                                         OutlinedTextField(comment, { comment = it }, label = { Text("اكتب تعليقًا") }, modifier = Modifier.fillMaxWidth())
                                         GoldButton("إرسال التعليق", !busy && comment.isNotBlank()) { task { post("/api/post-comment", JSONObject().put("postId", postId).put("text", comment)); comment = ""; load(tab) } }
                                     }
-                                    if (p.optString("author") == myUsername) TextButton(onClick = { task { post("/api/post-delete", JSONObject().put("postId", postId)); load(tab) } }) { Text("حذف المنشور", color = Color(0xFFFF8B8B)) }
                                 }
                             }
                         }
@@ -1647,6 +1751,12 @@ private fun AttaYoutubeControls(
                             }
                             item {
                                 CardBox {
+                                    if (adminRole == "super_admin" || adminRole == "moderator") {
+                                        PremiumMenuEntry("shield", "لوحة الإدارة") { navigate("الإدارة") }
+                                        HorizontalDivider(color = Border.copy(alpha = .5f))
+                                    }
+                                    PremiumMenuEntry("bookmark", "أرشيف منشوراتي") { navigate("أرشيفي") }
+                                    HorizontalDivider(color = Border.copy(alpha = .5f))
                                     PremiumMenuEntry("user", "الملف الشخصي") { navigate("الملف") }
                                     HorizontalDivider(color = Border.copy(alpha = .5f))
                                     PremiumMenuEntry("bookmark", "المنشورات المحفوظة") { navigate("المحفوظات") }
@@ -1667,6 +1777,48 @@ private fun AttaYoutubeControls(
                                     }
                                 }
                             }
+                        }
+                        "أرشيفي" -> LazyColumn(Modifier.weight(1f).padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            item { SectionTitle("منشوراتي المؤرشفة") }
+                            items(archivedPosts) { p ->
+                                CardBox {
+                                    Text(p.optString("text").ifBlank { "منشور بدون نص" }, color = White)
+                                    TextButton(onClick = { task {
+                                        post("/api/post-archive", JSONObject().put("postId", p.optString("id")).put("archived", false))
+                                        archivedPosts = get("/api/post-archive-list").arr("posts")
+                                    } }) { Text("استعادة المنشور", color = GoldLight) }
+                                }
+                            }
+                        }
+                        "الإدارة" -> LazyColumn(Modifier.weight(1f).padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            item { SectionTitle("لوحة الإدارة • ${if (adminRole == "super_admin") "المدير الرئيسي" else "مشرف"}") }
+                            if (adminRole == "super_admin" || adminRole == "moderator") {
+                                item { SectionTitle("إدارة الحسابات") }
+                                items(adminUsers) { u ->
+                                    val username = u.optString("username")
+                                    CardBox {
+                                        Text(u.optString("displayName").ifBlank { username }, color = White, fontWeight = FontWeight.Bold)
+                                        Text("@$username", color = Muted, fontSize = 12.sp)
+                                        Row {
+                                            if (u.optBoolean("banned")) TextButton(onClick = { task {
+                                                post("/api/admin/action", JSONObject().put("action", "unban").put("username", username))
+                                                adminUsers = get("/api/admin/users").arr("users")
+                                            } }) { Text("إعادة تفعيل", color = GoldLight) }
+                                            else if (username != myUsername && u.optString("role") != "super_admin") TextButton(onClick = { confirmBanUser = username }) { Text("إيقاف الحساب", color = Color(0xFFFF8B8B)) }
+                                        }
+                                    }
+                                }
+                                item { SectionTitle("إدارة المنشورات") }
+                                items(adminPosts) { p ->
+                                    CardBox {
+                                        Text("@${p.optString("author")}", color = GoldLight)
+                                        Text(p.optString("text"), color = White)
+                                        TextButton(onClick = { confirmPostDelete = p.optString("id") }) {
+                                            Text("حذف المنشور", color = Color(0xFFFF8B8B))
+                                        }
+                                    }
+                                }
+                            } else item { Text("هذه الصفحة متاحة للإدارة فقط", color = Muted) }
                         }
                         "الأصدقاء" -> LazyColumn(Modifier.weight(1f).padding(horizontal = 8.dp)) {
                             item { SectionTitle("طلبات الصداقة") }
