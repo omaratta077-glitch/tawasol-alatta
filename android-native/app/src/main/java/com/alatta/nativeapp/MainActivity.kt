@@ -1052,76 +1052,6 @@ private fun AttaYoutubeControls(
         if (uri != null) sendSelectedChatMedia(uri, "file")
     }
 
-    // A single lightweight authenticated WebSocket receives incoming calls in the
-    // foreground. WebRTC transport itself is active only while a call screen is open.
-    LaunchedEffect(token, myUsername) {
-        if (token.isBlank() || myUsername.isBlank()) return@LaunchedEffect
-        val socketClient = OkHttpClient.Builder().pingInterval(25, TimeUnit.SECONDS).build()
-        try {
-            while (isActive) {
-                val done = CompletableDeferred<Unit>()
-                val socket = socketClient.newWebSocket(
-                    Request.Builder().url("wss://tawasol-alatta.omaratta077-4fd.workers.dev/ws?token=${enc(token)}").build(),
-                    object : WebSocketListener() {
-                        override fun onMessage(webSocket: WebSocket, text: String) {
-                            val msg = try { JSONObject(text) } catch (_: Exception) { return }
-                            val signal = if (msg.optString("type") == "chat" && msg.optString("mediaType") == "call-signal")
-                                try { JSONObject(msg.optString("media")).apply {
-                                    if (!has("from")) put("from", msg.optString("from"))
-                                    if (!has("to")) put("to", msg.optString("to"))
-                                } } catch (_: Exception) { null }
-                                else msg
-                            val isCall = signal?.optString("type") == "call-request"
-                            val sender = signal?.optString("from").orEmpty()
-                            val callId = signal?.optString("callId").orEmpty()
-                            if (isCall && sender.isNotBlank() && sender != myUsername && callId.isNotBlank()) {
-                                val age = System.currentTimeMillis() - signal!!.optLong("createdAt", 0L)
-                                if (age in 0..45000L) scope.launch(Dispatchers.Main) {
-                                    if (knownCalls.add(callId)) {
-                                        val invite = NativeCallSession(sender,
-                                            signal.optString("callType", "audio"), callId, true)
-                                        if (activeCall == null && incomingCall == null) {
-                                            incomingCall = invite
-                                            sendCallRinging(invite)
-                                        } else sendCallResponse(invite, "busy")
-                                    }
-                                }
-                            } else if (msg.optString("type") == "chat" && msg.optString("mediaType") != "call-signal") {
-                                val from = msg.optString("from").lowercase()
-                                val to = msg.optString("to").lowercase()
-                                scope.launch(Dispatchers.Main) {
-                                    val peer = if (from == myUsername.lowercase()) to else from
-                                    if (peer.isNotBlank()) rememberChatPeer(peer)
-                                    val opened = chatWith.lowercase()
-                                    if (tab == "الرسائل" && opened.isNotBlank() && peer == opened) {
-                                        try { messages = get("/api/conversation?with=${enc(opened)}").arr("messages") }
-                                        catch (_: Exception) { }
-                                    } else if (tab == "الرسائل" && chatWith.isBlank()) {
-                                        try { load("الرسائل") } catch (_: Exception) { }
-                                    }
-                                }
-                            } else if (msg.optString("type") in setOf("friend-request", "friend-accepted", "friends-changed")) {
-                                scope.launch(Dispatchers.Main) {
-                                    try {
-                                        friends = get("/api/friends").arr("friends")
-                                        requests = get("/api/friend-requests").arr("requests")
-                                        notifications = get("/api/notifications").arr("notifications")
-                                        if (tab == "الأصدقاء") users = get("/api/users?q=${enc(search)}").arr("users")
-                                        if (tab == "الرسائل" && chatWith.isBlank()) load("الرسائل")
-                                        if (profilePeer.isNotBlank()) publicProfile = get("/api/profile-public?username=${enc(profilePeer)}")
-                                    } catch (_: Exception) { }
-                                }
-                            }
-                        }
-                        override fun onClosed(webSocket: WebSocket, code: Int, reason: String) { done.complete(Unit) }
-                        override fun onFailure(webSocket: WebSocket, t: Throwable, response: okhttp3.Response?) { done.complete(Unit) }
-                    }
-                )
-                try { done.await() } finally { socket.close(1000, "closing") }
-                delay(2500)
-            }
-        } finally { socketClient.dispatcher.executorService.shutdown() }
-    }
     suspend fun load(which: String) {
         when (which) {
             "الرئيسية" -> { posts = get("/api/posts?limit=40").arr("posts"); stories = get("/api/stories").arr("stories"); try { notifications = get("/api/notifications").arr("notifications") } catch (_: Exception) { } }
@@ -1193,6 +1123,77 @@ private fun AttaYoutubeControls(
             "أرشيفي" -> archivedPosts = get("/api/post-archive-list").arr("posts")
             "يوتيوب" -> youtubeItems = withContext(Dispatchers.IO) { api("/api/youtube?q=${enc(youtubeSearch)}") }.arr("items")
         }
+    }
+
+    // A single lightweight authenticated WebSocket receives incoming calls in the
+    // foreground. WebRTC transport itself is active only while a call screen is open.
+    LaunchedEffect(token, myUsername) {
+        if (token.isBlank() || myUsername.isBlank()) return@LaunchedEffect
+        val socketClient = OkHttpClient.Builder().pingInterval(25, TimeUnit.SECONDS).build()
+        try {
+            while (isActive) {
+                val done = CompletableDeferred<Unit>()
+                val socket = socketClient.newWebSocket(
+                    Request.Builder().url("wss://tawasol-alatta.omaratta077-4fd.workers.dev/ws?token=${enc(token)}").build(),
+                    object : WebSocketListener() {
+                        override fun onMessage(webSocket: WebSocket, text: String) {
+                            val msg = try { JSONObject(text) } catch (_: Exception) { return }
+                            val signal = if (msg.optString("type") == "chat" && msg.optString("mediaType") == "call-signal")
+                                try { JSONObject(msg.optString("media")).apply {
+                                    if (!has("from")) put("from", msg.optString("from"))
+                                    if (!has("to")) put("to", msg.optString("to"))
+                                } } catch (_: Exception) { null }
+                                else msg
+                            val isCall = signal?.optString("type") == "call-request"
+                            val sender = signal?.optString("from").orEmpty()
+                            val callId = signal?.optString("callId").orEmpty()
+                            if (isCall && sender.isNotBlank() && sender != myUsername && callId.isNotBlank()) {
+                                val age = System.currentTimeMillis() - signal!!.optLong("createdAt", 0L)
+                                if (age in 0..45000L) scope.launch(Dispatchers.Main) {
+                                    if (knownCalls.add(callId)) {
+                                        val invite = NativeCallSession(sender,
+                                            signal.optString("callType", "audio"), callId, true)
+                                        if (activeCall == null && incomingCall == null) {
+                                            incomingCall = invite
+                                            sendCallRinging(invite)
+                                        } else sendCallResponse(invite, "busy")
+                                    }
+                                }
+                            } else if (msg.optString("type") == "chat" && msg.optString("mediaType") != "call-signal") {
+                                val from = msg.optString("from").lowercase()
+                                val to = msg.optString("to").lowercase()
+                                scope.launch(Dispatchers.Main) {
+                                    val peer = if (from == myUsername.lowercase()) to else from
+                                    if (peer.isNotBlank()) rememberChatPeer(peer)
+                                    val opened = chatWith.lowercase()
+                                    if (tab == "الرسائل" && opened.isNotBlank() && peer == opened) {
+                                        try { messages = get("/api/conversation?with=${enc(opened)}").arr("messages") }
+                                        catch (_: Exception) { }
+                                    } else if (tab == "الرسائل" && chatWith.isBlank()) {
+                                        try { load("الرسائل") } catch (_: Exception) { }
+                                    }
+                                }
+                            } else if (msg.optString("type") in setOf("friend-request", "friend-accepted", "friends-changed")) {
+                                scope.launch(Dispatchers.Main) {
+                                    try {
+                                        friends = get("/api/friends").arr("friends")
+                                        requests = get("/api/friend-requests").arr("requests")
+                                        notifications = get("/api/notifications").arr("notifications")
+                                        if (tab == "الأصدقاء") users = get("/api/users?q=${enc(search)}").arr("users")
+                                        if (tab == "الرسائل" && chatWith.isBlank()) load("الرسائل")
+                                        if (profilePeer.isNotBlank()) publicProfile = get("/api/profile-public?username=${enc(profilePeer)}")
+                                    } catch (_: Exception) { }
+                                }
+                            }
+                        }
+                        override fun onClosed(webSocket: WebSocket, code: Int, reason: String) { done.complete(Unit) }
+                        override fun onFailure(webSocket: WebSocket, t: Throwable, response: okhttp3.Response?) { done.complete(Unit) }
+                    }
+                )
+                try { done.await() } finally { socket.close(1000, "closing") }
+                delay(2500)
+            }
+        } finally { socketClient.dispatcher.executorService.shutdown() }
     }
     LaunchedEffect(tab, search, token) {
         if (tab == "استكشاف" && token.isNotBlank()) {
