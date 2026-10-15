@@ -115,13 +115,13 @@ internal fun PremiumHeader(
         // RTL: first child is positioned on the right. Brand icon is only
         // slightly bigger than the notification icons, as requested.
         Row(
-            Modifier.width(96.dp).clickable { onNavigate("الرئيسية") },
+            Modifier.widthIn(min = 111.dp).clickable { onNavigate("الرئيسية") },
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(5.dp)
         ) {
             Image(painterResource(R.drawable.logo_premium), "شعار العطا", Modifier.size(34.dp).clip(CircleShape))
             Text("AL-ATTA", color = PremiumGoldLight, fontWeight = FontWeight.Bold,
-                fontSize = 13.sp, maxLines = 1)
+                fontSize = 12.sp, maxLines = 1, softWrap = false)
         }
         // Two icons on the right of YouTube, two on the left; the YouTube icon
         // remains in the TOP bar and is never substituted for Home at bottom.
