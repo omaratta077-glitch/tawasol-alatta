@@ -421,7 +421,7 @@ private fun AttaYoutubeDisplay(
             },
             // Fit the *entire* 16:9 YouTube player inside the larger black panel.
             // Resizing the WebView (not scaling/cropping it) keeps the controls and thumbnail visible.
-            modifier = Modifier.fillMaxWidth(zoom.coerceIn(.65f, 1f)).aspectRatio(16f / 9f)
+            modifier = Modifier.fillMaxWidth(zoom.coerceIn(.72f, 1f)).aspectRatio(16f / 9f)
         )
         if (loading) CircularProgressIndicator(color = Gold, modifier = Modifier.size(32.dp))
         if (error.isNotEmpty()) {
@@ -477,28 +477,28 @@ private fun AttaYoutubeControls(
         }
         Row(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp))
                 .background(Panel).border(1.dp, Border, RoundedCornerShape(18.dp))
-                .padding(horizontal = 8.dp, vertical = 5.dp),
+                .padding(horizontal = 6.dp, vertical = 5.dp),
             horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
-            val small = zoom <= .651f
+            val small = zoom <= .721f
             val large = zoom >= .999f
-            Box(Modifier.size(52.dp).clip(RoundedCornerShape(14.dp))
+            Box(Modifier.size(36.dp).clip(RoundedCornerShape(11.dp))
                 .background(if (small) Border.copy(alpha = .20f) else Border.copy(alpha = .42f))
-                .clickable(enabled = !small) { onZoom((zoom - .12f).coerceAtLeast(.65f)) },
+                .clickable(enabled = !small) { onZoom((zoom - .07f).coerceAtLeast(.72f)) },
                 contentAlignment = Alignment.Center) {
-                Text("−", color = if (small) Muted else GoldLight, fontSize = 30.sp, fontWeight = FontWeight.Bold)
+                Text("−", color = if (small) Muted else GoldLight, fontSize = 23.sp, fontWeight = FontWeight.Bold)
             }
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("حجم الفيديو", color = GoldLight, fontSize = 12.sp)
-                Text("${(zoom * 100).toInt()}%", color = Muted, fontSize = 11.sp)
+                Text("حجم المشغّل", color = GoldLight, fontSize = 11.sp)
+                Text("${(zoom * 100).toInt()}%", color = Muted, fontSize = 10.sp)
             }
-            Box(Modifier.size(52.dp).clip(RoundedCornerShape(14.dp))
+            Box(Modifier.size(36.dp).clip(RoundedCornerShape(11.dp))
                 .background(if (large) Border.copy(alpha = .20f) else Border.copy(alpha = .42f))
-                .clickable(enabled = !large) { onZoom((zoom + .12f).coerceAtMost(1f)) },
+                .clickable(enabled = !large) { onZoom((zoom + .07f).coerceAtMost(1f)) },
                 contentAlignment = Alignment.Center) {
-                Text("+", color = if (large) Muted else GoldLight, fontSize = 28.sp, fontWeight = FontWeight.Bold)
+                Text("+", color = if (large) Muted else GoldLight, fontSize = 22.sp, fontWeight = FontWeight.Bold)
             }
             TextButton(onClick = onFullscreen) {
-                Text(if (isFullscreen) "عودة" else "⛶ ملء الشاشة", color = GoldLight, fontSize = 13.sp)
+                Text(if (isFullscreen) "عودة" else "⛶ ملء الشاشة", color = GoldLight, fontSize = 11.sp)
             }
         }
     }
@@ -621,7 +621,7 @@ private fun AttaYoutubeControls(
             AttaYoutubeDisplay(
                 webView = webView, modeDirect = useDirectEmbed, videoId = safeId,
                 loading = loading, error = loadError, zoom = zoom,
-                modifier = Modifier.fillMaxWidth().height(260.dp)
+                modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f)
             )
             AttaYoutubeControls(
                 canSeek = playerReady && !useDirectEmbed, isPlaying = isPlaying,
