@@ -236,7 +236,7 @@ async function start(){
  try{
   await mediaAndPeer();if(!active)return;
   if(cfg.incoming){status('جارٍ الرد على المكالمة');await transmit('call-accept');}
-  else{status('يرن الآن...');await transmit('call-request');}
+  else{status('جارٍ الاتصال...');await transmit('call-request');}
  }catch(e){
   const name=e?.name||'';
   const hint=name==='NotReadableError'||name==='AbortError'
@@ -253,7 +253,7 @@ async function retryStart(){
  try{
    await mediaAndPeer();if(!active)return;
    if(cfg.incoming){status('جارٍ الرد على المكالمة');await transmit('call-accept');}
-   else{status('يرن الآن...');await transmit('call-request');}
+   else{status('جارٍ الاتصال...');await transmit('call-request');}
  }catch(e){error('تعذر تشغيل مصدر الصوت: '+(e?.message||e?.name||'خطأ غير معروف'),true);}
 }
 let speakerEnabled=cfg.type==='video';

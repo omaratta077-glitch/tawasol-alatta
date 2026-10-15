@@ -76,7 +76,7 @@ internal fun NativeCallScreen(
 
     var peerDisplayName by remember(session.peer) { mutableStateOf("جهة الاتصال") }
     var peerAvatar by remember(session.peer) { mutableStateOf("") }
-    var callStatus by remember(session.callId) { mutableStateOf("جاري تجهيز الاتصال...") }
+    var callStatus by remember(session.callId) { mutableStateOf("جارٍ الاتصال...") }
     var connectedAt by remember(session.callId) { mutableLongStateOf(0L) }
     var elapsed by remember(session.callId) { mutableIntStateOf(0) }
     var muted by remember(session.callId) { mutableStateOf(false) }
@@ -133,7 +133,11 @@ internal fun NativeCallScreen(
                 @JavascriptInterface
                 fun onStatus(message: String) {
                     activity?.runOnUiThread {
-                        callStatus = message.take(150)
+                        callStatus = when (message) {
+                            "متصل الآن", "مكالمة جارية" -> "متصل"
+                            "يرن الآن..." -> "يرن الآن..."
+                            else -> message.take(150)
+                        }
                         if ((message == "متصل الآن" || message == "مكالمة جارية") && connectedAt == 0L) {
                             connectedAt = System.currentTimeMillis()
                         }

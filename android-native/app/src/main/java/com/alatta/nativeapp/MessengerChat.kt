@@ -52,8 +52,11 @@ private val ChatSecondary = Color(0xFFAEB6BC)
 private val ChatGold = Color(0xFFE6B94E)
 private val ChatGoldBright = Color(0xFFF6D776)
 
-private fun contactName(person: JSONObject): String = person.optString("fullName").ifBlank {
-    person.optString("displayName").ifBlank { "مستخدم" }
+private fun contactName(person: JSONObject): String {
+    val candidate = listOf("fullName", "displayName", "name", "title")
+        .map { person.optString(it).trim() }
+        .firstOrNull { it.isNotBlank() && it != "null" && !it.startsWith("g_") }
+    return candidate ?: "محادثة خاصة"
 }
 private fun prettyTime(ms: Long): String {
     if (ms <= 0) return ""
@@ -96,9 +99,9 @@ private fun ChatAvatar(person: JSONObject, size: Int = 55, showRing: Boolean = f
 
 @Composable
 private fun ChatCircleAction(icon: String, description: String, onClick: () -> Unit) {
-    Box(Modifier.size(36.dp).clip(CircleShape).background(ChatPanel).clickable(onClick = onClick),
+    Box(Modifier.size(40.dp).clip(CircleShape).background(ChatPanel).clickable(onClick = onClick),
         contentAlignment = Alignment.Center) {
-        SiteIcon(icon, size = 18.dp, tint = ChatGoldBright)
+        SiteIcon(icon, size = 23.dp, tint = ChatGoldBright)
     }
 }
 
@@ -425,7 +428,7 @@ internal fun MessengerThread(
     LaunchedEffect(messages.size, fallbackUsername) {
         if (messages.isNotEmpty()) listState.animateScrollToItem(messages.lastIndex)
     }
-    val name = contactName(person).takeIf { it != "مستخدم" } ?: fallbackUsername
+    val name = contactName(person).takeIf { it != "مستخدم" } ?: "محادثة خاصة"
     Column(Modifier.fillMaxSize().background(ChatBackground).imePadding()) {
         Row(Modifier.fillMaxWidth().height(71.dp)
             .background(ChatPanel).padding(horizontal = 11.dp),

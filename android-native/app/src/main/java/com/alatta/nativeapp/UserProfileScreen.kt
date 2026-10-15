@@ -60,54 +60,64 @@ internal fun PublicUserProfile(
         if (isLoading) LinearProgressIndicator(Modifier.fillMaxWidth(), color = profileGold)
         LazyColumn(Modifier.fillMaxSize()) {
             item {
-                // The avatar overlaps the cover without Modifier.offset: offset left a
-                // large invisible gap between the name and the friend count on phones.
-                Box(Modifier.fillMaxWidth().height(211.dp).background(profileBackground)) {
-                    Box(Modifier.fillMaxWidth().height(161.dp).background(profilePanel)) {
-                        if (cover.isNotBlank()) ExpandableProfileMedia(
-                            cover, "صورة الغلاف", Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
-                    }
-                    Box(Modifier.align(Alignment.BottomCenter).size(101.dp)
-                        .border(3.dp, profileGold, CircleShape).padding(3.dp)
-                        .clip(CircleShape).background(Color(0xFF41311A)),
-                        contentAlignment = Alignment.Center) {
-                        if (avatar.isNotBlank()) ExpandableProfileMedia(
-                            avatar, fullName, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
-                        else Text(fullName.take(1), fontSize = 36.sp, color = profileGold)
-                    }
+                Box(Modifier.fillMaxWidth().height(164.dp).background(profilePanel)) {
+                    if (cover.isNotBlank()) ExpandableProfileMedia(cover, "صورة الغلاف", Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop)
                 }
                 Column(Modifier.fillMaxWidth().padding(horizontal = 18.dp),
                     horizontalAlignment = Alignment.CenterHorizontally) {
-                    Spacer(Modifier.height(7.dp))
-                    Text(fullName, color = Color.White, fontSize = 22.sp,
-                        fontWeight = FontWeight.ExtraBold, maxLines = 2,
+                    Box(Modifier.offset(y = (-44).dp).size(96.dp).border(3.dp, profileGold, CircleShape)
+                        .padding(3.dp).clip(CircleShape).background(Color(0xFF41311A)),
+                        contentAlignment = Alignment.Center) {
+                        if (avatar.isNotBlank()) ExpandableProfileMedia(avatar, fullName, Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop)
+                        else Text(fullName.take(1), fontSize = 36.sp, color = profileGold)
+                    }
+                    Text(fullName, color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold,
+                        modifier = Modifier.offset(y = (-37).dp), maxLines = 1,
                         overflow = TextOverflow.Ellipsis)
-                    if (user.optString("bio").isNotBlank()) Text(
-                        user.optString("bio"), color = profileMuted, fontSize = 13.sp,
-                        modifier = Modifier.padding(top = 4.dp), maxLines = 4)
+                    if (user.optString("bio").isNotBlank()) Text(user.optString("bio"),
+                        color = profileMuted, fontSize = 13.sp, modifier = Modifier.offset(y = (-25).dp))
                     val friendCount = profile?.optInt("friendCount", -1) ?: -1
                     if (friendCount >= 0) Text("$friendCount صديق", color = profileGold, fontSize = 12.sp,
                         modifier = Modifier.padding(bottom = 9.dp))
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-                        Button(onClick = onMessage, modifier = Modifier.weight(1f).height(49.dp),
-                            contentPadding = PaddingValues(horizontal = 2.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = profileGold,
-                                contentColor = Color.Black)) { Text("محادثة", maxLines = 1, fontSize = 13.sp) }
-                        OutlinedButton(onClick = onVoiceCall, modifier = Modifier.weight(1f).height(49.dp),
-                            contentPadding = PaddingValues(horizontal = 3.dp)) {
-                            SiteIcon("phone", size = 16.dp, tint = profileGold)
-                            Spacer(Modifier.width(3.dp))
-                            Text("صوتي", maxLines = 1, softWrap = false, color = profileGold, fontSize = 12.sp)
-                        }
-                        OutlinedButton(onClick = onVideoCall, modifier = Modifier.weight(1f).height(49.dp),
-                            contentPadding = PaddingValues(horizontal = 3.dp)) {
-                            SiteIcon("video", size = 16.dp, tint = profileGold)
-                            Spacer(Modifier.width(3.dp))
-                            Text("مرئي", maxLines = 1, softWrap = false, color = profileGold, fontSize = 12.sp)
+                    val details = listOf(
+                        "البلد" to user.optString("country"),
+                        "المدينة" to user.optString("city"),
+                        "التعليم" to user.optString("education"),
+                        "العمل" to user.optString("work")
+                    ).filter { it.second.isNotBlank() }
+                    if (details.isNotEmpty()) {
+                        Column(Modifier.fillMaxWidth().padding(bottom = 11.dp)
+                            .background(profilePanel, RoundedCornerShape(13.dp)).padding(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                            Text("معلومات عن المستخدم", color = profileGold,
+                                fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                            details.forEach { (label, value) ->
+                                Text("$label: $value", color = Color.White, fontSize = 13.sp)
+                            }
                         }
                     }
-                    Spacer(Modifier.height(12.dp))
-                    ProfileInfoSummary(user)
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Button(onClick = onMessage, modifier = Modifier.weight(1f).heightIn(min = 52.dp),
+                            contentPadding = PaddingValues(horizontal = 3.dp, vertical = 8.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = profileGold,
+                                contentColor = Color.Black)) {
+                            Text("محادثة", fontSize = 13.sp, maxLines = 1, softWrap = false)
+                        }
+                        OutlinedButton(onClick = onVoiceCall, modifier = Modifier.weight(1f).heightIn(min = 52.dp),
+                            contentPadding = PaddingValues(horizontal = 3.dp, vertical = 8.dp)) {
+                            SiteIcon("phone", size = 20.dp, tint = profileGold)
+                            Spacer(Modifier.width(3.dp))
+                            Text("صوتي", color = profileGold, fontSize = 12.sp, maxLines = 1, softWrap = false)
+                        }
+                        OutlinedButton(onClick = onVideoCall, modifier = Modifier.weight(1f).heightIn(min = 52.dp),
+                            contentPadding = PaddingValues(horizontal = 3.dp, vertical = 8.dp)) {
+                            SiteIcon("video", size = 20.dp, tint = profileGold)
+                            Spacer(Modifier.width(3.dp))
+                            Text("مرئي", color = profileGold, fontSize = 12.sp, maxLines = 1, softWrap = false)
+                        }
+                    }
                 }
                 Row(Modifier.fillMaxWidth().padding(vertical = 12.dp, horizontal = 14.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -135,7 +145,7 @@ internal fun PublicUserProfile(
                     val photo = media(post.optString("image"))
                     val video = media(post.optString("video"))
                     if (photo.isNotBlank()) ExpandableProfileMedia(photo, "صورة المنشور", Modifier.fillMaxWidth()
-                        .aspectRatio(1.03f).clip(RoundedCornerShape(11.dp)), contentScale = ContentScale.Crop)
+                        .aspectRatio(1.15f).clip(RoundedCornerShape(11.dp)), contentScale = ContentScale.Crop)
                     if (video.isNotBlank()) {
                         if (playing == post.optString("id")) {
                             NativeVideo(video)
@@ -145,36 +155,6 @@ internal fun PublicUserProfile(
                             Text(" تشغيل الفيديو", color = profileGold)
                         }
                     }
-                }
-            }
-        }
-    }
-}
-
-
-/** Only real fields returned by the API are shown; never fabricate profile data. */
-@Composable
-internal fun ProfileInfoSummary(user: JSONObject) {
-    val details = listOf(
-        Triple("البلد", user.optString("country"), "🌐"),
-        Triple("المدينة", user.optString("city"), "⌖"),
-        Triple("التعليم", user.optString("education"), "🎓"),
-        Triple("العمل", user.optString("work"), "✧")
-    ).filter { it.second.isNotBlank() && it.second != "null" }
-    if (details.isEmpty()) return
-    Column(Modifier.fillMaxWidth().padding(bottom = 10.dp)
-        .border(1.dp, profileGold.copy(alpha = .36f), RoundedCornerShape(14.dp))
-        .background(profilePanel, RoundedCornerShape(14.dp)).padding(12.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text("معلومات المستخدم", color = profileGold, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-        details.forEach { (label, value, glyph) ->
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top,
-                horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text(glyph, fontSize = 17.sp, color = profileGold)
-                Column(Modifier.weight(1f)) {
-                    Text(label, color = profileGold, fontSize = 11.sp)
-                    Text(value, color = Color.White, fontSize = 13.sp, maxLines = 3,
-                        overflow = TextOverflow.Ellipsis)
                 }
             }
         }

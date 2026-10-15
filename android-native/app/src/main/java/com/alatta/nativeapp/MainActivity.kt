@@ -724,12 +724,12 @@ private fun AttaYoutubeControls(
     var profile by remember { mutableStateOf(JSONObject()) }
     var myAvatar by remember { mutableStateOf("") }
     var search by remember { mutableStateOf("") }
-    var explorePeople by remember { mutableStateOf(emptyList<JSONObject>()) }
-    var exploreQuery by remember { mutableStateOf("") }
     var chatWith by remember { mutableStateOf("") }
     var messages by remember { mutableStateOf(emptyList<JSONObject>()) }
     var inboxPreviews by remember { mutableStateOf(emptyList<ChatPreview>()) }
     var inboxLoading by remember { mutableStateOf(false) }
+    var activeChatPerson by remember { mutableStateOf<JSONObject?>(null) }
+    var ownPosts by remember { mutableStateOf(emptyList<JSONObject>()) }
     var chatText by remember { mutableStateOf("") }
     var activeCall by remember { mutableStateOf<NativeCallSession?>(null) }
     var incomingCall by remember { mutableStateOf<NativeCallSession?>(null) }
@@ -872,8 +872,8 @@ private fun AttaYoutubeControls(
         scope.launch {
             try {
                 val detail = get("/api/profile-public?username=${enc(other)}")
-                // Existing API returns the indexed feed without a limit; filter it by the actual author.
-                val latest = get("/api/posts").arr("posts").filter {
+                // Only the recent public posts returned by the existing API are shown.
+                val latest = get("/api/posts?limit=50").arr("posts").filter {
                     it.optString("author").equals(other, ignoreCase = true)
                 }
                 if (profilePeer == other) { publicProfile = detail; publicPosts = latest }
@@ -1008,10 +1008,7 @@ private fun AttaYoutubeControls(
     suspend fun load(which: String) {
         when (which) {
             "الرئيسية" -> { posts = get("/api/posts?limit=40").arr("posts"); stories = get("/api/stories").arr("stories"); try { notifications = get("/api/notifications").arr("notifications") } catch (_: Exception) { } }
-            "استكشاف" -> {
-                posts = get("/api/explore").arr("posts")
-                explorePeople = get("/api/users?q=${enc(exploreQuery.trim())}").arr("users")
-            }
+            "استكشاف" -> posts = get("/api/explore").arr("posts")
             "الأصدقاء" -> { users = get("/api/users?q=${enc(search)}").arr("users"); friends = get("/api/friends").arr("friends"); requests = get("/api/friend-requests").arr("requests") }
             "الرسائل" -> {
                 if (chatWith.isNotBlank()) {
@@ -1046,6 +1043,7 @@ private fun AttaYoutubeControls(
             "الإشعارات" -> notifications = get("/api/notifications").arr("notifications")
             "المجموعات" -> groups = get("/api/groups").arr("groups")
             "الملف" -> {
+                ownPosts = get("/api/posts?limit=100").arr("posts").filter { it.optString("author").equals(myUsername, ignoreCase = true) }
                 profile = get("/api/me").optJSONObject("user") ?: JSONObject()
                 profileBio = profile.optString("bio")
                 profileCountry = profile.optString("country")
@@ -1056,6 +1054,13 @@ private fun AttaYoutubeControls(
             }
             "المحفوظات" -> posts = get("/api/saved-posts").arr("posts")
             "يوتيوب" -> youtubeItems = withContext(Dispatchers.IO) { api("/api/youtube?q=${enc(youtubeSearch)}") }.arr("items")
+        }
+    }
+    LaunchedEffect(tab, search, token) {
+        if (tab == "استكشاف" && token.isNotBlank()) {
+            delay(320)
+            try { users = get("/api/users?q=${enc(search.trim())}").arr("users") }
+            catch (_: Exception) { users = emptyList() }
         }
     }
     fun refresh() = task { load(tab) }
@@ -1423,7 +1428,17 @@ private fun AttaYoutubeControls(
                         onNavigate = ::navigate
                     )
                     if (tab == "الرئيسية" || tab == "استكشاف") {
-                        PremiumSearchBar { navigate("استكشاف") }
+                        if (tab == "استكشاف") {
+                            OutlinedTextField(
+                                value = search,
+                                onValueChange = { search = it },
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = 11.dp, vertical = 4.dp),
+                                singleLine = true,
+                                placeholder = { Text("ابحث عن الأشخاص أو المنشورات...", color = Muted) },
+                                leadingIcon = { SiteIcon("search", tint = GoldLight, size = 23.dp) },
+                                shape = RoundedCornerShape(22.dp)
+                            )
+                        } else PremiumSearchBar { navigate("استكشاف") }
                     }
                     if (tab != "الرئيسية" && tab != "الرسائل") {
                         Row(Modifier.fillMaxWidth().padding(horizontal = 13.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -1434,27 +1449,16 @@ private fun AttaYoutubeControls(
                     when (tab) {
                         "الرئيسية", "استكشاف", "المحفوظات" -> LazyColumn(Modifier.weight(1f).padding(horizontal = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             if (tab == "استكشاف") {
-                                item { CardBox {
-                                    OutlinedTextField(exploreQuery, { exploreQuery = it },
-                                        label = { Text("ابحث عن شخص أو منشور") },
-                                        singleLine = true, modifier = Modifier.fillMaxWidth(),
-                                        colors = OutlinedTextFieldDefaults.colors(
-                                            focusedTextColor = White, unfocusedTextColor = White))
-                                    Spacer(Modifier.height(7.dp))
-                                    GoldButton("بحث", !busy) { task {
-                                        explorePeople = get("/api/users?q=${enc(exploreQuery.trim())}").arr("users")
-                                        posts = get("/api/explore").arr("posts")
-                                    } }
-                                } }
                                 item { SectionTitle("الأشخاص") }
-                                items(explorePeople.filter { exploreQuery.isBlank() ||
-                                    it.name().contains(exploreQuery, ignoreCase = true) ||
-                                    it.optString("username").contains(exploreQuery, ignoreCase = true) }) { person ->
-                                    CardBox { Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Avatar(person.optString("avatar"), person.name(), onClick = { openPublicProfile(person.optString("username")) })
-                                        Spacer(Modifier.width(10.dp))
-                                        Text(person.name(), Modifier.weight(1f).clickable { openPublicProfile(person.optString("username")) }, color = White)
-                                    } }
+                                if (users.isEmpty()) item { Text("لا يوجد أشخاص مطابقون للبحث", color = Muted, modifier = Modifier.padding(12.dp)) }
+                                items(users.filter { u -> search.isBlank() || u.name().contains(search.trim(), ignoreCase = true) || u.optString("username").contains(search.trim(), ignoreCase = true) }) { u ->
+                                    CardBox {
+                                        Row(Modifier.fillMaxWidth().clickable { openPublicProfile(u.optString("username")) }, verticalAlignment = Alignment.CenterVertically) {
+                                            Avatar(u.optString("avatar"), u.name(), onClick = { openPublicProfile(u.optString("username")) })
+                                            Spacer(Modifier.width(10.dp))
+                                            Text(u.name(), color = White, modifier = Modifier.weight(1f))
+                                        }
+                                    }
                                 }
                                 item { SectionTitle("المنشورات") }
                             }
@@ -1463,10 +1467,10 @@ private fun AttaYoutubeControls(
                                     CardBox {
                                         Row(verticalAlignment = Alignment.CenterVertically,
                                             horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-                                            Avatar(myAvatar, displayName.ifBlank { myUsername })
+                                            Avatar(myAvatar, displayName.ifBlank { myUsername }, onClick = { navigate("الملف") })
                                             Text(displayName.ifBlank { myUsername }, color = White,
                                                 fontWeight = FontWeight.Bold, fontSize = 14.sp,
-                                                modifier = Modifier.weight(1f), maxLines = 1)
+                                                modifier = Modifier.weight(1f).clickable { navigate("الملف") }, maxLines = 1)
                                             GoldButton("نشر", !busy && (draft.isNotBlank() || pickedUri != null)) {
                                                 task {
                                                     var image = ""; var video = ""
@@ -1526,35 +1530,15 @@ private fun AttaYoutubeControls(
                                     }
                                 }
                             }
-                            items(posts.filter { tab != "استكشاف" || exploreQuery.isBlank() ||
-                                it.optString("text").contains(exploreQuery, ignoreCase = true) ||
-                                (it.optJSONObject("authorInfo")?.name() ?: "").contains(exploreQuery, ignoreCase = true) },
-                                key = { it.optString("id", it.hashCode().toString()) }) { p ->
+                            items(if (tab == "استكشاف" && search.isNotBlank()) posts.filter { p ->
+                                p.optString("text").contains(search.trim(), ignoreCase = true) ||
+                                p.optString("author").contains(search.trim(), ignoreCase = true) ||
+                                (p.optJSONObject("authorInfo")?.name() ?: "").contains(search.trim(), ignoreCase = true)
+                            } else posts, key = { it.optString("id", it.hashCode().toString()) }) { p ->
                                 val author = p.optJSONObject("authorInfo") ?: JSONObject()
                                 val postId = p.optString("id")
                                 var comment by remember(postId) { mutableStateOf("") }
                                 var showComments by remember(postId) { mutableStateOf(false) }
-                                var commentNames by remember(postId) { mutableStateOf(emptyMap<String,String>()) }
-                                LaunchedEffect(showComments, postId) {
-                                    if (showComments) {
-                                        val names = mutableMapOf<String,String>()
-                                        val authors = p.arr("comments").map { it.optString("author") }.filter { it.isNotBlank() }.distinct()
-                                        for (authorUsername in authors.take(15)) {
-                                            if (authorUsername == myUsername) {
-                                                names[authorUsername] = displayName.ifBlank { "مستخدم" }
-                                            } else {
-                                                try {
-                                                    val result = get("/api/profile-public?username=${enc(authorUsername)}")
-                                                    val user = result.optJSONObject("user")
-                                                    val full = user?.name().orEmpty()
-                                                    if (full.isNotBlank() && full != "مستخدم") names[authorUsername] = full
-                                                } catch (cancelled: CancellationException) { throw cancelled }
-                                                catch (_: Exception) { }
-                                            }
-                                        }
-                                        commentNames = names
-                                    }
-                                }
                                 val remoteLiked = p.optBoolean("likedByMe")
                                 val remoteReaction = p.optString("myReaction")
                                 val serverReaction = if (remoteReaction.isNotBlank()) remoteReaction
@@ -1572,7 +1556,7 @@ private fun AttaYoutubeControls(
                                 CardBox {
                                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                                         Avatar(author.optString("avatar"), author.name(), onClick = { openPublicProfile(p.optString("author")) })
-                                        Column(Modifier.clickable { openPublicProfile(p.optString("author")) }) { Text(author.name(), color = GoldLight, fontWeight = FontWeight.Bold) }
+                                        Column { Text(author.name().ifBlank { p.optString("author") }, color = GoldLight, fontWeight = FontWeight.Bold, modifier = Modifier.clickable { openPublicProfile(p.optString("author")) }); /* الاسم قابل للنقر */ }
                                     }
                                     if (p.optString("text").isNotBlank()) Text(p.optString("text"), color = White, modifier = Modifier.padding(vertical = 10.dp))
                                     val image = media(p.optString("image")); val video = media(p.optString("video"))
@@ -1640,10 +1624,9 @@ private fun AttaYoutubeControls(
                                     }
                                     if (showComments) {
                                         p.arr("comments").takeLast(15).forEach { c ->
-                                            val commenter = c.optString("author")
-                                            val realName = commentNames[commenter] ?: if (commenter == myUsername) displayName else "مستخدم"
-                                            Text("${realName}: ${c.optString("text")}", color = White,
-                                                modifier = Modifier.padding(4.dp).clickable { openPublicProfile(commenter) })
+                                            val person = c.optJSONObject("authorInfo") ?: JSONObject()
+                                            val label = person.optString("fullName").ifBlank { person.optString("displayName") }.ifBlank { c.optString("fullName") }.ifBlank { c.optString("displayName") }.ifBlank { c.optString("author") }
+                                            Text("$label: ${c.optString("text")}", color = White, modifier = Modifier.padding(4.dp))
                                         }
                                         OutlinedTextField(comment, { comment = it }, label = { Text("اكتب تعليقًا") }, modifier = Modifier.fillMaxWidth())
                                         GoldButton("إرسال التعليق", !busy && comment.isNotBlank()) { task { post("/api/post-comment", JSONObject().put("postId", postId).put("text", comment)); comment = ""; load(tab) } }
@@ -1716,6 +1699,20 @@ private fun AttaYoutubeControls(
                                             messages = emptyList()
                                             chatText = ""
                                             chatWith = username
+                                            activeChatPerson = friends.firstOrNull { it.optString("username") == username }
+                                            scope.launch {
+                                                try {
+                                                    if (username.startsWith("g_")) {
+                                                        val groupList = get("/api/groups").arr("groups")
+                                                        groups = groupList
+                                                        val match = groupList.firstOrNull { it.optString("id") == username || it.optString("groupId") == username }
+                                                        if (chatWith == username && match != null) activeChatPerson = match
+                                                    } else {
+                                                        val resolved = get("/api/profile-public?username=${enc(username)}").optJSONObject("user")
+                                                        if (chatWith == username && resolved != null) activeChatPerson = resolved
+                                                    }
+                                                } catch (_: Exception) {}
+                                            }
                                             task { messages = get("/api/conversation?with=${enc(username)}").arr("messages") }
                                         }
                                     },
@@ -1723,7 +1720,9 @@ private fun AttaYoutubeControls(
                                     onRefresh = { refresh() }
                                 )
                             } else {
-                                val target = friends.firstOrNull { it.optString("username") == chatWith }
+                                val target = activeChatPerson?.takeIf { it.optString("username") == chatWith }
+                                    ?: friends.firstOrNull { it.optString("username") == chatWith }
+                                    ?: groups.firstOrNull { it.optString("id") == chatWith || it.optString("groupId") == chatWith }
                                     ?: JSONObject().put("username", chatWith)
                                 MessengerThread(
                                     person = target, fallbackUsername = chatWith,
@@ -1750,7 +1749,7 @@ private fun AttaYoutubeControls(
                                     onProfile = { openPublicProfile(chatWith) },
                                     onVoiceCall = { openCall(chatWith, "audio") },
                                     onVideoCall = { openCall(chatWith, "video") },
-                                    onBack = { chatWith = ""; messages = emptyList(); refresh() },
+                                    onBack = { chatWith = ""; activeChatPerson = null; messages = emptyList(); refresh() },
                                     onRefresh = { task { messages = get("/api/conversation?with=${enc(chatWith)}").arr("messages") } }
                                 )
                             }
@@ -1866,6 +1865,16 @@ private fun AttaYoutubeControls(
                                     }
                                     Spacer(Modifier.height(6.dp))
                                     PremiumAuthOutlineButton("تغيير كلمة السر") { changePasswordDialog = true }
+                                }
+                            }
+                            item { SectionTitle("منشوراتي") }
+                            if (ownPosts.isEmpty()) item { Text("لا توجد منشورات ظاهرة حاليًا", color = White) }
+                            items(ownPosts, key = { "own_" + it.optString("id", it.hashCode().toString()) }) { post ->
+                                CardBox {
+                                    Text(profile.name(), color = GoldLight, fontWeight = FontWeight.Bold)
+                                    if (post.optString("text").isNotBlank()) Text(post.optString("text"), color = White)
+                                    if (post.optString("image").isNotBlank()) ExpandableProfileMedia(post.optString("image"), "صورة منشوري", Modifier.fillMaxWidth().heightIn(max = 320.dp), ContentScale.Fit)
+                                    if (post.optString("video").isNotBlank()) Text("منشور فيديو", color = GoldLight)
                                 }
                             }
                         }
