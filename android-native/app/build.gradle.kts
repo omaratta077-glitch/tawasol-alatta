@@ -12,8 +12,8 @@ android {
         applicationId = "com.alatta.nativeapp"
         minSdk = 26
         targetSdk = 35
-        versionCode = 137
-        versionName = "1.0.37"
+        versionCode = 142
+        versionName = "1.0.42"
     }
 
     // MUST remain inside android {}, before buildTypes.
