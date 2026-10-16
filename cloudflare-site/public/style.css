@@ -4671,19 +4671,38 @@ html body #authView .atta-download-strip{display:none!important;}
  }
 }
 
-/* AL-ATTA YouTube section — header icon and responsive overlay */
+
+/* AL-ATTA YouTube: single authoritative layout, v1.0.48 */
 .atta-youtube-button{color:#e9bd52!important;flex-shrink:0!important}
-.atta-youtube-overlay{position:fixed;inset:0;z-index:999999;background:rgba(0,0,0,.86);display:flex;align-items:center;justify-content:center;padding:12px;direction:rtl}
-.atta-youtube-overlay[hidden]{display:none!important}
-.atta-youtube-panel{width:min(100%,820px);max-height:94dvh;overflow:auto;background:#0c1014;border:1px solid #c9a448;border-radius:18px;color:#f6f3e9;padding:18px;box-shadow:0 16px 50px #000a}
-.atta-youtube-heading{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px}
-.atta-youtube-heading h2{margin:0;font-size:21px;color:#e9bd52}
+.atta-youtube-overlay{position:fixed;inset:0;z-index:999999;background:rgba(0,0,0,.9);display:flex;align-items:center;justify-content:center;padding:8px;direction:rtl}
+.atta-youtube-overlay[hidden],.atta-youtube-frame[hidden]{display:none!important}
+.atta-youtube-panel{box-sizing:border-box;width:min(100%,1050px);max-height:96dvh;overflow-y:auto;background:#0c1014;border:1px solid #c9a448;border-radius:14px;color:#f6f3e9;padding:12px;box-shadow:0 16px 50px #000a}
+.atta-youtube-heading{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
+.atta-youtube-heading h2{margin:0;font-size:19px;color:#e9bd52}
 .atta-youtube-close{background:#222;border:1px solid #ac8b3a;border-radius:10px;color:#fff;font-size:24px;width:42px;height:42px;cursor:pointer}
-.atta-youtube-form{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
-.atta-youtube-form input{flex:1;min-width:180px;background:#171d23;color:white;border:1px solid #7c6639;border-radius:10px;padding:12px;font-size:16px;direction:ltr}
-.atta-youtube-form button{background:#e9bd52;color:#141414;border:0;border-radius:10px;padding:11px 18px;font-weight:800;cursor:pointer}
-.atta-youtube-frame{aspect-ratio:16/9;background:#000;border-radius:12px;overflow:hidden}
-.atta-youtube-frame iframe{width:100%;height:100%;border:0;display:block}
-.atta-youtube-note{font-size:13px;color:#c4c8ca;line-height:1.8;margin:12px 0 0}
+.atta-youtube-form{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.atta-youtube-form input{flex:1;min-width:160px;background:#171d23;color:white;border:1px solid #7c6639;border-radius:10px;padding:10px;font-size:16px;direction:ltr}
+.atta-youtube-form button{background:#e9bd52;color:#141414;border:0;border-radius:10px;padding:10px 16px;font-weight:800;cursor:pointer}
+.atta-youtube-frame{position:relative;width:100%;height:clamp(300px,68dvh,720px);background:#000;border-radius:10px;overflow:hidden;margin:10px 0}
+.atta-youtube-frame iframe{position:absolute;inset:0;display:block;width:100%;height:100%;border:0}
+.atta-youtube-note{font-size:12px;color:#c4c8ca;line-height:1.7;margin:8px 0}
 .atta-youtube-error{color:#ffaaa0;min-height:1.5em;font-size:14px}
-@media(max-width:700px){.atta-youtube-overlay{padding:5px}.atta-youtube-panel{padding:12px;max-height:95dvh}.atta-youtube-button{width:42px!important;min-width:42px!important;height:48px!important}.atta-youtube-button svg{width:26px!important;height:26px!important}.reference-header-actions{gap:2px!important}}
+.atta-yt-topics{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}
+.atta-yt-topics button,.atta-yt-more{background:#181818;border:1px solid #bd932f;color:#f5d37b;border-radius:18px;padding:8px 14px;cursor:pointer}
+.atta-yt-results{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:12px;margin:12px 0;max-height:32dvh;overflow:auto}
+.atta-yt-card{background:#111;border:1px solid #4b3b1b;color:white;border-radius:12px;overflow:hidden;cursor:pointer;text-align:right;padding:0}
+.atta-yt-card img{width:100%;aspect-ratio:16/9;object-fit:cover;display:block}
+.atta-yt-card-info{display:flex;flex-direction:column;gap:5px;padding:9px}
+.atta-yt-card-info strong{font-size:13px;line-height:1.5}
+.atta-yt-card-info small{color:#d2b16c}
+.atta-yt-more{display:block;margin:10px auto}
+.atta-yt-more[hidden]{display:none}
+@media(max-width:700px){
+ .atta-youtube-overlay{padding:0;align-items:stretch}
+ .atta-youtube-panel{width:100%;max-height:100dvh;border-radius:0;padding:8px}
+ .atta-youtube-frame{height:clamp(320px,65dvh,680px);border-radius:6px}
+ .atta-youtube-button{width:42px!important;min-width:42px!important;height:48px!important}
+ .atta-youtube-button svg{width:26px!important;height:26px!important}
+ .reference-header-actions{gap:2px!important}
+ .atta-yt-results{max-height:24dvh}
+}
