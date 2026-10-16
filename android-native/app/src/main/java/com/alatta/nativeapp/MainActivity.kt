@@ -233,10 +233,32 @@ private fun uploadChatMedia(context: android.content.Context, token: String, uri
 }
 
 class MainActivity : ComponentActivity() {
+    // Notification taps work for a cold start AND for an existing singleTask Activity.
+    var incomingPush by mutableStateOf<PushCall?>(null)
+        private set
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        consumePushIntent(intent)
         setContent { NativeApp() }
     }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        consumePushIntent(intent)
+    }
+
+    private fun consumePushIntent(intent: Intent?) {
+        if (intent?.action != AttaPush.ACTION_OPEN_CALL) return
+        val event = PushCall.fromIntent(intent) ?: return
+        incomingPush = event
+        AttaPush.dismiss(this, event.callId)
+        // Clear extras so a normal Activity recreation cannot replay an accepted call.
+        intent.removeExtra("atta_call_id")
+    }
+
+    fun clearIncomingPush() { incomingPush = null }
 }
 
 @Composable private fun GoldButton(text: String, enabled: Boolean = true, onClick: () -> Unit) {
@@ -1135,9 +1157,42 @@ private fun AttaYoutubeControls(
         }
     }
 
+    // A push notification is a wake-up hint, never a bypass around our logged-in
+    // identity, call expiry, or friendship/signaling authorization.
+    val activity = ctx as? MainActivity
+    val incomingPush = activity?.incomingPush
+    LaunchedEffect(incomingPush, token, myUsername) {
+        val push = incomingPush ?: return@LaunchedEffect
+        if (token.isBlank() || myUsername.isBlank()) return@LaunchedEffect
+        activity.clearIncomingPush()
+        if (push.to != myUsername.lowercase() ||
+            System.currentTimeMillis() - push.createdAt !in 0..45000L) return@LaunchedEffect
+        val session = NativeCallSession(push.from, push.type, push.callId, incoming = true)
+        if (push.action == AttaPush.ACTION_ACCEPT) {
+            if (activeCall == null) openCall(push.from, push.type, true, push.callId)
+        } else if (activeCall == null && incomingCall == null && knownCalls.add(push.callId)) {
+            incomingCall = session
+            sendCallRinging(session)
+        }
+    }
+
+    val notificationPermission = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { /* A denied permission means no heads-up notification; foreground calls remain. */ }
+    LaunchedEffect(token, myUsername) {
+        if (token.isNotBlank() && myUsername.isNotBlank()) {
+            if (android.os.Build.VERSION.SDK_INT >= 33 &&
+                ContextCompat.checkSelfPermission(ctx, Manifest.permission.POST_NOTIFICATIONS)
+                    != PackageManager.PERMISSION_GRANTED) {
+                notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+            }
+            AttaPush.register(ctx.applicationContext, token, myUsername)
+        }
+    }
+
     // Foreground fallback: poll only small call invitations every three seconds.
     // The backend's queue is authenticated, one-time, and scoped to this user.
-    // Calls while the app is killed/backgrounded require a future FCM notification service.
+    // Background delivery is handled separately by FirebaseMessagingService when configured.
     LaunchedEffect(token, myUsername) {
         if (token.isBlank() || myUsername.isBlank()) return@LaunchedEffect
         while (isActive) {
@@ -1290,6 +1345,7 @@ private fun AttaYoutubeControls(
                 profile = JSONObject(); displayName = ""; myUsername = ""; myAvatar = ""
                 visited.clear(); tab = "الرئيسية"
                 token = ""
+                AttaPush.unregister(ctx.applicationContext, token)
                 prefs.edit().clear().apply()
             }) { Text("تسجيل الخروج", color = GoldLight) }
         },
@@ -1329,15 +1385,24 @@ private fun AttaYoutubeControls(
         IncomingCallRingtone()
         AlertDialog(
             onDismissRequest = { sendCallResponse(invitation, "rejected"); incomingCall = null },
-            title = { Text(if (invitation.type == "video") "مكالمة فيديو واردة" else "مكالمة صوتية واردة", color = GoldLight) },
+            containerColor = Color(0xFF13181C),
+            titleContentColor = GoldLight,
+            textContentColor = White,
+            tonalElevation = 0.dp,
+            shape = RoundedCornerShape(25.dp),
+            title = { Text(if (invitation.type == "video") "مكالمة فيديو واردة" else "مكالمة صوتية واردة", fontWeight = FontWeight.Bold, color = GoldLight) },
             text = { Text("مكالمة واردة من مستخدم تواصل العطا", color = White) },
-            confirmButton = { TextButton(onClick = {
-                incomingCall = null
-                openCall(invitation.peer, invitation.type, true, invitation.callId)
-            }) { Text("رد", color = GoldLight) } },
-            dismissButton = { TextButton(onClick = {
-                sendCallResponse(invitation, "rejected"); incomingCall = null
-            }) { Text("رفض") } }
+            confirmButton = { Button(
+                colors = ButtonDefaults.buttonColors(containerColor = Gold, contentColor = Black),
+                onClick = {
+                    incomingCall = null
+                    openCall(invitation.peer, invitation.type, true, invitation.callId)
+                }
+            ) { Text("رد", fontWeight = FontWeight.Bold) } },
+            dismissButton = { OutlinedButton(
+                border = BorderStroke(1.dp, Border),
+                onClick = { sendCallResponse(invitation, "rejected"); incomingCall = null }
+            ) { Text("رفض", color = White) } }
         )
     }
     if (featureMessage.isNotBlank()) AlertDialog(

@@ -970,6 +970,20 @@ export class SignalingRoom extends DurableObject {
     }
 
 
+    if((url.pathname==="/api/push/register" || url.pathname==="/api/push/unregister") && request.method==="POST"){
+      const s=await this.session(String(body.token||""));
+      if(!s)return j({ok:false,error:"الجلسة منتهية"},401);
+      const deviceToken=String(body.deviceToken||"").trim();
+      if(!/^[A-Za-z0-9:._-]{40,4096}$/.test(deviceToken))return j({ok:false,error:"رمز الجهاز غير صالح"},400);
+      const key='fcmTokens:'+s.username;
+      const prior=await this.ctx.storage.get(key)||[];
+      const updated=url.pathname.endsWith('/register')
+        ? [...new Set([...prior,deviceToken])].slice(-5)
+        : prior.filter(value=>value!==deviceToken);
+      await this.ctx.storage.put(key,updated);
+      return j({ok:true,registered:url.pathname.endsWith('/register')});
+    }
+
     if(url.pathname==="/api/call-signal" && request.method==="POST"){
       const s=await this.session(String(body.token||""));
       if(!s)return j({ok:false,error:"الجلسة منتهية"},401);
@@ -1010,6 +1024,9 @@ export class SignalingRoom extends DurableObject {
       const freshQueue=oldQueue.filter(x=>now-Number(x.createdAt||0)<120000);
       freshQueue.push(event);
       await this.ctx.storage.put(key,freshQueue.slice(-500));
+
+      // Notify Android even if its app process is not running.
+      this.scheduleCallPush(to,event);
 
       // Fast path: if WebSocket is alive, deliver immediately too.
       const target=this.findUser(to);
@@ -1446,11 +1463,13 @@ export class SignalingRoom extends DurableObject {
       if(payload.mediaType==="call-signal"){
         try{
           const signal=JSON.parse(mediaRaw);
-          await this.queuePhoneCallEvent(to,{
+          const event={
             type:String(signal.type||""), from:s.username, to,
             callId:String(signal.callId||""), callType:signal.callType==="video"?"video":"audio",
             signalId:String(signal.signalId||payload.id), createdAt:Date.now()
-          });
+          };
+          await this.queuePhoneCallEvent(to,event);
+          this.scheduleCallPush(to,event);
         }catch(_){/* Non-call chat messages are unaffected. */}
       }
       if(target){
@@ -2049,6 +2068,88 @@ export class SignalingRoom extends DurableObject {
     await this.ctx.storage.put(key,recent.slice(-60));
   }
 
+  // FCM tokens are stored per authenticated account, not exposed via user profiles.
+  // Firebase's service-account JSON belongs ONLY in a Cloudflare Worker secret.
+  async fcmAccessToken(){
+    const raw=this.env.FIREBASE_SERVICE_ACCOUNT_JSON;
+    if(!raw)return null;
+    if(this.fcmToken && this.fcmExpires>Date.now()+60000)return this.fcmToken;
+    const sa=JSON.parse(raw);
+    if(!sa.client_email||!sa.private_key||!sa.project_id)return null;
+    const jwtPart=obj=>btoa(String.fromCharCode(...new TextEncoder().encode(JSON.stringify(obj))))
+      .replace(/=/g,'').replace(/\+/g,'-').replace(/\//g,'_');
+    const now=Math.floor(Date.now()/1000);
+    const claim=jwtPart({iss:sa.client_email,
+      scope:'https://www.googleapis.com/auth/firebase.messaging',
+      aud:'https://oauth2.googleapis.com/token',iat:now,exp:now+3300});
+    const head=jwtPart({alg:'RS256',typ:'JWT'});
+    const unsigned=head+'.'+claim;
+    const pem=sa.private_key.replace(/-----BEGIN PRIVATE KEY-----|-----END PRIVATE KEY-----|\s/g,'');
+    const binary=Uint8Array.from(atob(pem),c=>c.charCodeAt(0));
+    const key=await crypto.subtle.importKey('pkcs8',binary,
+      {name:'RSASSA-PKCS1-v1_5',hash:'SHA-256'},false,['sign']);
+    const signature=new Uint8Array(await crypto.subtle.sign('RSASSA-PKCS1-v1_5',key,encoder.encode(unsigned)));
+    const signed=unsigned+'.'+btoa(String.fromCharCode(...signature))
+      .replace(/=/g,'').replace(/\+/g,'-').replace(/\//g,'_');
+    const params=new URLSearchParams({grant_type:'urn:ietf:params:oauth:grant-type:jwt-bearer',assertion:signed});
+    const resp=await fetch('https://oauth2.googleapis.com/token',{
+      method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:params});
+    if(!resp.ok)throw Error('Firebase OAuth token request failed: '+resp.status);
+    const result=await resp.json();
+    this.fcmToken=result.access_token;
+    this.fcmExpires=Date.now()+Math.min(Number(result.expires_in||3000),3300)*1000;
+    return this.fcmToken;
+  }
+
+  async deliverCallPush(to,event){
+    if(!this.env.FIREBASE_SERVICE_ACCOUNT_JSON)return;
+    if(!['call-request','hangup','call-reject'].includes(event.type))return;
+    try {
+      const tokens=await this.ctx.storage.get('fcmTokens:'+to)||[];
+      if(!tokens.length)return;
+      const token=await this.fcmAccessToken();if(!token)return;
+      const sa=JSON.parse(this.env.FIREBASE_SERVICE_ACCOUNT_JSON);
+      const project=String(this.env.FIREBASE_PROJECT_ID||sa.project_id||'');
+      if(!project || project!==sa.project_id)throw Error('Firebase project ID mismatch');
+      const url='https://fcm.googleapis.com/v1/projects/'+encodeURIComponent(project)+'/messages:send';
+      const survivors=[];
+      for(const deviceToken of tokens.slice(-5)){
+        try {
+          const resp=await fetch(url,{method:'POST',headers:{
+            Authorization:'Bearer '+token,'Content-Type':'application/json'
+          },body:JSON.stringify({message:{token:deviceToken,
+            data:{type:String(event.type),from:String(event.from),to:String(to),
+              callId:String(event.callId),callType:event.callType==='video'?'video':'audio',
+              createdAt:String(event.createdAt||Date.now())},
+            android:{priority:'HIGH',ttl:'45s'}}})});
+          if(resp.ok){survivors.push(deviceToken);continue;}
+          const body=await resp.json().catch(()=>({}));
+          const badToken=resp.status===404 || (resp.status===400 &&
+            JSON.stringify(body).includes('UNREGISTERED'));
+          if(!badToken)survivors.push(deviceToken);
+          console.warn('Call push delivery HTTP',resp.status);
+        }catch(_){survivors.push(deviceToken);}
+      }
+      if(survivors.length!==tokens.length)await this.ctx.storage.put('fcmTokens:'+to,survivors);
+    }catch(e){console.warn('Call push unavailable:',String(e.message||e));}
+  }
+
+  scheduleCallPush(to,event){
+    // Avoid duplicate notifications when the same call is sent via HTTP and WS.
+    // Never delay or fail actual call signaling because push is unavailable.
+    if(!this.env.FIREBASE_SERVICE_ACCOUNT_JSON ||
+      !['call-request','hangup','call-reject'].includes(event.type))return;
+    const now=Date.now();
+    if(!this.recentPush)this.recentPush=new Map();
+    if(this.recentPush.size>400){
+      for(const [key,ts] of this.recentPush)if(now-ts>60000)this.recentPush.delete(key);
+    }
+    const key=to+':'+event.callId+':'+event.type;
+    if(this.recentPush.has(key) && now-this.recentPush.get(key)<30000)return;
+    this.recentPush.set(key,now);
+    this.ctx.waitUntil(this.deliverCallPush(to,event));
+  }
+
   async addCallLog(a,b,kind,status){
     const ts=Date.now();
     for(const [owner,other] of [[a,b],[b,a]]){
@@ -2174,11 +2275,13 @@ export class SignalingRoom extends DurableObject {
       const target=this.findUser(to);
       // Queue incoming invitations even when the sender could only use WebSocket.
       // The HTTP copy has the same signalId and is deduplicated by queuePhoneCallEvent.
-      await this.queuePhoneCallEvent(to,{
+      const event={
         type:msg.type, from, to, callId:String(msg.callId||""),
         callType:msg.callType==="video"?"video":"audio",
         signalId:String(msg.signalId||crypto.randomUUID()), createdAt:Date.now()
-      });
+      };
+      await this.queuePhoneCallEvent(to,event);
+      this.scheduleCallPush(to,event);
 
       if(msg.type==="call-request"){
         await this.addCallLog(from,to,msg.callType||"video","outgoing");

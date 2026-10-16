@@ -9,6 +9,7 @@
 .header .callKind{font-size:14px;color:#e6b94e;direction:rtl}
 .stage{flex:1;min-height:0;display:flex;align-items:center;flex-direction:column;justify-content:center;position:relative;overflow:hidden;padding:8px 16px}
 #remoteVideo{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#080b0d;display:none}
+#remoteCanvas{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#050709;display:none;z-index:2}
 #localVideo{position:absolute;top:68px;bottom:auto;right:13px;width:115px;height:156px;object-fit:cover;border:2px solid #dfb557;border-radius:17px;z-index:2;transform:scaleX(-1);background:#101419;display:none}
 #bigAvatar{width:min(47vw,180px);height:min(47vw,180px);min-width:125px;min-height:125px;flex-shrink:0;border-radius:50%;display:grid;place-items:center;overflow:hidden;background:linear-gradient(140deg,#6d5126,#15100c);border:3px solid #e6b94e;box-shadow:0 0 0 12px rgba(230,185,78,.035),0 0 42px rgba(230,185,78,.14);margin-bottom:26px}
 #bigInitial{font-size:70px;color:#fff;font-weight:600;line-height:1}
@@ -31,7 +32,9 @@ html.native-host .page>.header,html.native-host .page>.actions{display:none!impo
 html.native-host .stage{padding:0}
 html.native-host #bigAvatar,html.native-host #peer,html.native-host #hint,
 html.native-host #duration,html.native-host #error{display:none!important}
-html.native-host #remoteVideo{object-fit:contain}
+html.native-host #remoteVideo{object-fit:contain;z-index:1}
+html.native-host #localVideo{top:12px;right:12px;z-index:4}
+html.native-host .stage{isolation:isolate}
 </style></head><body><div class="page">
 <header class="header"><button aria-label="رجوع وإنهاء المكالمة" onclick="window.__attaEndCall()"><svg viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg></button><span class="callKind" id="callKind">مكالمة صوتية</span><span style="width:43px"></span></header>
 <div class="stage">
@@ -40,6 +43,7 @@ html.native-host #remoteVideo{object-fit:contain}
  <div id="hint">جاري التهيئة...</div>
  <div id="duration"></div>
  <video id="remoteVideo" autoplay playsinline muted></video>
+ <canvas id="remoteCanvas" aria-label="فيديو الطرف الآخر"></canvas>
  <video id="localVideo" autoplay playsinline muted></video>
  <audio id="remoteAudio" autoplay playsinline></audio>
  <div id="error"><span id="errorText"></span><button id="retry" onclick="retryStart()">إعادة المحاولة</button></div>
@@ -126,30 +130,65 @@ function armRemoteVideoPlayback(){
  const video=$('remoteVideo');
  video.style.display='block';
  video.playsInline=true;video.autoplay=true;video.muted=true;
- const markFrame=()=>{
-  if(video.readyState>=2 && video.videoWidth>0 && video.videoHeight>0){
-   try{AttaBridge.remoteVideoPlaying()}catch(_){ }
-   try{AttaBridge.mediaPlaybackReady()}catch(_){ }
+ // "playing" and videoWidth can fire before a WebView has rendered any frame.
+ // Only remove the native fallback after a decoded frame is presented.
+ let confirmed=false;
+ function frameReady(){
+  if(confirmed||!active||!video.srcObject)return;
+  confirmed=true;
+  try{AttaBridge.remoteVideoPlaying()}catch(_){}
+  try{AttaBridge.mediaPlaybackReady()}catch(_){}
+ }
+ if(typeof video.requestVideoFrameCallback==='function'){
+  try{video.requestVideoFrameCallback((_now,meta)=>{
+   if(meta.presentedFrames>0)frameReady();
+  });}catch(_){ }
+ }else{
+  // Older WebViews lack requestVideoFrameCallback; require a non-zero decoded frame.
+  video.addEventListener('timeupdate',()=>{
+   if(video.videoWidth>0&&video.videoHeight>0)frameReady();
+  },{once:true});
+ }
+ video.play().catch(()=>{try{AttaBridge.mediaPlaybackBlocked()}catch(_){} });
+}
+
+let canvasTimer=0;
+function enableCanvasFallback(){
+ const video=$('remoteVideo'),canvas=$('remoteCanvas');
+ if(!video.srcObject||!video.videoWidth||!video.videoHeight)return false;
+ const width=Math.min(video.videoWidth,800);
+ const height=Math.max(1,Math.round(width*video.videoHeight/video.videoWidth));
+ canvas.width=width;canvas.height=height;
+ const ctx=canvas.getContext('2d',{alpha:false});if(!ctx)return false;
+ // Some Android WebViews decode the frame but paint the <video> surface black
+ // when it's embedded below a Compose overlay. A 2D canvas is the fallback.
+ canvas.style.display='block';
+ if(canvasTimer)clearInterval(canvasTimer);
+ canvasTimer=setInterval(()=>{
+  if(!active||!video.srcObject){clearInterval(canvasTimer);canvasTimer=0;return}
+  if(video.readyState>=2){
+   try{ctx.drawImage(video,0,0,width,height);
+    AttaBridge.remoteVideoPlaying();}catch(_){/* Wait for first frame. */}
   }
- };
- video.addEventListener('loadeddata',markFrame,{once:true});
- video.addEventListener('resize',markFrame,{once:true});
- video.addEventListener('playing',markFrame,{once:true});
- video.play().then(markFrame).catch(()=>{try{AttaBridge.mediaPlaybackBlocked()}catch(_){}});
+ },140);
+ return true;
 }
 window.__attaResumeMedia=async()=>{
+ const video=$('remoteVideo');
  const attempts=[];
- if($('remoteVideo').srcObject)attempts.push($('remoteVideo').play());
+ if(video.srcObject)attempts.push(video.play());
  if($('remoteAudio').srcObject)attempts.push($('remoteAudio').play());
  if($('localVideo').srcObject)attempts.push($('localVideo').play());
  const results=await Promise.allSettled(attempts);
  if(results.some(x=>x.status==='rejected')){try{AttaBridge.mediaPlaybackBlocked()}catch(_){}}
  else{try{AttaBridge.mediaPlaybackReady()}catch(_){}}
- const video=$('remoteVideo');
- if(video.readyState>=2 && video.videoWidth>0 && video.videoHeight>0){
-  try{AttaBridge.remoteVideoPlaying()}catch(_){ }
+ if(video.videoWidth>0 && video.videoHeight>0){
+  enableCanvasFallback();
+ }else{
+  status('لم تصل إطارات فيديو بعد. تحقق من كاميرا الطرف الآخر والإنترنت.');
  }
 };
+
 function connect(){
  try{
  ws=new WebSocket('wss://tawasol-alatta.omaratta077-4fd.workers.dev/ws?token='+encodeURIComponent(cfg.token));
@@ -236,9 +275,19 @@ async function createPeer(){
  pc.onconnectionstatechange=()=>{if(!pc)return;const c=pc.connectionState;
   if(c==='connected'){
    status('متصل الآن');clearTimeout(timeoutHandle);
-   if(cfg.type==='video')setTimeout(()=>{
+   if(cfg.type==='video')setTimeout(async()=>{
     if(active && pc?.connectionState==='connected' && $('remoteVideo').videoWidth===0){
-     status('الصوت متصل، لكن فيديو الطرف الآخر لم يصل. اضغط إعادة إظهار الفيديو وتحقق من كاميرا الطرف الآخر.');
+     let decoded=0,received=0;
+     try {const stats=await pc.getStats();stats.forEach(item=>{
+       if(item.type==='inbound-rtp' && (item.kind==='video'||item.mediaType==='video')){
+        decoded+=Number(item.framesDecoded||0);received+=Number(item.bytesReceived||0);
+       }
+     });}catch(_){}
+     status(decoded>0
+      ?'تم استقبال فيديو، لكن عرض WebView متعثر. جرّب زر العرض البديل.'
+      :received>0
+       ?'وصلت بيانات الفيديو لكن تعذر فك الصورة. جرّب إعادة الاتصال.'
+       :'الصوت متصل لكن فيديو الطرف الآخر لا يصل. تأكد من كاميرته وTURN.');
      try{AttaBridge.mediaPlaybackBlocked()}catch(_){ }
     }
    },9000);

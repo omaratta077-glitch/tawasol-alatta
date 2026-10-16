@@ -12,8 +12,25 @@ android {
         applicationId = "com.alatta.nativeapp"
         minSdk = 26
         targetSdk = 35
-        versionCode = 149
-        versionName = "1.0.49"
+        versionCode = 150
+        versionName = "1.0.50"
+    }
+
+    // Firebase's public Android configuration is supplied by GitHub Actions vars.
+    // Empty values intentionally leave background push inactive without breaking
+    // local builds or requiring a checked-in google-services.json.
+    buildFeatures { compose = true; buildConfig = true }
+    val pushFields = mapOf(
+        "PUSH_APP_ID" to "ALATTA_FCM_APP_ID",
+        "PUSH_SENDER_ID" to "ALATTA_FCM_SENDER_ID",
+        "PUSH_PROJECT_ID" to "ALATTA_FCM_PROJECT_ID",
+        "PUSH_API_KEY" to "ALATTA_FCM_API_KEY"
+    )
+    defaultConfig {
+        pushFields.forEach { (name, envName) ->
+            val value = (System.getenv(envName) ?: "").replace("\\", "\\\\").replace("\"", "\\\"")
+            buildConfigField("String", name, "\"$value\"")
+        }
     }
 
     // MUST remain inside android {}, before buildTypes.
@@ -36,7 +53,6 @@ android {
         }
     }
 
-    buildFeatures { compose = true }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
@@ -59,4 +75,5 @@ dependencies {
     implementation("com.google.android.libraries.identity.googleid:googleid:1.1.1")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation("com.google.firebase:firebase-messaging:24.1.2")
 }

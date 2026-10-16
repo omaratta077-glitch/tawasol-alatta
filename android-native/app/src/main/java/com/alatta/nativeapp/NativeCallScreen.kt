@@ -269,8 +269,8 @@ internal fun NativeCallScreen(
     val webView = remember(session.callId, token) {
         WebView(context).apply {
             setBackgroundColor(android.graphics.Color.rgb(5, 7, 9))
-            // HTML5 WebRTC video requires hardware-backed compositing on Android.
-            setLayerType(android.view.View.LAYER_TYPE_HARDWARE, null)
+            // Let Android WebView choose the compositor for HTML5 video. Forcing a
+            // hardware layer here can render a black video surface on some phones.
             keepScreenOn = true
             settings.javaScriptEnabled = true
             settings.domStorageEnabled = true
@@ -504,7 +504,7 @@ internal fun NativeCallScreen(
                 TextButton(onClick = {
                     nativeAction("window.__attaResumeMedia && window.__attaResumeMedia()")
                     videoNeedsGesture = false
-                }) { Text(if (videoNeedsGesture) "اضغط لتشغيل الفيديو والصوت" else "إعادة إظهار الفيديو",
+                }) { Text(if (videoNeedsGesture) "اضغط لتشغيل الفيديو والصوت" else "عرض الفيديو بطريقة بديلة",
                     color = CallGold, fontSize = 13.sp) }
             }
             Row(

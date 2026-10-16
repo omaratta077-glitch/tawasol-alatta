@@ -108,6 +108,22 @@ jobs:
           node scripts/verify_sources.mjs
           node scripts/test_call_ringing.mjs
           node scripts/test_mobile_call_fallback.mjs
+          node scripts/test_call_push.mjs
+
+      - name: Report Firebase push setup status
+        shell: bash
+        env:
+          PUSH_APP_ID: ${{ vars.ALATTA_FCM_APP_ID }}
+          PUSH_SENDER_ID: ${{ vars.ALATTA_FCM_SENDER_ID }}
+          PUSH_PROJECT_ID: ${{ vars.ALATTA_FCM_PROJECT_ID }}
+          PUSH_API_KEY: ${{ vars.ALATTA_FCM_API_KEY }}
+        run: |
+          if [[ -z "$PUSH_APP_ID" || -z "$PUSH_SENDER_ID" || -z "$PUSH_PROJECT_ID" || -z "$PUSH_API_KEY" ]]; then
+            echo '::warning::Firebase Android variables are missing. APK will build but background call push notifications will remain disabled.'
+            echo '⚠️ Background calls are disabled until Firebase GitHub Variables + Cloudflare secret are configured.' >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo 'Firebase Android identifiers supplied (delivery still requires Cloudflare credentials and deployment).'
+          fi
 
       - name: Install Android SDK components
         shell: bash
@@ -157,6 +173,12 @@ jobs:
           ALATTA_KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           ALATTA_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           ALATTA_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          # Firebase Android configuration is public; keep private service account
+          # JSON ONLY in Cloudflare secrets, never in this workflow or APK.
+          ALATTA_FCM_APP_ID: ${{ vars.ALATTA_FCM_APP_ID }}
+          ALATTA_FCM_SENDER_ID: ${{ vars.ALATTA_FCM_SENDER_ID }}
+          ALATTA_FCM_PROJECT_ID: ${{ vars.ALATTA_FCM_PROJECT_ID }}
+          ALATTA_FCM_API_KEY: ${{ vars.ALATTA_FCM_API_KEY }}
         run: |
           set -euo pipefail
           test -n "${ALATTA_KEY_PASSWORD:-}" || { echo '::error::Missing KEY_PASSWORD'; exit 1; }

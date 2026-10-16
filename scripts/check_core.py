@@ -29,7 +29,8 @@ check("Version declared", bool(re.search(r'versionName\s*=\s*"\d+\.\d+\.\d+"',gr
 check("No legacy root Android source copies", not any((ROOT/p).exists() for p in ["MainActivity.kt","GoogleNativeSignIn.kt","AndroidManifest.xml","build.gradle.kts"]))
 check("One native YouTube player", main.count("fun YouTubePlayer(")==1 and "AlattaFixedYouTubePlayer" not in main and "YouTubePlayer(youtubeId)" in main)
 check("Native Google bridge removed", not (ROOT/(android+"GoogleWebBridge.kt")).exists())
-check("Official version 1.0.49", 'versionCode = 149' in gradle and 'versionName = "1.0.49"' in gradle)
+check("Official version 1.0.50", 'versionCode = 150' in gradle and 'versionName = "1.0.50"' in gradle)
+check("Background FCM integration declared", all((ROOT/(android+x)).is_file() for x in ['AttaPush.kt']) and 'FIREBASE_SERVICE_ACCOUNT_JSON' in worker and '/api/push/register' in worker and 'ALATTA_FCM_APP_ID' in workflow)
 check("No old patch workflows",not list((ROOT/'.github/workflows').glob('apply-*.yml')) and not list((ROOT/'.github/workflows').glob('install-*.yml')))
 xmls=list((ROOT/'android-native').rglob('*.xml'))
 errors=[]
