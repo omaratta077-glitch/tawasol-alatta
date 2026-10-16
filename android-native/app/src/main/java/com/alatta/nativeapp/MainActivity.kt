@@ -234,7 +234,7 @@ private fun uploadChatMedia(context: android.content.Context, token: String, uri
 
 class MainActivity : ComponentActivity() {
     // Notification taps work for a cold start AND for an existing singleTask Activity.
-    var incomingPush by mutableStateOf<PushCall?>(null)
+    internal var incomingPush by mutableStateOf<PushCall?>(null)
         private set
 
     override fun onCreate(savedInstanceState: Bundle?) {
