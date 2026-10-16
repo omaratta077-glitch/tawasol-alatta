@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <title>حساب Google — تواصل العطا</title>
+  <style>
+    :root{color-scheme:dark}*{box-sizing:border-box}
+    body{background:#040506;color:#f7f8f9;font:16px/1.75 system-ui,Tahoma,Arial,sans-serif;min-height:100vh;margin:0;display:grid;place-items:center;padding:18px}
+    .card{width:min(100%,450px);border:1px solid #6b5429;border-radius:22px;background:linear-gradient(140deg,#121719,#06090b);padding:28px 18px;text-align:center;box-shadow:0 14px 45px #0008}
+    h1{font-size:24px;color:#f6d776;margin:0} .sub{color:#c9d0d4;font-size:14px}
+    #googleButton{display:flex;justify-content:center;min-height:45px;margin:26px auto}
+    #status{color:#f6d776;font-size:14px;min-height:24px}#status.err{color:#ff9292}
+    .return{display:none;margin:18px auto 0;padding:12px 20px;color:#0b0a09;background:linear-gradient(110deg,#e2ad38,#ffdc76);font-weight:800;text-decoration:none;border-radius:15px;width:fit-content}
+    .small{color:#9da6aa;font-size:12px;margin-top:20px}
+  </style>
+</head>
+<body>
+<main class="card">
+  <h1>AL-ATTA</h1>
+  <p class="sub" id="headline">سجّل دخولك من خلال حساب Google الموجود على موقع العطا.</p>
+  <div id="googleButton" aria-label="تسجيل الدخول بجوجل"></div>
+  <p role="status" aria-live="polite" id="status">جارٍ تجهيز تسجيل Google...</p>
+  <a class="return" id="goBack" href="#">الرجوع إلى تطبيق تواصل العطا</a>
+  <p class="small">ستعود إلى التطبيق لإكمال العملية. لا نطلب كلمة مرور Google ولا نعرضها.</p>
+</main>
+<script>
+(async()=>{
+ 'use strict';
+ const qs=new URLSearchParams(location.search);
+ const challenge=qs.get('challenge')||'';
+ const state=qs.get('state')||'';
+ const mode=qs.get('mode')||'login';
+ const status=document.querySelector('#status');
+ const setStatus=(msg,bad=false)=>{status.textContent=msg;status.classList.toggle('err',bad)};
+ if(!/^[A-Za-z0-9_-]{43}$/.test(challenge) || !/^[A-Za-z0-9_-]{43}$/.test(state) || !['login','signup'].includes(mode)){
+   setStatus('رابط فتح Google غير صالح. ارجع للتطبيق وحاول مرة أخرى.',true);return;
+ }
+ document.querySelector('#headline').textContent=mode==='signup'?
+   'اختر حساب Google، ثم أكمل اسمك وعمرك داخل تطبيق العطا.':'اختر حساب Google المرتبط بحسابك في تواصل العطا.';
+ try{
+   const config=await fetch('/api/google-config',{cache:'no-store'}).then(r=>r.json());
+   if(!config.enabled||!config.clientId)throw new Error('Google غير مفعّل على الموقع الآن.');
+   await new Promise((resolve,reject)=>{
+      if(window.google?.accounts?.id)return resolve();
+      const script=document.createElement('script');script.src='https://accounts.google.com/gsi/client';
+      script.async=true;script.onload=resolve;script.onerror=()=>reject(Error('تعذر تحميل Google، تأكد من الاتصال بالإنترنت'));
+      document.head.appendChild(script);
+   });
+   window.google.accounts.id.initialize({client_id:config.clientId,callback:async response=>{
+     if(!response.credential){setStatus('لم يصل تأكيد Google. أعد المحاولة.',true);return;}
+     try{
+       setStatus('جارٍ تجهيز العودة الآمنة إلى التطبيق...');
+       const res=await fetch('/api/android-google-bridge/start',{
+          method:'POST',headers:{'content-type':'application/json'},
+          body:JSON.stringify({credential:response.credential,challenge})
+       });
+       const out=await res.json();
+       if(!res.ok||!out.ok)throw new Error(out.error||'تعذر إكمال العملية');
+       const redirect=new URL('alatta-native://google-auth');
+       redirect.searchParams.set('code',out.code);redirect.searchParams.set('state',state);
+       const back=document.querySelector('#goBack');back.href=redirect.href;back.style.display='block';
+       setStatus('تم اختيار الحساب. اضغط «الرجوع إلى التطبيق» لإكمال الدخول.');
+     }catch(err){setStatus(err.message||'تعذر العودة للتطبيق',true)}
+   }});
+   window.google.accounts.id.renderButton(document.querySelector('#googleButton'),{
+      type:'standard',theme:'filled_black',size:'large',shape:'pill',text:mode==='signup'?'signup_with':'continue_with',width:290,locale:'ar'
+   });
+   setStatus('اضغط زر Google واختر حسابك.');
+ }catch(e){setStatus(e.message||'تعذّر تشغيل تسجيل Google',true)}
+})();
+</script>
+</body>
+</html>

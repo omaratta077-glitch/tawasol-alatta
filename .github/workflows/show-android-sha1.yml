@@ -1,0 +1,36 @@
+
+name: Show AL-ATTA SHA1
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  fingerprint:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Extract signing certificate SHA1
+        shell: bash
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+        run: |
+          set -euo pipefail
+
+          printf '%s' "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/alatta-release.jks"
+
+          keytool -list -v \
+            -keystore "$RUNNER_TEMP/alatta-release.jks" \
+            -alias "$KEY_ALIAS" \
+            -storepass:env KEYSTORE_PASSWORD \
+            | grep 'SHA1:'
