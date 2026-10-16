@@ -136,8 +136,11 @@ private class OutgoingRingback {
     private val repeat = object : Runnable {
         override fun run() {
             if (!running) return
-            try { tone?.startTone(ToneGenerator.TONE_SUP_RINGTONE, 1800) } catch (_: Exception) {}
-            handler.postDelayed(this, 4400)
+            try { tone?.startTone(ToneGenerator.TONE_PROP_BEEP, 180) } catch (_: Exception) {}
+            handler.postDelayed({
+                if (running) try { tone?.startTone(ToneGenerator.TONE_PROP_BEEP, 180) } catch (_: Exception) {}
+            }, 370)
+            handler.postDelayed(this, 3200)
         }
     }
     fun start() {
@@ -167,6 +170,19 @@ internal data class NativeCallSession(
     val callId: String,
     val incoming: Boolean
 )
+
+private fun nativeActivityLabel(u: JSONObject): String {
+    if (u.optBoolean("isOnline", false)) return "نشط الآن"
+    val last = u.optLong("lastSeen", 0L)
+    if (last <= 0L) return "غير متصل"
+    val minutes = ((System.currentTimeMillis() - last).coerceAtLeast(0L) / 60000L)
+    return when {
+        minutes < 1L -> "نشط منذ لحظات"
+        minutes < 60L -> "نشط منذ $minutes دقيقة"
+        minutes < 1440L -> "نشط منذ ${minutes / 60L} ساعة"
+        else -> "نشط منذ ${minutes / 1440L} يوم"
+    }
+}
 
 private val CallGold = Color(0xFFE6B94E)
 private val CallBackground = Color(0xFF050709)
@@ -203,6 +219,8 @@ internal fun NativeCallScreen(
     var speakerOn by remember(session.callId) { mutableStateOf(videoCall) }
     var remoteVideoPlaying by remember(session.callId) { mutableStateOf(false) }
     var localCameraReady by remember(session.callId) { mutableStateOf(false) }
+    var videoNeedsGesture by remember(session.callId) { mutableStateOf(false) }
+    var peerActivity by remember(session.peer) { mutableStateOf("") }
     var hangingUp by remember(session.callId) { mutableStateOf(false) }
 
     // Do not play ringback during call setup. The remote device must explicitly
@@ -233,6 +251,7 @@ internal fun NativeCallScreen(
                 .map { user.optString(it).trim() }.firstOrNull { it.isNotEmpty() && it != "null" }
             if (!name.isNullOrBlank()) peerDisplayName = name
             peerAvatar = user.optString("avatar").takeUnless { it == "null" }.orEmpty()
+            peerActivity = nativeActivityLabel(user)
         } catch (_: Exception) {
             // Never expose a private signalling ID as the visible name.
         }
@@ -249,6 +268,8 @@ internal fun NativeCallScreen(
     val webView = remember(session.callId, token) {
         WebView(context).apply {
             setBackgroundColor(android.graphics.Color.rgb(5, 7, 9))
+            // HTML5 WebRTC video requires hardware-backed compositing on Android.
+            setLayerType(android.view.View.LAYER_TYPE_HARDWARE, null)
             keepScreenOn = true
             settings.javaScriptEnabled = true
             settings.domStorageEnabled = true
@@ -271,6 +292,16 @@ internal fun NativeCallScreen(
                             connectedAt = System.currentTimeMillis()
                         }
                     }
+                }
+
+                @JavascriptInterface
+                fun mediaPlaybackBlocked() {
+                    activity?.runOnUiThread { videoNeedsGesture = true }
+                }
+
+                @JavascriptInterface
+                fun mediaPlaybackReady() {
+                    activity?.runOnUiThread { videoNeedsGesture = false }
                 }
 
                 @JavascriptInterface
@@ -313,8 +344,11 @@ internal fun NativeCallScreen(
                             (resource == PermissionRequest.RESOURCE_VIDEO_CAPTURE && videoCall &&
                                 ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED)
                         }
-                        if (trusted && permissions.isNotEmpty()) request.grant(permissions.toTypedArray())
-                        else request.deny()
+                        if (trusted && permissions.isNotEmpty() && permissions.size == request.resources.size) request.grant(permissions.toTypedArray())
+                        else {
+                            request.deny()
+                            if (trusted) callStatus = "إذن الكاميرا أو الميكروفون مرفوض. فعّل الأذونات من إعدادات التطبيق."
+                        }
                     }
                 }
             }
@@ -443,6 +477,10 @@ internal fun NativeCallScreen(
                         Spacer(Modifier.height(11.dp))
                         Text(callStatus, fontSize = 16.sp, color = CallMuted, maxLines = 3,
                             lineHeight = 23.sp)
+                        if (connectedAt == 0L && peerActivity.isNotBlank()) {
+                            Text(peerActivity, fontSize = 12.sp, color = CallGold,
+                                modifier = Modifier.padding(top = 5.dp))
+                        }
                         if (videoCall && localCameraReady) {
                             Text("تم تفعيل الكاميرا — انتظار فيديو الطرف الآخر", color = CallGold,
                                 fontSize = 12.sp, modifier = Modifier.padding(top = 7.dp))
@@ -460,6 +498,13 @@ internal fun NativeCallScreen(
                         .padding(horizontal = 16.dp, vertical = 8.dp),
                         color = CallWhite, fontSize = 19.sp, maxLines = 1)
                 }
+            }
+            if (videoCall && (connectedAt > 0L || videoNeedsGesture)) {
+                TextButton(onClick = {
+                    nativeAction("window.__attaResumeMedia && window.__attaResumeMedia()")
+                    videoNeedsGesture = false
+                }) { Text(if (videoNeedsGesture) "اضغط لتشغيل الفيديو والصوت" else "إعادة إظهار الفيديو",
+                    color = CallGold, fontSize = 13.sp) }
             }
             Row(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 21.dp),

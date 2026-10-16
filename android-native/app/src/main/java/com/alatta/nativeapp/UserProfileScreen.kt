@@ -79,6 +79,20 @@ internal fun PublicUserProfile(
                     Text(fullName, color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold,
                         modifier = Modifier.offset(y = (-37).dp), maxLines = 1,
                         overflow = TextOverflow.Ellipsis)
+                    val activityLabel = if (user.optBoolean("isOnline", false)) "نشط الآن" else {
+                        val last = user.optLong("lastSeen", 0L)
+                        if (last <= 0L) "غير متصل" else {
+                            val minutes = ((System.currentTimeMillis() - last).coerceAtLeast(0L) / 60000L)
+                            when {
+                                minutes < 1L -> "نشط منذ لحظات"
+                                minutes < 60L -> "نشط منذ $minutes دقيقة"
+                                minutes < 1440L -> "نشط منذ ${minutes / 60L} ساعة"
+                                else -> "نشط منذ ${minutes / 1440L} يوم"
+                            }
+                        }
+                    }
+                    Text(activityLabel, color = profileGold, fontSize = 12.sp,
+                        modifier = Modifier.offset(y = (-32).dp).padding(bottom = 3.dp))
                     if (user.optString("bio").isNotBlank()) Text(user.optString("bio"),
                         color = profileMuted, fontSize = 13.sp, modifier = Modifier.offset(y = (-25).dp))
                     val friendCount = profile?.optInt("friendCount", -1) ?: -1

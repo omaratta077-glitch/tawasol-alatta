@@ -107,6 +107,7 @@ jobs:
           node scripts/test_backend.mjs
           node scripts/verify_sources.mjs
           node scripts/test_call_ringing.mjs
+          node scripts/test_mobile_call_fallback.mjs
 
       - name: Install Android SDK components
         shell: bash

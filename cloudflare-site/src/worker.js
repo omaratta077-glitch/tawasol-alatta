@@ -76,7 +76,9 @@ export class SignalingRoom extends DurableObject {
       bio:u.bio||"",
       cover:u.cover||"",
       accountPrivate:!!u.accountPrivate,
-      avatar:u.avatar||""
+      avatar:u.avatar||"",
+      isOnline:!!this.findUser(username),
+      lastSeen:Number(await this.ctx.storage.get(`lastSeen:${username}`))||0
     };
   }
 
@@ -1441,6 +1443,16 @@ export class SignalingRoom extends DurableObject {
       list.push(payload);
       await this.ctx.storage.put(`messages:${key}`,list.slice(-300));
 
+      if(payload.mediaType==="call-signal"){
+        try{
+          const signal=JSON.parse(mediaRaw);
+          await this.queuePhoneCallEvent(to,{
+            type:String(signal.type||""), from:s.username, to,
+            callId:String(signal.callId||""), callType:signal.callType==="video"?"video":"audio",
+            signalId:String(signal.signalId||payload.id), createdAt:Date.now()
+          });
+        }catch(_){/* Non-call chat messages are unaffected. */}
+      }
       if(target){
         this.send(target,payload);
       }
@@ -1961,6 +1973,7 @@ export class SignalingRoom extends DurableObject {
 
     this.ctx.acceptWebSocket(server);
     this.setMeta(server,{user:s.username,token});
+    await this.ctx.storage.put(`lastSeen:${s.username}`,Date.now());
 
     queueMicrotask(async()=>{
       this.send(server,{type:"joined",user:await this.publicUser(s.username)});
@@ -2022,6 +2035,18 @@ export class SignalingRoom extends DurableObject {
     for(const ws of this.sockets()){
       this.send(ws,{type:"users",users});
     }
+  }
+
+  // Phone foreground polling fallback: persist only the small invitation/cancellation
+  // events, not ICE/SDP media signaling, and never expose them without authentication.
+  async queuePhoneCallEvent(to,event){
+    if(!["call-request","call-reject","hangup"].includes(event.type) || !event.callId)return;
+    const now=Date.now();
+    const key=`callSignals:${to}`;
+    const prior=await this.ctx.storage.get(key)||[];
+    const recent=prior.filter(x=>now-Number(x.createdAt||0)<45000);
+    if(!recent.some(x=>x.signalId && x.signalId===event.signalId))recent.push(event);
+    await this.ctx.storage.put(key,recent.slice(-60));
   }
 
   async addCallLog(a,b,kind,status){
@@ -2147,6 +2172,13 @@ export class SignalingRoom extends DurableObject {
         this.send(ws,{type:"error",message:"المكالمات متاحة للأصدقاء فقط"});return;
       }
       const target=this.findUser(to);
+      // Queue incoming invitations even when the sender could only use WebSocket.
+      // The HTTP copy has the same signalId and is deduplicated by queuePhoneCallEvent.
+      await this.queuePhoneCallEvent(to,{
+        type:msg.type, from, to, callId:String(msg.callId||""),
+        callType:msg.callType==="video"?"video":"audio",
+        signalId:String(msg.signalId||crypto.randomUUID()), createdAt:Date.now()
+      });
 
       if(msg.type==="call-request"){
         await this.addCallLog(from,to,msg.callType||"video","outgoing");
@@ -2161,8 +2193,16 @@ export class SignalingRoom extends DurableObject {
     }
   }
 
-  async webSocketClose(){ await this.broadcastUsers(); }
-  async webSocketError(){ await this.broadcastUsers(); }
+  async webSocketClose(ws){
+    const user=this.meta(ws).user;
+    if(user)await this.ctx.storage.put(`lastSeen:${user}`,Date.now());
+    await this.broadcastUsers();
+  }
+  async webSocketError(ws){
+    const user=this.meta(ws).user;
+    if(user)await this.ctx.storage.put(`lastSeen:${user}`,Date.now());
+    await this.broadcastUsers();
+  }
 }
 
 

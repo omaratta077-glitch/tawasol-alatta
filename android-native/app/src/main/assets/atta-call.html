@@ -122,6 +122,34 @@ function receiveRaw(raw){
  seen.add(unique);if(seen.size>400)seen=new Set([...seen].slice(-200));
  handle(s).catch(e=>error('تعذر معالجة الاتصال: '+e.message));
 }
+function armRemoteVideoPlayback(){
+ const video=$('remoteVideo');
+ video.style.display='block';
+ video.playsInline=true;video.autoplay=true;video.muted=true;
+ const markFrame=()=>{
+  if(video.readyState>=2 && video.videoWidth>0 && video.videoHeight>0){
+   try{AttaBridge.remoteVideoPlaying()}catch(_){ }
+   try{AttaBridge.mediaPlaybackReady()}catch(_){ }
+  }
+ };
+ video.addEventListener('loadeddata',markFrame,{once:true});
+ video.addEventListener('resize',markFrame,{once:true});
+ video.addEventListener('playing',markFrame,{once:true});
+ video.play().then(markFrame).catch(()=>{try{AttaBridge.mediaPlaybackBlocked()}catch(_){}});
+}
+window.__attaResumeMedia=async()=>{
+ const attempts=[];
+ if($('remoteVideo').srcObject)attempts.push($('remoteVideo').play());
+ if($('remoteAudio').srcObject)attempts.push($('remoteAudio').play());
+ if($('localVideo').srcObject)attempts.push($('localVideo').play());
+ const results=await Promise.allSettled(attempts);
+ if(results.some(x=>x.status==='rejected')){try{AttaBridge.mediaPlaybackBlocked()}catch(_){}}
+ else{try{AttaBridge.mediaPlaybackReady()}catch(_){}}
+ const video=$('remoteVideo');
+ if(video.readyState>=2 && video.videoWidth>0 && video.videoHeight>0){
+  try{AttaBridge.remoteVideoPlaying()}catch(_){ }
+ }
+};
 function connect(){
  try{
  ws=new WebSocket('wss://tawasol-alatta.omaratta077-4fd.workers.dev/ws?token='+encodeURIComponent(cfg.token));
@@ -197,13 +225,24 @@ async function createPeer(){
  pc.onicecandidate=e=>{if(e.candidate&&candidateCount++<24)transmit('ice',{candidate:e.candidate.toJSON()}).catch(()=>{});};
  pc.ontrack=e=>{
   if(!remote.getTracks().some(t=>t.id===e.track.id))remote.addTrack(e.track);
-  if(e.track.kind==='video'){$('remoteVideo').onplaying=()=>{try{AttaBridge.remoteVideoPlaying()}catch(e){}};$('remoteVideo').style.display='block';$('bigAvatar').style.display='none';$('remoteVideo').srcObject=remote;$('remoteVideo').play().catch(()=>{});}
-  if(e.track.kind==='audio'){$('remoteAudio').srcObject=new MediaStream(remote.getAudioTracks());$('remoteAudio').play().catch(()=>{});}
+  if(e.track.kind==='video'){$('remoteVideo').style.display='block';$('bigAvatar').style.display='none';$('remoteVideo').srcObject=remote;
+  // A decoded frame, rather than a premature 'playing' event, unlocks native video UI.
+  armRemoteVideoPlayback();}
+  if(e.track.kind==='audio'){$('remoteAudio').srcObject=new MediaStream(remote.getAudioTracks());$('remoteAudio').play().catch(()=>{try{AttaBridge.mediaPlaybackBlocked()}catch(_){}});}
+  if(e.track.kind==='video')e.track.onunmute=()=>{armRemoteVideoPlayback();};
   // A remote track can arrive before ICE connects. Only connectionState='connected'
   // is evidence that both sides have established the media connection.
  };
  pc.onconnectionstatechange=()=>{if(!pc)return;const c=pc.connectionState;
-  if(c==='connected'){status('متصل الآن');clearTimeout(timeoutHandle);}
+  if(c==='connected'){
+   status('متصل الآن');clearTimeout(timeoutHandle);
+   if(cfg.type==='video')setTimeout(()=>{
+    if(active && pc?.connectionState==='connected' && $('remoteVideo').videoWidth===0){
+     status('الصوت متصل، لكن فيديو الطرف الآخر لم يصل. اضغط إعادة إظهار الفيديو وتحقق من كاميرا الطرف الآخر.');
+     try{AttaBridge.mediaPlaybackBlocked()}catch(_){ }
+    }
+   },9000);
+  }
   if(c==='disconnected')status('الاتصال غير مستقر — جارٍ إعادة المحاولة...');
   if(c==='failed')error('فشل اتصال الوسائط. تأكد من إعداد TURN والإنترنت');
  };

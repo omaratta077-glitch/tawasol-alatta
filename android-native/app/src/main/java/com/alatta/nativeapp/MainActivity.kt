@@ -900,7 +900,7 @@ private fun AttaYoutubeControls(
             callMinimized = false
         }
         else {
-            featureMessage = "لا يمكن إجراء المكالمة بدون السماح بالميكروفون والكاميرا عند الحاجة"
+            featureMessage = "يجب السماح بالميكروفون والكاميرا عند مكالمة الفيديو. لو لم يظهر طلب الإذن، افتح إعدادات التطبيق ← الأذونات وفعّل الكاميرا والميكروفون."
             if (next?.incoming == true) scope.launch {
                 try {
                     val packet = JSONObject().put("type", "call-reject").put("to", next.peer)
@@ -1111,6 +1111,46 @@ private fun AttaYoutubeControls(
         }
     }
 
+    // The same invitation processor is used by realtime WebSocket and authenticated
+    // HTTP polling. A transient socket disconnection must not lose incoming calls.
+    fun handleIncomingCallEvent(signal: JSONObject) {
+        val kind = signal.optString("type")
+        val sender = signal.optString("from").trim().lowercase()
+        val callId = signal.optString("callId").trim()
+        if (sender.isBlank() || sender == myUsername.lowercase() || callId.isBlank()) return
+        if (kind == "call-request") {
+            val timestamp = signal.optLong("createdAt", signal.optLong("ts", 0L))
+            val age = System.currentTimeMillis() - timestamp
+            if (age !in 0..45000L || !knownCalls.add(callId)) return
+            val invite = NativeCallSession(sender,
+                if (signal.optString("callType") == "video") "video" else "audio", callId, true)
+            if (activeCall == null && incomingCall == null) {
+                incomingCall = invite
+                sendCallRinging(invite) // Ringback only after the incoming dialog is created.
+            } else sendCallResponse(invite, "busy")
+        } else if (kind == "hangup" || kind == "call-reject") {
+            val pending = incomingCall
+            if (pending?.callId == callId && pending.peer.equals(sender, ignoreCase = true))
+                incomingCall = null
+        }
+    }
+
+    // Foreground fallback: poll only small call invitations every three seconds.
+    // The backend's queue is authenticated, one-time, and scoped to this user.
+    // Calls while the app is killed/backgrounded require a future FCM notification service.
+    LaunchedEffect(token, myUsername) {
+        if (token.isBlank() || myUsername.isBlank()) return@LaunchedEffect
+        while (isActive) {
+            if ((ctx as ComponentActivity).lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED)) {
+                try {
+                    get("/api/call-signals").arr("signals").forEach { handleIncomingCallEvent(it) }
+                } catch (cancelled: CancellationException) { throw cancelled }
+                catch (_: Exception) { /* WebSocket is still the primary transport. */ }
+            }
+            delay(3000L)
+        }
+    }
+
     // A single lightweight authenticated WebSocket receives incoming calls in the
     // foreground. WebRTC transport itself is active only while a call screen is open.
     LaunchedEffect(token, myUsername) {
@@ -1130,31 +1170,9 @@ private fun AttaYoutubeControls(
                                     if (!has("to")) put("to", msg.optString("to"))
                                 } } catch (_: Exception) { null }
                                 else msg
-                            val isCall = signal?.optString("type") == "call-request"
-                            val sender = signal?.optString("from").orEmpty()
-                            val callId = signal?.optString("callId").orEmpty()
-                            if (isCall && sender.isNotBlank() && sender != myUsername && callId.isNotBlank()) {
-                                val age = System.currentTimeMillis() - signal!!.optLong("createdAt", 0L)
-                                if (age in 0..45000L) scope.launch(Dispatchers.Main) {
-                                    if (knownCalls.add(callId)) {
-                                        val invite = NativeCallSession(sender,
-                                            signal.optString("callType", "audio"), callId, true)
-                                        if (activeCall == null && incomingCall == null) {
-                                            incomingCall = invite
-                                            sendCallRinging(invite)
-                                        } else sendCallResponse(invite, "busy")
-                                    }
-                                }
-                            } else if (signal?.optString("type") in setOf("hangup", "call-reject") && callId.isNotBlank()) {
-                                // The caller cancelled while the invitation was ringing.
-                                // Close its dialog immediately; Compose stops ringtone/vibration.
-                                scope.launch(Dispatchers.Main) {
-                                    val pending = incomingCall
-                                    if (pending != null && pending.callId == callId &&
-                                        pending.peer.equals(sender, ignoreCase = true)) {
-                                        incomingCall = null
-                                    }
-                                }
+                            if (signal?.optString("type") in setOf("call-request", "hangup", "call-reject")) {
+                                val packet = signal!!
+                                scope.launch(Dispatchers.Main) { handleIncomingCallEvent(packet) }
                             } else if (msg.optString("type") == "chat" && msg.optString("mediaType") != "call-signal") {
                                 val from = msg.optString("from").lowercase()
                                 val to = msg.optString("to").lowercase()
@@ -1325,7 +1343,16 @@ private fun AttaYoutubeControls(
     if (featureMessage.isNotBlank()) AlertDialog(
         onDismissRequest = { featureMessage = "" },
         title = { Text("معلومة") }, text = { Text(featureMessage) },
-        confirmButton = { TextButton(onClick = { featureMessage = "" }) { Text("حسنًا") } }
+        confirmButton = {
+            if (featureMessage.contains("الأذونات")) TextButton(onClick = {
+                val intent = Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                    Uri.parse("package:${ctx.packageName}"))
+                ctx.startActivity(intent)
+                featureMessage = ""
+            }) { Text("فتح إعدادات الأذونات") }
+            else TextButton(onClick = { featureMessage = "" }) { Text("حسنًا") }
+        },
+        dismissButton = { TextButton(onClick = { featureMessage = "" }) { Text("إغلاق") } }
     )
     if (showStoryComposer) AlertDialog(
         onDismissRequest = { showStoryComposer = false },

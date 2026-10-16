@@ -1,8 +1,8 @@
-# تواصل العطا — الإصدار الرسمي المنظّم v1.0.48
+# تواصل العطا — الإصدار الرسمي المنظّم v1.0.49
 
 هذه **شيفرة المشروع الكاملة**، وليست APK ولا باتشًا جزئيًا.
 
-- Android الرسمي الوحيد: `android-native/`، الحزمة `com.alatta.nativeapp`، الكود `148` والإصدار `1.0.48`.
+- Android الرسمي الوحيد: `android-native/`، الحزمة `com.alatta.nativeapp`، الكود `149` والإصدار `1.0.49`.
 - نظام توقيع Release الأصلي لم يُستبدل: `KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD` في GitHub Secrets بالمستودع الأساسي.
 - الموقع: `cloudflare-site/public/`، وخادم Cloudflare: `cloudflare-site/src/worker.js`.
 - اختبار المصدر: `python3 scripts/check_core.py`، واختبارات Node داخل `scripts/`.
@@ -13,4 +13,4 @@
 
 احتفظ بصفحة `public/android-google-auth.html` مؤقتًا للتوافق مع النسخ القديمة؛ ملف Kotlin القديم `GoogleWebBridge.kt` غير مستخدم وتم حذفه.
 
-انظر الملف `CHANGELOG_CLEANUP_v1.0.48_AR.md` لتفاصيل الحذف والمخاطر والتثبيت.
+انظر الملف `CHANGELOG_CLEANUP_v1.0.49_AR.md` لتفاصيل الحذف والمخاطر والتثبيت.

@@ -901,6 +901,17 @@ async function loadChatContacts(){
   }
 }
 
+function lastActivityText(user){
+  if(user?.isOnline)return "نشط الآن";
+  const last=Number(user?.lastSeen||0);
+  if(!last)return "غير متصل";
+  const mins=Math.max(0,Math.floor((Date.now()-last)/60000));
+  if(mins<1)return "نشط منذ لحظات";
+  if(mins<60)return `نشط منذ ${mins} دقيقة`;
+  if(mins<1440)return `نشط منذ ${Math.floor(mins/60)} ساعة`;
+  return `نشط منذ ${Math.floor(mins/1440)} يوم`;
+}
+
 function renderUsers(){
   if(!me || !$("usersList"))return;
 
@@ -942,7 +953,7 @@ function renderUsers(){
             <img class="chat-contact-avatar" src="${avatar}" alt="">
             <span class="chat-contact-copy">
               <strong>${esc(u.fullName||u.displayName||u.username)}</strong>
-              <small>${u.isOnline?"متصل الآن":"غير متصل"}</small>
+              <small>${lastActivityText(u)}</small>
             </span>
             <span class="presence-dot ${u.isOnline?"online":"offline"}"></span>
             <span class="contact-open-arrow">${uiIcon("chevron-left")}</span>
