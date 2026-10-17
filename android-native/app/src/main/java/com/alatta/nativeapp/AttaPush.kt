@@ -220,7 +220,7 @@ internal object AttaPush {
             type == "friend-accepted") "الأصدقاء" else "الإشعارات"
         val intent = Intent(context, MainActivity::class.java).apply {
             action = ACTION_OPEN_NOTIFICATION
-            data = Uri.parse("alatta://notification/${Uri.encode(eventId)}")
+            this.data = Uri.parse("alatta://notification/${Uri.encode(eventId)}")
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
             putExtra("atta_notification_tab", tab)
         }
