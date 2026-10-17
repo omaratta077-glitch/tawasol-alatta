@@ -19,7 +19,7 @@ concurrency:
 
 jobs:
   release:
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/stable-v1.0.65-4-'
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout
@@ -116,6 +116,7 @@ jobs:
           set -euo pipefail
           python3 scripts/check_core.py
           node scripts/test_backend.mjs
+          node scripts/test_google_signup_pbkdf_cap.mjs
           node scripts/verify_sources.mjs
           node scripts/test_youtube_single_origin.mjs
           node scripts/test_call_ringing.mjs

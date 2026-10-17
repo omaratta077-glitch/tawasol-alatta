@@ -7,7 +7,11 @@ async function hashPassword(text){
   return [...new Uint8Array(buf)].map(b=>b.toString(16).padStart(2,"0")).join("");
 }
 
-const KDF_ITERATIONS=180000;
+// Cloudflare Workers WebCrypto currently rejects PBKDF2 rounds > 100,000.
+// Keep the stored format versioned as pbkdf2:<rounds>:<salt>:<digest>.
+// Any older hash with a different supported round count is still read by
+// passwordMatches using the rounds embedded in its stored value.
+const KDF_ITERATIONS=100000;
 async function securePassword(password){
   const salt=crypto.getRandomValues(new Uint8Array(16));
   const key=await crypto.subtle.importKey('raw',encoder.encode(String(password)),{name:'PBKDF2'},false,['deriveBits']);
