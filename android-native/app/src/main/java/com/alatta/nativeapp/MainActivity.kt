@@ -1539,6 +1539,8 @@ private class AttaYoutubeFullscreenChrome(
                         }
                     }
                     when (tab) {
+                        "القرآن", "الأحاديث", "الأذكار" -> KnowledgeScreen(tab, Modifier.weight(1f))
+                        "الرياضة" -> FootballScreen(Modifier.weight(1f))
                         "الرئيسية", "استكشاف", "المحفوظات" -> LazyColumn(Modifier.weight(1f).padding(horizontal = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             if (tab == "استكشاف") {
                                 item { SectionTitle("الأشخاص") }

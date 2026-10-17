@@ -50,6 +50,12 @@ internal val PremiumMuted = Color(0xFFB6BBC0)
 @Composable
 internal fun SiteIcon(name: String, modifier: Modifier = Modifier, tint: Color = PremiumGold, size: Dp = 24.dp) {
     val resId = when (name) {
+        "book-open" -> R.drawable.atta_ic_book_open
+        "book-text" -> R.drawable.atta_ic_book_text
+        "hand-heart" -> R.drawable.atta_ic_hand_heart
+        "trophy" -> R.drawable.atta_ic_trophy
+        "play-circle" -> R.drawable.atta_ic_play_circle
+        "user-round" -> R.drawable.atta_ic_user_round
         "home" -> R.drawable.atta_ic_home
         "search" -> R.drawable.atta_ic_search
         "bell" -> R.drawable.atta_ic_bell
@@ -181,27 +187,35 @@ internal fun PremiumSearchBar(onClick: () -> Unit) {
 internal fun PremiumBottomNav(current: String, go: (String) -> Unit) {
     // This bar is inside safeDrawingPadding() in the parent, ABOVE Android's
     // system back/home controls, not overlapping them.
-    // RTL order: Home | Profile | Messages (center) | Friends | Menu.
-    // Search is already in the header; do not duplicate it at the bottom.
+    // One horizontally scrolling navigation bar; it replaces the old fixed five-item bar.
+    // Same Lucide-style vector icons as the approved interactive prototype.
     val destinations = listOf(
         Triple("الرئيسية", "home", "الرئيسية"),
-        Triple("الملف", "user", "ملفي"),
-        Triple("الرسائل", "mail", "الرسائل"),
+        Triple("الرسائل", "message-circle", "الرسائل"),
         Triple("الأصدقاء", "users", "الأصدقاء"),
-        Triple("القائمة", "menu", "القائمة")
+        Triple("القرآن", "book-open", "القرآن"),
+        Triple("الأحاديث", "book-text", "الأحاديث"),
+        Triple("الأذكار", "hand-heart", "الأذكار"),
+        Triple("الرياضة", "trophy", "الرياضة"),
+        Triple("يوتيوب", "play-circle", "يوتيوب"),
+        Triple("الملف", "user-round", "الملف"),
+        Triple("القائمة", "ellipsis", "المزيد")
     )
+    val scroll = rememberScrollState()
     Row(
-        Modifier.fillMaxWidth().height(71.dp)
+        Modifier.fillMaxWidth().height(74.dp)
             .background(PremiumBackground)
             .border(0.8.dp, PremiumBorder, RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp))
-            .padding(horizontal = 3.dp, vertical = 5.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .horizontalScroll(scroll)
+            .padding(horizontal = 5.dp, vertical = 5.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(5.dp)
     ) {
         destinations.forEach { (name, icon, label) ->
             val selected = current == name
             Column(
-                Modifier.weight(1f).fillMaxHeight()
-                    .background(if (selected) PremiumGold.copy(alpha = .14f) else Color.Transparent, RoundedCornerShape(13.dp))
+                Modifier.width(72.dp).fillMaxHeight()
+                    .background(if (selected) PremiumGold.copy(alpha = .20f) else Color(0xFF171A1D), RoundedCornerShape(13.dp))
                     .clickable { go(name) },
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center
