@@ -44,6 +44,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -106,10 +107,11 @@ private class IncomingCallAlert(private val context: Context) {
 
 /** Only an actively displayed incoming invitation is allowed to ring. */
 @Composable
-internal fun IncomingCallRingtone() {
+internal fun IncomingCallRingtone(callId: String) {
     val context = LocalContext.current
     val lifecycleOwner = context as? LifecycleOwner
-    DisposableEffect(context, lifecycleOwner) {
+    DisposableEffect(context, lifecycleOwner, callId) {
+        AttaPush.foregroundRingCallId = callId
         val alert = IncomingCallAlert(context.applicationContext)
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
@@ -125,6 +127,7 @@ internal fun IncomingCallRingtone() {
         onDispose {
             lifecycleOwner?.lifecycle?.removeObserver(observer)
             alert.stop()
+            if (AttaPush.foregroundRingCallId == callId) AttaPush.foregroundRingCallId = ""
         }
     }
 }
@@ -358,7 +361,12 @@ internal fun NativeCallScreen(
                         if (trusted && permissions.isNotEmpty() && permissions.size == request.resources.size) request.grant(permissions.toTypedArray())
                         else {
                             request.deny()
-                            if (trusted) callStatus = "إذن الكاميرا أو الميكروفون مرفوض. فعّل الأذونات من إعدادات التطبيق."
+                            if (trusted) {
+                                callStatus = "إذن الكاميرا أو الميكروفون مرفوض. افتح إعدادات التطبيق واسمح باستخدامهما."
+                                videoHint = "التحقق من الأذونات: الكاميرا والميكروفون لازم يكونوا مسموحين في إعدادات HONOR."
+                            } else {
+                                videoHint = "رفض طلب الوسائط من مصدر غير موثوق. تأكد من تحديث Android System WebView."
+                            }
                         }
                     }
                 }
@@ -420,20 +428,16 @@ internal fun NativeCallScreen(
 
     Box(modifier.clip(if (minimized) RoundedCornerShape(15.dp) else RoundedCornerShape(0.dp))
         .background(CallBackground)) {
-        // Keep the media engine attached. Video calls render inside the dedicated
-        // stage below; an invisible background WebView was formerly covered by
-        // the native full-screen fallback, hiding both preview and remote frames.
-        if (minimized || !videoCall) {
-            AndroidView(
-                factory = {
-                    (webView.parent as? android.view.ViewGroup)?.removeView(webView)
-                    webView
-                },
-                modifier = if (minimized) Modifier.size(1.dp).alpha(.01f)
-                    else Modifier.fillMaxSize().alpha(.01f),
-                update = loadCallPage
-            )
-        }
+        // Mount a SINGLE WebView for this call for its full lifetime. Moving a video
+        // WebView between different AndroidView nodes on minimize/restore can detach
+        // Android's video compositing surface and leave both camera images black.
+        // Compose controls are transparent over the live video, not covering it.
+        AndroidView(
+            factory = { webView },
+            modifier = if (videoCall) Modifier.fillMaxSize()
+                else Modifier.fillMaxSize().alpha(.01f),
+            update = loadCallPage
+        )
 
         if (minimized) {
             Row(
@@ -472,38 +476,32 @@ internal fun NativeCallScreen(
 
             Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
                 if (videoCall) {
-                    // The live WebView is now INSIDE the visible video stage.
-                    // No full-screen Compose avatar is painted on top of it.
-                    AndroidView(
-                        factory = {
-                            (webView.parent as? android.view.ViewGroup)?.removeView(webView)
-                            webView
-                        },
-                        modifier = Modifier.fillMaxSize(),
-                        update = loadCallPage
-                    )
-                    // A compact bottom label does not obscure the local camera tile
-                    // (top-right) or the remote video surface.
+                    // The sole video WebView is already behind this transparent
+                    // stage. Do not add a second AndroidView or cover camera frames.
+                    // The compact status appears at bottom-right under the video tile.
                     if (!remoteVideoPlaying) {
                         Column(
-                            Modifier.align(Alignment.BottomCenter)
+                            Modifier.align(Alignment.BottomStart)
                                 .padding(horizontal = 18.dp, vertical = 12.dp)
                                 .background(Color(0xD911161A), RoundedCornerShape(14.dp))
                                 .padding(horizontal = 14.dp, vertical = 9.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
+                            horizontalAlignment = Alignment.Start
                         ) {
                             Text(peerDisplayName, fontSize = 15.sp, fontWeight = FontWeight.Bold,
-                                color = CallWhite, maxLines = 1)
-                            Text(callStatus, color = CallMuted, fontSize = 12.sp, maxLines = 2)
+                                color = CallWhite, maxLines = 1, textAlign = TextAlign.Right)
+                            Text(callStatus, color = CallMuted, fontSize = 12.sp, maxLines = 2,
+                                textAlign = TextAlign.Right)
                             if (localCameraReady) Text("معاينة كاميرتك شغالة — ننتظر صورة الطرف الآخر",
-                                color = CallGold, fontSize = 11.sp, maxLines = 2)
+                                color = CallGold, fontSize = 11.sp, maxLines = 2,
+                                textAlign = TextAlign.Right)
                             if (videoHint.isNotBlank()) Text(videoHint,
-                                color = Color(0xFFFFD28A), fontSize = 11.sp, maxLines = 3)
+                                color = Color(0xFFFFD28A), fontSize = 11.sp, maxLines = 3,
+                                textAlign = TextAlign.Right)
                         }
                     } else {
                         Text(peerDisplayName,
-                            modifier = Modifier.align(Alignment.TopCenter)
-                                .padding(top = 12.dp)
+                            modifier = Modifier.align(Alignment.TopStart)
+                                .padding(top = 12.dp, start = 18.dp)
                                 .background(Color(0x9905080B), RoundedCornerShape(12.dp))
                                 .padding(horizontal = 12.dp, vertical = 6.dp),
                             color = CallWhite, fontSize = 15.sp, maxLines = 1)
