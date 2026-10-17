@@ -1,0 +1,14 @@
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+const native=readFileSync('android-native/app/src/main/java/com/alatta/nativeapp/NativeCallScreen.kt','utf8');
+const html=readFileSync('android-native/app/src/main/assets/atta-call.html','utf8');
+const main=readFileSync('android-native/app/src/main/java/com/alatta/nativeapp/MainActivity.kt','utf8');
+assert.ok(native.includes('val loadCallPage: (WebView) -> Unit'), 'keep one WebView loader');
+assert.ok(native.includes('if (minimized || !videoCall)') && native.includes('if (videoCall) {\n                    // The live WebView is now INSIDE the visible video stage.'), 'video surface visible inside stage');
+assert.ok(native.includes('modifier = Modifier.fillMaxSize(),\n                        update = loadCallPage'), 'full-stage actual video renderer');
+assert.ok(native.includes('fun videoDiagnostic(message: String)'), 'native video diagnostic bridge');
+assert.ok(html.includes('localPreviewFrame') && html.includes('preview.play().catch(e=>'), 'camera preview errors checked');
+assert.ok(html.includes('meta.presentedFrames>0') && html.includes('remoteFrameConfirmed'), 'remote presentation detection');
+assert.ok(html.includes('لا تصل بيانات فيديو من الطرف الآخر'), 'diagnose received video vs decoded frames');
+assert.ok(main.includes('GoogleNativeSignIn.pickAccount') && main.includes('atta-site-youtube-bridge.js'), 'Google and shared YouTube preserved');
+console.log('PASS native WebRTC video stage and media diagnosis regression');

@@ -63,6 +63,7 @@ const BASE='https://tawasol-alatta.omaratta077-4fd.workers.dev';
 const types=new Set(['call-request','call-ringing','call-accept','call-reject','offer','answer','ice','hangup']);
 let active=true,pc=null,local=null,remote=null,ws=null,offerSent=false,peerPromise=null;
 let pending=[],seen=new Set(),candidateCount=0,pollHandle=0,timeoutHandle=0,connectionStarted=Date.now();
+let localPreviewFrame=false,remoteFrameConfirmed=false;
 const $=id=>document.getElementById(id);
 $('callKind').textContent=cfg.type==='video'?'مكالمة فيديو':'مكالمة صوتية';
 $('cameraAction').style.visibility=cfg.type==='video'?'visible':'hidden';
@@ -85,6 +86,7 @@ async function showPeerProfile(){
 }
 showPeerProfile();
 let connectedAt=0;
+function videoDiagnostic(t){try{AttaBridge.videoDiagnostic(String(t||'').slice(0,180))}catch(_){}}
 function status(t){
  $('hint').textContent=t;
  if((t==='متصل الآن'||t==='مكالمة جارية')&&!connectedAt)connectedAt=Date.now();
@@ -130,26 +132,36 @@ function armRemoteVideoPlayback(){
  const video=$('remoteVideo');
  video.style.display='block';
  video.playsInline=true;video.autoplay=true;video.muted=true;
- // "playing" and videoWidth can fire before a WebView has rendered any frame.
- // Only remove the native fallback after a decoded frame is presented.
- let confirmed=false;
- function frameReady(){
-  if(confirmed||!active||!video.srcObject)return;
-  confirmed=true;
-  try{AttaBridge.remoteVideoPlaying()}catch(_){}
-  try{AttaBridge.mediaPlaybackReady()}catch(_){}
- }
- if(typeof video.requestVideoFrameCallback==='function'){
-  try{video.requestVideoFrameCallback((_now,meta)=>{
-   if(meta.presentedFrames>0)frameReady();
-  });}catch(_){ }
- }else{
-  // Older WebViews lack requestVideoFrameCallback; require a non-zero decoded frame.
+ // A decoded/presented frame is necessary before native overlays are removed.
+ // Old code installed a one-shot callback; on some WebViews the first callback
+ // reports zero frames, leaving the avatar on top forever.
+ if(!video._attaFrameProbe){
+  video._attaFrameProbe=true;
+  const confirmed=()=>{
+   if(!active||remoteFrameConfirmed||!video.srcObject)return;
+   remoteFrameConfirmed=true;
+   videoDiagnostic('');
+   try{AttaBridge.remoteVideoPlaying()}catch(_){ }
+   try{AttaBridge.mediaPlaybackReady()}catch(_){ }
+  };
+  if(typeof video.requestVideoFrameCallback==='function'){
+   const probe=()=>{
+    if(!active||remoteFrameConfirmed||!video.srcObject)return;
+    try{video.requestVideoFrameCallback((_now,meta)=>{
+     if(meta.presentedFrames>0 && video.videoWidth>0)confirmed();
+     else probe();
+    });}catch(_){ }
+   };
+   probe();
+  }
   video.addEventListener('timeupdate',()=>{
-   if(video.videoWidth>0&&video.videoHeight>0)frameReady();
-  },{once:true});
+   if(video.videoWidth>0&&video.videoHeight>0&&video.readyState>=2)confirmed();
+  });
  }
- video.play().catch(()=>{try{AttaBridge.mediaPlaybackBlocked()}catch(_){} });
+ video.play().catch(e=>{
+  videoDiagnostic('عرض فيديو الطرف الآخر موقوف: '+(e?.name||'play rejected'));
+  try{AttaBridge.mediaPlaybackBlocked()}catch(_){ }
+ });
 }
 
 let canvasTimer=0;
@@ -246,8 +258,30 @@ async function createPeer(){
   preview.srcObject=local;
   preview.style.display='block';
   preview.muted=true;
-  preview.play().catch(()=>{});
-  try{AttaBridge.cameraReady()}catch(e){}
+  const previewReady=()=>{
+   if(localPreviewFrame||!active||!preview.srcObject)return;
+   localPreviewFrame=true;
+   try{AttaBridge.cameraReady()}catch(_){ }
+  };
+  // A live MediaStreamTrack is not proof that the video element displayed it.
+  // Wait for a frame instead of silently ignoring rejected play() promises.
+  if(typeof preview.requestVideoFrameCallback==='function'){
+   try{preview.requestVideoFrameCallback((_now,meta)=>{
+    if(meta.presentedFrames>0 && preview.videoWidth>0)previewReady();
+   });}catch(_){ }
+  }
+  preview.addEventListener('loadeddata',()=>{
+   if(preview.videoWidth>0 && preview.videoHeight>0)previewReady();
+  },{once:true});
+  preview.play().catch(e=>{
+   videoDiagnostic('الكاميرا بدأت لكن معاينة الفيديو لم تعمل: '+(e?.name||'play rejected'));
+   try{AttaBridge.mediaPlaybackBlocked()}catch(_){ }
+  });
+  setTimeout(()=>{
+   if(active&&!localPreviewFrame){
+    videoDiagnostic('لم تظهر معاينة كاميرتك: تأكد من إذن الكاميرا، أو جرّب تحديث Android System WebView.');
+   }
+  },6000);
 }
  const turnData=await Promise.race([turn,new Promise(resolve=>setTimeout(()=>resolve(null),2200))]);
  const servers=(turnData&&turnData.iceServers&&turnData.iceServers.length)?turnData.iceServers:[{urls:'stun:stun.cloudflare.com:3478'},{urls:'stun:stun.l.google.com:19302'}];
@@ -283,11 +317,13 @@ async function createPeer(){
         decoded+=Number(item.framesDecoded||0);received+=Number(item.bytesReceived||0);
        }
      });}catch(_){}
-     status(decoded>0
-      ?'تم استقبال فيديو، لكن عرض WebView متعثر. جرّب زر العرض البديل.'
+     const reason=decoded>0
+      ?'وصلت إطارات فيديو لكن عرضها متعثر في Android WebView.'
       :received>0
-       ?'وصلت بيانات الفيديو لكن تعذر فك الصورة. جرّب إعادة الاتصال.'
-       :'الصوت متصل لكن فيديو الطرف الآخر لا يصل. تأكد من كاميرته وTURN.');
+       ?'وصلت بيانات الفيديو لكن الهاتف لم يفك إطارات الصورة.'
+       :'لا تصل بيانات فيديو من الطرف الآخر. افحص كاميرته واتصال TURN.';
+     videoDiagnostic(reason);
+     // Keep the session active; don't falsely show "connected video".
      try{AttaBridge.mediaPlaybackBlocked()}catch(_){ }
     }
    },9000);
@@ -370,7 +406,7 @@ function toggleSpeaker(){
 }
 function toggleMute(){if(!local)return;const tracks=local.getAudioTracks();tracks.forEach(t=>t.enabled=!t.enabled);$('mute').classList.toggle('off',!tracks[0]?.enabled);}
 function toggleCamera(){if(!local)return;const tracks=local.getVideoTracks();tracks.forEach(t=>t.enabled=!t.enabled);$('camera').classList.toggle('off',!tracks[0]?.enabled);}
-function cleanup(){active=false;clearInterval(pollHandle);clearTimeout(timeoutHandle);try{ws?.close()}catch(e){};try{pc?.close()}catch(e){};local?.getTracks().forEach(t=>t.stop());remote?.getTracks().forEach(t=>t.stop());pc=null;}
+function cleanup(){active=false;clearInterval(pollHandle);clearTimeout(timeoutHandle);if(canvasTimer)clearInterval(canvasTimer);try{ws?.close()}catch(e){};try{pc?.close()}catch(e){};local?.getTracks().forEach(t=>t.stop());remote?.getTracks().forEach(t=>t.stop());pc=null;}
 function finish(){cleanup();try{AttaBridge.close()}catch(e){}}
 window.__attaEndCall=async()=>{if(!active)return;try{await Promise.race([transmit('hangup'),new Promise(r=>setTimeout(r,1200))])}catch(e){}finish()};
 window.addEventListener('pagehide',cleanup);

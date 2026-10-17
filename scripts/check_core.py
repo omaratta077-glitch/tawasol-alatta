@@ -32,7 +32,7 @@ check("One compact header search and no duplicate friend search", main.count('At
 check("No unresolved merge markers", not any(re.match(r"^(<<<<<<< |=======\s*$|>>>>>>> )", line) for f in (ROOT/"android-native/app/src/main/java").rglob("*.kt") for line in f.read_text(encoding="utf-8").splitlines()))
 check("PushCall visibility compatible", "internal var incomingPush by mutableStateOf<PushCall?>" in main)
 check("Native Google bridge removed", not (ROOT/(android+"GoogleWebBridge.kt")).exists())
-check("Official version 1.0.60", 'versionCode = 160' in gradle and 'versionName = "1.0.60"' in gradle)
+check("Official version 1.0.61", 'versionCode = 161' in gradle and 'versionName = "1.0.61"' in gradle)
 check("Four additional screens and scrollable navigation", all(x in main for x in ['KnowledgeScreen(tab', 'FootballScreen(']) and all(x in read(android+"PremiumChrome.kt") for x in ['"القرآن"', '"الأحاديث"', '"الأذكار"', '"الرياضة"', '.horizontalScroll(scroll)']) and (ROOT/(android+"AlattaKnowledgeScreens.kt")).is_file())
 check("Quran-first categories and click-to-play preview", all(x in main for x in [
     'var youtubeCategory by remember { mutableStateOf("قرآن") }',
@@ -49,7 +49,7 @@ check("Background FCM integration declared", all((ROOT/(android+x)).is_file() fo
 check("Notification Intent.data does not shadow Firebase payload", 'this.data = Uri.parse("alatta://notification/${Uri.encode(eventId)}")' in read(android+"AttaPush.kt"))
 check("Social, chat and call FCM routing", 'scheduleUserPush' in worker and
       'deliverUserPush' in worker and 'notifyActivity(this, d)' in read(android+'AttaPush.kt') and
-      'ACTION_OPEN_NOTIFICATION' in main and 'versionCode = 160' in gradle)
+      'ACTION_OPEN_NOTIFICATION' in main and 'versionCode = 161' in gradle)
 check("Site/Android keep screen on without changing player", 'FLAG_KEEP_SCREEN_ON' in main and
       'youtube-screen-awake.js' in read('cloudflare-site/public/index.html') and
       (ROOT/'cloudflare-site/public/youtube-screen-awake.js').is_file())
@@ -68,5 +68,16 @@ for f in js:
     if p.returncode:failjs.append((f.as_posix(),p.stderr.strip()[:150]))
 check(f"JavaScript syntax ({len(js)} files)",not failjs)
 for x in failjs:print(x)
+
+
+# The native video must paint into its own stage rather than hiding a WebView
+# behind a full-screen Compose placeholder. Validate both media paths persist.
+video_native=read(android+"NativeCallScreen.kt")
+video_web=read("android-native/app/src/main/assets/atta-call.html")
+check("Visible Android call-video stage and camera diagnostics",
+      'if (videoCall) {' in video_native and
+      'modifier = Modifier.fillMaxSize(),\n                        update = loadCallPage' in video_native and
+      'fun videoDiagnostic(message: String)' in video_native and
+      'window.__attaResumeMedia' in video_web and 'AttaBridge.cameraReady()' in video_web)
 if fails:raise SystemExit(f"FAIL: {len(fails)} checks failed")
 print('PASS: static repository check complete. APK build/device tests are still required.')
