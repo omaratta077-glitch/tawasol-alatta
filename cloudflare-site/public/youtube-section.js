@@ -20,7 +20,12 @@ let query='',nextPageToken='',loading=false,loadedOnce=false,seq=0;
 function videoId(value){
  try{const u=new URL(value);const h=u.hostname.toLowerCase();let id='';if(['youtu.be','www.youtu.be'].includes(h))id=u.pathname.split('/')[1]||'';else if(['youtube.com','www.youtube.com','m.youtube.com','music.youtube.com','youtube-nocookie.com','www.youtube-nocookie.com'].includes(h)){if(u.pathname==='/watch')id=u.searchParams.get('v')||'';else if(/^\/(shorts|embed|live)\//.test(u.pathname))id=u.pathname.split('/')[2]||'';}return /^[a-zA-Z0-9_-]{11}$/.test(id)?id:null;}catch{return null;}
 }
-function play(id){if(!/^[a-zA-Z0-9_-]{11}$/.test(id))return;const iframe=document.createElement('iframe');iframe.src='https://www.youtube-nocookie.com/embed/'+encodeURIComponent(id)+'?playsinline=1&rel=1';iframe.title='مشغّل فيديو يوتيوب';iframe.allow='accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share';iframe.allowFullscreen=true;iframe.referrerPolicy='strict-origin-when-cross-origin';frame.hidden=false;frame.replaceChildren(iframe);frame.scrollIntoView({behavior:'smooth',block:'nearest'});}
+function play(id){
+ if(!/^[a-zA-Z0-9_-]{11}$/.test(id))return;
+ const iframe=window.AttaYouTubeEmbed.create(id,'مشغّل فيديو يوتيوب');
+ frame.hidden=false;frame.replaceChildren(iframe);
+ frame.scrollIntoView({behavior:'smooth',block:'nearest'});
+}
 async function load(append=false){
  if(loading)return;
  loading=true;const requestId=++seq;error.textContent='جاري تحميل الفيديوهات...';more.hidden=true;

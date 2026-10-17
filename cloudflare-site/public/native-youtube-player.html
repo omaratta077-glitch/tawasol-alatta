@@ -9,6 +9,7 @@
 </head>
 <body>
  <div id="player"></div>
+ <script src="youtube-player-shared.js?v=52"></script>
  <script>
  (()=>{
    'use strict';
@@ -17,12 +18,7 @@
    if(!/^[A-Za-z0-9_-]{11}$/.test(id)){
      document.querySelector('#player').innerHTML='<p id="err">معرّف الفيديو غير صحيح</p>';return;
    }
-   const frame=document.createElement('iframe');
-   frame.src='https://www.youtube-nocookie.com/embed/'+encodeURIComponent(id)+'?playsinline=1&rel=1';
-   frame.title='فيديو YouTube';
-   frame.allow='accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share';
-   frame.referrerPolicy='strict-origin-when-cross-origin';
-   frame.allowFullscreen=true;
+   const frame=window.AttaYouTubeEmbed.create(id,'فيديو YouTube');
    document.querySelector('#player').append(frame);
  })();
  </script>
