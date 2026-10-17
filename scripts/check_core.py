@@ -32,8 +32,19 @@ check("One compact header search and no duplicate friend search", main.count('At
 check("No unresolved merge markers", not any(re.match(r"^(<<<<<<< |=======\s*$|>>>>>>> )", line) for f in (ROOT/"android-native/app/src/main/java").rglob("*.kt") for line in f.read_text(encoding="utf-8").splitlines()))
 check("PushCall visibility compatible", "internal var incomingPush by mutableStateOf<PushCall?>" in main)
 check("Native Google bridge removed", not (ROOT/(android+"GoogleWebBridge.kt")).exists())
-check("Official version 1.0.57", 'versionCode = 157' in gradle and 'versionName = "1.0.57"' in gradle)
+check("Official version 1.0.58", 'versionCode = 158' in gradle and 'versionName = "1.0.58"' in gradle)
 check("Four additional screens and scrollable navigation", all(x in main for x in ['KnowledgeScreen(tab', 'FootballScreen(']) and all(x in read(android+"PremiumChrome.kt") for x in ['"القرآن"', '"الأحاديث"', '"الأذكار"', '"الرياضة"', '.horizontalScroll(scroll)']) and (ROOT/(android+"AlattaKnowledgeScreens.kt")).is_file())
+check("Quran-first categories and click-to-play preview", all(x in main for x in [
+    'var youtubeCategory by remember { mutableStateOf("قرآن") }',
+    '"أحاديث" -> "أحاديث نبوية صحيحة شرح"',
+    '"رياضة" -> "كرة القدم ملخص مباريات"',
+    '"أخبار" -> "أخبار الجزيرة اليوم"',
+    'youtubeListState.animateScrollToItem(0)',
+    'if (youtubePlayRequested)',
+    'GoldButton("▶ تشغيل الفيديو")',
+    'youtubePlayRequested = false'])
+    and '⛶ ملء الشاشة' not in main and 'فتح في YouTube' not in main
+    and 'تلاوة القرآن الكريم' in worker and 'data-q="تلاوة القرآن الكريم"' in read('cloudflare-site/public/youtube-section.js'))
 check("Background FCM integration declared", all((ROOT/(android+x)).is_file() for x in ['AttaPush.kt']) and 'FIREBASE_SERVICE_ACCOUNT_JSON' in worker and '/api/push/register' in worker and 'ALATTA_FCM_APP_ID' in workflow)
 check("No old patch workflows",not list((ROOT/'.github/workflows').glob('apply-*.yml')) and not list((ROOT/'.github/workflows').glob('install-*.yml')))
 xmls=list((ROOT/'android-native').rglob('*.xml'))

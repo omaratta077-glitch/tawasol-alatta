@@ -2350,7 +2350,7 @@ export default {
     if(url.pathname==="/api/youtube" && request.method==="GET"){
       const key=String(env.YOUTUBE_API_KEY||"").trim();
       if(!key)return Response.json({ok:false,error:"مفتاح YouTube غير مُعد"},{status:503});
-      const query=(url.searchParams.get("q")||"").trim().slice(0,100);
+      const query=(url.searchParams.get("q")||"").trim().slice(0,100)||"تلاوة القرآن الكريم";
       const pageToken=(url.searchParams.get("pageToken")||"").trim();
       if(pageToken && !/^[A-Za-z0-9_-]{1,100}$/.test(pageToken))return Response.json({ok:false,error:"صفحة غير صالحة"},{status:400});
       const mode=query?"search":"popular";

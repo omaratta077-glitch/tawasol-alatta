@@ -281,16 +281,6 @@ class MainActivity : ComponentActivity() {
 @Composable internal fun NativeVideo(url: String) {
     AttaExpandableVideo(url)
 }
-private fun openYouTube(context: android.content.Context, id: String) {
-    if (!Regex("[A-Za-z0-9_-]{11}").matches(id)) return
-    val link = Uri.parse("https://www.youtube.com/watch?v=$id")
-    try {
-        context.startActivity(Intent(Intent.ACTION_VIEW, link).addCategory(Intent.CATEGORY_BROWSABLE))
-    } catch (_: ActivityNotFoundException) {
-        // No installed handler; the native player remains accessible above.
-    }
-}
-
 /** YouTube's supported embedded player, with a real HTTPS Referer supplied by WebView.
  *  The previous v1.0.18 player could show an endless spinner because it only
  *  watched the outer HTML page, not the YouTube player lifecycle.
@@ -363,7 +353,6 @@ private class AttaYoutubeFullscreenChrome(
 @Composable private fun YouTubePlayer(id: String) {
     val safeId = id.takeIf { Regex("[A-Za-z0-9_-]{11}").matches(it) } ?: return
     val ctx = LocalContext.current
-    var fullscreen by remember(safeId) { mutableStateOf(false) }
     var loading by remember(safeId) { mutableStateOf(true) }
     var frameLoaded by remember(safeId) { mutableStateOf(false) }
     var playbackConfirmed by remember(safeId) { mutableStateOf(false) }
@@ -484,54 +473,16 @@ private class AttaYoutubeFullscreenChrome(
                 webView
             }, modifier = Modifier.fillMaxSize())
             if (loading) CircularProgressIndicator(color = Gold, modifier = Modifier.size(30.dp))
+            // Keep failure details inside the 16:9 area; no toolbar under the player.
+            if (error.isNotBlank()) Text(error, color = GoldLight, fontSize = 11.sp,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.align(Alignment.BottomCenter)
+                    .fillMaxWidth().background(Color.Black.copy(alpha = .88f)).padding(8.dp))
         }
     }
-    fun report(): String {
-        val provider = WebView.getCurrentWebViewPackage()
-        return "AL-ATTA YouTube v1.0.57\n" +
-            "Android: ${android.os.Build.VERSION.SDK_INT}\n" +
-            "WebView: ${provider?.packageName.orEmpty()} ${provider?.versionName.orEmpty()}\n" +
-            "Video ID: $safeId\nFrame loaded: $frameLoaded\nPlayback confirmed: $playbackConfirmed\n" +
-            "Last event: $lastEvent\nProblem: $error"
-    }
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        if (!fullscreen) PlayerSurface(Modifier.fillMaxWidth().aspectRatio(16f / 9f))
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            TextButton(onClick = { fullscreen = !fullscreen }) {
-                Text(if (fullscreen) "عودة" else "⛶ ملء الشاشة", color = GoldLight)
-            }
-            TextButton(onClick = { openYouTube(ctx, safeId) }) {
-                Text("فتح في YouTube", color = GoldLight)
-            }
-        }
-        if (error.isNotBlank()) {
-            Text(error, color = GoldLight, textAlign = TextAlign.Center, fontSize = 12.sp,
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp))
-            TextButton(onClick = {
-                val clipboard = ctx.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-                clipboard.setPrimaryClip(android.content.ClipData.newPlainText("AL-ATTA YouTube report", report()))
-                android.widget.Toast.makeText(ctx, "تم نسخ تقرير مشكلة الفيديو", android.widget.Toast.LENGTH_SHORT).show()
-            }) { Text("نسخ تقرير المشكلة", color = GoldLight, fontSize = 12.sp) }
-        }
-    }
-    if (fullscreen) {
-        DisposableEffect(ctx) {
-            val activity = ctx as? Activity
-            val original = activity?.requestedOrientation
-            activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
-            onDispose { if (activity != null && original != null) activity.requestedOrientation = original }
-        }
-        Dialog(onDismissRequest = { fullscreen = false }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-            Column(Modifier.fillMaxSize().background(Black).padding(8.dp),
-                verticalArrangement = Arrangement.Center) {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text("يوتيوب • تواصل العطا", color = GoldLight)
-                    TextButton(onClick = { fullscreen = false }) { Text("إغلاق ✕", color = GoldLight) }
-                }
-                PlayerSurface(Modifier.fillMaxWidth().aspectRatio(16f / 9f))
-            }
-        }
-    }
+    // v1.0.57 playback path intentionally unchanged: the HTTPS site still
+    // constructs the sole iframe via the existing site bridge.
+    PlayerSurface(Modifier.fillMaxWidth().aspectRatio(16f / 9f))
 }
 
 /** Single row, 39dp-high search shared across page headers. */
@@ -679,6 +630,11 @@ private class AttaYoutubeFullscreenChrome(
     var knowledgeSearch by remember { mutableStateOf("") }
     var youtubeItems by remember { mutableStateOf(emptyList<JSONObject>()) }
     var youtubeId by remember { mutableStateOf("") }
+    // Choosing a suggestion only previews it. The trusted v1.0.57 WebView is
+    // created ONLY when the user explicitly presses Play in the top preview.
+    var youtubePlayRequested by remember { mutableStateOf(false) }
+    var youtubeSelectedThumbnail by remember { mutableStateOf("") }
+    var youtubeCategory by remember { mutableStateOf("قرآن") }
     val youtubeListState = rememberLazyListState()
     var profileBio by remember { mutableStateOf("") }
     var profileCountry by remember { mutableStateOf("") }
@@ -996,7 +952,18 @@ private class AttaYoutubeFullscreenChrome(
                 }
             }
             "أرشيفي" -> archivedPosts = get("/api/post-archive-list").arr("posts")
-            "يوتيوب" -> youtubeItems = withContext(Dispatchers.IO) { api("/api/youtube?q=${enc(youtubeSearch)}") }.arr("items")
+            "يوتيوب" -> {
+                val recommendation = when (youtubeCategory) {
+                    "أحاديث" -> "أحاديث نبوية صحيحة شرح"
+                    "رياضة" -> "كرة القدم ملخص مباريات"
+                    "أخبار" -> "أخبار الجزيرة اليوم"
+                    else -> "تلاوة القرآن الكريم"
+                }
+                val q = youtubeSearch.trim().ifBlank { recommendation }
+                youtubeItems = withContext(Dispatchers.IO) {
+                    api("/api/youtube?q=${enc(q)}")
+                }.arr("items")
+            }
         }
     }
 
@@ -1447,7 +1414,7 @@ private class AttaYoutubeFullscreenChrome(
 
     LaunchedEffect(youtubeId, tab) {
         if (tab == "يوتيوب" && youtubeId.isNotBlank()) {
-            youtubeListState.animateScrollToItem(1)
+            youtubeListState.animateScrollToItem(0)
         }
     }
 
@@ -2145,22 +2112,69 @@ private class AttaYoutubeFullscreenChrome(
                                 Text("الأعضاء: ${g.optJSONArray("members")?.length() ?: 0}", color = Color.LightGray)
                             } }
                         }
-                        "يوتيوب" -> LazyColumn(Modifier.weight(1f).padding(8.dp), state = youtubeListState) {
-                            if (youtubeId.isNotBlank()) item {
-                                Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        "يوتيوب" -> LazyColumn(Modifier.weight(1f).padding(8.dp), state = youtubeListState,
+                            verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                            if (youtubeId.isNotBlank()) item(key = "selected_youtube_video") {
+                                if (youtubePlayRequested) {
+                                    // Do not change YouTubePlayer's working v1.0.57 site WebView.
                                     YouTubePlayer(youtubeId)
-                                    TextButton(onClick = { youtubeId = "" }) { Text("إغلاق الفيديو", color = GoldLight, fontSize = 12.sp) }
+                                } else {
+                                    Box(Modifier.fillMaxWidth().aspectRatio(16f / 9f)
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .background(Color.Black), contentAlignment = Alignment.Center) {
+                                        if (youtubeSelectedThumbnail.isNotBlank()) {
+                                            AsyncImage(youtubeSelectedThumbnail, "صورة الفيديو المحدد",
+                                                Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                                        }
+                                        Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = .38f)))
+                                        GoldButton("▶ تشغيل الفيديو") { youtubePlayRequested = true }
+                                    }
+                                }
+                            }
+                            item(key = "youtube_recommendation_topics") {
+                                Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                                    Text("اقتراحات", color = GoldLight,
+                                        fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                                    Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                        verticalAlignment = Alignment.CenterVertically) {
+                                        listOf("قرآن", "أحاديث", "رياضة", "أخبار").forEach { category ->
+                                            val selected = category == youtubeCategory && youtubeSearch.isBlank()
+                                            OutlinedButton(onClick = {
+                                                youtubeCategory = category
+                                                youtubeSearch = ""
+                                                // Leave the selected video untouched while browsing topics.
+                                                task { load("يوتيوب") }
+                                            }, shape = RoundedCornerShape(18.dp),
+                                                border = BorderStroke(1.dp, if (selected) Gold else Border),
+                                                colors = ButtonDefaults.outlinedButtonColors(
+                                                    containerColor = if (selected) Color(0xFF3D2D13) else Panel,
+                                                    contentColor = if (selected) GoldLight else Muted),
+                                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 2.dp),
+                                                modifier = Modifier.height(34.dp)) {
+                                                Text(category, fontSize = 12.sp, maxLines = 1)
+                                            }
+                                        }
+                                    }
                                 }
                             }
                             items(youtubeItems) { v -> CardBox {
-                                AsyncImage(v.optString("thumbnail"), "اضغط لتشغيل الفيديو",
-                                    Modifier.fillMaxWidth().height(180.dp)
+                                val id = v.optString("id")
+                                val pickVideo = {
+                                    if (id.matches(Regex("[A-Za-z0-9_-]{11}"))) {
+                                        youtubeId = id
+                                        youtubeSelectedThumbnail = v.optString("thumbnail")
+                                        youtubePlayRequested = false
+                                    }
+                                }
+                                AsyncImage(v.optString("thumbnail"), "اختيار الفيديو وعرضه بالأعلى",
+                                    Modifier.fillMaxWidth().height(165.dp)
                                         .clip(RoundedCornerShape(14.dp))
-                                        .clickable { youtubeId = v.optString("id") },
+                                        .clickable(onClick = pickVideo),
                                     contentScale = ContentScale.Fit)
                                 Text(v.optString("title"), color = GoldLight, fontWeight = FontWeight.Bold,
-                                    modifier = Modifier.clickable { youtubeId = v.optString("id") })
-                                Text(v.optString("channel"), color = Color.LightGray)
+                                    modifier = Modifier.clickable(onClick = pickVideo))
+                                Text(v.optString("channel"), color = Color.LightGray, fontSize = 12.sp)
                             } }
                         }
                         "الملف" -> LazyColumn(Modifier.weight(1f).padding(8.dp),
