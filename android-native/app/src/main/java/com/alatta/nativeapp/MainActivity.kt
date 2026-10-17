@@ -355,53 +355,56 @@ private class AttaYoutubeFullscreenChrome(
     }
 }
 
-/** ONE YouTube player: the web site's iframe factory, rendered on the actual
- *  HTTPS website origin. No second native iframe engine or IFrame API wrapper.
- *  Loading the real origin avoids Android's synthetic-document identity and
- *  referrer differences; the shared factory stays sourced from the website.
+/** Android uses the *site's actual YouTube panel*, not an injected or separate
+ * player. The only iframe is created by cloudflare-site/public/youtube-section.js
+ * using cloudflare-site/public/youtube-player-shared.js on the HTTPS site origin.
+ * The local JS is an interaction/diagnostics bridge and never creates an iframe.
  */
 @Composable private fun YouTubePlayer(id: String) {
     val safeId = id.takeIf { Regex("[A-Za-z0-9_-]{11}").matches(it) } ?: return
     val ctx = LocalContext.current
     var fullscreen by remember(safeId) { mutableStateOf(false) }
     var loading by remember(safeId) { mutableStateOf(true) }
-    var error by remember(safeId) { mutableStateOf("") }
     var frameLoaded by remember(safeId) { mutableStateOf(false) }
+    var playbackConfirmed by remember(safeId) { mutableStateOf(false) }
+    var error by remember(safeId) { mutableStateOf("") }
+    var lastEvent by remember(safeId) { mutableStateOf("بدء التحميل") }
 
-    // Identical factory source is included in the APK from
-    // cloudflare-site/public/youtube-player-shared.js at build time.
-    val sharedJs = remember(ctx) {
-        ctx.assets.open("youtube-player-shared.js").bufferedReader(Charsets.UTF_8).use { it.readText() }
+    // A small DOM bridge drives the existing site button and search form.
+    // No duplicate iframe implementation is shipped in the Android APK.
+    val bridgeJs = remember(ctx) {
+        ctx.assets.open("atta-site-youtube-bridge.js").bufferedReader(Charsets.UTF_8)
+            .use { it.readText() }
     }
-    val injectPlayer = remember(safeId, sharedJs) {
-        """(function(){
-          try {
-            $sharedJs
-            document.documentElement.style.cssText='height:100%;background:#000;overflow:hidden';
-            document.body.style.cssText='margin:0;padding:0;width:100%;height:100%;background:#000;overflow:hidden';
-            var host=document.createElement('div');
-            host.style.cssText='width:100%;height:100%;background:#000;';
-            var iframe=window.AttaYouTubeEmbed.create('$safeId','فيديو يوتيوب');
-            iframe.style.cssText='display:block;width:100%;height:100%;border:0;';
-            iframe.addEventListener('load',function(){console.log('ALATTA_YT:FRAME_LOADED')});
-            document.body.replaceChildren(host);
-            host.appendChild(iframe);
-          } catch(e) {
-            console.log('ALATTA_YT:ERROR:'+String(e && e.message || e));
-          }
-        })();"""
+    val playOnSite = remember(safeId, bridgeJs) {
+        bridgeJs.replace("__ALATTA_VIDEO_ID__", safeId)
     }
     val chrome = remember(ctx, safeId) {
         AttaYoutubeFullscreenChrome(ctx) { event ->
+            lastEvent = event.take(140)
             when {
                 event == "FRAME_LOADED" -> {
-                    // iframe load is NOT proof a YouTube video played.
                     frameLoaded = true
                     loading = false
                 }
+                event == "PLAYING" -> {
+                    frameLoaded = true
+                    playbackConfirmed = true
+                    loading = false
+                    error = ""
+                }
+                event.startsWith("PLAYER_ERROR:") -> {
+                    loading = false
+                    val code = event.removePrefix("PLAYER_ERROR:")
+                    error = when (code) {
+                        "153" -> "رفض YouTube التشغيل داخل WebView (153: تعذّر التحقق من مصدر المشغّل)."
+                        "101", "150" -> "صاحب الفيديو لا يسمح بالتشغيل داخل التطبيقات (رمز $code)."
+                        else -> "مشغّل YouTube أبلغ عن خطأ رقم $code."
+                    }
+                }
                 event.startsWith("ERROR:") -> {
                     loading = false
-                    error = "تعذر تجهيز مشغّل الموقع: " + event.removePrefix("ERROR:").take(90)
+                    error = "تعذّر تشغيل مشغّل الموقع: " + event.removePrefix("ERROR:").take(120)
                 }
             }
         }
@@ -418,41 +421,52 @@ private class AttaYoutubeFullscreenChrome(
             settings.allowFileAccess = false
             settings.allowContentAccess = false
             settings.setSupportZoom(false)
-            // Some HONOR WebViews suppress third-party media without these cookies.
             android.webkit.CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
             webChromeClient = chrome
             webViewClient = object : WebViewClient() {
                 override fun onPageFinished(view: WebView?, url: String?) {
-                    if (url?.startsWith("$BASE/") == true) {
-                        view?.evaluateJavascript(injectPlayer, null)
+                    if (url == BASE || url?.startsWith("$BASE/") == true) {
+                        // Do not overwrite the site's document: it contains the
+                        // real working player event handlers and CSS.
+                        view?.evaluateJavascript(playOnSite, null)
                     } else {
                         loading = false
-                        error = "تعذّر فتح الموقع الأصلي داخل التطبيق."
+                        error = "لم تُفتح صفحة تواصل العطا الأصلية داخل WebView."
                     }
                 }
                 override fun onReceivedError(view: WebView?, request: WebResourceRequest?, issue: WebResourceError?) {
                     if (request?.isForMainFrame == true) {
                         loading = false
-                        error = "تعذّر تحميل موقع تواصل العطا داخل WebView (${issue?.errorCode})."
+                        error = "تعذّر تحميل الموقع داخل WebView (${issue?.errorCode})."
                     }
                 }
                 override fun onReceivedHttpError(view: WebView?, request: WebResourceRequest?, response: android.webkit.WebResourceResponse?) {
-                    if (request?.isForMainFrame == true && (response?.statusCode ?: 0) >= 400) {
+                    val code = response?.statusCode ?: return
+                    if (code < 400) return
+                    if (request?.isForMainFrame == true) {
                         loading = false
-                        error = "موقع تواصل العطا أعاد HTTP ${response?.statusCode}."
+                        error = "موقع تواصل العطا أعاد HTTP $code."
+                    } else {
+                        val host = request?.url?.host.orEmpty()
+                        val path = request?.url?.path.orEmpty()
+                        if ((host == "www.youtube-nocookie.com" || host == "www.youtube.com") && path.startsWith("/embed/")) {
+                            loading = false
+                            error = "YouTube رفض طلب المشغّل (HTTP $code)."
+                            lastEvent = "EMBED_HTTP_$code"
+                        }
                     }
                 }
             }
-            // The website is Chrome's working player origin. This is a real
-            // navigation, not loadDataWithBaseURL or a separate local player page.
             loadUrl("$BASE/")
         }
     }
     LaunchedEffect(webView, safeId) {
-        kotlinx.coroutines.delay(15000)
-        if (!frameLoaded && error.isBlank()) {
+        kotlinx.coroutines.delay(20000)
+        if (!playbackConfirmed && error.isBlank()) {
             loading = false
-            error = "الفيديو لم يفتح داخل Android WebView. جرّب فتحه في YouTube."
+            error = if (frameLoaded)
+                "ظهر إطار YouTube، لكن لم يتم تأكيد تشغيل الفيديو داخل Android WebView."
+            else "الموقع لم يُكمل فتح مشغّل YouTube داخل Android WebView."
         }
     }
     DisposableEffect(webView, chrome) {
@@ -470,11 +484,17 @@ private class AttaYoutubeFullscreenChrome(
                 webView
             }, modifier = Modifier.fillMaxSize())
             if (loading) CircularProgressIndicator(color = Gold, modifier = Modifier.size(30.dp))
-            if (error.isNotBlank()) Text(error, color = GoldLight, textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth().background(Color.Black).padding(12.dp))
         }
     }
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    fun report(): String {
+        val provider = WebView.getCurrentWebViewPackage()
+        return "AL-ATTA YouTube v1.0.57\n" +
+            "Android: ${android.os.Build.VERSION.SDK_INT}\n" +
+            "WebView: ${provider?.packageName.orEmpty()} ${provider?.versionName.orEmpty()}\n" +
+            "Video ID: $safeId\nFrame loaded: $frameLoaded\nPlayback confirmed: $playbackConfirmed\n" +
+            "Last event: $lastEvent\nProblem: $error"
+    }
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         if (!fullscreen) PlayerSurface(Modifier.fillMaxWidth().aspectRatio(16f / 9f))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             TextButton(onClick = { fullscreen = !fullscreen }) {
@@ -483,6 +503,15 @@ private class AttaYoutubeFullscreenChrome(
             TextButton(onClick = { openYouTube(ctx, safeId) }) {
                 Text("فتح في YouTube", color = GoldLight)
             }
+        }
+        if (error.isNotBlank()) {
+            Text(error, color = GoldLight, textAlign = TextAlign.Center, fontSize = 12.sp,
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp))
+            TextButton(onClick = {
+                val clipboard = ctx.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                clipboard.setPrimaryClip(android.content.ClipData.newPlainText("AL-ATTA YouTube report", report()))
+                android.widget.Toast.makeText(ctx, "تم نسخ تقرير مشكلة الفيديو", android.widget.Toast.LENGTH_SHORT).show()
+            }) { Text("نسخ تقرير المشكلة", color = GoldLight, fontSize = 12.sp) }
         }
     }
     if (fullscreen) {

@@ -12,8 +12,8 @@ android {
         applicationId = "com.alatta.nativeapp"
         minSdk = 26
         targetSdk = 35
-        versionCode = 156
-        versionName = "1.0.56"
+        versionCode = 157
+        versionName = "1.0.57"
     }
 
     // Firebase's public Android configuration is supplied by GitHub Actions vars.
@@ -61,15 +61,6 @@ android {
 }
 
 
-// The Cloudflare website owns the only YouTube embed factory.
-// Ship the same file in the APK, so a missing Cloudflare player-page deployment
-// cannot leave the Android video panel black.
-val syncAttaYouTube by tasks.registering(Copy::class) {
-    from(file("../../cloudflare-site/public/youtube-player-shared.js"))
-    into(layout.buildDirectory.dir("generated/atta-youtube-assets"))
-}
-android.sourceSets.getByName("main").assets.srcDir(layout.buildDirectory.dir("generated/atta-youtube-assets"))
-tasks.named("preBuild") { dependsOn(syncAttaYouTube) }
 
 dependencies {
     implementation(platform("androidx.compose:compose-bom:2024.12.01"))
