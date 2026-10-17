@@ -129,14 +129,8 @@ internal fun PremiumHeader(
             Text("AL-ATTA", color = PremiumGoldLight, fontWeight = FontWeight.Bold,
                 fontSize = 12.sp, maxLines = 1, softWrap = false)
         }
-        // Two icons on the right of YouTube, two on the left; the YouTube icon
-        // remains in the TOP bar and is never substituted for Home at bottom.
+        // YouTube is available in the bottom bar; do not duplicate it in the header.
         PremiumTopItem("search", "استكشاف", current, onNavigate)
-        // YouTube remains in the header but without a large surrounding square.
-        // Friends only appears in the bottom navigation.
-        Box(Modifier.size(35.dp).clickable { onNavigate("يوتيوب") }, contentAlignment = Alignment.Center) {
-            SiteIcon("youtube", tint = if (current == "يوتيوب") PremiumGoldLight else PremiumGold, size = 25.dp)
-        }
         PremiumTopItem("message-circle", "الرسائل", current, onNavigate)
         Box(Modifier.size(38.dp), contentAlignment = Alignment.Center) {
             PremiumTopItem("bell", "الإشعارات", current, onNavigate)

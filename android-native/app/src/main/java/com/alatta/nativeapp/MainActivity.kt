@@ -364,7 +364,21 @@ private class AttaYoutubeFullscreenChrome(
     var fullscreen by remember(safeId) { mutableStateOf(false) }
     var loading by remember(safeId) { mutableStateOf(true) }
     var error by remember(safeId) { mutableStateOf("") }
-    val url = remember(safeId) { "$BASE/native-youtube-player.html?id=$safeId" }
+    // The website's single AttaYouTubeEmbed factory is copied into Android assets
+    // by Gradle at build time. This removes dependency on deploying a second player page.
+    val sharedJs = remember(ctx) {
+        ctx.assets.open("youtube-player-shared.js").bufferedReader(Charsets.UTF_8).use { it.readText() }
+    }
+    val playerHtml = remember(safeId, sharedJs) {
+        """<!doctype html><html lang="ar"><head><meta charset="utf-8">
+        <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+        <meta name="referrer" content="strict-origin-when-cross-origin">
+        <style>html,body,#player{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#000}
+        iframe{display:block;border:0;width:100%;height:100%}</style></head>
+        <body><div id="player"></div><script>$sharedJs</script><script>
+        document.getElementById('player').appendChild(window.AttaYouTubeEmbed.create('$safeId','فيديو YouTube'));
+        </script></body></html>"""
+    }
     val chrome = remember(ctx, safeId) { AttaYoutubeFullscreenChrome(ctx) { } }
     val webView = remember(ctx, safeId) {
         WebView(ctx).apply {
@@ -394,7 +408,9 @@ private class AttaYoutubeFullscreenChrome(
                     }
                 }
             }
-            loadUrl(url)
+            // An HTTPS base URL supplies the same YouTube referrer/origin as the website.
+            // Actual embed construction comes only from the shared website JS.
+            loadDataWithBaseURL("$BASE/", playerHtml, "text/html", "UTF-8", null)
         }
     }
     DisposableEffect(webView, chrome) {
@@ -1514,7 +1530,7 @@ private class AttaYoutubeFullscreenChrome(
                     // Persistent authenticated header, independent of the selected tab.
                     // Keeps the AL-ATTA logo beside the app name (not the username),
                     // with message, notification and unboxed YouTube icons.
-                    if (tab != "الرسائل") PremiumHeader(
+                    if (tab == "الرئيسية") PremiumHeader(
                         current = tab,
                         unreadNotifications = notifications.count { !it.optBoolean("read", false) },
                         onNavigate = ::navigate
@@ -1530,12 +1546,19 @@ private class AttaYoutubeFullscreenChrome(
                                 leadingIcon = { SiteIcon("search", tint = GoldLight, size = 23.dp) },
                                 shape = RoundedCornerShape(22.dp)
                             )
-                        } else PremiumSearchBar { navigate("استكشاف") }
+                        } // Home uses the search icon in the single-line header; no second search bar.
                     }
                     if (tab != "الرئيسية" && tab != "الرسائل") {
-                        Row(Modifier.fillMaxWidth().padding(horizontal = 13.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Text(tab, color = GoldLight, fontWeight = FontWeight.Bold, fontSize = 16.sp, modifier = Modifier.weight(1f))
-                            if (tab != "القائمة") TextButton(onClick = { refresh() }) { Text("تحديث", fontSize = 12.sp) }
+                        Row(Modifier.fillMaxWidth().height(43.dp)
+                            .padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Text(if (tab == "القرآن") "القرآن الكريم" else if (tab == "الأحاديث") "الأحاديث النبوية" else if (tab == "الرياضة") "كرة القدم" else tab,
+                                color = GoldLight, fontWeight = FontWeight.Bold, fontSize = 16.sp,
+                                maxLines = 1, modifier = Modifier.weight(1f))
+                            if (tab != "يوتيوب") {
+                                IconButton(onClick = { navigate("استكشاف") }, modifier = Modifier.size(38.dp)) {
+                                    SiteIcon("search", tint = GoldLight, size = 20.dp)
+                                }
+                            }
                         }
                     }
                     when (tab) {
@@ -1985,8 +2008,24 @@ private class AttaYoutubeFullscreenChrome(
                             } }
                         }
                         "يوتيوب" -> LazyColumn(Modifier.weight(1f).padding(8.dp), state = youtubeListState) {
-                            item { SectionTitle("يوتيوب داخل تواصل العطا"); OutlinedTextField(youtubeSearch, { youtubeSearch = it }, label = { Text("ابحث عن فيديو") }, modifier = Modifier.fillMaxWidth()); GoldButton("بحث") { refresh() } }
-                            if (youtubeId.isNotBlank()) item { CardBox { YouTubePlayer(youtubeId); TextButton(onClick = { youtubeId = "" }) { Text("إغلاق المشغل") } } }
+                            item {
+                                OutlinedTextField(
+                                    value = youtubeSearch, onValueChange = { youtubeSearch = it },
+                                    placeholder = { Text("ابحث عن فيديو", fontSize = 13.sp) },
+                                    modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp), singleLine = true,
+                                    trailingIcon = {
+                                        IconButton(onClick = { refresh() }) {
+                                            SiteIcon("search", tint = GoldLight, size = 20.dp)
+                                        }
+                                    }, shape = RoundedCornerShape(14.dp)
+                                )
+                            }
+                            if (youtubeId.isNotBlank()) item {
+                                Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                    YouTubePlayer(youtubeId)
+                                    TextButton(onClick = { youtubeId = "" }) { Text("إغلاق الفيديو", color = GoldLight, fontSize = 12.sp) }
+                                }
+                            }
                             items(youtubeItems) { v -> CardBox {
                                 AsyncImage(v.optString("thumbnail"), "اضغط لتشغيل الفيديو",
                                     Modifier.fillMaxWidth().height(180.dp)
