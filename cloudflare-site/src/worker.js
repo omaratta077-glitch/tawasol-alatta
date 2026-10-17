@@ -2241,21 +2241,34 @@ export class SignalingRoom extends DurableObject {
       const project=String(this.env.FIREBASE_PROJECT_ID||sa.project_id||'');
       if(!project || project!==sa.project_id)throw Error('Firebase project ID mismatch');
       const url='https://fcm.googleapis.com/v1/projects/'+encodeURIComponent(project)+'/messages:send';
+      // Firebase reserves data key "from"; keep it in our internal call/chat
+      // events, but rename it only in the outgoing FCM payload.
+      const fcmData={...data};
+      if(Object.prototype.hasOwnProperty.call(fcmData,'from')){
+        fcmData.sender=String(fcmData.from??'');
+        delete fcmData.from;
+      }
       const survivors=[];
       for(const deviceToken of tokens.slice(-5)){
         attempted++;
         try {
           const resp=await fetch(url,{method:'POST',headers:{
             Authorization:'Bearer '+accessToken,'Content-Type':'application/json'
-          },body:JSON.stringify({message:{token:deviceToken,data,
+          },body:JSON.stringify({message:{token:deviceToken,data:fcmData,
             android:{priority:'HIGH',ttl}}})});
           if(resp.ok){accepted++;survivors.push(deviceToken);continue;}
           const body=await resp.json().catch(()=>({}));
           const badToken=resp.status===404 || (resp.status===400 &&
             JSON.stringify(body).includes('UNREGISTERED'));
           if(!badToken)survivors.push(deviceToken);
+          const firebaseError=body?.error||{};
+          const safeReason=String(firebaseError.status||'UNKNOWN').slice(0,48);
+          const field=(firebaseError.details||[]).flatMap(item=>
+            Array.isArray(item.fieldViolations)?item.fieldViolations.map(v=>v.field):[])
+            .filter(v=>typeof v==='string').slice(0,3).join(',');
           lastError='FCM_HTTP_'+resp.status;
-          console.warn('FCM delivery HTTP',resp.status);
+          // Don't log registration tokens, credentials or the whole response body.
+          console.warn('FCM delivery rejected:',resp.status,safeReason,field);
         }catch(_){survivors.push(deviceToken);lastError='FCM_NETWORK_ERROR';}
       }
       if(survivors.length!==tokens.length)

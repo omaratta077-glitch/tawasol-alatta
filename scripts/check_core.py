@@ -47,7 +47,7 @@ check("Foreground ring state declared in AttaPush",
       "AttaPush.foregroundRingCallId == callId" in ring_screen)
 
 check("Native Google bridge removed", not (ROOT/(android+"GoogleWebBridge.kt")).exists())
-check("Official version 1.0.66", 'versionCode = 166' in gradle and 'versionName = "1.0.66"' in gradle)
+check("Official version 1.0.67", 'versionCode = 167' in gradle and 'versionName = "1.0.67"' in gradle)
 check("Four additional screens and scrollable navigation", all(x in main for x in ['KnowledgeScreen(tab', 'FootballScreen(']) and all(x in read(android+"PremiumChrome.kt") for x in ['"القرآن"', '"الأحاديث"', '"الأذكار"', '"الرياضة"', '.horizontalScroll(scroll)']) and (ROOT/(android+"AlattaKnowledgeScreens.kt")).is_file())
 check("Quran-first categories and click-to-play preview", all(x in main for x in [
     'var youtubeCategory by remember { mutableStateOf("قرآن") }',
@@ -64,7 +64,7 @@ check("Background FCM integration declared", all((ROOT/(android+x)).is_file() fo
 check("Notification Intent.data does not shadow Firebase payload", 'this.data = Uri.parse("alatta://notification/${Uri.encode(eventId)}")' in read(android+"AttaPush.kt"))
 check("Social, chat and call FCM routing", 'scheduleUserPush' in worker and
       'deliverUserPush' in worker and 'notifyActivity(this, d)' in read(android+'AttaPush.kt') and
-      'ACTION_OPEN_NOTIFICATION' in main and 'versionCode = 166' in gradle)
+      'ACTION_OPEN_NOTIFICATION' in main and 'versionCode = 167' in gradle)
 check("Site/Android keep screen on without changing player", 'FLAG_KEEP_SCREEN_ON' in main and
       'youtube-screen-awake.js' in read('cloudflare-site/public/index.html') and
       (ROOT/'cloudflare-site/public/youtube-screen-awake.js').is_file())
@@ -95,5 +95,6 @@ check("Visible Android call-video stage and camera diagnostics",
       'The sole video WebView is already behind this transparent' in video_native and
       'fun videoDiagnostic(message: String)' in video_native and
       'window.__attaResumeMedia' in video_web and 'AttaBridge.cameraReady()' in video_web)
+check("FCM reserved data key converted safely", "fcmData.sender=String(fcmData.from??'')" in worker and "delete fcmData.from" in worker and "data:fcmData" in worker and 'data["sender"] ?: data["from"]' in push_source and 'd["sender"] ?: d["from"]' in push_source)
 if fails:raise SystemExit(f"FAIL: {len(fails)} checks failed")
 print('PASS: static repository check complete. APK build/device tests are still required.')

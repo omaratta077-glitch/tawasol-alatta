@@ -197,7 +197,7 @@ internal object AttaPush {
         val type = data["type"].orEmpty()
         val account = prefs(context)
         val recipient = data["to"].orEmpty().lowercase()
-        val sender = data["from"].orEmpty().trim().take(64)
+        val sender = (data["sender"] ?: data["from"]).orEmpty().trim().take(64)
         val eventId = data["eventId"].orEmpty()
         val allowed = setOf("chat", "friend-request", "friend-accepted", "like",
             "reaction", "comment", "comment-reply", "follow", "share", "push-test")
@@ -345,7 +345,7 @@ class AttaFirebaseMessagingService : FirebaseMessagingService() {
             return
         }
         if (type != "call-request") return
-        val from = d["from"].orEmpty().trim().lowercase()
+        val from = (d["sender"] ?: d["from"]).orEmpty().trim().lowercase()
         val to = d["to"].orEmpty().trim().lowercase()
         val created = d["createdAt"]?.toLongOrNull() ?: return
         if (from.isBlank() || to.isBlank() || id.length !in 8..128) return
