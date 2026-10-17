@@ -236,6 +236,8 @@ class MainActivity : ComponentActivity() {
     // Notification taps work for a cold start AND for an existing singleTask Activity.
     internal var incomingPush by mutableStateOf<PushCall?>(null)
         private set
+    internal var requestedNotificationTab by mutableStateOf<String?>(null)
+        private set
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -250,6 +252,13 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun consumePushIntent(intent: Intent?) {
+        if (intent?.action == AttaPush.ACTION_OPEN_NOTIFICATION) {
+            val destination = intent.getStringExtra("atta_notification_tab")
+            if (destination in setOf("الرسائل", "الأصدقاء", "الإشعارات"))
+                requestedNotificationTab = destination
+            intent.removeExtra("atta_notification_tab")
+            return
+        }
         if (intent?.action != AttaPush.ACTION_OPEN_CALL) return
         val event = PushCall.fromIntent(intent) ?: return
         incomingPush = event
@@ -259,6 +268,7 @@ class MainActivity : ComponentActivity() {
     }
 
     fun clearIncomingPush() { incomingPush = null }
+    fun clearNotificationNavigation() { requestedNotificationTab = null }
 }
 
 @Composable private fun GoldButton(text: String, enabled: Boolean = true, onClick: () -> Unit) {
@@ -575,6 +585,13 @@ private class AttaYoutubeFullscreenChrome(
     var displayName by remember { mutableStateOf(prefs.getString("name", "") ?: "") }
     var myUsername by remember { mutableStateOf(prefs.getString("username", "") ?: "") }
     var tab by remember { mutableStateOf("الرئيسية") }
+    val incomingNotificationTab = (ctx as? MainActivity)?.requestedNotificationTab
+    LaunchedEffect(incomingNotificationTab, token) {
+        if (token.isNotBlank() && incomingNotificationTab != null) {
+            tab = incomingNotificationTab
+            (ctx as? MainActivity)?.clearNotificationNavigation()
+        }
+    }
     val visited = remember { mutableStateListOf<String>() }
     var confirmExit by remember { mutableStateOf(false) }
     var confirmLogout by remember { mutableStateOf(false) }
@@ -635,6 +652,17 @@ private class AttaYoutubeFullscreenChrome(
     var youtubePlayRequested by remember { mutableStateOf(false) }
     var youtubeSelectedThumbnail by remember { mutableStateOf("") }
     var youtubeCategory by remember { mutableStateOf("قرآن") }
+    // Screen-on while the user's selected YouTube player is visible.
+    // Does NOT attempt background playback: the official YouTube embed owns playback.
+    DisposableEffect(tab, youtubePlayRequested) {
+        val window = (ctx as? ComponentActivity)?.window
+        if (tab == "يوتيوب" && youtubePlayRequested)
+            window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        onDispose {
+            if (tab == "يوتيوب" && youtubePlayRequested)
+                window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        }
+    }
     val youtubeListState = rememberLazyListState()
     var profileBio by remember { mutableStateOf("") }
     var profileCountry by remember { mutableStateOf("") }
@@ -1178,8 +1206,9 @@ private class AttaYoutubeFullscreenChrome(
                 posts = emptyList(); notifications = emptyList(); friends = emptyList()
                 profile = JSONObject(); displayName = ""; myUsername = ""; myAvatar = ""
                 visited.clear(); tab = "الرئيسية"
+                val logoutSession = token
+                AttaPush.unregister(ctx.applicationContext, logoutSession)
                 token = ""
-                AttaPush.unregister(ctx.applicationContext, token)
                 prefs.edit().clear().apply()
             }) { Text("تسجيل الخروج", color = GoldLight) }
         },

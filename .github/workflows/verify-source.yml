@@ -27,3 +27,4 @@ jobs:
           node scripts/test_call_ringing.mjs
           node scripts/test_mobile_call_fallback.mjs
           node scripts/test_call_push.mjs
+          node scripts/test_social_push.mjs
