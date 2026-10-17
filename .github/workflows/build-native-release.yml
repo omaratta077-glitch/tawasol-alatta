@@ -117,6 +117,7 @@ jobs:
           python3 scripts/check_core.py
           node scripts/test_backend.mjs
           node scripts/verify_sources.mjs
+          node scripts/test_youtube_single_origin.mjs
           node scripts/test_call_ringing.mjs
           node scripts/test_mobile_call_fallback.mjs
           node scripts/test_call_push.mjs

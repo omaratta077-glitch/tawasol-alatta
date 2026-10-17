@@ -355,8 +355,10 @@ private class AttaYoutubeFullscreenChrome(
     }
 }
 
-/** Same HTTPS YouTube player document and JavaScript as the Cloudflare website.
- *  No native IFrame implementation or second embedded player is created here.
+/** ONE YouTube player: the web site's iframe factory, rendered on the actual
+ *  HTTPS website origin. No second native iframe engine or IFrame API wrapper.
+ *  Loading the real origin avoids Android's synthetic-document identity and
+ *  referrer differences; the shared factory stays sourced from the website.
  */
 @Composable private fun YouTubePlayer(id: String) {
     val safeId = id.takeIf { Regex("[A-Za-z0-9_-]{11}").matches(it) } ?: return
@@ -364,55 +366,42 @@ private class AttaYoutubeFullscreenChrome(
     var fullscreen by remember(safeId) { mutableStateOf(false) }
     var loading by remember(safeId) { mutableStateOf(true) }
     var error by remember(safeId) { mutableStateOf("") }
-    var playerReady by remember(safeId) { mutableStateOf(false) }
-    // The website's single AttaYouTubeEmbed factory is copied into Android assets
-    // by Gradle at build time. This removes dependency on deploying a second player page.
+    var frameLoaded by remember(safeId) { mutableStateOf(false) }
+
+    // Identical factory source is included in the APK from
+    // cloudflare-site/public/youtube-player-shared.js at build time.
     val sharedJs = remember(ctx) {
         ctx.assets.open("youtube-player-shared.js").bufferedReader(Charsets.UTF_8).use { it.readText() }
     }
-    val playerHtml = remember(safeId, sharedJs) {
-        """<!doctype html><html lang="ar"><head><meta charset="utf-8">
-        <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-        <meta name="referrer" content="strict-origin-when-cross-origin">
-        <style>html,body,#player{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#000}
-        iframe{display:block;border:0;width:100%;height:100%}</style></head>
-        <body><div id="player"></div><script>$sharedJs</script><script>
-        (function(){
-          var frame=window.AttaYouTubeEmbed.create('$safeId','فيديو YouTube');
-          frame.id='attaYTFrame';
-          document.getElementById('player').appendChild(frame);
-          function log(v){console.log('ALATTA_YT:'+v);}
-          window.onYouTubeIframeAPIReady=function(){
-            try {new YT.Player('attaYTFrame',{events:{
-              onReady:function(){log('READY');},
-              onStateChange:function(e){if(e.data===1)log('PLAYING');},
-              onError:function(e){log('ERROR:'+e.data);}
-            }});}catch(e){log('ERROR:INIT');}
-          };
-          var api=document.createElement('script');
-          api.src='https://www.youtube.com/iframe_api';
-          api.onerror=function(){log('ERROR:SCRIPT');};
-          document.head.appendChild(api);
-        })();
-        </script></body></html>"""
+    val injectPlayer = remember(safeId, sharedJs) {
+        """(function(){
+          try {
+            $sharedJs
+            document.documentElement.style.cssText='height:100%;background:#000;overflow:hidden';
+            document.body.style.cssText='margin:0;padding:0;width:100%;height:100%;background:#000;overflow:hidden';
+            var host=document.createElement('div');
+            host.style.cssText='width:100%;height:100%;background:#000;';
+            var iframe=window.AttaYouTubeEmbed.create('$safeId','فيديو يوتيوب');
+            iframe.style.cssText='display:block;width:100%;height:100%;border:0;';
+            iframe.addEventListener('load',function(){console.log('ALATTA_YT:FRAME_LOADED')});
+            document.body.replaceChildren(host);
+            host.appendChild(iframe);
+          } catch(e) {
+            console.log('ALATTA_YT:ERROR:'+String(e && e.message || e));
+          }
+        })();"""
     }
     val chrome = remember(ctx, safeId) {
         AttaYoutubeFullscreenChrome(ctx) { event ->
             when {
-                event == "READY" || event == "PLAYING" -> {
+                event == "FRAME_LOADED" -> {
+                    // iframe load is NOT proof a YouTube video played.
+                    frameLoaded = true
                     loading = false
-                    playerReady = true
-                    error = ""
                 }
                 event.startsWith("ERROR:") -> {
                     loading = false
-                    val code = event.removePrefix("ERROR:")
-                    error = when (code) {
-                        "153" -> "YouTube رفض التشغيل داخل Android WebView (153). افتح الفيديو في YouTube."
-                        "101", "150" -> "صاحب الفيديو منع تشغيله داخل التطبيق."
-                        "100" -> "الفيديو غير متاح أو خاص."
-                        else -> "تعذر تشغيل YouTube داخل التطبيق (رمز $code)."
-                    }
+                    error = "تعذر تجهيز مشغّل الموقع: " + event.removePrefix("ERROR:").take(90)
                 }
             }
         }
@@ -420,41 +409,50 @@ private class AttaYoutubeFullscreenChrome(
     val webView = remember(ctx, safeId) {
         WebView(ctx).apply {
             setBackgroundColor(AndroidColor.BLACK)
-            settings.javaScriptEnabled = true // shared website player script
+            settings.javaScriptEnabled = true
             settings.domStorageEnabled = true
             settings.mediaPlaybackRequiresUserGesture = true
+            settings.loadsImagesAutomatically = true
+            settings.useWideViewPort = true
+            settings.loadWithOverviewMode = true
             settings.allowFileAccess = false
             settings.allowContentAccess = false
-            settings.loadsImagesAutomatically = true
             settings.setSupportZoom(false)
+            // Some HONOR WebViews suppress third-party media without these cookies.
+            android.webkit.CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
             webChromeClient = chrome
             webViewClient = object : WebViewClient() {
                 override fun onPageFinished(view: WebView?, url: String?) {
-                    // HTML loaded; do not treat it as successful YouTube playback.
+                    if (url?.startsWith("$BASE/") == true) {
+                        view?.evaluateJavascript(injectPlayer, null)
+                    } else {
+                        loading = false
+                        error = "تعذّر فتح الموقع الأصلي داخل التطبيق."
+                    }
                 }
                 override fun onReceivedError(view: WebView?, request: WebResourceRequest?, issue: WebResourceError?) {
                     if (request?.isForMainFrame == true) {
                         loading = false
-                        error = "تعذر فتح مشغّل الموقع. جرّب فتح الفيديو في YouTube."
+                        error = "تعذّر تحميل موقع تواصل العطا داخل WebView (${issue?.errorCode})."
                     }
                 }
                 override fun onReceivedHttpError(view: WebView?, request: WebResourceRequest?, response: android.webkit.WebResourceResponse?) {
                     if (request?.isForMainFrame == true && (response?.statusCode ?: 0) >= 400) {
                         loading = false
-                        error = "خادم الموقع لم يُحمّل المشغّل (${response?.statusCode})."
+                        error = "موقع تواصل العطا أعاد HTTP ${response?.statusCode}."
                     }
                 }
             }
-            // An HTTPS base URL supplies the same YouTube referrer/origin as the website.
-            // Actual embed construction comes only from the shared website JS.
-            loadDataWithBaseURL("$BASE/", playerHtml, "text/html", "UTF-8", null)
+            // The website is Chrome's working player origin. This is a real
+            // navigation, not loadDataWithBaseURL or a separate local player page.
+            loadUrl("$BASE/")
         }
     }
     LaunchedEffect(webView, safeId) {
-        kotlinx.coroutines.delay(14000)
-        if (!playerReady && error.isBlank()) {
+        kotlinx.coroutines.delay(15000)
+        if (!frameLoaded && error.isBlank()) {
             loading = false
-            error = "مشغّل YouTube لم يؤكد التشغيل على الجهاز. جرّب فتح الفيديو في YouTube."
+            error = "الفيديو لم يفتح داخل Android WebView. جرّب فتحه في YouTube."
         }
     }
     DisposableEffect(webView, chrome) {
@@ -505,6 +503,44 @@ private class AttaYoutubeFullscreenChrome(
             }
         }
     }
+}
+
+/** Single row, 39dp-high search shared across page headers. */
+@Composable private fun AttaCompactSearch(
+    value: String,
+    onValueChange: (String) -> Unit,
+    hint: String,
+    onSearch: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    androidx.compose.foundation.text.BasicTextField(
+        value = value,
+        onValueChange = onValueChange,
+        singleLine = true,
+        cursorBrush = androidx.compose.ui.graphics.SolidColor(GoldLight),
+        keyboardOptions = KeyboardOptions(imeAction = androidx.compose.ui.text.input.ImeAction.Search),
+        keyboardActions = androidx.compose.foundation.text.KeyboardActions(onSearch = { onSearch() }),
+        textStyle = androidx.compose.ui.text.TextStyle(fontSize = 13.sp, color = White),
+        modifier = modifier.height(39.dp),
+        decorationBox = { innerTextField ->
+            Row(
+                Modifier.fillMaxSize()
+                    .clip(RoundedCornerShape(13.dp))
+                    .background(Panel)
+                    .border(1.dp, Border, RoundedCornerShape(13.dp))
+                    .padding(start = 10.dp, end = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
+                    if (value.isBlank()) Text(hint, color = Muted, fontSize = 12.sp, maxLines = 1)
+                    innerTextField()
+                }
+                IconButton(onClick = onSearch, modifier = Modifier.size(32.dp)) {
+                    SiteIcon("search", tint = GoldLight, size = 18.dp)
+                }
+            }
+        }
+    )
 }
 
 @Composable private fun Avatar(url: String, label: String, onClick: (() -> Unit)? = null) {
@@ -1067,7 +1103,7 @@ private class AttaYoutubeFullscreenChrome(
         } finally { socketClient.dispatcher.executorService.shutdown() }
     }
     LaunchedEffect(tab, search, token) {
-        if (tab == "استكشاف" && token.isNotBlank()) {
+        if ((tab == "استكشاف" || tab == "الأصدقاء") && token.isNotBlank()) {
             delay(320)
             try { users = get("/api/users?q=${enc(search.trim())}").arr("users") }
             catch (_: Exception) { users = emptyList() }
@@ -1594,10 +1630,10 @@ private class AttaYoutubeFullscreenChrome(
                         } // Home uses the search icon in the single-line header; no second search bar.
                     }
                     if (tab != "الرئيسية" && tab != "الرسائل") {
-                        Row(Modifier.fillMaxWidth().heightIn(min = 52.dp)
-                            .padding(horizontal = 12.dp, vertical = 4.dp),
+                        Row(Modifier.fillMaxWidth().height(47.dp)
+                            .padding(horizontal = 12.dp, vertical = 3.dp),
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                             val pageTitle = when (tab) {
                                 "القرآن" -> "القرآن الكريم"
                                 "الأحاديث" -> "الأحاديث النبوية"
@@ -1605,29 +1641,23 @@ private class AttaYoutubeFullscreenChrome(
                                 else -> tab
                             }
                             Text(pageTitle, color = GoldLight, fontWeight = FontWeight.Bold,
-                                fontSize = 16.sp, maxLines = 1,
+                                fontSize = 15.sp, maxLines = 1,
                                 modifier = Modifier.weight(1f))
-                            // The search field replaces the old search icon; never create
-                            // a second full-width search row in KnowledgeScreen or YouTube.
-                            if (tab in setOf("القرآن", "الأحاديث", "الأذكار", "يوتيوب")) {
+                            if (tab in setOf("القرآن", "الأحاديث", "الأذكار", "يوتيوب", "الأصدقاء")) {
                                 val isYoutube = tab == "يوتيوب"
-                                OutlinedTextField(
-                                    value = if (isYoutube) youtubeSearch else knowledgeSearch,
+                                val isFriends = tab == "الأصدقاء"
+                                AttaCompactSearch(
+                                    value = if (isYoutube) youtubeSearch else if (isFriends) search else knowledgeSearch,
                                     onValueChange = { value ->
-                                        if (isYoutube) youtubeSearch = value else knowledgeSearch = value
-                                    },
-                                    modifier = Modifier.width(164.dp).heightIn(min = 48.dp),
-                                    singleLine = true,
-                                    placeholder = { Text("بحث", color = Muted, fontSize = 12.sp) },
-                                    trailingIcon = {
-                                        IconButton(onClick = { if (isYoutube) refresh() }) {
-                                            SiteIcon("search", tint = GoldLight, size = 18.dp)
+                                        when {
+                                            isYoutube -> youtubeSearch = value
+                                            isFriends -> search = value
+                                            else -> knowledgeSearch = value
                                         }
                                     },
-                                    textStyle = androidx.compose.ui.text.TextStyle(fontSize = 13.sp, color = White),
-                                    shape = RoundedCornerShape(12.dp),
-                                    colors = OutlinedTextFieldDefaults.colors(
-                                        focusedBorderColor = Gold, unfocusedBorderColor = Border)
+                                    hint = if (isFriends) "بحث عن صديق" else "بحث",
+                                    onSearch = { if (isYoutube || isFriends) refresh() },
+                                    modifier = Modifier.width(184.dp)
                                 )
                             }
                         }
@@ -1950,7 +1980,7 @@ private class AttaYoutubeFullscreenChrome(
                             } else item { Text("هذه الصفحة متاحة للإدارة فقط", color = Muted) }
                         }
                         "الأصدقاء" -> LazyColumn(Modifier.weight(1f).padding(horizontal = 8.dp)) {
-                            item { SectionTitle("طلبات الصداقة") }
+                            if (requests.isNotEmpty()) item { SectionTitle("طلبات الصداقة (${requests.size})") }
                             items(requests, key = { "request_" + it.optJSONObject("user")?.optString("username").orEmpty() }) { r ->
                                 val u = r.optJSONObject("user") ?: JSONObject()
                                 val peer = u.optString("username")
@@ -1966,28 +1996,31 @@ private class AttaYoutubeFullscreenChrome(
                                     }
                                 }
                             }
-                            item {
-                                SectionTitle("البحث وإضافة صديق")
-                                OutlinedTextField(search, { search = it }, label = { Text("ابحث بالاسم أو اسم المستخدم") }, modifier = Modifier.fillMaxWidth())
-                                GoldButton("بحث") { refresh() }
+                            if (users.any { u -> !u.optString("username").equals(myUsername, true) && u.optString("friendState") != "friends" }) {
+                                item { SectionTitle(if (search.isBlank()) "اقتراحات الأصدقاء" else "نتائج البحث") }
                             }
-                            items(users.filter { !it.optString("username").equals(myUsername, true) },
+                            items(users.filter { !it.optString("username").equals(myUsername, true) && it.optString("friendState") != "friends" },
                                 key = { "user_" + it.optString("username") }) { u ->
                                 val peer = u.optString("username")
                                 val state = u.optString("friendState")
                                 CardBox {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Row(verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                                         Avatar(u.optString("avatar"), u.name(), onClick = { openPublicProfile(peer) })
-                                        Spacer(Modifier.width(9.dp))
                                         Text(u.name(), color = White, fontWeight = FontWeight.Bold,
-                                            modifier = Modifier.weight(1f).clickable { openPublicProfile(peer) })
-                                    }
-                                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                            modifier = Modifier.weight(1f).clickable { openPublicProfile(peer) },
+                                            maxLines = 1)
                                         when (state) {
-                                            "friends" -> GoldButton("مراسلة") { openChat(peer) }
-                                            "incoming" -> GoldButton("قبول الصداقة", !busy) { updateFriend(peer, "accept") }
-                                            "outgoing" -> TextButton(onClick = { updateFriend(peer, "cancel") }, enabled = !busy) { Text("إلغاء الطلب", color = GoldLight) }
-                                            else -> if (u.optBoolean("allowFriendRequests", true)) GoldButton("إضافة صديق", !busy) { updateFriend(peer, "request") }
+                                            "incoming" -> TextButton(onClick = { updateFriend(peer, "accept") }, enabled = !busy) {
+                                                Text("قبول", color = GoldLight, fontSize = 12.sp)
+                                            }
+                                            "outgoing" -> TextButton(onClick = { updateFriend(peer, "cancel") }, enabled = !busy) {
+                                                Text("إلغاء الطلب", color = Muted, fontSize = 12.sp)
+                                            }
+                                            else -> if (u.optBoolean("allowFriendRequests", true))
+                                                TextButton(onClick = { updateFriend(peer, "request") }, enabled = !busy) {
+                                                    Text("+ إضافة صديق", color = GoldLight, fontSize = 12.sp)
+                                                }
                                         }
                                     }
                                 }
@@ -2000,16 +2033,21 @@ private class AttaYoutubeFullscreenChrome(
                             items(friends, key = { "friend_" + it.optString("username") }) { u ->
                                 val peer = u.optString("username")
                                 CardBox {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Row(verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                                         Avatar(u.optString("avatar"), u.name(), onClick = { openPublicProfile(peer) })
-                                        Spacer(Modifier.width(9.dp))
                                         Text(u.name(), color = White, fontWeight = FontWeight.Bold,
-                                            modifier = Modifier.weight(1f).clickable { openPublicProfile(peer) })
-                                        TextButton(onClick = { openChat(peer) }) { Text("مراسلة", color = GoldLight) }
-                                    }
-                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                        TextButton(onClick = { openCall(peer, "audio") }) { Text("اتصال صوتي", color = GoldLight) }
-                                        TextButton(onClick = { openCall(peer, "video") }) { Text("اتصال فيديو", color = GoldLight) }
+                                            modifier = Modifier.weight(1f).clickable { openPublicProfile(peer) },
+                                            maxLines = 1)
+                                        IconButton(onClick = { openChat(peer) }, modifier = Modifier.size(38.dp)) {
+                                            SiteIcon("message-circle", tint = GoldLight, size = 19.dp)
+                                        }
+                                        IconButton(onClick = { openCall(peer, "audio") }, modifier = Modifier.size(38.dp)) {
+                                            SiteIcon("phone", tint = GoldLight, size = 19.dp)
+                                        }
+                                        IconButton(onClick = { openCall(peer, "video") }, modifier = Modifier.size(38.dp)) {
+                                            SiteIcon("video", tint = GoldLight, size = 19.dp)
+                                        }
                                     }
                                 }
                             }

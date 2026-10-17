@@ -6,7 +6,7 @@ const html=fs.readFileSync('cloudflare-site/public/index.html','utf8');
 assert.equal((native.match(/fun YouTubePlayer\(/g)||[]).length,1,'one canonical YouTubePlayer');
 assert.equal((native.match(/YouTubePlayer\(youtubeId\)/g)||[]).length,1,'screen calls canonical player');
 assert.ok(!native.includes('AlattaFixedYouTubePlayer') && !native.includes('attaYouTubeHtml'),'no duplicate native player');
-assert.ok(native.includes('loadDataWithBaseURL') && native.includes('youtube-player-shared.js'),'Android loads shared website embed factory from generated assets');
+assert.ok(native.includes('loadUrl("$BASE/")') && native.includes('youtube-player-shared.js') && native.includes('document.body.replaceChildren(host)'),'Android loads shared website embed factory from generated assets');
 assert.ok(!native.includes('raw.contains("username", ignoreCase = true)'),'no blanket mapping of login failures to username-taken');
 assert.ok(native.includes('error = e.message ?: "تعذر إتمام العملية"'),'native errors shown without misleading remapping');
 assert.ok(!worker.includes('AL_ATTA_DOWNLOAD_BUTTON_SCRIPT'),'no injected download button');
