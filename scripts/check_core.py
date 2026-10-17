@@ -27,12 +27,45 @@ check("Cloudflare deployment paths", 'main = "src/worker.js"' in read('cloudflar
 check("Worker core routes preserved",all(x in worker for x in ['/api/google-login','/api/friend-request','/api/conversation','/api/youtube','/api/call-signal','/ws']))
 check("Version declared", bool(re.search(r'versionName\s*=\s*"\d+\.\d+\.\d+"',gradle)) and bool(re.search(r'versionCode\s*=\s*\d+',gradle)))
 check("No legacy root Android source copies", not any((ROOT/p).exists() for p in ["MainActivity.kt","GoogleNativeSignIn.kt","AndroidManifest.xml","build.gradle.kts"]))
-check("One native YouTube player", main.count("fun YouTubePlayer(")==1 and "AlattaFixedYouTubePlayer" not in main and "YouTubePlayer(youtubeId)" in main)
+check("One actual site YouTube player, no Android duplication", main.count("fun YouTubePlayer(")==1 and "YouTubePlayer(youtubeId)" in main and 'loadUrl("$BASE/")' in main and 'atta-site-youtube-bridge.js' in main and 'document.body.replaceChildren(host)' not in main and 'new YT.Player(' not in main and 'attaYouTubeHtml' not in main and 'www.youtube.com/embed/' not in main and 'syncAttaYouTube' not in gradle and (ROOT/'android-native/app/src/main/assets/atta-site-youtube-bridge.js').is_file() and 'AttaYouTubeEmbed.create' in read('cloudflare-site/public/youtube-section.js') and 'global.AttaYouTubeEmbed=' in read('cloudflare-site/public/youtube-player-shared.js'))
+check("One compact header search and no duplicate friend search", main.count('AttaCompactSearch(')==2 and 'SectionTitle("البحث وإضافة صديق")' not in main and 'OutlinedTextField(search, { search = it }, label = { Text("ابحث بالاسم أو اسم المستخدم") }' not in main)
 check("No unresolved merge markers", not any(re.match(r"^(<<<<<<< |=======\s*$|>>>>>>> )", line) for f in (ROOT/"android-native/app/src/main/java").rglob("*.kt") for line in f.read_text(encoding="utf-8").splitlines()))
 check("PushCall visibility compatible", "internal var incomingPush by mutableStateOf<PushCall?>" in main)
+# Protect the cross-file foreground ringtone contract. Partial uploads must
+# include MainActivity.kt, NativeCallScreen.kt, and AttaPush.kt from one version.
+ring_screen=read(android+"NativeCallScreen.kt")
+push_source=read(android+"AttaPush.kt")
+check("Incoming call ringtone passes callId", 
+      "IncomingCallRingtone(invitation.callId)" in main and
+      "internal fun IncomingCallRingtone(callId: String)" in ring_screen and
+      not re.search(r"IncomingCallRingtone\(\s*\)", main))
+check("Foreground ring state declared in AttaPush", 
+      "@Volatile var foregroundRingCallId" in push_source and
+      "AttaPush.foregroundRingCallId = callId" in ring_screen and
+      "AttaPush.foregroundRingCallId == callId" in ring_screen)
+
 check("Native Google bridge removed", not (ROOT/(android+"GoogleWebBridge.kt")).exists())
-check("Official version 1.0.51", 'versionCode = 151' in gradle and 'versionName = "1.0.51"' in gradle)
+check("Official version 1.0.65", 'versionCode = 165' in gradle and 'versionName = "1.0.65"' in gradle)
+check("Four additional screens and scrollable navigation", all(x in main for x in ['KnowledgeScreen(tab', 'FootballScreen(']) and all(x in read(android+"PremiumChrome.kt") for x in ['"القرآن"', '"الأحاديث"', '"الأذكار"', '"الرياضة"', '.horizontalScroll(scroll)']) and (ROOT/(android+"AlattaKnowledgeScreens.kt")).is_file())
+check("Quran-first categories and click-to-play preview", all(x in main for x in [
+    'var youtubeCategory by remember { mutableStateOf("قرآن") }',
+    '"أحاديث" -> "أحاديث نبوية صحيحة شرح"',
+    '"رياضة" -> "كرة القدم ملخص مباريات"',
+    '"أخبار" -> "أخبار الجزيرة اليوم"',
+    'youtubeListState.animateScrollToItem(0)',
+    'if (youtubePlayRequested)',
+    'GoldButton("▶ تشغيل الفيديو")',
+    'youtubePlayRequested = false'])
+    and '⛶ ملء الشاشة' not in main and 'فتح في YouTube' not in main
+    and 'تلاوة القرآن الكريم' in worker and 'data-q="تلاوة القرآن الكريم"' in read('cloudflare-site/public/youtube-section.js'))
 check("Background FCM integration declared", all((ROOT/(android+x)).is_file() for x in ['AttaPush.kt']) and 'FIREBASE_SERVICE_ACCOUNT_JSON' in worker and '/api/push/register' in worker and 'ALATTA_FCM_APP_ID' in workflow)
+check("Notification Intent.data does not shadow Firebase payload", 'this.data = Uri.parse("alatta://notification/${Uri.encode(eventId)}")' in read(android+"AttaPush.kt"))
+check("Social, chat and call FCM routing", 'scheduleUserPush' in worker and
+      'deliverUserPush' in worker and 'notifyActivity(this, d)' in read(android+'AttaPush.kt') and
+      'ACTION_OPEN_NOTIFICATION' in main and 'versionCode = 165' in gradle)
+check("Site/Android keep screen on without changing player", 'FLAG_KEEP_SCREEN_ON' in main and
+      'youtube-screen-awake.js' in read('cloudflare-site/public/index.html') and
+      (ROOT/'cloudflare-site/public/youtube-screen-awake.js').is_file())
 check("No old patch workflows",not list((ROOT/'.github/workflows').glob('apply-*.yml')) and not list((ROOT/'.github/workflows').glob('install-*.yml')))
 xmls=list((ROOT/'android-native').rglob('*.xml'))
 errors=[]
@@ -48,5 +81,17 @@ for f in js:
     if p.returncode:failjs.append((f.as_posix(),p.stderr.strip()[:150]))
 check(f"JavaScript syntax ({len(js)} files)",not failjs)
 for x in failjs:print(x)
+
+
+# The native video must paint into its own stage rather than hiding a WebView
+# behind a full-screen Compose placeholder. Validate both media paths persist.
+video_native=read(android+"NativeCallScreen.kt")
+video_web=read("android-native/app/src/main/assets/atta-call.html")
+check("Visible Android call-video stage and camera diagnostics",
+      'if (videoCall) {' in video_native and
+      'AndroidView(\n            factory = { webView }' in video_native and
+      'The sole video WebView is already behind this transparent' in video_native and
+      'fun videoDiagnostic(message: String)' in video_native and
+      'window.__attaResumeMedia' in video_web and 'AttaBridge.cameraReady()' in video_web)
 if fails:raise SystemExit(f"FAIL: {len(fails)} checks failed")
 print('PASS: static repository check complete. APK build/device tests are still required.')

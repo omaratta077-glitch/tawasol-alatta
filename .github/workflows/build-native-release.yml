@@ -117,9 +117,12 @@ jobs:
           python3 scripts/check_core.py
           node scripts/test_backend.mjs
           node scripts/verify_sources.mjs
+          node scripts/test_youtube_single_origin.mjs
           node scripts/test_call_ringing.mjs
           node scripts/test_mobile_call_fallback.mjs
           node scripts/test_call_push.mjs
+          node scripts/test_call_history.mjs
+          node scripts/test_social_push.mjs
 
       - name: Report Firebase push setup status
         shell: bash
@@ -130,8 +133,8 @@ jobs:
           PUSH_API_KEY: ${{ vars.ALATTA_FCM_API_KEY }}
         run: |
           if [[ -z "$PUSH_APP_ID" || -z "$PUSH_SENDER_ID" || -z "$PUSH_PROJECT_ID" || -z "$PUSH_API_KEY" ]]; then
-            echo '::warning::Firebase Android variables are missing. APK will build but background call push notifications will remain disabled.'
-            echo '⚠️ Background calls are disabled until Firebase GitHub Variables + Cloudflare secret are configured.' >> "$GITHUB_STEP_SUMMARY"
+            echo '::warning::Firebase Android variables are missing. APK will build but background calls and social/message push notifications will remain disabled.'
+            echo '⚠️ Background push notifications are disabled until Firebase GitHub Variables + Cloudflare secret are configured.' >> "$GITHUB_STEP_SUMMARY"
           else
             echo 'Firebase Android identifiers supplied (delivery still requires Cloudflare credentials and deployment).'
           fi

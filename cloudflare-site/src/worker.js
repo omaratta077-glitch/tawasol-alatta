@@ -975,13 +975,62 @@ export class SignalingRoom extends DurableObject {
       if(!s)return j({ok:false,error:"الجلسة منتهية"},401);
       const deviceToken=String(body.deviceToken||"").trim();
       if(!/^[A-Za-z0-9:._-]{40,4096}$/.test(deviceToken))return j({ok:false,error:"رمز الجهاز غير صالح"},400);
+      const registering=url.pathname.endsWith('/register');
+      const ownerKey='fcmOwner:'+deviceToken;
+      const previousOwner=String(await this.ctx.storage.get(ownerKey)||'');
       const key='fcmTokens:'+s.username;
       const prior=await this.ctx.storage.get(key)||[];
-      const updated=url.pathname.endsWith('/register')
-        ? [...new Set([...prior,deviceToken])].slice(-5)
-        : prior.filter(value=>value!==deviceToken);
-      await this.ctx.storage.put(key,updated);
-      return j({ok:true,registered:url.pathname.endsWith('/register')});
+      if(registering){
+        // One physical push token must not keep alerts from a previous login.
+        if(previousOwner && previousOwner!==s.username){
+          const oldKey='fcmTokens:'+previousOwner;
+          const oldTokens=await this.ctx.storage.get(oldKey)||[];
+          await this.ctx.storage.put(oldKey,oldTokens.filter(t=>t!==deviceToken));
+        }
+        await this.ctx.storage.put(key,[...new Set([...prior,deviceToken])].slice(-5));
+        await this.ctx.storage.put(ownerKey,s.username);
+      }else{
+        await this.ctx.storage.put(key,prior.filter(t=>t!==deviceToken));
+        if(previousOwner===s.username)await this.ctx.storage.put(ownerKey,'');
+      }
+      return j({ok:true,registered:registering});
+    }
+
+    // Authenticated, non-sensitive status for troubleshooting missing background ringing.
+    if(url.pathname==="/api/push/status" && request.method==="GET"){
+      const session=await this.session(url.searchParams.get("token")||"");
+      if(!session)return j({ok:false,error:"الجلسة منتهية"},401);
+      const registered=await this.ctx.storage.get('fcmTokens:'+session.username)||[];
+      let projectMatches=false;
+      const configured=!!this.env.FIREBASE_SERVICE_ACCOUNT_JSON;
+      if(configured){
+        try{
+          const service=JSON.parse(this.env.FIREBASE_SERVICE_ACCOUNT_JSON);
+          projectMatches=!!service.private_key && !!service.client_email && !!service.project_id &&
+            (!this.env.FIREBASE_PROJECT_ID || this.env.FIREBASE_PROJECT_ID===service.project_id);
+        }catch(_){/* Never return credentials or private keys. */}
+      }
+      return j({ok:true,serverConfigured:configured,projectMatches,
+        registeredDevices:registered.length});
+    }
+
+    // User-triggered delivery check; FCM delivery is asynchronous, not guaranteed.
+    if(url.pathname==="/api/push/test" && request.method==="POST"){
+      const session=await this.session(String(body.token||""));
+      if(!session)return j({ok:false,error:"الجلسة منتهية"},401);
+      const tokens=await this.ctx.storage.get('fcmTokens:'+session.username)||[];
+      const latest=Number(await this.ctx.storage.get('pushTestLast:'+session.username)||0);
+      if(Date.now()-latest<60000)return j({ok:false,error:"انتظر دقيقة قبل إعادة الاختبار"},429);
+      if(!this.env.FIREBASE_SERVICE_ACCOUNT_JSON || !tokens.length)
+        return j({ok:false,error:"الإشعارات غير جاهزة على الخادم أو الجهاز غير مسجّل"},409);
+      await this.ctx.storage.put('pushTestLast:'+session.username,Date.now());
+      const result=await this.sendFcmToUser(session.username,{
+        type:'push-test',to:session.username,from:'',eventId:crypto.randomUUID(),createdAt:String(Date.now())
+      },'60s');
+      // This confirms FCM accepted the request, not that the phone displayed it.
+      if(!result.accepted)return j({ok:false,error:'تعذر إرسال الإشعار التجريبي إلى Firebase ('+(result.error||'NO_ACCEPTED_DEVICE')+')',
+        diagnostic:result.error||'NO_ACCEPTED_DEVICE'},502);
+      return j({ok:true,acceptedByFirebase:result.accepted,attempted:result.attempted});
     }
 
     if(url.pathname==="/api/call-signal" && request.method==="POST"){
@@ -1025,6 +1074,7 @@ export class SignalingRoom extends DurableObject {
       freshQueue.push(event);
       await this.ctx.storage.put(key,freshQueue.slice(-500));
 
+      await this.recordCallEvent(s.username,to,event);
       // Notify Android even if its app process is not running.
       this.scheduleCallPush(to,event);
 
@@ -1266,6 +1316,9 @@ export class SignalingRoom extends DurableObject {
             read:false
           });
           await this.ctx.storage.put(`notifications:${post.author}`,list.slice(-200));
+        this.scheduleUserPush(post.author,{type:"like",from:s.username,
+          eventId:list[list.length-1].id,
+          createdAt:list[list.length-1].createdAt});
         }
       }
 
@@ -1307,6 +1360,9 @@ export class SignalingRoom extends DurableObject {
           read:false
         });
         await this.ctx.storage.put(`notifications:${post.author}`,list.slice(-200));
+        this.scheduleUserPush(post.author,{type:"comment",from:s.username,
+          eventId:list[list.length-1].id,
+          createdAt:list[list.length-1].createdAt});
       }
 
       return j({ok:true,comment});
@@ -1365,6 +1421,9 @@ export class SignalingRoom extends DurableObject {
       const ns=await this.ctx.storage.get(`notifications:${target}`)||[];
       ns.push({id:crypto.randomUUID(),type:"follow",from:s.username,createdAt:Date.now(),read:false});
       await this.ctx.storage.put(`notifications:${target}`,ns.slice(-200));
+        this.scheduleUserPush(target,{type:"follow",from:s.username,
+          eventId:ns[ns.length-1].id,
+          createdAt:ns[ns.length-1].createdAt});
       return j({ok:true,following:true});
     }
 
@@ -1459,6 +1518,9 @@ export class SignalingRoom extends DurableObject {
       const list=await this.ctx.storage.get(`messages:${key}`)||[];
       list.push(payload);
       await this.ctx.storage.put(`messages:${key}`,list.slice(-300));
+      if(payload.mediaType!=="call-signal")this.scheduleUserPush(to,{
+        type:"chat",from:s.username,eventId:payload.id,createdAt:payload.ts
+      });
 
       if(payload.mediaType==="call-signal"){
         try{
@@ -1469,6 +1531,7 @@ export class SignalingRoom extends DurableObject {
             signalId:String(signal.signalId||payload.id), createdAt:Date.now()
           };
           await this.queuePhoneCallEvent(to,event);
+          await this.recordCallEvent(s.username,to,{...event,reason:String(signal.reason||'')});
           this.scheduleCallPush(to,event);
         }catch(_){/* Non-call chat messages are unaffected. */}
       }
@@ -1493,7 +1556,7 @@ export class SignalingRoom extends DurableObject {
       const key=[s.username,other].sort().join(":");
       const messages=await this.ctx.storage.get(`messages:${key}`)||[];
 
-      let changed=false;
+      let changed=this.finishExpiredCallEvents(messages);
       for(const m of messages){
         if(m.to===s.username && !m.deliveredAt){
           m.deliveredAt=Date.now();
@@ -1545,6 +1608,9 @@ export class SignalingRoom extends DurableObject {
           read:false
         });
         await this.ctx.storage.put(`notifications:${post.author}`,list.slice(-200));
+        this.scheduleUserPush(post.author,{type:"reaction",from:s.username,
+          eventId:list[list.length-1].id,
+          createdAt:list[list.length-1].createdAt});
       }
 
       const counts={};
@@ -1624,6 +1690,9 @@ export class SignalingRoom extends DurableObject {
           read:false
         });
         await this.ctx.storage.put(`notifications:${source.author}`,list.slice(-200));
+        this.scheduleUserPush(source.author,{type:"share",from:s.username,
+          eventId:list[list.length-1].id,
+          createdAt:list[list.length-1].createdAt});
       }
 
       return j({ok:true,post});
@@ -1652,6 +1721,15 @@ export class SignalingRoom extends DurableObject {
       });
 
       await this.ctx.storage.put(`post:${post.id}`,post);
+      if(comment.author!==s.username && await this.user(comment.author)){
+        const notification={id:crypto.randomUUID(),type:"comment-reply",from:s.username,
+          postId:post.id,commentId:comment.id,createdAt:Date.now(),read:false};
+        const list=await this.ctx.storage.get(`notifications:${comment.author}`)||[];
+        list.push(notification);
+        await this.ctx.storage.put(`notifications:${comment.author}`,list.slice(-200));
+        this.scheduleUserPush(comment.author,{type:"comment-reply",from:s.username,
+          eventId:notification.id,createdAt:notification.createdAt});
+      }
       return j({ok:true});
     }
 
@@ -1849,6 +1927,9 @@ export class SignalingRoom extends DurableObject {
       const ns=await this.ctx.storage.get(`notifications:${target}`)||[];
       ns.push({id:crypto.randomUUID(),type:"friend-request",from:s.username,createdAt:now,read:false});
       await this.ctx.storage.put(`notifications:${target}`,ns.slice(-300));
+        this.scheduleUserPush(target,{type:"friend-request",from:s.username,
+          eventId:ns[ns.length-1].id,
+          createdAt:ns[ns.length-1].createdAt});
 
       const targetWs=this.findUser(target);
       if(targetWs){
@@ -1888,6 +1969,9 @@ export class SignalingRoom extends DurableObject {
         const ns=await this.ctx.storage.get(`notifications:${other}`)||[];
         ns.push({id:crypto.randomUUID(),type:"friend-accepted",from:s.username,createdAt:acceptedAt,read:false});
         await this.ctx.storage.put(`notifications:${other}`,ns.slice(-300));
+        this.scheduleUserPush(other,{type:"friend-accepted",from:s.username,
+          eventId:ns[ns.length-1].id,
+          createdAt:ns[ns.length-1].createdAt});
 
         const otherWs=this.findUser(other);
         if(otherWs){
@@ -2056,6 +2140,45 @@ export class SignalingRoom extends DurableObject {
     }
   }
 
+  // One canonical per-call summary in the existing private conversation, NOT
+  // repeated signaling messages. HTTP and WebSocket copies share the call ID.
+  async recordCallEvent(from,to,event){
+    const id=String(event.callId||'').trim();
+    if(!/^[A-Za-z0-9_-]{8,128}$/.test(id))return;
+    const type=String(event.type||'');
+    if(!['call-request','call-accept','call-reject','hangup'].includes(type))return;
+    const key=[from,to].sort().join(':');
+    const storageKey='messages:'+key;
+    const messages=await this.ctx.storage.get(storageKey)||[];
+    let record=messages.find(m=>m.mediaType==='call-event' && m.callId===id);
+    if(!record){
+      // A reply/end is not sufficient proof of who called whom.
+      if(type!=='call-request')return;
+      record={type:'chat',id:'call:'+id,from,to,mediaType:'call-event',
+        media:'',text:'',callId:id,callType:event.callType==='video'?'video':'audio',
+        callStatus:'ringing',ts:Date.now(),read:false,deliveredAt:0};
+      messages.push(record);
+    }else if(type==='call-accept' && record.callStatus==='ringing'){
+      record.callStatus='answered';
+    }else if(type==='call-reject' && !['completed','rejected','missed','cancelled'].includes(record.callStatus)){
+      record.callStatus=event.reason==='busy'?'busy':'rejected';
+    }else if(type==='hangup' && !['completed','rejected','missed','cancelled','busy'].includes(record.callStatus)){
+      record.callStatus=record.callStatus==='answered'?'completed':'cancelled';
+    }
+    await this.ctx.storage.put(storageKey,messages.slice(-300));
+  }
+
+  // A call unanswered after its invitation expires becomes a missed-call entry.
+  // This runs during chat/inbox reads, even when both devices were offline.
+  finishExpiredCallEvents(messages){
+    const now=Date.now();let changed=false;
+    for(const m of messages){
+      if(m.mediaType==='call-event' && m.callStatus==='ringing' &&
+          now-Number(m.ts||0)>55000){m.callStatus='missed';changed=true;}
+    }
+    return changed;
+  }
+
   // Phone foreground polling fallback: persist only the small invitation/cancellation
   // events, not ICE/SDP media signaling, and never expose them without authentication.
   async queuePhoneCallEvent(to,event){
@@ -2101,37 +2224,68 @@ export class SignalingRoom extends DurableObject {
     return this.fcmToken;
   }
 
-  async deliverCallPush(to,event){
-    if(!this.env.FIREBASE_SERVICE_ACCOUNT_JSON)return;
-    if(!['call-request','hangup','call-reject'].includes(event.type))return;
+  async sendFcmToUser(to,data,ttl){
+    if(!this.env.FIREBASE_SERVICE_ACCOUNT_JSON)
+      return {accepted:0,attempted:0,error:'FCM_NOT_CONFIGURED'};
+    let attempted=0,accepted=0,lastError='';
     try {
       const tokens=await this.ctx.storage.get('fcmTokens:'+to)||[];
-      if(!tokens.length)return;
-      const token=await this.fcmAccessToken();if(!token)return;
+      if(!tokens.length)return {accepted:0,attempted:0,error:'NO_REGISTERED_DEVICES'};
+      const accessToken=await this.fcmAccessToken();
+      if(!accessToken)return {accepted:0,attempted:0,error:'FCM_AUTH_NOT_AVAILABLE'};
       const sa=JSON.parse(this.env.FIREBASE_SERVICE_ACCOUNT_JSON);
       const project=String(this.env.FIREBASE_PROJECT_ID||sa.project_id||'');
       if(!project || project!==sa.project_id)throw Error('Firebase project ID mismatch');
       const url='https://fcm.googleapis.com/v1/projects/'+encodeURIComponent(project)+'/messages:send';
       const survivors=[];
       for(const deviceToken of tokens.slice(-5)){
+        attempted++;
         try {
           const resp=await fetch(url,{method:'POST',headers:{
-            Authorization:'Bearer '+token,'Content-Type':'application/json'
-          },body:JSON.stringify({message:{token:deviceToken,
-            data:{type:String(event.type),from:String(event.from),to:String(to),
-              callId:String(event.callId),callType:event.callType==='video'?'video':'audio',
-              createdAt:String(event.createdAt||Date.now())},
-            android:{priority:'HIGH',ttl:'45s'}}})});
-          if(resp.ok){survivors.push(deviceToken);continue;}
+            Authorization:'Bearer '+accessToken,'Content-Type':'application/json'
+          },body:JSON.stringify({message:{token:deviceToken,data,
+            android:{priority:'HIGH',ttl}}})});
+          if(resp.ok){accepted++;survivors.push(deviceToken);continue;}
           const body=await resp.json().catch(()=>({}));
           const badToken=resp.status===404 || (resp.status===400 &&
             JSON.stringify(body).includes('UNREGISTERED'));
           if(!badToken)survivors.push(deviceToken);
-          console.warn('Call push delivery HTTP',resp.status);
-        }catch(_){survivors.push(deviceToken);}
+          lastError='FCM_HTTP_'+resp.status;
+          console.warn('FCM delivery HTTP',resp.status);
+        }catch(_){survivors.push(deviceToken);lastError='FCM_NETWORK_ERROR';}
       }
-      if(survivors.length!==tokens.length)await this.ctx.storage.put('fcmTokens:'+to,survivors);
-    }catch(e){console.warn('Call push unavailable:',String(e.message||e));}
+      if(survivors.length!==tokens.length)
+        await this.ctx.storage.put('fcmTokens:'+to,survivors);
+      return {attempted,accepted,...(lastError?{error:lastError}:{})};
+    }catch(e){
+      console.warn('FCM push unavailable:',String(e.message||e));
+      return {attempted,accepted,error:'FCM_SERVER_ERROR'};
+    }
+  }
+
+  async deliverCallPush(to,event){
+    if(!['call-request','hangup','call-reject'].includes(event.type))return;
+    await this.sendFcmToUser(to,{
+      type:String(event.type),from:String(event.from),to:String(to),
+      callId:String(event.callId),callType:event.callType==='video'?'video':'audio',
+      createdAt:String(event.createdAt||Date.now())
+    },'45s');
+  }
+
+  // Social/message push is sent only after the authenticated event was stored.
+  // No chat body or user token is included in the FCM data payload.
+  scheduleUserPush(to,event){
+    if(!this.env.FIREBASE_SERVICE_ACCOUNT_JSON)return;
+    if(!['chat','friend-request','friend-accepted','like','reaction','comment',
+      'comment-reply','follow','share'].includes(event.type))return;
+    this.ctx.waitUntil(this.deliverUserPush(to,event));
+  }
+
+  async deliverUserPush(to,event){
+    await this.sendFcmToUser(to,{
+      type:String(event.type),to:String(to),from:String(event.from||''),
+      eventId:String(event.eventId),createdAt:String(event.createdAt||Date.now())
+    },'86400s');
   }
 
   scheduleCallPush(to,event){
@@ -2218,6 +2372,9 @@ export class SignalingRoom extends DurableObject {
       const list=await this.ctx.storage.get(`messages:${key}`)||[];
       list.push(payload);
       await this.ctx.storage.put(`messages:${key}`,list.slice(-300));
+      if(payload.mediaType!=="call-signal")this.scheduleUserPush(to,{
+        type:"chat",from,eventId:payload.id,createdAt:payload.ts
+      });
 
       if(target){
         this.send(target,payload);
@@ -2281,6 +2438,7 @@ export class SignalingRoom extends DurableObject {
         signalId:String(msg.signalId||crypto.randomUUID()), createdAt:Date.now()
       };
       await this.queuePhoneCallEvent(to,event);
+      await this.recordCallEvent(from,to,{...event,reason:String(msg.reason||'')});
       this.scheduleCallPush(to,event);
 
       if(msg.type==="call-request"){
@@ -2350,7 +2508,7 @@ export default {
     if(url.pathname==="/api/youtube" && request.method==="GET"){
       const key=String(env.YOUTUBE_API_KEY||"").trim();
       if(!key)return Response.json({ok:false,error:"مفتاح YouTube غير مُعد"},{status:503});
-      const query=(url.searchParams.get("q")||"").trim().slice(0,100);
+      const query=(url.searchParams.get("q")||"").trim().slice(0,100)||"تلاوة القرآن الكريم";
       const pageToken=(url.searchParams.get("pageToken")||"").trim();
       if(pageToken && !/^[A-Za-z0-9_-]{1,100}$/.test(pageToken))return Response.json({ok:false,error:"صفحة غير صالحة"},{status:400});
       const mode=query?"search":"popular";

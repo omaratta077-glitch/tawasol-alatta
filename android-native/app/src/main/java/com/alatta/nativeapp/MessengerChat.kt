@@ -68,8 +68,27 @@ private fun shortTime(ms: Long): String {
     return if (elapsed in 0 until 86_400_000L) prettyTime(ms)
     else SimpleDateFormat("d MMM", Locale("ar")).format(Date(ms))
 }
-private fun chatLastText(message: JSONObject?): String {
+// Call history comes from the existing private conversation, never from raw SDP/ICE.
+private fun callSummary(message: JSONObject, outgoing: Boolean): String {
+    val video = message.optString("callType") == "video"
+    val base = if (video) "مكالمة فيديو" else "مكالمة صوتية"
+    val status = when (message.optString("callStatus")) {
+        "answered" -> "تم الرد على المكالمة"
+        "completed" -> "انتهت المكالمة"
+        "rejected" -> "تم رفض المكالمة"
+        "busy" -> "المستخدم مشغول"
+        "missed" -> if (outgoing) "لم يتم الرد" else "مكالمة فائتة"
+        "cancelled" -> if (outgoing) "تم إلغاء الاتصال" else "مكالمة فائتة"
+        else -> if (System.currentTimeMillis() - message.optLong("ts") > 55_000L)
+            { if (outgoing) "لم يتم الرد" else "مكالمة فائتة" } else "اتصال وارد"
+    }
+    return "$base • $status"
+}
+
+private fun chatLastText(message: JSONObject?, myUsername: String): String {
     if (message == null) return "اضغط لبدء المحادثة"
+    if (message.optString("mediaType") == "call-event")
+        return "📞 " + callSummary(message, message.optString("from").equals(myUsername, ignoreCase = true))
     val text = message.optString("text").trim()
     if (text.isNotBlank()) return text
     return when (message.optString("mediaType")) {
@@ -118,6 +137,7 @@ private fun ChatSegment(label: String, selected: Boolean, onClick: () -> Unit) {
 
 @Composable
 internal fun MessengerInbox(
+    myUsername: String,
     contacts: List<JSONObject>,
     inbox: List<ChatPreview>,
     loading: Boolean,
@@ -252,7 +272,7 @@ internal fun MessengerInbox(
                                 fontWeight = FontWeight.Bold, fontSize = 15.sp,
                                 maxLines = 1, overflow = TextOverflow.Ellipsis)
                             Spacer(Modifier.height(5.dp))
-                            Text(chatLastText(preview.lastMessage), color = ChatSecondary,
+                            Text(chatLastText(preview.lastMessage, myUsername), color = ChatSecondary,
                                 fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         }
                         Column(horizontalAlignment = Alignment.End) {
@@ -327,7 +347,16 @@ private fun ChatBubble(message: JSONObject, mine: Boolean) {
             .background(if (mine) Brush.linearGradient(listOf(ChatGoldBright, ChatGold))
                 else Brush.linearGradient(listOf(Color(0xFF22292D), Color(0xFF151B1F))))
             .padding(horizontal = 12.dp, vertical = 9.dp)) {
-            if (body.isNotBlank()) Text(body, color = if (mine) Color(0xFF17130B) else ChatText,
+            if (mediaType == "call-event") {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    SiteIcon(if (message.optString("callType") == "video") "video" else "phone",
+                        size = 21.dp, tint = if (mine) Color(0xFF17130B) else ChatGoldBright)
+                    Spacer(Modifier.width(9.dp))
+                    Text(callSummary(message, mine),
+                        color = if (mine) Color(0xFF17130B) else ChatText,
+                        fontWeight = FontWeight.Medium, fontSize = 13.sp)
+                }
+            } else if (body.isNotBlank()) Text(body, color = if (mine) Color(0xFF17130B) else ChatText,
                 fontSize = 14.sp, lineHeight = 21.sp)
             if (mediaUrl.isNotBlank()) {
                 Spacer(Modifier.height(if (body.isNotBlank()) 7.dp else 0.dp))

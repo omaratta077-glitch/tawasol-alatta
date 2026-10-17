@@ -83,12 +83,18 @@ internal data class PushCall(
 
 internal object AttaPush {
     @Volatile var appVisible = false
+    // A visible incoming-call dialog rings on its own; suppress only that
+    // notification, not all calls just because the Activity is STARTED.
+    @Volatile var foregroundRingCallId = ""
     const val ACTION_OPEN_CALL = "com.alatta.nativeapp.OPEN_CALL"
     const val ACTION_REJECT = "com.alatta.nativeapp.REJECT_CALL"
     const val ACTION_ACCEPT = "accept"
     const val ACTION_VIEW = "view"
     private const val BASE = "https://tawasol-alatta.omaratta077-4fd.workers.dev"
     private const val CHANNEL = "alatta_incoming_call_v2"
+    private const val CHAT_CHANNEL = "alatta_messages_v1"
+    private const val SOCIAL_CHANNEL = "alatta_social_v1"
+    const val ACTION_OPEN_NOTIFICATION = "com.alatta.nativeapp.OPEN_NOTIFICATION"
     private val io = Executors.newSingleThreadExecutor()
 
     fun configured() = BuildConfig.PUSH_APP_ID.isNotBlank() &&
@@ -107,6 +113,13 @@ internal object AttaPush {
             lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC
         }
         manager.createNotificationChannel(channel)
+        // Dedicated channels let the user choose separate sounds for messages and social alerts.
+        manager.createNotificationChannel(NotificationChannel(
+            CHAT_CHANNEL, "رسائل تواصل العطا", NotificationManager.IMPORTANCE_HIGH
+        ).apply { description = "رسائل جديدة في المحادثات"; enableVibration(true) })
+        manager.createNotificationChannel(NotificationChannel(
+            SOCIAL_CHANNEL, "تفاعلات وطلبات الصداقة", NotificationManager.IMPORTANCE_DEFAULT
+        ).apply { description = "طلبات الصداقة والإعجابات والتعليقات" })
     }
 
     private fun prefs(context: Context) = context.getSharedPreferences("alatta_native", 0)
@@ -129,7 +142,7 @@ internal object AttaPush {
             connection.setRequestProperty("Content-Type", "application/json")
             connection.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
             val code = connection.responseCode
-            if (code !in 200..299) android.util.Log.w("AttaPush", "API response: $code ($path)")
+            if (code !in 200..299) throw IllegalStateException("API response $code ($path)")
         } finally { connection.disconnect() }
     }
 
@@ -139,9 +152,12 @@ internal object AttaPush {
             FirebaseMessaging.getInstance().token.addOnSuccessListener { deviceToken ->
                 prefs(context).edit().putString("push_device_token", deviceToken).apply()
                 io.execute {
-                    runCatching { post(context, "/api/push/register", JSONObject()
-                        .put("token", session).put("deviceToken", deviceToken)) }
-                        .onFailure { android.util.Log.w("AttaPush", "Registration failed", it) }
+                    runCatching {
+                        post(context, "/api/push/register", JSONObject()
+                            .put("token", session).put("deviceToken", deviceToken))
+                        prefs(context).edit().putLong("push_registered_at", System.currentTimeMillis())
+                            .putString("push_registered_user", user.lowercase()).apply()
+                    }.onFailure { android.util.Log.w("AttaPush", "Registration failed", it) }
                 }
             }.addOnFailureListener { android.util.Log.w("AttaPush", "FCM token unavailable", it) }
         } catch (error: Exception) { android.util.Log.w("AttaPush", "FCM unavailable", error) }
@@ -174,11 +190,68 @@ internal object AttaPush {
             putExtra("atta_call_action", action)
         }
 
+    // These are intentionally generic summaries; private message bodies never travel
+    // in push payloads or appear on the lock screen. Server-authored sender and
+    // destination are validated against the logged-in account on this device.
+    fun notifyActivity(context: Context, data: Map<String, String>) {
+        val type = data["type"].orEmpty()
+        val account = prefs(context)
+        val recipient = data["to"].orEmpty().lowercase()
+        val sender = data["from"].orEmpty().trim().take(64)
+        val eventId = data["eventId"].orEmpty()
+        val allowed = setOf("chat", "friend-request", "friend-accepted", "like",
+            "reaction", "comment", "comment-reply", "follow", "share", "push-test")
+        if (type !in allowed || eventId.length !in 8..128 || recipient.isBlank() ||
+            recipient != account.getString("username", "")?.lowercase() ||
+            account.getString("token", "").isNullOrBlank()) return
+        // Foreground already has the WebSocket and in-app notification stream.
+        if (appVisible && type != "push-test") return
+        if (Build.VERSION.SDK_INT >= 33 &&
+            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS)
+                != PackageManager.PERMISSION_GRANTED) return
+        if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) return
+        createChannel(context)
+        val title = when (type) {
+            "push-test" -> "اختبار إشعارات تواصل العطا"
+            "chat" -> "رسالة جديدة"
+            "friend-request" -> "طلب صداقة جديد"
+            "friend-accepted" -> "تم قبول طلب الصداقة"
+            "like" -> "إعجاب جديد"
+            "reaction" -> "تفاعل جديد"
+            "comment", "comment-reply" -> "تعليق جديد"
+            "follow" -> "متابع جديد"
+            else -> "مشاركة جديدة"
+        }
+        val message = if (type == "push-test") "وصل إشعار Firebase إلى جهازك بنجاح"
+            else if (sender.isNotBlank()) "من $sender على تواصل العطا" else "لديك إشعار جديد في تواصل العطا"
+        val tab = if (type == "chat") "الرسائل" else if (type == "friend-request" ||
+            type == "friend-accepted") "الأصدقاء" else "الإشعارات"
+        val intent = Intent(context, MainActivity::class.java).apply {
+            action = ACTION_OPEN_NOTIFICATION
+            this.data = Uri.parse("alatta://notification/${Uri.encode(eventId)}")
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            putExtra("atta_notification_tab", tab)
+        }
+        val pending = PendingIntent.getActivity(context, eventId.hashCode(), intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        val notice = NotificationCompat.Builder(context,
+                if (type == "chat") CHAT_CHANNEL else SOCIAL_CHANNEL)
+            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setContentTitle(title).setContentText(message)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(message))
+            .setCategory(if (type == "chat") NotificationCompat.CATEGORY_MESSAGE else NotificationCompat.CATEGORY_SOCIAL)
+            .setPriority(if (type == "chat") NotificationCompat.PRIORITY_HIGH else NotificationCompat.PRIORITY_DEFAULT)
+            .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
+            .setAutoCancel(true).setContentIntent(pending)
+        // Use the event's stable ID to avoid showing the same event twice after retries.
+        NotificationManagerCompat.from(context).notify(eventId.hashCode(), notice.build())
+    }
+
     fun incoming(context: Context, call: PushCall) {
         if (!validSession(context, call)) return
         // Foreground calls already have a native dialog + ringtone through the
         // authenticated WebSocket/HTTP path. Never ring the same device twice.
-        if (appVisible) return
+        if (appVisible && foregroundRingCallId == call.callId) return
         createChannel(context)
         if (Build.VERSION.SDK_INT >= 33 &&
             ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS)
@@ -262,6 +335,10 @@ class AttaFirebaseMessagingService : FirebaseMessagingService() {
         super.onMessageReceived(message)
         val d = message.data
         val type = d["type"] ?: return
+        if (type !in setOf("call-request", "hangup", "call-reject")) {
+            AttaPush.notifyActivity(this, d)
+            return
+        }
         val id = d["callId"] ?: return
         if (type == "hangup" || type == "call-reject") {
             AttaPush.dismiss(this, id)

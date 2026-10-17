@@ -44,6 +44,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -106,10 +107,11 @@ private class IncomingCallAlert(private val context: Context) {
 
 /** Only an actively displayed incoming invitation is allowed to ring. */
 @Composable
-internal fun IncomingCallRingtone() {
+internal fun IncomingCallRingtone(callId: String) {
     val context = LocalContext.current
     val lifecycleOwner = context as? LifecycleOwner
-    DisposableEffect(context, lifecycleOwner) {
+    DisposableEffect(context, lifecycleOwner, callId) {
+        AttaPush.foregroundRingCallId = callId
         val alert = IncomingCallAlert(context.applicationContext)
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
@@ -125,6 +127,7 @@ internal fun IncomingCallRingtone() {
         onDispose {
             lifecycleOwner?.lifecycle?.removeObserver(observer)
             alert.stop()
+            if (AttaPush.foregroundRingCallId == callId) AttaPush.foregroundRingCallId = ""
         }
     }
 }
@@ -220,6 +223,7 @@ internal fun NativeCallScreen(
     var speakerOn by remember(session.callId) { mutableStateOf(videoCall) }
     var remoteVideoPlaying by remember(session.callId) { mutableStateOf(false) }
     var localCameraReady by remember(session.callId) { mutableStateOf(false) }
+    var videoHint by remember(session.callId) { mutableStateOf("") }
     var videoNeedsGesture by remember(session.callId) { mutableStateOf(false) }
     var peerActivity by remember(session.peer) { mutableStateOf("") }
     var hangingUp by remember(session.callId) { mutableStateOf(false) }
@@ -281,6 +285,12 @@ internal fun NativeCallScreen(
                 @JavascriptInterface
                 fun close() { activity?.runOnUiThread { onClose() } }
 
+                // Use the WebView's actual on-screen controls for video calls.
+                // Compose overlays over video surfaces may render a black frame on
+                // certain Android/HONOR WebView implementations.
+                @JavascriptInterface
+                fun minimizeCall() { activity?.runOnUiThread { onMinimize() } }
+
                 @JavascriptInterface
                 fun onStatus(message: String) {
                     activity?.runOnUiThread {
@@ -312,7 +322,16 @@ internal fun NativeCallScreen(
 
                 @JavascriptInterface
                 fun remoteVideoPlaying() {
-                    activity?.runOnUiThread { remoteVideoPlaying = true }
+                    activity?.runOnUiThread {
+                        remoteVideoPlaying = true
+                        videoHint = ""
+                    }
+                }
+
+                @JavascriptInterface
+                fun videoDiagnostic(message: String) {
+                    // A short media-only hint, never user ids, tokens, or SDP.
+                    activity?.runOnUiThread { videoHint = message.take(180) }
                 }
 
                 @JavascriptInterface
@@ -348,7 +367,12 @@ internal fun NativeCallScreen(
                         if (trusted && permissions.isNotEmpty() && permissions.size == request.resources.size) request.grant(permissions.toTypedArray())
                         else {
                             request.deny()
-                            if (trusted) callStatus = "إذن الكاميرا أو الميكروفون مرفوض. فعّل الأذونات من إعدادات التطبيق."
+                            if (trusted) {
+                                callStatus = "إذن الكاميرا أو الميكروفون مرفوض. افتح إعدادات التطبيق واسمح باستخدامهما."
+                                videoHint = "التحقق من الأذونات: الكاميرا والميكروفون لازم يكونوا مسموحين في إعدادات HONOR."
+                            } else {
+                                videoHint = "رفض طلب الوسائط من مصدر غير موثوق. تأكد من تحديث Android System WebView."
+                            }
                         }
                     }
                 }
@@ -367,6 +391,26 @@ internal fun NativeCallScreen(
     }
     // Initialize after the WebView is attached to Compose, not during remember().
     var pageLoaded by remember(webView) { mutableStateOf(false) }
+    val loadCallPage: (WebView) -> Unit = { view ->
+        if (!pageLoaded) {
+            pageLoaded = true
+                    val cfg = JSONObject().put("peer", session.peer).put("type", session.type)
+                        .put("callId", session.callId).put("incoming", session.incoming)
+                        .put("token", token).put("me", myUsername)
+                    try {
+                        val html = context.assets.open("atta-call.html").bufferedReader().use { it.readText() }
+                            .replace("__CONFIG_JSON__", cfg.toString().replace("</", "<\\/"))
+                        view.post {
+                            view.loadDataWithBaseURL(
+                                "https://tawasol-alatta.omaratta077-4fd.workers.dev/",
+                                html, "text/html", "UTF-8", null
+                            )
+                        }
+                    } catch (_: Exception) {
+                        callStatus = "تعذر تحميل محرك المكالمة. حاول إعادة الاتصال."
+                    }
+        }
+    }
     fun nativeAction(script: String) {
         webView.evaluateJavascript(script, null)
     }
@@ -390,39 +434,21 @@ internal fun NativeCallScreen(
 
     Box(modifier.clip(if (minimized) RoundedCornerShape(15.dp) else RoundedCornerShape(0.dp))
         .background(CallBackground)) {
-        // For voice, WebRTC runs in a tiny attached view. For video, the same
-        // view occupies the stage; its remote stream becomes visible on play.
+        // Mount a SINGLE WebView for this call for its full lifetime. Moving a video
+        // WebView between different AndroidView nodes on minimize/restore can detach
+        // Android's video compositing surface and leave both camera images black.
+        // Compose controls are transparent over the live video, not covering it.
         AndroidView(
             factory = { webView },
-            modifier = if (minimized) Modifier.size(1.dp).alpha(.01f)
-            else if (videoCall) Modifier.fillMaxWidth().fillMaxHeight(.78f)
-                .align(Alignment.Center)
-            else Modifier.fillMaxSize().alpha(.01f),
-            update = { view ->
-                if (!pageLoaded) {
-                    pageLoaded = true
-                    val cfg = JSONObject().put("peer", session.peer).put("type", session.type)
-                        .put("callId", session.callId).put("incoming", session.incoming)
-                        .put("token", token).put("me", myUsername)
-                    try {
-                        val html = context.assets.open("atta-call.html").bufferedReader().use { it.readText() }
-                            .replace("__CONFIG_JSON__", cfg.toString().replace("</", "<\\/"))
-                        view.post {
-                            view.loadDataWithBaseURL(
-                                "https://tawasol-alatta.omaratta077-4fd.workers.dev/",
-                                html, "text/html", "UTF-8", null
-                            )
-                        }
-                    } catch (_: Exception) {
-                        callStatus = "تعذر تحميل محرك المكالمة. حاول إعادة الاتصال."
-                    }
-                }
-            }
+            modifier = if (videoCall) Modifier.fillMaxSize()
+                else Modifier.fillMaxSize().alpha(.01f),
+            update = loadCallPage
         )
 
         if (minimized) {
             Row(
                 Modifier.fillMaxSize().border(1.dp, CallGold.copy(alpha = .65f), RoundedCornerShape(15.dp))
+                    .background(CallPanel, RoundedCornerShape(15.dp))
                     .clickable { onRestore() }.padding(horizontal = 10.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -440,7 +466,12 @@ internal fun NativeCallScreen(
                     contentAlignment = Alignment.Center
                 ) { SiteIcon("phone-off", tint = CallWhite, size = 20.dp) }
             }
-        } else Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
+        // Keep native Compose controls for AUDIO calls only. VIDEO calls now
+        // render their full header, small local preview, remote video and controls
+        // directly inside the same stable WebView, with no full-screen Compose
+        // layer painted above the video surface. This is the same layout approach
+        // as the working website and avoids a black WebView video compositor.
+        } else if (!videoCall) Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
             Row(
                 Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 14.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -456,7 +487,38 @@ internal fun NativeCallScreen(
             }
 
             Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
-                if (!videoCall || !remoteVideoPlaying) {
+                if (videoCall) {
+                    // The sole video WebView is already behind this transparent
+                    // stage. Do not add a second AndroidView or cover camera frames.
+                    // The compact status appears at bottom-right under the video tile.
+                    if (!remoteVideoPlaying) {
+                        Column(
+                            Modifier.align(Alignment.BottomStart)
+                                .padding(horizontal = 18.dp, vertical = 12.dp)
+                                .background(Color(0xD911161A), RoundedCornerShape(14.dp))
+                                .padding(horizontal = 14.dp, vertical = 9.dp),
+                            horizontalAlignment = Alignment.Start
+                        ) {
+                            Text(peerDisplayName, fontSize = 15.sp, fontWeight = FontWeight.Bold,
+                                color = CallWhite, maxLines = 1, textAlign = TextAlign.Right)
+                            Text(callStatus, color = CallMuted, fontSize = 12.sp, maxLines = 2,
+                                textAlign = TextAlign.Right)
+                            if (localCameraReady) Text("معاينة كاميرتك شغالة — ننتظر صورة الطرف الآخر",
+                                color = CallGold, fontSize = 11.sp, maxLines = 2,
+                                textAlign = TextAlign.Right)
+                            if (videoHint.isNotBlank()) Text(videoHint,
+                                color = Color(0xFFFFD28A), fontSize = 11.sp, maxLines = 3,
+                                textAlign = TextAlign.Right)
+                        }
+                    } else {
+                        Text(peerDisplayName,
+                            modifier = Modifier.align(Alignment.TopStart)
+                                .padding(top = 12.dp, start = 18.dp)
+                                .background(Color(0x9905080B), RoundedCornerShape(12.dp))
+                                .padding(horizontal = 12.dp, vertical = 6.dp),
+                            color = CallWhite, fontSize = 15.sp, maxLines = 1)
+                    }
+                } else {
                     Column(horizontalAlignment = Alignment.CenterHorizontally,
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
                         Box(
@@ -492,12 +554,6 @@ internal fun NativeCallScreen(
                                 color = CallGold, fontSize = 17.sp)
                         }
                     }
-                } else {
-                    // Video occupies the middle of the screen. Controls stay native.
-                    Text(peerDisplayName, modifier = Modifier.align(Alignment.TopCenter)
-                        .padding(top = 12.dp).background(Color(0x9905080B), RoundedCornerShape(12.dp))
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
-                        color = CallWhite, fontSize = 19.sp, maxLines = 1)
                 }
             }
             if (videoCall && (connectedAt > 0L || videoNeedsGesture)) {

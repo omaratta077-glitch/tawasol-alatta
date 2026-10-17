@@ -4,13 +4,19 @@
 :root {color-scheme:dark;font-family:system-ui,-apple-system,sans-serif;background:#050709;color:#faf9f5}
 *{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden}
 .page{height:100dvh;display:flex;flex-direction:column;position:relative;background:radial-gradient(ellipse at 50% 33%,#20180e 0%,#080b0e 40%,#050709 80%)}
-.header{display:flex;justify-content:space-between;align-items:center;flex-shrink:0;padding:16px 19px;background:transparent;z-index:3;direction:ltr}
+.header{display:flex;justify-content:space-between;align-items:center;flex-shrink:0;padding:16px 19px;background:transparent;z-index:3;direction:rtl}
 .header button{width:43px;height:43px;border-radius:50%;background:#1a1e22;color:#fff;border:1px solid #34383b;display:grid;place-items:center}
 .header .callKind{font-size:14px;color:#e6b94e;direction:rtl}
 .stage{flex:1;min-height:0;display:flex;align-items:center;flex-direction:column;justify-content:center;position:relative;overflow:hidden;padding:8px 16px}
 #remoteVideo{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#080b0d;display:none}
 #remoteCanvas{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#050709;display:none;z-index:2}
-#localVideo{position:absolute;top:68px;bottom:auto;right:13px;width:115px;height:156px;object-fit:cover;border:2px solid #dfb557;border-radius:17px;z-index:2;transform:scaleX(-1);background:#101419;display:none}
+#localPip{position:absolute;top:70px;right:12px;width:114px;height:152px;border:2px solid #dfb557;border-radius:16px;z-index:5;overflow:hidden;background:#101419;box-shadow:0 7px 22px #000a;display:none;isolation:isolate}
+#localVideo{display:block;width:100%;height:100%;object-fit:cover;transform:scaleX(-1);background:#101419}
+/* A canvas can paint decoded camera frames when the embedded video surface is
+   black on some Android WebViews. Keep HTML video as fallback if drawImage fails. */
+#localCanvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transform:scaleX(-1);display:none;z-index:1}
+#localCameraPlaceholder{position:absolute;inset:0;z-index:2;display:grid;place-items:center;padding:9px;text-align:center;direction:rtl;color:#e9c774;font-size:12px;background:#161b20e8;pointer-events:none}
+#localCameraLabel{position:absolute;bottom:6px;right:6px;z-index:3;color:#fff;background:#050709aa;border-radius:6px;padding:3px 8px;font-size:11px}
 #bigAvatar{width:min(47vw,180px);height:min(47vw,180px);min-width:125px;min-height:125px;flex-shrink:0;border-radius:50%;display:grid;place-items:center;overflow:hidden;background:linear-gradient(140deg,#6d5126,#15100c);border:3px solid #e6b94e;box-shadow:0 0 0 12px rgba(230,185,78,.035),0 0 42px rgba(230,185,78,.14);margin-bottom:26px}
 #bigInitial{font-size:70px;color:#fff;font-weight:600;line-height:1}
 #bigAvatarImg{width:100%;height:100%;object-fit:cover;display:none}
@@ -33,10 +39,10 @@ html.native-host .stage{padding:0}
 html.native-host #bigAvatar,html.native-host #peer,html.native-host #hint,
 html.native-host #duration,html.native-host #error{display:none!important}
 html.native-host #remoteVideo{object-fit:contain;z-index:1}
-html.native-host #localVideo{top:12px;right:12px;z-index:4}
+html.native-host #localPip{top:72px;right:12px;z-index:5}
 html.native-host .stage{isolation:isolate}
 </style></head><body><div class="page">
-<header class="header"><button aria-label="رجوع وإنهاء المكالمة" onclick="window.__attaEndCall()"><svg viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg></button><span class="callKind" id="callKind">مكالمة صوتية</span><span style="width:43px"></span></header>
+<header class="header"><button aria-label="تصغير المكالمة" onclick="AttaBridge.minimizeCall()"><svg viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg></button><span class="callKind" id="callKind">مكالمة صوتية</span><span style="width:43px"></span></header>
 <div class="stage">
  <div id="bigAvatar"><img id="bigAvatarImg" alt=""><span id="bigInitial">•</span></div>
  <div id="peer">جاري تحميل الاسم...</div>
@@ -44,7 +50,7 @@ html.native-host .stage{isolation:isolate}
  <div id="duration"></div>
  <video id="remoteVideo" autoplay playsinline muted></video>
  <canvas id="remoteCanvas" aria-label="فيديو الطرف الآخر"></canvas>
- <video id="localVideo" autoplay playsinline muted></video>
+ <div id="localPip"><video id="localVideo" autoplay playsinline muted></video><canvas id="localCanvas" aria-label="معاينة الكاميرا"></canvas><div id="localCameraPlaceholder">جارٍ تشغيل الكاميرا...</div><span id="localCameraLabel">أنت</span></div>
  <audio id="remoteAudio" autoplay playsinline></audio>
  <div id="error"><span id="errorText"></span><button id="retry" onclick="retryStart()">إعادة المحاولة</button></div>
 </div>
@@ -57,15 +63,19 @@ html.native-host .stage{isolation:isolate}
 </div>
 <script>
 'use strict';
-document.documentElement.classList.add('native-host');
 const cfg=__CONFIG_JSON__;
+// Only audio calls use the native Compose overlay. A video call must paint its
+// own WebView content on top, just like the working browser version.
+if(cfg.type!=='video')document.documentElement.classList.add('native-host');
 const BASE='https://tawasol-alatta.omaratta077-4fd.workers.dev';
 const types=new Set(['call-request','call-ringing','call-accept','call-reject','offer','answer','ice','hangup']);
 let active=true,pc=null,local=null,remote=null,ws=null,offerSent=false,peerPromise=null;
 let pending=[],seen=new Set(),candidateCount=0,pollHandle=0,timeoutHandle=0,connectionStarted=Date.now();
+let localPreviewFrame=false,remoteFrameConfirmed=false,localCanvasTimer=0;
 const $=id=>document.getElementById(id);
 $('callKind').textContent=cfg.type==='video'?'مكالمة فيديو':'مكالمة صوتية';
 $('cameraAction').style.visibility=cfg.type==='video'?'visible':'hidden';
+$('localPip').style.display=cfg.type==='video'?'block':'none';
 // Technical usernames are used for signaling only: never print them on screen.
 async function showPeerProfile(){
  try{
@@ -85,6 +95,13 @@ async function showPeerProfile(){
 }
 showPeerProfile();
 let connectedAt=0;
+function videoDiagnostic(t){
+ const msg=String(t||'').slice(0,180);
+ try{AttaBridge.videoDiagnostic(msg)}catch(_){}
+ // The VIDEO screen is painted by WebView itself, not a Compose overlay.
+ // Show any decoder/ICE hint inside the visible stage too.
+ if(cfg.type==='video'&&msg)$('hint').textContent=msg;
+}
 function status(t){
  $('hint').textContent=t;
  if((t==='متصل الآن'||t==='مكالمة جارية')&&!connectedAt)connectedAt=Date.now();
@@ -130,26 +147,37 @@ function armRemoteVideoPlayback(){
  const video=$('remoteVideo');
  video.style.display='block';
  video.playsInline=true;video.autoplay=true;video.muted=true;
- // "playing" and videoWidth can fire before a WebView has rendered any frame.
- // Only remove the native fallback after a decoded frame is presented.
- let confirmed=false;
- function frameReady(){
-  if(confirmed||!active||!video.srcObject)return;
-  confirmed=true;
-  try{AttaBridge.remoteVideoPlaying()}catch(_){}
-  try{AttaBridge.mediaPlaybackReady()}catch(_){}
- }
- if(typeof video.requestVideoFrameCallback==='function'){
-  try{video.requestVideoFrameCallback((_now,meta)=>{
-   if(meta.presentedFrames>0)frameReady();
-  });}catch(_){ }
- }else{
-  // Older WebViews lack requestVideoFrameCallback; require a non-zero decoded frame.
+ // A decoded/presented frame is necessary before native overlays are removed.
+ // Old code installed a one-shot callback; on some WebViews the first callback
+ // reports zero frames, leaving the avatar on top forever.
+ if(!video._attaFrameProbe){
+  video._attaFrameProbe=true;
+  const confirmed=()=>{
+   if(!active||remoteFrameConfirmed||!video.srcObject)return;
+   remoteFrameConfirmed=true;
+   video.style.display='block';
+   videoDiagnostic('');
+   try{AttaBridge.remoteVideoPlaying()}catch(_){ }
+   try{AttaBridge.mediaPlaybackReady()}catch(_){ }
+  };
+  if(typeof video.requestVideoFrameCallback==='function'){
+   const probe=()=>{
+    if(!active||remoteFrameConfirmed||!video.srcObject)return;
+    try{video.requestVideoFrameCallback((_now,meta)=>{
+     if(meta.presentedFrames>0 && video.videoWidth>0)confirmed();
+     else probe();
+    });}catch(_){ }
+   };
+   probe();
+  }
   video.addEventListener('timeupdate',()=>{
-   if(video.videoWidth>0&&video.videoHeight>0)frameReady();
-  },{once:true});
+   if(video.videoWidth>0&&video.videoHeight>0&&video.readyState>=2)confirmed();
+  });
  }
- video.play().catch(()=>{try{AttaBridge.mediaPlaybackBlocked()}catch(_){} });
+ video.play().catch(e=>{
+  videoDiagnostic('عرض فيديو الطرف الآخر موقوف: '+(e?.name||'play rejected'));
+  try{AttaBridge.mediaPlaybackBlocked()}catch(_){ }
+ });
 }
 
 let canvasTimer=0;
@@ -203,10 +231,13 @@ async function poll(){
  }catch(e){/* live socket may still work */}
 }
 async function captureMedia(){
- const video=cfg.type==='video'?{width:{ideal:640},height:{ideal:360},frameRate:{ideal:15,max:20},facingMode:'user'}:false;
+ // Match the working website: front camera preferred, with simple-video fallback.
+ // Keep this single captured stream for preview AND WebRTC, never open the camera twice.
+ const audio={echoCancellation:true,noiseSuppression:true,autoGainControl:true};
+ const video=cfg.type==='video'?{facingMode:{ideal:'user'},width:{ideal:1280,max:1280},height:{ideal:720,max:720},frameRate:{ideal:24,max:24}}:false;
  const attempts=[
-   {audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true},video},
-   {audio:true,video:cfg.type==='video'?{width:{ideal:320},height:{ideal:240}}:false},
+   {audio,video},
+   {audio,video:cfg.type==='video'?true:false},
    {audio:true,video:cfg.type==='video'?true:false}
  ];
  let lastError;
@@ -215,11 +246,13 @@ async function captureMedia(){
    try{return await navigator.mediaDevices.getUserMedia(attempts[i]);}
    catch(e){
      lastError=e;
-     if(!['NotReadableError','AbortError','OverconstrainedError'].includes(e.name))break;
-     // Release a device temporarily held by another capture before retrying.
-     await new Promise(r=>setTimeout(r,420+i*320));
+     videoDiagnostic('تعذر فتح الكاميرا/الميكروفون ('+(e?.name||'UnknownError')+')'+(i<attempts.length-1?' — تجربة إعداد آخر':'') );
+     // Android permission denial is not a constraint issue: ask for permission.
+     if(['NotAllowedError','PermissionDeniedError','SecurityError'].includes(e.name))break;
+     if(i<attempts.length-1)await new Promise(r=>setTimeout(r,220+i*180));
    }
  }
+ if(cfg.type==='video')$('localCameraPlaceholder').textContent='لم تفتح الكاميرا — راجع الأذونات';
  throw lastError||Error('تعذر تشغيل مصدر الصوت');
 }
 async function mediaAndPeer(){
@@ -243,11 +276,67 @@ async function createPeer(){
     throw Error('لم يتم تشغيل الكاميرا. تحقق من إذن الكاميرا ومن إعدادات خصوصية الهاتف.');
   }
   const preview=$('localVideo');
+  const placeholder=$('localCameraPlaceholder');
+  placeholder.textContent='جارٍ عرض الكاميرا...';
+  placeholder.style.display='grid';
   preview.srcObject=local;
-  preview.style.display='block';
   preview.muted=true;
-  preview.play().catch(()=>{});
-  try{AttaBridge.cameraReady()}catch(e){}
+  preview.autoplay=true;
+  preview.playsInline=true;
+  const previewReady=()=>{
+   if(localPreviewFrame||!active||!preview.srcObject)return;
+   localPreviewFrame=true;
+   placeholder.style.display='none';
+   try{AttaBridge.cameraReady()}catch(_){ }
+   // Local stream is live. Render a low-resolution 2D fallback in the same
+   // small tile; this does not request a second camera or alter WebRTC.
+   if(!localCanvasTimer){
+    const canvas=$('localCanvas'),ctx=canvas.getContext('2d',{alpha:false});
+    if(ctx){
+     const paint=()=>{
+      if(!active||!preview.srcObject){clearInterval(localCanvasTimer);localCanvasTimer=0;return}
+      if(preview.videoWidth<1||preview.videoHeight<1||preview.readyState<2)return;
+      const width=180,height=Math.round(width*preview.videoHeight/preview.videoWidth);
+      if(canvas.width!==width||canvas.height!==height){canvas.width=width;canvas.height=height;}
+      try{ctx.drawImage(preview,0,0,width,height);canvas.style.display='block';}
+      catch(_){canvas.style.display='none';}
+     };
+     paint();localCanvasTimer=setInterval(paint,125);
+    }
+   }
+  };
+  // A live MediaStreamTrack is not proof that the video element displayed it.
+  // Wait for a frame instead of silently ignoring rejected play() promises.
+  // Site-equivalent camera preview: the same local MediaStream feeds the
+  // RTCPeerConnection and the small on-screen video, not a second camera capture.
+  if(typeof preview.requestVideoFrameCallback==='function'){
+   const watchLocalFrame=()=>{
+    if(!active||localPreviewFrame||!preview.srcObject)return;
+    try{preview.requestVideoFrameCallback((_now,meta)=>{
+     if(meta.presentedFrames>0 && preview.videoWidth>0)previewReady();
+     else watchLocalFrame();
+    });}catch(_){ }
+   };
+   watchLocalFrame();
+  }
+  for(const eventName of ['loadeddata','playing','timeupdate']){
+   preview.addEventListener(eventName,()=>{
+    if(preview.videoWidth>0 && preview.videoHeight>0 && preview.readyState>=2)previewReady();
+   });
+  }
+  preview.play().catch(e=>{
+   const reason=e?.name||'play rejected';
+   placeholder.textContent='تعذر عرض الكاميرا: '+reason;
+   videoDiagnostic('الكاميرا بدأت لكن معاينة الفيديو لم تعمل: '+reason);
+   try{AttaBridge.mediaPlaybackBlocked()}catch(_){ }
+  });
+  setTimeout(()=>{
+   if(active&&!localPreviewFrame){
+    if(placeholder.textContent==='جارٍ عرض الكاميرا...')
+     placeholder.textContent='الكاميرا لا تعرض صورة — راجع الإذن و WebView';
+    videoDiagnostic('الكاميرا تعمل لكن المعاينة سوداء: تأكد من إذن الكاميرا، أو حدّث Android System WebView.');
+   }
+  },6000);
 }
  const turnData=await Promise.race([turn,new Promise(resolve=>setTimeout(()=>resolve(null),2200))]);
  const servers=(turnData&&turnData.iceServers&&turnData.iceServers.length)?turnData.iceServers:[{urls:'stun:stun.cloudflare.com:3478'},{urls:'stun:stun.l.google.com:19302'}];
@@ -264,7 +353,7 @@ async function createPeer(){
  pc.onicecandidate=e=>{if(e.candidate&&candidateCount++<24)transmit('ice',{candidate:e.candidate.toJSON()}).catch(()=>{});};
  pc.ontrack=e=>{
   if(!remote.getTracks().some(t=>t.id===e.track.id))remote.addTrack(e.track);
-  if(e.track.kind==='video'){$('remoteVideo').style.display='block';$('bigAvatar').style.display='none';$('remoteVideo').srcObject=remote;
+  if(e.track.kind==='video'){$('remoteVideo').srcObject=remote;
   // A decoded frame, rather than a premature 'playing' event, unlocks native video UI.
   armRemoteVideoPlayback();}
   if(e.track.kind==='audio'){$('remoteAudio').srcObject=new MediaStream(remote.getAudioTracks());$('remoteAudio').play().catch(()=>{try{AttaBridge.mediaPlaybackBlocked()}catch(_){}});}
@@ -283,11 +372,13 @@ async function createPeer(){
         decoded+=Number(item.framesDecoded||0);received+=Number(item.bytesReceived||0);
        }
      });}catch(_){}
-     status(decoded>0
-      ?'تم استقبال فيديو، لكن عرض WebView متعثر. جرّب زر العرض البديل.'
+     const reason=decoded>0
+      ?'وصلت إطارات فيديو لكن عرضها متعثر في Android WebView.'
       :received>0
-       ?'وصلت بيانات الفيديو لكن تعذر فك الصورة. جرّب إعادة الاتصال.'
-       :'الصوت متصل لكن فيديو الطرف الآخر لا يصل. تأكد من كاميرته وTURN.');
+       ?'وصلت بيانات الفيديو لكن الهاتف لم يفك إطارات الصورة.'
+       :'لا تصل بيانات فيديو من الطرف الآخر. افحص كاميرته واتصال TURN.';
+     videoDiagnostic(reason);
+     // Keep the session active; don't falsely show "connected video".
      try{AttaBridge.mediaPlaybackBlocked()}catch(_){ }
     }
    },9000);
@@ -370,7 +461,7 @@ function toggleSpeaker(){
 }
 function toggleMute(){if(!local)return;const tracks=local.getAudioTracks();tracks.forEach(t=>t.enabled=!t.enabled);$('mute').classList.toggle('off',!tracks[0]?.enabled);}
 function toggleCamera(){if(!local)return;const tracks=local.getVideoTracks();tracks.forEach(t=>t.enabled=!t.enabled);$('camera').classList.toggle('off',!tracks[0]?.enabled);}
-function cleanup(){active=false;clearInterval(pollHandle);clearTimeout(timeoutHandle);try{ws?.close()}catch(e){};try{pc?.close()}catch(e){};local?.getTracks().forEach(t=>t.stop());remote?.getTracks().forEach(t=>t.stop());pc=null;}
+function cleanup(){active=false;clearInterval(pollHandle);clearTimeout(timeoutHandle);if(canvasTimer)clearInterval(canvasTimer);if(localCanvasTimer)clearInterval(localCanvasTimer);try{ws?.close()}catch(e){};try{pc?.close()}catch(e){};local?.getTracks().forEach(t=>t.stop());remote?.getTracks().forEach(t=>t.stop());pc=null;}
 function finish(){cleanup();try{AttaBridge.close()}catch(e){}}
 window.__attaEndCall=async()=>{if(!active)return;try{await Promise.race([transmit('hangup'),new Promise(r=>setTimeout(r,1200))])}catch(e){}finish()};
 window.addEventListener('pagehide',cleanup);
