@@ -83,6 +83,9 @@ internal data class PushCall(
 
 internal object AttaPush {
     @Volatile var appVisible = false
+    // A visible incoming-call dialog rings on its own; suppress only that
+    // notification, not all calls just because the Activity is STARTED.
+    @Volatile var foregroundRingCallId = ""
     const val ACTION_OPEN_CALL = "com.alatta.nativeapp.OPEN_CALL"
     const val ACTION_REJECT = "com.alatta.nativeapp.REJECT_CALL"
     const val ACTION_ACCEPT = "accept"
@@ -139,7 +142,7 @@ internal object AttaPush {
             connection.setRequestProperty("Content-Type", "application/json")
             connection.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
             val code = connection.responseCode
-            if (code !in 200..299) android.util.Log.w("AttaPush", "API response: $code ($path)")
+            if (code !in 200..299) throw IllegalStateException("API response $code ($path)")
         } finally { connection.disconnect() }
     }
 
@@ -149,9 +152,12 @@ internal object AttaPush {
             FirebaseMessaging.getInstance().token.addOnSuccessListener { deviceToken ->
                 prefs(context).edit().putString("push_device_token", deviceToken).apply()
                 io.execute {
-                    runCatching { post(context, "/api/push/register", JSONObject()
-                        .put("token", session).put("deviceToken", deviceToken)) }
-                        .onFailure { android.util.Log.w("AttaPush", "Registration failed", it) }
+                    runCatching {
+                        post(context, "/api/push/register", JSONObject()
+                            .put("token", session).put("deviceToken", deviceToken))
+                        prefs(context).edit().putLong("push_registered_at", System.currentTimeMillis())
+                            .putString("push_registered_user", user.lowercase()).apply()
+                    }.onFailure { android.util.Log.w("AttaPush", "Registration failed", it) }
                 }
             }.addOnFailureListener { android.util.Log.w("AttaPush", "FCM token unavailable", it) }
         } catch (error: Exception) { android.util.Log.w("AttaPush", "FCM unavailable", error) }
@@ -194,18 +200,19 @@ internal object AttaPush {
         val sender = data["from"].orEmpty().trim().take(64)
         val eventId = data["eventId"].orEmpty()
         val allowed = setOf("chat", "friend-request", "friend-accepted", "like",
-            "reaction", "comment", "comment-reply", "follow", "share")
+            "reaction", "comment", "comment-reply", "follow", "share", "push-test")
         if (type !in allowed || eventId.length !in 8..128 || recipient.isBlank() ||
             recipient != account.getString("username", "")?.lowercase() ||
             account.getString("token", "").isNullOrBlank()) return
         // Foreground already has the WebSocket and in-app notification stream.
-        if (appVisible) return
+        if (appVisible && type != "push-test") return
         if (Build.VERSION.SDK_INT >= 33 &&
             ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS)
                 != PackageManager.PERMISSION_GRANTED) return
         if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) return
         createChannel(context)
         val title = when (type) {
+            "push-test" -> "اختبار إشعارات تواصل العطا"
             "chat" -> "رسالة جديدة"
             "friend-request" -> "طلب صداقة جديد"
             "friend-accepted" -> "تم قبول طلب الصداقة"
@@ -215,7 +222,8 @@ internal object AttaPush {
             "follow" -> "متابع جديد"
             else -> "مشاركة جديدة"
         }
-        val message = if (sender.isNotBlank()) "من $sender على تواصل العطا" else "لديك إشعار جديد في تواصل العطا"
+        val message = if (type == "push-test") "وصل إشعار Firebase إلى جهازك بنجاح"
+            else if (sender.isNotBlank()) "من $sender على تواصل العطا" else "لديك إشعار جديد في تواصل العطا"
         val tab = if (type == "chat") "الرسائل" else if (type == "friend-request" ||
             type == "friend-accepted") "الأصدقاء" else "الإشعارات"
         val intent = Intent(context, MainActivity::class.java).apply {
@@ -243,7 +251,7 @@ internal object AttaPush {
         if (!validSession(context, call)) return
         // Foreground calls already have a native dialog + ringtone through the
         // authenticated WebSocket/HTTP path. Never ring the same device twice.
-        if (appVisible) return
+        if (appVisible && foregroundRingCallId == call.callId) return
         createChannel(context)
         if (Build.VERSION.SDK_INT >= 33 &&
             ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS)

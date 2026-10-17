@@ -996,6 +996,43 @@ export class SignalingRoom extends DurableObject {
       return j({ok:true,registered:registering});
     }
 
+    // Authenticated, non-sensitive status for troubleshooting missing background ringing.
+    if(url.pathname==="/api/push/status" && request.method==="GET"){
+      const session=await this.session(url.searchParams.get("token")||"");
+      if(!session)return j({ok:false,error:"الجلسة منتهية"},401);
+      const registered=await this.ctx.storage.get('fcmTokens:'+session.username)||[];
+      let projectMatches=false;
+      const configured=!!this.env.FIREBASE_SERVICE_ACCOUNT_JSON;
+      if(configured){
+        try{
+          const service=JSON.parse(this.env.FIREBASE_SERVICE_ACCOUNT_JSON);
+          projectMatches=!!service.private_key && !!service.client_email && !!service.project_id &&
+            (!this.env.FIREBASE_PROJECT_ID || this.env.FIREBASE_PROJECT_ID===service.project_id);
+        }catch(_){/* Never return credentials or private keys. */}
+      }
+      return j({ok:true,serverConfigured:configured,projectMatches,
+        registeredDevices:registered.length});
+    }
+
+    // User-triggered delivery check; FCM delivery is asynchronous, not guaranteed.
+    if(url.pathname==="/api/push/test" && request.method==="POST"){
+      const session=await this.session(String(body.token||""));
+      if(!session)return j({ok:false,error:"الجلسة منتهية"},401);
+      const tokens=await this.ctx.storage.get('fcmTokens:'+session.username)||[];
+      const latest=Number(await this.ctx.storage.get('pushTestLast:'+session.username)||0);
+      if(Date.now()-latest<60000)return j({ok:false,error:"انتظر دقيقة قبل إعادة الاختبار"},429);
+      if(!this.env.FIREBASE_SERVICE_ACCOUNT_JSON || !tokens.length)
+        return j({ok:false,error:"الإشعارات غير جاهزة على الخادم أو الجهاز غير مسجّل"},409);
+      await this.ctx.storage.put('pushTestLast:'+session.username,Date.now());
+      const result=await this.sendFcmToUser(session.username,{
+        type:'push-test',to:session.username,from:'',eventId:crypto.randomUUID(),createdAt:String(Date.now())
+      },'60s');
+      // This confirms FCM accepted the request, not that the phone displayed it.
+      if(!result.accepted)return j({ok:false,error:'تعذر إرسال الإشعار التجريبي إلى Firebase ('+(result.error||'NO_ACCEPTED_DEVICE')+')',
+        diagnostic:result.error||'NO_ACCEPTED_DEVICE'},502);
+      return j({ok:true,acceptedByFirebase:result.accepted,attempted:result.attempted});
+    }
+
     if(url.pathname==="/api/call-signal" && request.method==="POST"){
       const s=await this.session(String(body.token||""));
       if(!s)return j({ok:false,error:"الجلسة منتهية"},401);
@@ -1037,6 +1074,7 @@ export class SignalingRoom extends DurableObject {
       freshQueue.push(event);
       await this.ctx.storage.put(key,freshQueue.slice(-500));
 
+      await this.recordCallEvent(s.username,to,event);
       // Notify Android even if its app process is not running.
       this.scheduleCallPush(to,event);
 
@@ -1493,6 +1531,7 @@ export class SignalingRoom extends DurableObject {
             signalId:String(signal.signalId||payload.id), createdAt:Date.now()
           };
           await this.queuePhoneCallEvent(to,event);
+          await this.recordCallEvent(s.username,to,{...event,reason:String(signal.reason||'')});
           this.scheduleCallPush(to,event);
         }catch(_){/* Non-call chat messages are unaffected. */}
       }
@@ -1517,7 +1556,7 @@ export class SignalingRoom extends DurableObject {
       const key=[s.username,other].sort().join(":");
       const messages=await this.ctx.storage.get(`messages:${key}`)||[];
 
-      let changed=false;
+      let changed=this.finishExpiredCallEvents(messages);
       for(const m of messages){
         if(m.to===s.username && !m.deliveredAt){
           m.deliveredAt=Date.now();
@@ -2101,6 +2140,45 @@ export class SignalingRoom extends DurableObject {
     }
   }
 
+  // One canonical per-call summary in the existing private conversation, NOT
+  // repeated signaling messages. HTTP and WebSocket copies share the call ID.
+  async recordCallEvent(from,to,event){
+    const id=String(event.callId||'').trim();
+    if(!/^[A-Za-z0-9_-]{8,128}$/.test(id))return;
+    const type=String(event.type||'');
+    if(!['call-request','call-accept','call-reject','hangup'].includes(type))return;
+    const key=[from,to].sort().join(':');
+    const storageKey='messages:'+key;
+    const messages=await this.ctx.storage.get(storageKey)||[];
+    let record=messages.find(m=>m.mediaType==='call-event' && m.callId===id);
+    if(!record){
+      // A reply/end is not sufficient proof of who called whom.
+      if(type!=='call-request')return;
+      record={type:'chat',id:'call:'+id,from,to,mediaType:'call-event',
+        media:'',text:'',callId:id,callType:event.callType==='video'?'video':'audio',
+        callStatus:'ringing',ts:Date.now(),read:false,deliveredAt:0};
+      messages.push(record);
+    }else if(type==='call-accept' && record.callStatus==='ringing'){
+      record.callStatus='answered';
+    }else if(type==='call-reject' && !['completed','rejected','missed','cancelled'].includes(record.callStatus)){
+      record.callStatus=event.reason==='busy'?'busy':'rejected';
+    }else if(type==='hangup' && !['completed','rejected','missed','cancelled','busy'].includes(record.callStatus)){
+      record.callStatus=record.callStatus==='answered'?'completed':'cancelled';
+    }
+    await this.ctx.storage.put(storageKey,messages.slice(-300));
+  }
+
+  // A call unanswered after its invitation expires becomes a missed-call entry.
+  // This runs during chat/inbox reads, even when both devices were offline.
+  finishExpiredCallEvents(messages){
+    const now=Date.now();let changed=false;
+    for(const m of messages){
+      if(m.mediaType==='call-event' && m.callStatus==='ringing' &&
+          now-Number(m.ts||0)>55000){m.callStatus='missed';changed=true;}
+    }
+    return changed;
+  }
+
   // Phone foreground polling fallback: persist only the small invitation/cancellation
   // events, not ICE/SDP media signaling, and never expose them without authentication.
   async queuePhoneCallEvent(to,event){
@@ -2147,33 +2225,42 @@ export class SignalingRoom extends DurableObject {
   }
 
   async sendFcmToUser(to,data,ttl){
-    if(!this.env.FIREBASE_SERVICE_ACCOUNT_JSON)return;
+    if(!this.env.FIREBASE_SERVICE_ACCOUNT_JSON)
+      return {accepted:0,attempted:0,error:'FCM_NOT_CONFIGURED'};
+    let attempted=0,accepted=0,lastError='';
     try {
       const tokens=await this.ctx.storage.get('fcmTokens:'+to)||[];
-      if(!tokens.length)return;
-      const accessToken=await this.fcmAccessToken();if(!accessToken)return;
+      if(!tokens.length)return {accepted:0,attempted:0,error:'NO_REGISTERED_DEVICES'};
+      const accessToken=await this.fcmAccessToken();
+      if(!accessToken)return {accepted:0,attempted:0,error:'FCM_AUTH_NOT_AVAILABLE'};
       const sa=JSON.parse(this.env.FIREBASE_SERVICE_ACCOUNT_JSON);
       const project=String(this.env.FIREBASE_PROJECT_ID||sa.project_id||'');
       if(!project || project!==sa.project_id)throw Error('Firebase project ID mismatch');
       const url='https://fcm.googleapis.com/v1/projects/'+encodeURIComponent(project)+'/messages:send';
       const survivors=[];
       for(const deviceToken of tokens.slice(-5)){
+        attempted++;
         try {
           const resp=await fetch(url,{method:'POST',headers:{
             Authorization:'Bearer '+accessToken,'Content-Type':'application/json'
           },body:JSON.stringify({message:{token:deviceToken,data,
             android:{priority:'HIGH',ttl}}})});
-          if(resp.ok){survivors.push(deviceToken);continue;}
+          if(resp.ok){accepted++;survivors.push(deviceToken);continue;}
           const body=await resp.json().catch(()=>({}));
           const badToken=resp.status===404 || (resp.status===400 &&
             JSON.stringify(body).includes('UNREGISTERED'));
           if(!badToken)survivors.push(deviceToken);
+          lastError='FCM_HTTP_'+resp.status;
           console.warn('FCM delivery HTTP',resp.status);
-        }catch(_){survivors.push(deviceToken);}
+        }catch(_){survivors.push(deviceToken);lastError='FCM_NETWORK_ERROR';}
       }
       if(survivors.length!==tokens.length)
         await this.ctx.storage.put('fcmTokens:'+to,survivors);
-    }catch(e){console.warn('FCM push unavailable:',String(e.message||e));}
+      return {attempted,accepted,...(lastError?{error:lastError}:{})};
+    }catch(e){
+      console.warn('FCM push unavailable:',String(e.message||e));
+      return {attempted,accepted,error:'FCM_SERVER_ERROR'};
+    }
   }
 
   async deliverCallPush(to,event){
@@ -2351,6 +2438,7 @@ export class SignalingRoom extends DurableObject {
         signalId:String(msg.signalId||crypto.randomUUID()), createdAt:Date.now()
       };
       await this.queuePhoneCallEvent(to,event);
+      await this.recordCallEvent(from,to,{...event,reason:String(msg.reason||'')});
       this.scheduleCallPush(to,event);
 
       if(msg.type==="call-request"){

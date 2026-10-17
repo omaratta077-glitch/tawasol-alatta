@@ -1089,7 +1089,12 @@ private class AttaYoutubeFullscreenChrome(
                                 else msg
                             if (signal?.optString("type") in setOf("call-request", "hangup", "call-reject")) {
                                 val packet = signal!!
-                                scope.launch(Dispatchers.Main) { handleIncomingCallEvent(packet) }
+                                scope.launch(Dispatchers.Main) {
+                                    handleIncomingCallEvent(packet)
+                                    if (tab == "الرسائل" && token.isNotBlank()) {
+                                        try { load("الرسائل") } catch (_: Exception) { }
+                                    }
+                                }
                             } else if (msg.optString("type") == "chat" && msg.optString("mediaType") != "call-signal") {
                                 val from = msg.optString("from").lowercase()
                                 val to = msg.optString("to").lowercase()
@@ -1245,7 +1250,7 @@ private class AttaYoutubeFullscreenChrome(
     incomingCall?.let { invitation ->
         // Start the device's ringtone and optional vibration while this dialog
         // is on screen; accepting or rejecting disposes and silences the alert.
-        IncomingCallRingtone()
+        IncomingCallRingtone(invitation.callId)
         AlertDialog(
             onDismissRequest = { sendCallResponse(invitation, "rejected"); incomingCall = null },
             containerColor = Color(0xFF13181C),
@@ -1949,6 +1954,30 @@ private class AttaYoutubeFullscreenChrome(
                                     HorizontalDivider(color = Border.copy(alpha = .5f))
                                     PremiumMenuEntry("bell", "الإشعارات") { navigate("الإشعارات") }
                                     HorizontalDivider(color = Border.copy(alpha = .5f))
+                                    PremiumMenuEntry("check", "فحص إشعارات الخلفية") { task {
+                                        AttaPush.register(ctx.applicationContext, token, myUsername)
+                                        val status = get("/api/push/status")
+                                        val serverOk = status.optBoolean("serverConfigured") && status.optBoolean("projectMatches")
+                                        val saved = status.optInt("registeredDevices", 0)
+                                        val registration = prefs.getLong("push_registered_at", 0L)
+                                        val registeredUser = prefs.getString("push_registered_user", "").orEmpty()
+                                        val registeredHere = registration > 0L && registeredUser == myUsername.lowercase()
+                                        val permissionOk = android.os.Build.VERSION.SDK_INT < 33 ||
+                                            ContextCompat.checkSelfPermission(ctx, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+                                        val channelOk = androidx.core.app.NotificationManagerCompat.from(ctx).areNotificationsEnabled()
+                                        featureMessage = "Firebase بالتطبيق: ${if (AttaPush.configured()) "جاهز" else "غير مفعّل"}\n" +
+                                            "خادم Cloudflare: ${if (serverOk) "جاهز" else "يحتاج ضبط/نشر"}\n" +
+                                            "الأجهزة المسجلة: $saved\n" +
+                                            "تسجيل هذا الهاتف: ${if (registeredHere) "مؤكد محليًا" else "لم يتأكد بعد"}\n" +
+                                            "إذن التنبيهات: ${if (permissionOk && channelOk) "مسموح" else "ممنوع"}\n" +
+                                            "لو عدد الأجهزة صفر افتح التطبيق بالإنترنت وانتظر قليلًا، ثم أعد الفحص."
+                                    } }
+                                    HorizontalDivider(color = Border.copy(alpha = .5f))
+                                    PremiumMenuEntry("bell", "إرسال إشعار تجريبي لجهازي") { task {
+                                        val result = post("/api/push/test", JSONObject())
+                                        featureMessage = "Firebase قبل إرسال ${result.optInt("acceptedByFirebase", 0)} إشعار إلى الجهاز. راقب شريط الإشعارات؛ قبول Firebase لا يضمن عرضه إذا كان الهاتف يقيّد الخلفية."
+                                    } }
+                                    HorizontalDivider(color = Border.copy(alpha = .5f))
                                     PremiumMenuEntry("check", "فحص تحديث التطبيق") { updateCheckRequest++ }
                                     HorizontalDivider(color = Border.copy(alpha = .5f))
                                     PremiumMenuEntry("lock", "تغيير كلمة السر") { changePasswordDialog = true }
@@ -2080,6 +2109,7 @@ private class AttaYoutubeFullscreenChrome(
                         "الرسائل" -> Box(Modifier.weight(1f)) {
                             if (chatWith.isBlank()) {
                                 MessengerInbox(
+                                    myUsername = myUsername,
                                     contacts = friends,
                                     inbox = inboxPreviews,
                                     loading = inboxLoading,
@@ -2365,7 +2395,12 @@ private class AttaYoutubeFullscreenChrome(
                     } else Modifier.fillMaxSize().safeDrawingPadding(),
                     onMinimize = { callMinimized = true },
                     onRestore = { callMinimized = false },
-                    onClose = { callMinimized = false; activeCall = null }
+                    onClose = {
+                        callMinimized = false; activeCall = null
+                        if (tab == "الرسائل" && token.isNotBlank()) scope.launch {
+                            try { load("الرسائل") } catch (_: Exception) { }
+                        }
+                    }
                 )
             }
             }

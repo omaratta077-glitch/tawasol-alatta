@@ -31,8 +31,21 @@ check("One actual site YouTube player, no Android duplication", main.count("fun 
 check("One compact header search and no duplicate friend search", main.count('AttaCompactSearch(')==2 and 'SectionTitle("البحث وإضافة صديق")' not in main and 'OutlinedTextField(search, { search = it }, label = { Text("ابحث بالاسم أو اسم المستخدم") }' not in main)
 check("No unresolved merge markers", not any(re.match(r"^(<<<<<<< |=======\s*$|>>>>>>> )", line) for f in (ROOT/"android-native/app/src/main/java").rglob("*.kt") for line in f.read_text(encoding="utf-8").splitlines()))
 check("PushCall visibility compatible", "internal var incomingPush by mutableStateOf<PushCall?>" in main)
+# Protect the cross-file foreground ringtone contract. Partial uploads must
+# include MainActivity.kt, NativeCallScreen.kt, and AttaPush.kt from one version.
+ring_screen=read(android+"NativeCallScreen.kt")
+push_source=read(android+"AttaPush.kt")
+check("Incoming call ringtone passes callId", 
+      "IncomingCallRingtone(invitation.callId)" in main and
+      "internal fun IncomingCallRingtone(callId: String)" in ring_screen and
+      not re.search(r"IncomingCallRingtone\(\s*\)", main))
+check("Foreground ring state declared in AttaPush", 
+      "@Volatile var foregroundRingCallId" in push_source and
+      "AttaPush.foregroundRingCallId = callId" in ring_screen and
+      "AttaPush.foregroundRingCallId == callId" in ring_screen)
+
 check("Native Google bridge removed", not (ROOT/(android+"GoogleWebBridge.kt")).exists())
-check("Official version 1.0.63", 'versionCode = 163' in gradle and 'versionName = "1.0.63"' in gradle)
+check("Official version 1.0.64", 'versionCode = 164' in gradle and 'versionName = "1.0.64"' in gradle)
 check("Four additional screens and scrollable navigation", all(x in main for x in ['KnowledgeScreen(tab', 'FootballScreen(']) and all(x in read(android+"PremiumChrome.kt") for x in ['"القرآن"', '"الأحاديث"', '"الأذكار"', '"الرياضة"', '.horizontalScroll(scroll)']) and (ROOT/(android+"AlattaKnowledgeScreens.kt")).is_file())
 check("Quran-first categories and click-to-play preview", all(x in main for x in [
     'var youtubeCategory by remember { mutableStateOf("قرآن") }',
@@ -49,7 +62,7 @@ check("Background FCM integration declared", all((ROOT/(android+x)).is_file() fo
 check("Notification Intent.data does not shadow Firebase payload", 'this.data = Uri.parse("alatta://notification/${Uri.encode(eventId)}")' in read(android+"AttaPush.kt"))
 check("Social, chat and call FCM routing", 'scheduleUserPush' in worker and
       'deliverUserPush' in worker and 'notifyActivity(this, d)' in read(android+'AttaPush.kt') and
-      'ACTION_OPEN_NOTIFICATION' in main and 'versionCode = 163' in gradle)
+      'ACTION_OPEN_NOTIFICATION' in main and 'versionCode = 164' in gradle)
 check("Site/Android keep screen on without changing player", 'FLAG_KEEP_SCREEN_ON' in main and
       'youtube-screen-awake.js' in read('cloudflare-site/public/index.html') and
       (ROOT/'cloudflare-site/public/youtube-screen-awake.js').is_file())

@@ -1010,6 +1010,19 @@ function openDirectChat(username,userInfo=null){
   setTimeout(()=>$("messageInput")?.focus(),120);
 }
 function addMessage(from,text,mine){addRichMessage({from,to:mine?selectedUser:me?.username,text,media:"",mediaType:"text",read:false,ts:Date.now()})}
+function callEventLabel(msg){
+  const base=msg.callType==='video'?'مكالمة فيديو':'مكالمة صوتية';
+  const status=msg.callStatus;
+  const outgoing=msg.from===me?.username;
+  const state=status==='completed'||status==='answered'?'انتهت المكالمة':
+    status==='rejected'?'تم رفض المكالمة':
+    status==='busy'?'المستخدم مشغول':
+    status==='missed'||status==='cancelled'||
+      (status==='ringing'&&Date.now()-Number(msg.ts||0)>55000)?
+      outgoing?'لم يتم الرد':'مكالمة فائتة':'اتصال وارد';
+  return base+' • '+state;
+}
+
 function addRichMessage(msg){
   if(msg?.mediaType==="call-signal")return;
   const mine=msg.from===me?.username;
@@ -1035,7 +1048,8 @@ function addRichMessage(msg){
 
   div.innerHTML=`
     <div class="meta">${esc(msg.from)}</div>
-    ${msg.text?`<div>${esc(msg.text)}</div>`:""}
+    ${msg.mediaType==='call-event'?`<div>📞 ${esc(callEventLabel(msg))}</div>`:
+      (msg.text?`<div>${esc(msg.text)}</div>`:"")}
     ${media}
     ${mine?`<div class="message-read-state">${state}</div>`:""}
   `;
