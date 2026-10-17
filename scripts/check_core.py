@@ -47,7 +47,7 @@ check("Foreground ring state declared in AttaPush",
       "AttaPush.foregroundRingCallId == callId" in ring_screen)
 
 check("Native Google bridge removed", not (ROOT/(android+"GoogleWebBridge.kt")).exists())
-check("Official version 1.0.67", 'versionCode = 167' in gradle and 'versionName = "1.0.67"' in gradle)
+check("Official version 1.0.68", 'versionCode = 168' in gradle and 'versionName = "1.0.68"' in gradle)
 check("Four additional screens and scrollable navigation", all(x in main for x in ['KnowledgeScreen(tab', 'FootballScreen(']) and all(x in read(android+"PremiumChrome.kt") for x in ['"القرآن"', '"الأحاديث"', '"الأذكار"', '"الرياضة"', '.horizontalScroll(scroll)']) and (ROOT/(android+"AlattaKnowledgeScreens.kt")).is_file())
 check("Quran-first categories and click-to-play preview", all(x in main for x in [
     'var youtubeCategory by remember { mutableStateOf("قرآن") }',
@@ -64,7 +64,7 @@ check("Background FCM integration declared", all((ROOT/(android+x)).is_file() fo
 check("Notification Intent.data does not shadow Firebase payload", 'this.data = Uri.parse("alatta://notification/${Uri.encode(eventId)}")' in read(android+"AttaPush.kt"))
 check("Social, chat and call FCM routing", 'scheduleUserPush' in worker and
       'deliverUserPush' in worker and 'notifyActivity(this, d)' in read(android+'AttaPush.kt') and
-      'ACTION_OPEN_NOTIFICATION' in main and 'versionCode = 167' in gradle)
+      'ACTION_OPEN_NOTIFICATION' in main and 'versionCode = 168' in gradle)
 check("Site/Android keep screen on without changing player", 'FLAG_KEEP_SCREEN_ON' in main and
       'youtube-screen-awake.js' in read('cloudflare-site/public/index.html') and
       (ROOT/'cloudflare-site/public/youtube-screen-awake.js').is_file())
@@ -96,5 +96,24 @@ check("Visible Android call-video stage and camera diagnostics",
       'fun videoDiagnostic(message: String)' in video_native and
       'window.__attaResumeMedia' in video_web and 'AttaBridge.cameraReady()' in video_web)
 check("FCM reserved data key converted safely", "fcmData.sender=String(fcmData.from??'')" in worker and "delete fcmData.from" in worker and "data:fcmData" in worker and 'data["sender"] ?: data["from"]' in push_source and 'd["sender"] ?: d["from"]' in push_source)
+
+# Regression guard: FCM / WebSocket / HTTP can deliver the same invitation.
+accept_fn=main.split('fun acceptIncomingInvite(invitation: NativeCallSession)',1)[-1].split('fun sendSelectedChatMedia(',1)[0]
+request_fn=main.split('fun handleIncomingCallEvent(signal: JSONObject)',1)[-1].split('val activity = ctx as? MainActivity',1)[0]
+check("Same call ID is never busy after answering",
+      'fun acceptIncomingInvite(invitation: NativeCallSession)' in main and
+      'knownCalls.add(id)' in accept_fn and
+      accept_fn.rfind('knownCalls.add(id)') < accept_fn.rfind('openCall(') and
+      'if (activeCall?.callId == callId ||' in request_fn and
+      request_fn.index('if (activeCall?.callId == callId ||') < request_fn.index('sendCallResponse(invite, "busy")') and
+      'onClick = { acceptIncomingInvite(invitation) }' in main and
+      'acceptIncomingInvite(session)' in main)
+check("Accepted FCM call is not re-notified and stale dialogs expire",
+      '@Volatile var activeCallId = ""' in push_source and
+      'if (activeCallId == call.callId) return' in push_source and
+      'AttaPush.activeCallId = callId' in main and
+      'LaunchedEffect(incomingCall?.callId)' in main and
+      'delay(45000L)' in main and
+      'if (AttaPush.activeCallId == session.callId) AttaPush.activeCallId = ""' in main)
 if fails:raise SystemExit(f"FAIL: {len(fails)} checks failed")
 print('PASS: static repository check complete. APK build/device tests are still required.')

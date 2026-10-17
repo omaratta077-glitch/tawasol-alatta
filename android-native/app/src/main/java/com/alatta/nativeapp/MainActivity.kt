@@ -769,10 +769,12 @@ private class AttaYoutubeFullscreenChrome(
         val next = pendingPermissionCall
         pendingPermissionCall = null
         if (next != null && granted.values.all { it }) {
+            AttaPush.activeCallId = next.callId
             activeCall = next
             callMinimized = false
         }
         else {
+            if (next != null && AttaPush.activeCallId == next.callId) AttaPush.activeCallId = ""
             featureMessage = "يجب السماح بالميكروفون والكاميرا عند مكالمة الفيديو. لو لم يظهر طلب الإذن، افتح إعدادات التطبيق ← الأذونات وفعّل الكاميرا والميكروفون."
             if (next?.incoming == true) scope.launch {
                 try {
@@ -799,6 +801,9 @@ private class AttaYoutubeFullscreenChrome(
         val needed = permissionNames.filter {
             ContextCompat.checkSelfPermission(ctx, it) != PackageManager.PERMISSION_GRANTED
         }
+        // Mark the call occupied before asynchronous permission/UI work starts.
+        // Delayed FCM for this exact ID must not generate a second ringtone.
+        AttaPush.activeCallId = callId
         if (needed.isEmpty()) { activeCall = session; callMinimized = false }
         else { pendingPermissionCall = session; callPermissions.launch(needed.toTypedArray()) }
     }
@@ -852,6 +857,33 @@ private class AttaYoutubeFullscreenChrome(
             catch (_: Exception) { }
         }
     }
+    // A push Accept and the queued WebSocket/HTTP call-request can arrive in either
+    // order. Both describe the SAME invitation; never reject it as a second call.
+    fun acceptIncomingInvite(invitation: NativeCallSession) {
+        val id = invitation.callId
+        if (activeCall?.callId == id || pendingPermissionCall?.callId == id) {
+            knownCalls.add(id)
+            if (incomingCall?.callId == id) incomingCall = null
+            AttaPush.dismiss(ctx, id)
+            return
+        }
+        // A genuinely different active/pending call may still be busy.
+        if (activeCall != null || pendingPermissionCall != null ||
+            (incomingCall != null && incomingCall?.callId != id)) {
+            knownCalls.add(id)
+            if (incomingCall?.callId == id) incomingCall = null
+            sendCallResponse(invitation, "busy")
+            featureMessage = "توجد مكالمة أخرى جارية"
+            return
+        }
+        // Record the accepted call BEFORE opening WebRTC. Otherwise a delayed
+        // copy of the invitation can be processed as a NEW call and send "busy".
+        knownCalls.add(id)
+        if (incomingCall?.callId == id) incomingCall = null
+        AttaPush.dismiss(ctx, id)
+        openCall(invitation.peer, invitation.type, true, id)
+    }
+
     fun sendSelectedChatMedia(uri: Uri, requiredType: String) {
         if (chatWith.isBlank() || token.isBlank()) return
         scope.launch {
@@ -1003,12 +1035,21 @@ private class AttaYoutubeFullscreenChrome(
         val callId = signal.optString("callId").trim()
         if (sender.isBlank() || sender == myUsername.lowercase() || callId.isBlank()) return
         if (kind == "call-request") {
+            // Duplicates can arrive from FCM, the socket and the polling queue.
+            // In particular, a call already accepted via a background notification
+            // MUST NOT receive a second "busy" response from this handler.
+            if (activeCall?.callId == callId ||
+                pendingPermissionCall?.callId == callId ||
+                incomingCall?.callId == callId) {
+                knownCalls.add(callId)
+                return
+            }
             val timestamp = signal.optLong("createdAt", signal.optLong("ts", 0L))
             val age = System.currentTimeMillis() - timestamp
             if (age !in 0..45000L || !knownCalls.add(callId)) return
             val invite = NativeCallSession(sender,
                 if (signal.optString("callType") == "video") "video" else "audio", callId, true)
-            if (activeCall == null && incomingCall == null) {
+            if (activeCall == null && incomingCall == null && pendingPermissionCall == null) {
                 incomingCall = invite
                 sendCallRinging(invite) // Ringback only after the incoming dialog is created.
             } else sendCallResponse(invite, "busy")
@@ -1031,10 +1072,26 @@ private class AttaYoutubeFullscreenChrome(
             System.currentTimeMillis() - push.createdAt !in 0..45000L) return@LaunchedEffect
         val session = NativeCallSession(push.from, push.type, push.callId, incoming = true)
         if (push.action == AttaPush.ACTION_ACCEPT) {
-            if (activeCall == null) openCall(push.from, push.type, true, push.callId)
-        } else if (activeCall == null && incomingCall == null && knownCalls.add(push.callId)) {
+            acceptIncomingInvite(session)
+        } else if (activeCall?.callId == push.callId ||
+            pendingPermissionCall?.callId == push.callId ||
+            incomingCall?.callId == push.callId) {
+            knownCalls.add(push.callId) // An existing dialog/session already owns this ID.
+        } else if (activeCall == null && incomingCall == null &&
+            pendingPermissionCall == null && knownCalls.add(push.callId)) {
             incomingCall = session
             sendCallRinging(session)
+        }
+    }
+
+    // Missed/hung-up calls must not leave an incoming dialog marked busy forever
+    // if the screen was asleep when the cancellation signal arrived.
+    LaunchedEffect(incomingCall?.callId) {
+        val invitation = incomingCall ?: return@LaunchedEffect
+        delay(45000L)
+        if (incomingCall?.callId == invitation.callId) {
+            incomingCall = null
+            AttaPush.dismiss(ctx, invitation.callId)
         }
     }
 
@@ -1207,6 +1264,7 @@ private class AttaYoutubeFullscreenChrome(
             TextButton(onClick = {
                 confirmLogout = false
                 activeCall = null; incomingCall = null
+                AttaPush.activeCallId = ""
                 chatWith = ""; messages = emptyList(); inboxPreviews = emptyList()
                 posts = emptyList(); notifications = emptyList(); friends = emptyList()
                 profile = JSONObject(); displayName = ""; myUsername = ""; myAvatar = ""
@@ -1262,10 +1320,7 @@ private class AttaYoutubeFullscreenChrome(
             text = { Text("مكالمة واردة من مستخدم تواصل العطا", color = White) },
             confirmButton = { Button(
                 colors = ButtonDefaults.buttonColors(containerColor = Gold, contentColor = Black),
-                onClick = {
-                    incomingCall = null
-                    openCall(invitation.peer, invitation.type, true, invitation.callId)
-                }
+                onClick = { acceptIncomingInvite(invitation) }
             ) { Text("رد", fontWeight = FontWeight.Bold) } },
             dismissButton = { OutlinedButton(
                 border = BorderStroke(1.dp, Border),
@@ -2397,6 +2452,7 @@ private class AttaYoutubeFullscreenChrome(
                     onRestore = { callMinimized = false },
                     onClose = {
                         callMinimized = false; activeCall = null
+                        if (AttaPush.activeCallId == session.callId) AttaPush.activeCallId = ""
                         if (tab == "الرسائل" && token.isNotBlank()) scope.launch {
                             try { load("الرسائل") } catch (_: Exception) { }
                         }

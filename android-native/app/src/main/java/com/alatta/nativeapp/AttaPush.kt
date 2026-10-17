@@ -86,6 +86,8 @@ internal object AttaPush {
     // A visible incoming-call dialog rings on its own; suppress only that
     // notification, not all calls just because the Activity is STARTED.
     @Volatile var foregroundRingCallId = ""
+    // A delayed copy of an already accepted FCM invitation must not ring again.
+    @Volatile var activeCallId = ""
     const val ACTION_OPEN_CALL = "com.alatta.nativeapp.OPEN_CALL"
     const val ACTION_REJECT = "com.alatta.nativeapp.REJECT_CALL"
     const val ACTION_ACCEPT = "accept"
@@ -249,6 +251,7 @@ internal object AttaPush {
 
     fun incoming(context: Context, call: PushCall) {
         if (!validSession(context, call)) return
+        if (activeCallId == call.callId) return // Same accepted call, not another incoming call.
         // Foreground calls already have a native dialog + ringtone through the
         // authenticated WebSocket/HTTP path. Never ring the same device twice.
         if (appVisible && foregroundRingCallId == call.callId) return
