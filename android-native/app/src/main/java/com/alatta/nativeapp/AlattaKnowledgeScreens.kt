@@ -47,23 +47,14 @@ private val dhikrEntries = listOf(
 )
 
 @Composable
-internal fun KnowledgeScreen(section: String, modifier: Modifier = Modifier) {
+internal fun KnowledgeScreen(section: String, query: String, modifier: Modifier = Modifier) {
     val entries = when (section) {
         "القرآن" -> quranEntries
         "الأحاديث" -> hadithEntries
         else -> dhikrEntries
     }
-    var query by remember(section) { mutableStateOf("") }
     val counts = remember(section) { mutableStateMapOf<String, Int>() }
     Column(modifier.fillMaxSize().background(Color(0xFF040506)).padding(horizontal = 12.dp)) {
-        OutlinedTextField(
-            value = query, onValueChange = { query = it }, modifier = Modifier.fillMaxWidth(),
-            label = { Text("بحث في $section", color = gold) },
-            singleLine = true, colors = OutlinedTextFieldDefaults.colors(
-                focusedTextColor = Color.White, unfocusedTextColor = Color.White,
-                focusedBorderColor = gold, unfocusedBorderColor = Color(0xFF6B5429))
-        )
-        Spacer(Modifier.height(10.dp))
         LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(bottom = 16.dp)) {
             items(entries.filter { query.isBlank() || it.title.contains(query, true) || it.body.contains(query, true) }) { item ->
                 Column(Modifier.fillMaxWidth().border(1.dp, Color(0xFF6B5429), RoundedCornerShape(14.dp))

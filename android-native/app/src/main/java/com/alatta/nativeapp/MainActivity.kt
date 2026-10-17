@@ -364,6 +364,7 @@ private class AttaYoutubeFullscreenChrome(
     var fullscreen by remember(safeId) { mutableStateOf(false) }
     var loading by remember(safeId) { mutableStateOf(true) }
     var error by remember(safeId) { mutableStateOf("") }
+    var playerReady by remember(safeId) { mutableStateOf(false) }
     // The website's single AttaYouTubeEmbed factory is copied into Android assets
     // by Gradle at build time. This removes dependency on deploying a second player page.
     val sharedJs = remember(ctx) {
@@ -376,10 +377,46 @@ private class AttaYoutubeFullscreenChrome(
         <style>html,body,#player{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#000}
         iframe{display:block;border:0;width:100%;height:100%}</style></head>
         <body><div id="player"></div><script>$sharedJs</script><script>
-        document.getElementById('player').appendChild(window.AttaYouTubeEmbed.create('$safeId','فيديو YouTube'));
+        (function(){
+          var frame=window.AttaYouTubeEmbed.create('$safeId','فيديو YouTube');
+          frame.id='attaYTFrame';
+          document.getElementById('player').appendChild(frame);
+          function log(v){console.log('ALATTA_YT:'+v);}
+          window.onYouTubeIframeAPIReady=function(){
+            try {new YT.Player('attaYTFrame',{events:{
+              onReady:function(){log('READY');},
+              onStateChange:function(e){if(e.data===1)log('PLAYING');},
+              onError:function(e){log('ERROR:'+e.data);}
+            }});}catch(e){log('ERROR:INIT');}
+          };
+          var api=document.createElement('script');
+          api.src='https://www.youtube.com/iframe_api';
+          api.onerror=function(){log('ERROR:SCRIPT');};
+          document.head.appendChild(api);
+        })();
         </script></body></html>"""
     }
-    val chrome = remember(ctx, safeId) { AttaYoutubeFullscreenChrome(ctx) { } }
+    val chrome = remember(ctx, safeId) {
+        AttaYoutubeFullscreenChrome(ctx) { event ->
+            when {
+                event == "READY" || event == "PLAYING" -> {
+                    loading = false
+                    playerReady = true
+                    error = ""
+                }
+                event.startsWith("ERROR:") -> {
+                    loading = false
+                    val code = event.removePrefix("ERROR:")
+                    error = when (code) {
+                        "153" -> "YouTube رفض التشغيل داخل Android WebView (153). افتح الفيديو في YouTube."
+                        "101", "150" -> "صاحب الفيديو منع تشغيله داخل التطبيق."
+                        "100" -> "الفيديو غير متاح أو خاص."
+                        else -> "تعذر تشغيل YouTube داخل التطبيق (رمز $code)."
+                    }
+                }
+            }
+        }
+    }
     val webView = remember(ctx, safeId) {
         WebView(ctx).apply {
             setBackgroundColor(AndroidColor.BLACK)
@@ -393,7 +430,7 @@ private class AttaYoutubeFullscreenChrome(
             webChromeClient = chrome
             webViewClient = object : WebViewClient() {
                 override fun onPageFinished(view: WebView?, url: String?) {
-                    loading = false // only page load, not proof that YouTube can play
+                    // HTML loaded; do not treat it as successful YouTube playback.
                 }
                 override fun onReceivedError(view: WebView?, request: WebResourceRequest?, issue: WebResourceError?) {
                     if (request?.isForMainFrame == true) {
@@ -411,6 +448,13 @@ private class AttaYoutubeFullscreenChrome(
             // An HTTPS base URL supplies the same YouTube referrer/origin as the website.
             // Actual embed construction comes only from the shared website JS.
             loadDataWithBaseURL("$BASE/", playerHtml, "text/html", "UTF-8", null)
+        }
+    }
+    LaunchedEffect(webView, safeId) {
+        kotlinx.coroutines.delay(14000)
+        if (!playerReady && error.isBlank()) {
+            loading = false
+            error = "مشغّل YouTube لم يؤكد التشغيل على الجهاز. جرّب فتح الفيديو في YouTube."
         }
     }
     DisposableEffect(webView, chrome) {
@@ -567,6 +611,7 @@ private class AttaYoutubeFullscreenChrome(
     var publicFriends by remember { mutableStateOf<List<JSONObject>>(emptyList()) }
     var publicProfileLoading by remember { mutableStateOf(false) }
     var youtubeSearch by remember { mutableStateOf("") }
+    var knowledgeSearch by remember { mutableStateOf("") }
     var youtubeItems by remember { mutableStateOf(emptyList<JSONObject>()) }
     var youtubeId by remember { mutableStateOf("") }
     val youtubeListState = rememberLazyListState()
@@ -1549,20 +1594,46 @@ private class AttaYoutubeFullscreenChrome(
                         } // Home uses the search icon in the single-line header; no second search bar.
                     }
                     if (tab != "الرئيسية" && tab != "الرسائل") {
-                        Row(Modifier.fillMaxWidth().height(43.dp)
-                            .padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Text(if (tab == "القرآن") "القرآن الكريم" else if (tab == "الأحاديث") "الأحاديث النبوية" else if (tab == "الرياضة") "كرة القدم" else tab,
-                                color = GoldLight, fontWeight = FontWeight.Bold, fontSize = 16.sp,
-                                maxLines = 1, modifier = Modifier.weight(1f))
-                            if (tab != "يوتيوب") {
-                                IconButton(onClick = { navigate("استكشاف") }, modifier = Modifier.size(38.dp)) {
-                                    SiteIcon("search", tint = GoldLight, size = 20.dp)
-                                }
+                        Row(Modifier.fillMaxWidth().heightIn(min = 52.dp)
+                            .padding(horizontal = 12.dp, vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            val pageTitle = when (tab) {
+                                "القرآن" -> "القرآن الكريم"
+                                "الأحاديث" -> "الأحاديث النبوية"
+                                "الرياضة" -> "كرة القدم"
+                                else -> tab
+                            }
+                            Text(pageTitle, color = GoldLight, fontWeight = FontWeight.Bold,
+                                fontSize = 16.sp, maxLines = 1,
+                                modifier = Modifier.weight(1f))
+                            // The search field replaces the old search icon; never create
+                            // a second full-width search row in KnowledgeScreen or YouTube.
+                            if (tab in setOf("القرآن", "الأحاديث", "الأذكار", "يوتيوب")) {
+                                val isYoutube = tab == "يوتيوب"
+                                OutlinedTextField(
+                                    value = if (isYoutube) youtubeSearch else knowledgeSearch,
+                                    onValueChange = { value ->
+                                        if (isYoutube) youtubeSearch = value else knowledgeSearch = value
+                                    },
+                                    modifier = Modifier.width(164.dp).heightIn(min = 48.dp),
+                                    singleLine = true,
+                                    placeholder = { Text("بحث", color = Muted, fontSize = 12.sp) },
+                                    trailingIcon = {
+                                        IconButton(onClick = { if (isYoutube) refresh() }) {
+                                            SiteIcon("search", tint = GoldLight, size = 18.dp)
+                                        }
+                                    },
+                                    textStyle = androidx.compose.ui.text.TextStyle(fontSize = 13.sp, color = White),
+                                    shape = RoundedCornerShape(12.dp),
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedBorderColor = Gold, unfocusedBorderColor = Border)
+                                )
                             }
                         }
                     }
                     when (tab) {
-                        "القرآن", "الأحاديث", "الأذكار" -> KnowledgeScreen(tab, Modifier.weight(1f))
+                        "القرآن", "الأحاديث", "الأذكار" -> KnowledgeScreen(tab, knowledgeSearch, Modifier.weight(1f))
                         "الرياضة" -> FootballScreen(Modifier.weight(1f))
                         "الرئيسية", "استكشاف", "المحفوظات" -> LazyColumn(Modifier.weight(1f).padding(horizontal = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             if (tab == "استكشاف") {
@@ -2008,18 +2079,6 @@ private class AttaYoutubeFullscreenChrome(
                             } }
                         }
                         "يوتيوب" -> LazyColumn(Modifier.weight(1f).padding(8.dp), state = youtubeListState) {
-                            item {
-                                OutlinedTextField(
-                                    value = youtubeSearch, onValueChange = { youtubeSearch = it },
-                                    placeholder = { Text("ابحث عن فيديو", fontSize = 13.sp) },
-                                    modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp), singleLine = true,
-                                    trailingIcon = {
-                                        IconButton(onClick = { refresh() }) {
-                                            SiteIcon("search", tint = GoldLight, size = 20.dp)
-                                        }
-                                    }, shape = RoundedCornerShape(14.dp)
-                                )
-                            }
                             if (youtubeId.isNotBlank()) item {
                                 Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                                     YouTubePlayer(youtubeId)

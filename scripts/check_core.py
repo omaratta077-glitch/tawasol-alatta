@@ -31,7 +31,7 @@ check("One shared website YouTube player", main.count("fun YouTubePlayer(")==1 a
 check("No unresolved merge markers", not any(re.match(r"^(<<<<<<< |=======\s*$|>>>>>>> )", line) for f in (ROOT/"android-native/app/src/main/java").rglob("*.kt") for line in f.read_text(encoding="utf-8").splitlines()))
 check("PushCall visibility compatible", "internal var incomingPush by mutableStateOf<PushCall?>" in main)
 check("Native Google bridge removed", not (ROOT/(android+"GoogleWebBridge.kt")).exists())
-check("Official version 1.0.54", 'versionCode = 154' in gradle and 'versionName = "1.0.54"' in gradle)
+check("Official version 1.0.55", 'versionCode = 155' in gradle and 'versionName = "1.0.55"' in gradle)
 check("Four additional screens and scrollable navigation", all(x in main for x in ['KnowledgeScreen(tab', 'FootballScreen(']) and all(x in read(android+"PremiumChrome.kt") for x in ['"القرآن"', '"الأحاديث"', '"الأذكار"', '"الرياضة"', '.horizontalScroll(scroll)']) and (ROOT/(android+"AlattaKnowledgeScreens.kt")).is_file())
 check("Background FCM integration declared", all((ROOT/(android+x)).is_file() for x in ['AttaPush.kt']) and 'FIREBASE_SERVICE_ACCOUNT_JSON' in worker and '/api/push/register' in worker and 'ALATTA_FCM_APP_ID' in workflow)
 check("No old patch workflows",not list((ROOT/'.github/workflows').glob('apply-*.yml')) and not list((ROOT/'.github/workflows').glob('install-*.yml')))
