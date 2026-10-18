@@ -47,11 +47,7 @@ check("Foreground ring state declared in AttaPush",
       "AttaPush.foregroundRingCallId == callId" in ring_screen)
 
 check("Native Google bridge removed", not (ROOT/(android+"GoogleWebBridge.kt")).exists())
-<<<<<<< HEAD
 check("Official version 1.0.69", 'versionCode = 169' in gradle and 'versionName = "1.0.69"' in gradle)
-=======
-check("Official version 1.0.68", 'versionCode = 168' in gradle and 'versionName = "1.0.68"' in gradle)
->>>>>>> a9e93afa597f2ea057d2bc14ce29616f60ca0c55
 check("Four additional screens and scrollable navigation", all(x in main for x in ['KnowledgeScreen(tab', 'FootballScreen(']) and all(x in read(android+"PremiumChrome.kt") for x in ['"القرآن"', '"الأحاديث"', '"الأذكار"', '"الرياضة"', '.horizontalScroll(scroll)']) and (ROOT/(android+"AlattaKnowledgeScreens.kt")).is_file())
 check("Quran-first categories and click-to-play preview", all(x in main for x in [
     'var youtubeCategory by remember { mutableStateOf("قرآن") }',
@@ -68,11 +64,7 @@ check("Background FCM integration declared", all((ROOT/(android+x)).is_file() fo
 check("Notification Intent.data does not shadow Firebase payload", 'this.data = Uri.parse("alatta://notification/${Uri.encode(eventId)}")' in read(android+"AttaPush.kt"))
 check("Social, chat and call FCM routing", 'scheduleUserPush' in worker and
       'deliverUserPush' in worker and 'notifyActivity(this, d)' in read(android+'AttaPush.kt') and
-<<<<<<< HEAD
       'ACTION_OPEN_NOTIFICATION' in main and 'versionCode = 169' in gradle)
-=======
-      'ACTION_OPEN_NOTIFICATION' in main and 'versionCode = 168' in gradle)
->>>>>>> a9e93afa597f2ea057d2bc14ce29616f60ca0c55
 check("Site/Android keep screen on without changing player", 'FLAG_KEEP_SCREEN_ON' in main and
       'youtube-screen-awake.js' in read('cloudflare-site/public/index.html') and
       (ROOT/'cloudflare-site/public/youtube-screen-awake.js').is_file())
@@ -105,7 +97,6 @@ check("Visible Android call-video stage and camera diagnostics",
       'window.__attaResumeMedia' in video_web and 'AttaBridge.cameraReady()' in video_web)
 check("FCM reserved data key converted safely", "fcmData.sender=String(fcmData.from??'')" in worker and "delete fcmData.from" in worker and "data:fcmData" in worker and 'data["sender"] ?: data["from"]' in push_source and 'd["sender"] ?: d["from"]' in push_source)
 
-<<<<<<< HEAD
 # An FCM notification+data packet is displayed by Android itself when the app
 # is asleep; the launcher Intent then receives the custom payload on tap.
 check("OS-displayed background call notification and safe call controls",
@@ -116,8 +107,6 @@ check("OS-displayed background call notification and safe call controls",
       'manager.cancel("alatta-call-$callId", 0)' in push_source and
       'The WebView occupies ONLY the' in video_native)
 
-=======
->>>>>>> a9e93afa597f2ea057d2bc14ce29616f60ca0c55
 # Regression guard: FCM / WebSocket / HTTP can deliver the same invitation.
 accept_fn=main.split('fun acceptIncomingInvite(invitation: NativeCallSession)',1)[-1].split('fun sendSelectedChatMedia(',1)[0]
 request_fn=main.split('fun handleIncomingCallEvent(signal: JSONObject)',1)[-1].split('val activity = ctx as? MainActivity',1)[0]
