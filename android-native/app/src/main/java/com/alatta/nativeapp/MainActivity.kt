@@ -1767,7 +1767,7 @@ private class AttaYoutubeFullscreenChrome(
                         }
                     }
                     when (tab) {
-                        "القرآن" -> QuranReaderScreen(Modifier.weight(1f))
+                        "القرآن" -> QuranReaderScreen(Modifier.weight(1f), onExit = { if (visited.isNotEmpty()) tab = visited.removeAt(visited.lastIndex) else tab = "الرئيسية" })
                         "الأحاديث", "الأذكار" -> KnowledgeScreen(tab, knowledgeSearch, Modifier.weight(1f))
                         "الرياضة" -> FootballScreen(Modifier.weight(1f))
                         "الرئيسية", "استكشاف", "المحفوظات" -> LazyColumn(Modifier.weight(1f).padding(horizontal = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {

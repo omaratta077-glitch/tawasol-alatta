@@ -6,6 +6,7 @@ import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -21,7 +22,7 @@ import androidx.compose.ui.viewinterop.AndroidView
  * MainActivity's existing BackHandler uses Android system back navigation.
  */
 @Composable
-internal fun QuranReaderScreen(modifier: Modifier = Modifier) {
+internal fun QuranReaderScreen(modifier: Modifier = Modifier, onExit: () -> Unit) {
     val context = LocalContext.current
     val reader = remember(context) {
         WebView(context).apply {
@@ -31,6 +32,8 @@ internal fun QuranReaderScreen(modifier: Modifier = Modifier) {
             settings.allowFileAccess = false
             settings.allowContentAccess = false
             settings.mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
+            settings.textZoom = 100 // Avoid Android text auto-enlargement breaking the Mushaf layout.
+            settings.useWideViewPort = true
             settings.mediaPlaybackRequiresUserGesture = false // Playback starts only after an explicit verse choice.
             webViewClient = object : WebViewClient() {
                 override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean = true
@@ -49,6 +52,13 @@ internal fun QuranReaderScreen(modifier: Modifier = Modifier) {
         onDispose {
             runCatching { reader.loadUrl("about:blank") }
             runCatching { reader.destroy() }
+        }
+    }
+    // The phone's system Back dismisses the verse/index sheet first, then exits the reader.
+    // No extra on-screen back icon is added to the Mushaf.
+    BackHandler {
+        reader.evaluateJavascript("(function(){return window.attaQuranBack && window.attaQuranBack() ? 'dismissed' : 'exit';})()") { result ->
+            if (result != "\"dismissed\"") onExit()
         }
     }
     AndroidView(factory = { reader }, modifier = modifier.fillMaxSize())
