@@ -4073,8 +4073,134 @@ html.mobile-device #brandProfileBtn .header-profile-avatar{width:50px!important;
 html.mobile-device #brandProfileBtn #headerProfileName{font-size:16px!important;max-width:125px!important}
 html.mobile-device #brandProfileBtn #headerProfileUsername{font-size:11px!important;max-width:125px!important}
 
-/* Legacy oversized html.mobile-device block removed: see MOBILE NATIVE SCALE below. */
+html.mobile-device,html.mobile-device body{
+  font-size:22px!important;
+  -webkit-text-size-adjust:100%!important;
+  text-size-adjust:100%!important;
+}
+html.mobile-device body{overflow-x:hidden!important}
+html.mobile-device #appView{font-size:22px!important;width:100vw!important;max-width:100vw!important;overflow-x:hidden!important}
+html.mobile-device #appView button,html.mobile-device #appView input,html.mobile-device #appView textarea,html.mobile-device #appView select{font-family:inherit!important}
 
+html.mobile-device #appView .premium-header{height:96px!important;min-height:96px!important;padding:0 10px!important}
+html.mobile-device #appView .reference-header-inner{width:100%!important;max-width:none!important;gap:8px!important}
+html.mobile-device #appView .header-icon-btn,html.mobile-device #appView .mobile-header-search-btn{width:60px!important;height:60px!important;min-width:60px!important;border-radius:16px!important}
+html.mobile-device #appView .header-icon-btn svg,html.mobile-device #appView .mobile-header-search-btn svg,html.mobile-device #appView .header-icon-btn .atta-icon{width:40px!important;height:40px!important}
+html.mobile-device #appView .header-mini-badge{min-width:29px!important;height:29px!important;line-height:29px!important;font-size:17px!important}
+html.mobile-device #brandProfileBtn.reference-header-brand{max-width:230px!important;gap:9px!important}
+html.mobile-device #brandProfileBtn .header-profile-avatar{width:62px!important;height:62px!important;flex:0 0 62px!important}
+html.mobile-device #brandProfileBtn #headerProfileName{font-size:20px!important;max-width:145px!important;line-height:1.2!important}
+html.mobile-device #brandProfileBtn #headerProfileUsername{font-size:15px!important;max-width:145px!important;margin-top:3px!important}
+
+html.mobile-device #appView .social-main{width:100%!important;max-width:none!important;margin:0!important;padding:12px 0 126px!important}
+html.mobile-device #appView .feed-column,html.mobile-device #appView .reference-feed-column,html.mobile-device #appView .reference-center-column,html.mobile-device #appView .page{width:100%!important;max-width:none!important}
+
+html.mobile-device #appView .mobile-status-section{margin:0 8px 16px!important;padding:14px 10px 15px!important}
+html.mobile-device #appView .mobile-status-head strong{font-size:27px!important}
+html.mobile-device #appView .mobile-status-head button{font-size:21px!important;min-height:48px!important}
+html.mobile-device #appView #storiesStrip{gap:11px!important}
+html.mobile-device #appView .feed-story-card{flex:0 0 145px!important;width:145px!important;height:224px!important;border-radius:17px!important}
+html.mobile-device #appView .feed-story-card .story-avatar{width:54px!important;height:54px!important}
+html.mobile-device #appView .feed-story-card .story-name,html.mobile-device #appView .feed-story-add .story-add-bottom{font-size:20px!important;line-height:1.25!important}
+html.mobile-device #appView .feed-story-add .story-plus{width:45px!important;height:45px!important;font-size:32px!important}
+
+html.mobile-device #appView .mobile-friends-suggestions{margin:0 8px 16px!important;padding:15px!important}
+html.mobile-device #appView .reference-card-title strong{font-size:25px!important}
+html.mobile-device #appView .reference-suggestion-user strong,html.mobile-device #appView .person-main strong,html.mobile-device #appView .friend-card strong{font-size:23px!important}
+html.mobile-device #appView .reference-suggestion-user small,html.mobile-device #appView .person-main small,html.mobile-device #appView .friend-card small{font-size:19px!important}
+html.mobile-device #appView .reference-suggestion-user img,html.mobile-device #appView .person-main img,html.mobile-device #appView .friend-card img{width:70px!important;height:70px!important}
+html.mobile-device #appView .reference-friend-btn{min-height:58px!important;font-size:21px!important;padding:0 18px!important}
+
+html.mobile-device #appView .reference-composer{margin:0 8px 16px!important;padding:18px 14px!important;border-radius:18px!important}
+html.mobile-device #appView .reference-composer-avatar{width:72px!important;height:72px!important}
+html.mobile-device #appView .reference-composer-name{font-size:27px!important}
+html.mobile-device #appView .reference-composer textarea{min-height:135px!important;font-size:27px!important;line-height:1.6!important;padding:18px!important;border-radius:15px!important}
+html.mobile-device #appView .reference-tool-btn,html.mobile-device #appView .reference-publish-btn{height:64px!important;min-height:64px!important;font-size:21px!important;gap:8px!important}
+html.mobile-device #appView .reference-tool-btn svg,html.mobile-device #appView .reference-publish-btn svg{width:32px!important;height:32px!important}
+
+html.mobile-device #appView .reference-post-card,html.mobile-device #appView .post-card{width:100%!important;max-width:none!important;margin:0 0 16px!important;padding:20px 0 16px!important;border-radius:0!important}
+html.mobile-device #appView .reference-post-header{padding:0 15px!important;gap:14px!important}
+html.mobile-device #appView .reference-post-head .avatar,html.mobile-device #appView .post-head .avatar{width:78px!important;height:78px!important;min-width:78px!important}
+html.mobile-device #appView .reference-post-meta strong,html.mobile-device #appView .post-head strong{font-size:30px!important;line-height:1.25!important;font-weight:900!important}
+html.mobile-device #appView .reference-post-meta small,html.mobile-device #appView .post-head small{font-size:21px!important;line-height:1.45!important}
+html.mobile-device #appView .globe-inline svg,html.mobile-device #appView .globe-inline .atta-icon{width:25px!important;height:25px!important}
+html.mobile-device #appView .post-menu-btn{width:58px!important;height:58px!important}
+html.mobile-device #appView .post-menu-btn svg{width:37px!important;height:37px!important}
+html.mobile-device #appView .reference-post-text,html.mobile-device #appView .post-text{font-size:29px!important;line-height:1.7!important;padding:18px 17px 22px!important;font-weight:500!important}
+html.mobile-device #appView .reference-post-image,html.mobile-device #appView .post-image{display:block!important;width:100%!important;height:auto!important;max-height:none!important;object-fit:contain!important;border-radius:0!important}
+html.mobile-device #appView .reference-post-footer{padding:16px 11px 13px!important}
+html.mobile-device #appView .stat-btn,html.mobile-device #appView .text-action-btn{min-height:68px!important;padding:0 10px!important;gap:10px!important}
+html.mobile-device #appView .stat-btn span,html.mobile-device #appView .text-action-btn span{font-size:23px!important;font-weight:900!important}
+html.mobile-device #appView .stat-btn svg,html.mobile-device #appView .text-action-btn svg,html.mobile-device #appView .stat-btn .atta-icon,html.mobile-device #appView .text-action-btn .atta-icon{width:42px!important;height:42px!important}
+html.mobile-device #appView .reaction-summary{font-size:21px!important}
+
+html.mobile-device #appView .comment-row{font-size:23px!important;line-height:1.65!important;padding:15px 16px!important}
+html.mobile-device #appView .comment-reply{font-size:21px!important}
+html.mobile-device #appView .reply-open-btn{font-size:19px!important;min-height:42px!important}
+html.mobile-device #appView .comment-compose,html.mobile-device #appView .reply-compose{gap:9px!important;padding:12px!important}
+html.mobile-device #appView .comment-compose input,html.mobile-device #appView .reply-compose input{height:66px!important;min-height:66px!important;font-size:22px!important;padding:0 18px!important}
+html.mobile-device #appView .comment-compose button,html.mobile-device #appView .reply-compose button{height:62px!important;min-height:62px!important;font-size:21px!important;padding:0 20px!important}
+
+html.mobile-device #appView .page-title h2,html.mobile-device #appView .friends-page-title h2,html.mobile-device #appView .admin-head h2{font-size:31px!important}
+html.mobile-device #appView .page-title h3,html.mobile-device #appView .section-bar h3{font-size:27px!important}
+html.mobile-device #appView .page-title button,html.mobile-device #appView .friends-find-btn{font-size:20px!important;min-height:54px!important;padding:0 17px!important}
+html.mobile-device #appView .friends-page-card,html.mobile-device #appView .friend-section{margin:0 8px 15px!important;padding:16px!important}
+html.mobile-device #appView .friends-page-card .person-card,html.mobile-device #appView .friends-page-card .friend-card{min-height:86px!important}
+html.mobile-device #appView .smart-notification-card,html.mobile-device #appView .notification-card{width:calc(100% - 16px)!important;margin:0 8px 14px!important;padding:20px!important;border-radius:16px!important}
+html.mobile-device #appView .notification-main-text,html.mobile-device #appView .notification-card{font-size:24px!important;line-height:1.6!important}
+html.mobile-device #appView .notification-action-hint{font-size:21px!important}
+html.mobile-device #appView .smart-notification-card small,html.mobile-device #appView .notification-card small{font-size:19px!important}
+html.mobile-device #appView .search-input,html.mobile-device #appView input[type="search"]{height:64px!important;font-size:22px!important}
+
+html.mobile-device #appView .profile-card-large{width:100%!important;max-width:none!important;border-radius:0!important}
+html.mobile-device #appView .profile-cover{height:270px!important;min-height:270px!important;background:#07090a!important}
+html.mobile-device #appView .profile-cover-image{width:100%!important;height:100%!important;object-fit:contain!important;object-position:center!important;background:#07090a!important}
+html.mobile-device #appView .profile-cover-edit{font-size:20px!important;min-height:54px!important;padding:0 17px!important}
+html.mobile-device #appView .profile-large-avatar{width:142px!important;height:142px!important}
+html.mobile-device #appView .profile-avatar-edit{width:54px!important;height:54px!important}
+html.mobile-device #appView .profile-title-block h2{font-size:31px!important}
+html.mobile-device #appView #profileUsername{font-size:20px!important}
+html.mobile-device #appView .profile-bio{font-size:22px!important;line-height:1.6!important}
+html.mobile-device #appView .profile-edit-top{margin:12px 8px 16px!important;padding:16px!important}
+html.mobile-device #appView .profile-edit-top textarea{font-size:22px!important;min-height:110px!important}
+html.mobile-device #appView .profile-edit-top .privacy-row{font-size:20px!important}
+html.mobile-device #appView .profile-edit-top button{min-height:58px!important;font-size:20px!important}
+html.mobile-device #appView .profile-friend-stat strong{font-size:31px!important}
+html.mobile-device #appView .profile-friend-stat span{font-size:18px!important}
+html.mobile-device #appView .profile-posts-section{margin:14px 8px 20px!important;padding:13px!important}
+html.mobile-device #appView .profile-post-head img{width:70px!important;height:70px!important}
+html.mobile-device #appView .profile-post-head strong{font-size:25px!important}
+html.mobile-device #appView .profile-post-head small{font-size:19px!important}
+html.mobile-device #appView .profile-post-text{font-size:25px!important;line-height:1.7!important}
+html.mobile-device #appView .profile-post-stats{font-size:20px!important}
+html.mobile-device #appView .profile-post-open{font-size:20px!important;min-height:50px!important}
+
+html.mobile-device #appView .chat-contact-avatar{width:70px!important;height:70px!important}
+html.mobile-device #appView .chat-contact strong,html.mobile-device #appView .conversation-title strong{font-size:24px!important}
+html.mobile-device #appView .chat-contact small,html.mobile-device #appView .conversation-title small{font-size:18px!important}
+html.mobile-device #appView .message-bubble{font-size:22px!important;line-height:1.6!important;padding:13px 16px!important}
+html.mobile-device #appView .chat-input,html.mobile-device #appView .message-input{font-size:21px!important;min-height:60px!important}
+
+html.mobile-device #appView .admin-head p{font-size:20px!important}
+html.mobile-device #appView .admin-role-badge{font-size:19px!important}
+html.mobile-device #appView .admin-stats strong{font-size:32px!important}
+html.mobile-device #appView .admin-stats span{font-size:18px!important}
+html.mobile-device #appView .admin-tabs button{font-size:20px!important;min-height:54px!important}
+html.mobile-device #appView .admin-item strong{font-size:22px!important}
+html.mobile-device #appView .admin-item span{font-size:18px!important}
+html.mobile-device #appView .admin-actions button{font-size:19px!important;min-height:50px!important}
+
+html.mobile-device #appView .premium-nav,html.mobile-device #appView .mobile-bottom-nav{width:calc(100% - 8px)!important;height:104px!important;min-height:104px!important;padding:6px!important}
+html.mobile-device #appView .premium-nav .nav-btn,html.mobile-device #appView .mobile-bottom-nav .nav-btn{height:90px!important;min-height:90px!important}
+html.mobile-device #appView .premium-nav .atta-icon,html.mobile-device #appView .mobile-bottom-nav .atta-icon{width:43px!important;height:43px!important}
+html.mobile-device #appView .premium-nav .nav-btn span,html.mobile-device #appView .mobile-bottom-nav .nav-btn span{font-size:18px!important;font-weight:900!important}
+
+html.mobile-device .call-overlay-header strong{font-size:24px!important}
+html.mobile-device .call-overlay-header small{font-size:18px!important}
+html.mobile-device .call-peer-avatar{width:64px!important;height:64px!important}
+html.mobile-device .round-call-btn{width:84px!important;height:84px!important}
+html.mobile-device .round-call-btn .round-icon,html.mobile-device .round-call-btn svg{width:38px!important;height:38px!important}
+html.mobile-device .round-call-btn small{font-size:17px!important}
 
 .auth-view{
   width:100% !important;
@@ -4579,324 +4705,4 @@ html body #authView .atta-download-strip{display:none!important;}
  .atta-youtube-button svg{width:26px!important;height:26px!important}
  .reference-header-actions{gap:2px!important}
  .atta-yt-results{max-height:24dvh}
-}
-
-
-/* ===========================================================================
-   AL-ATTA / MOBILE NATIVE SCALE — ONE maintained override (v13.80)
-   Goal: website and web-wrapper APK match the native Android black/gold UI.
-   Previous conflicting enlarged mobile rules were removed from index.html
-   and the old block of style.css. No JS, IDs, visibility or API behavior changed.
-   Keep this at the very end of the stylesheet.
-   =========================================================================== */
-@media screen and (max-width:700px), screen and (hover:none) and (pointer:coarse) {
-  :is(html,html.mobile-device),
-  :is(html,html.mobile-device) body {
-    font-size:15px!important;
-    -webkit-text-size-adjust:100%!important;
-    text-size-adjust:100%!important;
-    max-width:100%!important;
-    overflow-x:clip!important;
-    background:#040506!important;
-    color:#f7f8f9!important;
-  }
-  :is(html,html.mobile-device) body * { box-sizing:border-box; }
-  :is(html,html.mobile-device) body :is(input,textarea,select,button) {font-family:inherit;letter-spacing:normal;}
-
-  /* LOGIN / REGISTER: scrolls vertically, never zooms or crops on the sides. */
-  :is(html,html.mobile-device) body #authView.auth-view {
-    width:100%!important;max-width:100%!important;min-width:0!important;
-    min-height:100dvh!important;overflow-x:clip!important;overflow-y:auto!important;
-    font-size:15px!important;background:#040506!important;
-  }
-  :is(html,html.mobile-device) body #authView .atta-login-shell {
-    width:100%!important;max-width:100%!important;min-height:100dvh!important;
-    height:auto!important;display:flex!important;flex-direction:column!important;
-    justify-content:flex-start!important;align-items:center!important;
-    padding:calc(env(safe-area-inset-top, 0px) + 12px) 12px calc(env(safe-area-inset-bottom, 0px) + 20px)!important;
-    margin:0!important;overflow:visible!important;background:#040506!important;
-  }
-  :is(html,html.mobile-device) body #authView .atta-login-card {
-    display:flex!important;flex-direction:column!important;align-items:stretch!important;
-    gap:0!important;flex:0 0 auto!important;width:100%!important;max-width:450px!important;
-    min-width:0!important;min-height:0!important;height:auto!important;max-height:none!important;
-    padding:18px 16px 20px!important;margin:0 auto!important;
-    border:1px solid rgba(230,185,78,.46)!important;border-radius:17px!important;
-    background:#090d0f!important;box-shadow:0 8px 28px #0008!important;
-    color:#f7f8f9!important;text-align:right!important;
-  }
-  :is(html,html.mobile-device) body #authView .atta-language {
-    font-size:12px!important;text-align:center!important;margin:0 0 8px!important;padding:0!important;
-  }
-  :is(html,html.mobile-device) body #authView .atta-login-brand {
-    gap:4px!important;margin:6px auto 14px!important;align-items:center!important;
-  }
-  :is(html,html.mobile-device) body #authView .atta-login-logo {
-    width:66px!important;height:66px!important;object-fit:contain!important;
-  }
-  :is(html,html.mobile-device) body #authView .atta-login-brand-name {
-    font-size:13px!important;color:#f6d776!important;letter-spacing:2px!important;
-  }
-  :is(html,html.mobile-device) body #authView #authMainFields,
-  :is(html,html.mobile-device) body #authView #registerFields,
-  :is(html,html.mobile-device) body #authView #verificationFields {
-    min-width:0!important;width:100%!important;max-width:100%!important;
-  }
-  :is(html,html.mobile-device) body #authView .atta-login-card input,
-  :is(html,html.mobile-device) body #authView .atta-login-card select,
-  :is(html,html.mobile-device) body #authView .atta-login-card textarea {
-    display:block;width:100%!important;min-width:0!important;max-width:100%!important;
-    height:50px!important;min-height:50px!important;max-height:none!important;
-    margin:0 0 10px!important;padding:0 13px!important;
-    border:1px solid #6b5429!important;border-radius:11px!important;
-    background:#0c1013!important;color:#f7f8f9!important;
-    font-size:16px!important;line-height:1.4!important;text-align:right!important;
-    box-shadow:none!important;
-  }
-  :is(html,html.mobile-device) body #authView .atta-login-card input::placeholder {
-    font-size:14px!important;color:#abb2b7!important;opacity:1!important;
-  }
-  :is(html,html.mobile-device) body #authView .atta-login-card input[type=date] {
-    color-scheme:dark!important;direction:ltr!important;text-align:right!important;
-    padding-inline:12px!important;-webkit-appearance:auto!important;
-  }
-  :is(html,html.mobile-device) body #authView #registerFields label {
-    display:block!important;max-width:100%!important;margin:4px 0 7px!important;
-    font-size:13px!important;line-height:1.5!important;font-weight:600!important;
-    color:#e6b94e!important;overflow-wrap:anywhere!important;
-  }
-  :is(html,html.mobile-device) body #authView .atta-login-button,
-  :is(html,html.mobile-device) body #authView .atta-create-button {
-    width:100%!important;max-width:100%!important;min-width:0!important;
-    height:48px!important;min-height:48px!important;max-height:none!important;
-    font-size:16px!important;border-radius:12px!important;
-    padding:0 12px!important;margin:5px 0 0!important;flex:0 0 auto!important;
-  }
-  :is(html,html.mobile-device) body #authView .atta-login-button {
-    background:linear-gradient(120deg,#b78327,#e6b94e)!important;color:#090d0f!important;
-  }
-  :is(html,html.mobile-device) body #authView .atta-create-button {
-    background:#0b1013!important;color:#f6d776!important;border:1px solid #e6b94e!important;
-  }
-  :is(html,html.mobile-device) body #authView .atta-forgot-button {
-    min-height:38px!important;font-size:14px!important;margin:7px auto 9px!important;
-  }
-  :is(html,html.mobile-device) body #authView .google-signin-section {
-    width:100%!important;max-width:100%!important;min-width:0!important;
-    font-size:12px!important;margin:12px 0 7px!important;overflow-wrap:anywhere!important;
-  }
-  :is(html,html.mobile-device) body #authView .google-signin-btn {
-    min-height:40px!important;width:100%!important;max-width:100%!important;
-  }
-  :is(html,html.mobile-device) body #authView .google-divider,
-  :is(html,html.mobile-device) body #authView .google-setup-hint,
-  :is(html,html.mobile-device) body #authView .register-verification-hint,
-  :is(html,html.mobile-device) body #authView #verificationFields p,
-  :is(html,html.mobile-device) body #authView #verificationFields small {
-    font-size:12px!important;line-height:1.6!important;overflow-wrap:anywhere!important;
-  }
-  :is(html,html.mobile-device) body #authView .atta-footer-brand {
-    margin:14px auto 0!important;font-size:13px!important;
-  }
-  :is(html,html.mobile-device) body #authView .atta-login-card .error {
-    font-size:12px!important;line-height:1.5!important;overflow-wrap:anywhere!important;
-  }
-  :is(html,html.mobile-device) body #authView .atta-login-card .atta-official-apk-download {
-    min-height:52px!important;padding:7px 12px!important;margin-bottom:10px!important;
-    border-radius:12px!important;flex-shrink:0!important;
-  }
-  :is(html,html.mobile-device) body #authView .atta-apk-title {font-size:13px!important;}
-  :is(html,html.mobile-device) body #authView .atta-apk-name {font-size:11px!important;}
-  :is(html,html.mobile-device) body #authView .atta-official-apk-download .atta-apk-icon {width:30px!important;height:30px!important;flex-basis:30px!important;}
-
-  /* Home and navigation: the same comfortable spacing as Android Compose. */
-  :is(html,html.mobile-device) body #appView {
-    width:100%!important;max-width:100%!important;min-width:0!important;
-    overflow-x:clip!important;font-size:15px!important;background:#040506!important;
-  }
-  :is(html,html.mobile-device) body #appView .premium-header {
-    height:70px!important;min-height:70px!important;padding:0 8px!important;
-    border-bottom:1px solid rgba(230,185,78,.4)!important;
-  }
-  :is(html,html.mobile-device) body #appView .reference-header-inner {
-    max-width:100%!important;width:100%!important;min-width:0!important;gap:5px!important;
-  }
-  :is(html,html.mobile-device) body #appView .header-icon-btn,
-  :is(html,html.mobile-device) body #appView .mobile-header-search-btn {
-    width:42px!important;min-width:42px!important;height:44px!important;min-height:44px!important;
-    padding:7px!important;border-radius:10px!important;
-  }
-  :is(html,html.mobile-device) body #appView .header-icon-btn svg,
-  :is(html,html.mobile-device) body #appView .mobile-header-search-btn svg,
-  :is(html,html.mobile-device) body #appView .header-icon-btn .atta-icon {
-    width:26px!important;height:26px!important;max-width:100%!important;
-  }
-  :is(html,html.mobile-device) body #appView .header-mini-badge {
-    min-width:19px!important;height:19px!important;line-height:19px!important;font-size:11px!important;
-  }
-  :is(html,html.mobile-device) body #appView #brandProfileBtn.reference-header-brand {
-    max-width:148px!important;min-width:0!important;gap:5px!important;padding:2px!important;
-  }
-  :is(html,html.mobile-device) body #appView #brandProfileBtn .header-profile-avatar {
-    width:38px!important;height:38px!important;flex:0 0 38px!important;
-  }
-  :is(html,html.mobile-device) body #appView #brandProfileBtn #headerProfileName {
-    max-width:95px!important;font-size:12px!important;line-height:1.2!important;
-  }
-  :is(html,html.mobile-device) body #appView #brandProfileBtn #headerProfileUsername {
-    max-width:95px!important;font-size:10px!important;
-  }
-  :is(html,html.mobile-device) body #appView .social-main {
-    max-width:100%!important;width:100%!important;margin:0!important;
-    padding:10px 0 94px!important;
-  }
-  :is(html,html.mobile-device) body #appView :is(.feed-column,.reference-feed-column,.reference-center-column,.page) {
-    width:100%!important;max-width:100%!important;min-width:0!important;
-  }
-  :is(html,html.mobile-device) body #appView .mobile-status-section,
-  :is(html,html.mobile-device) body #appView .mobile-friends-suggestions,
-  :is(html,html.mobile-device) body #appView .reference-composer {
-    margin:0 9px 12px!important;padding:12px!important;border-radius:15px!important;
-  }
-  :is(html,html.mobile-device) body #appView .mobile-status-head strong,
-  :is(html,html.mobile-device) body #appView .reference-card-title strong {font-size:18px!important;}
-  :is(html,html.mobile-device) body #appView .mobile-status-head button,
-  :is(html,html.mobile-device) body #appView .reference-friend-btn {font-size:13px!important;min-height:42px!important;}
-  :is(html,html.mobile-device) body #appView .feed-story-card {
-    width:102px!important;flex:0 0 102px!important;height:160px!important;border-radius:14px!important;
-  }
-  :is(html,html.mobile-device) body #appView .feed-story-card .story-avatar {width:40px!important;height:40px!important;}
-  :is(html,html.mobile-device) body #appView .feed-story-card .story-name,
-  :is(html,html.mobile-device) body #appView .feed-story-add .story-add-bottom {font-size:13px!important;}
-  :is(html,html.mobile-device) body #appView .reference-suggestion-user strong,
-  :is(html,html.mobile-device) body #appView .person-main strong,
-  :is(html,html.mobile-device) body #appView .friend-card strong {font-size:15px!important;}
-  :is(html,html.mobile-device) body #appView .reference-suggestion-user small,
-  :is(html,html.mobile-device) body #appView .person-main small,
-  :is(html,html.mobile-device) body #appView .friend-card small {font-size:12px!important;}
-  :is(html,html.mobile-device) body #appView .reference-suggestion-user img,
-  :is(html,html.mobile-device) body #appView .person-main img,
-  :is(html,html.mobile-device) body #appView .friend-card img {width:48px!important;height:48px!important;}
-  :is(html,html.mobile-device) body #appView .reference-composer-avatar {width:46px!important;height:46px!important;}
-  :is(html,html.mobile-device) body #appView .reference-composer-name {font-size:16px!important;}
-  :is(html,html.mobile-device) body #appView .reference-composer textarea {
-    min-height:76px!important;font-size:15px!important;line-height:1.5!important;
-    padding:12px!important;border-radius:12px!important;
-  }
-  :is(html,html.mobile-device) body #appView .reference-tool-btn,
-  :is(html,html.mobile-device) body #appView .reference-publish-btn {
-    min-height:44px!important;height:44px!important;font-size:13px!important;gap:5px!important;
-  }
-  :is(html,html.mobile-device) body #appView .reference-tool-btn svg,
-  :is(html,html.mobile-device) body #appView .reference-publish-btn svg {width:22px!important;height:22px!important;}
-  :is(html,html.mobile-device) body #appView .reference-post-card,
-  :is(html,html.mobile-device) body #appView .post-card {
-    width:calc(100% - 18px)!important;max-width:100%!important;
-    margin:0 9px 12px!important;padding:12px 0!important;
-    border-radius:15px!important;border:1px solid rgba(230,185,78,.32)!important;
-    background:#090d0f!important;
-  }
-  :is(html,html.mobile-device) body #appView .reference-post-header {gap:8px!important;padding:0 11px!important;}
-  :is(html,html.mobile-device) body #appView .reference-post-head .avatar,
-  :is(html,html.mobile-device) body #appView .post-head .avatar {
-    width:45px!important;height:45px!important;min-width:45px!important;
-  }
-  :is(html,html.mobile-device) body #appView .reference-post-meta strong,
-  :is(html,html.mobile-device) body #appView .post-head strong {font-size:16px!important;line-height:1.3!important;}
-  :is(html,html.mobile-device) body #appView .reference-post-meta small,
-  :is(html,html.mobile-device) body #appView .post-head small {font-size:12px!important;line-height:1.4!important;}
-  :is(html,html.mobile-device) body #appView .reference-post-text,
-  :is(html,html.mobile-device) body #appView .post-text {
-    font-size:16px!important;line-height:1.7!important;padding:10px 12px!important;
-    overflow-wrap:anywhere!important;
-  }
-  :is(html,html.mobile-device) body #appView .reference-post-image,
-  :is(html,html.mobile-device) body #appView .post-image {
-    max-width:100%!important;width:100%!important;height:auto!important;
-    max-height:68dvh!important;object-fit:contain!important;
-  }
-  :is(html,html.mobile-device) body #appView .post-menu-btn {width:38px!important;height:38px!important;}
-  :is(html,html.mobile-device) body #appView .post-menu-btn svg {width:22px!important;height:22px!important;}
-  :is(html,html.mobile-device) body #appView .reference-post-footer {padding:9px 10px!important;}
-  :is(html,html.mobile-device) body #appView .stat-btn,
-  :is(html,html.mobile-device) body #appView .text-action-btn {
-    min-height:45px!important;padding:0 6px!important;gap:6px!important;
-  }
-  :is(html,html.mobile-device) body #appView .stat-btn span,
-  :is(html,html.mobile-device) body #appView .text-action-btn span {font-size:13px!important;}
-  :is(html,html.mobile-device) body #appView .stat-btn svg,
-  :is(html,html.mobile-device) body #appView .text-action-btn svg,
-  :is(html,html.mobile-device) body #appView .stat-btn .atta-icon,
-  :is(html,html.mobile-device) body #appView .text-action-btn .atta-icon {width:23px!important;height:23px!important;}
-  :is(html,html.mobile-device) body #appView .reaction-summary {font-size:13px!important;}
-  :is(html,html.mobile-device) body #appView .comment-row,
-  :is(html,html.mobile-device) body #appView .comment-reply {font-size:14px!important;line-height:1.6!important;padding:8px 10px!important;color:#f7f8f9!important;}
-  :is(html,html.mobile-device) body #appView .reply-open-btn {font-size:13px!important;min-height:36px!important;}
-  :is(html,html.mobile-device) body #appView .comment-compose input,
-  :is(html,html.mobile-device) body #appView .reply-compose input {
-    min-height:46px!important;height:46px!important;font-size:15px!important;
-  }
-  :is(html,html.mobile-device) body #appView .comment-compose button,
-  :is(html,html.mobile-device) body #appView .reply-compose button {min-height:44px!important;height:44px!important;font-size:13px!important;}
-  :is(html,html.mobile-device) body #appView :is(.page-title h2,.friends-page-title h2,.admin-head h2) {font-size:21px!important;line-height:1.4!important;}
-  :is(html,html.mobile-device) body #appView :is(.page-title h3,.section-bar h3) {font-size:18px!important;}
-  :is(html,html.mobile-device) body #appView :is(.page-title button,.friends-find-btn,.admin-tabs button) {font-size:13px!important;min-height:42px!important;}
-  :is(html,html.mobile-device) body #appView .friends-page-card,
-  :is(html,html.mobile-device) body #appView .friend-section {margin:0 9px 12px!important;padding:12px!important;}
-  :is(html,html.mobile-device) body #appView .smart-notification-card,
-  :is(html,html.mobile-device) body #appView .notification-card {font-size:14px!important;line-height:1.55!important;padding:13px!important;}
-  :is(html,html.mobile-device) body #appView :is(.notification-action-hint,.notification-main-text) {font-size:14px!important;}
-  :is(html,html.mobile-device) body #appView :is(.smart-notification-card small,.notification-card small) {font-size:12px!important;}
-  :is(html,html.mobile-device) body #appView :is(.search-input,input[type="search"]) {height:48px!important;font-size:15px!important;}
-  :is(html,html.mobile-device) body #appView .profile-card-large {width:100%!important;max-width:100%!important;}
-  :is(html,html.mobile-device) body #appView .profile-cover {height:188px!important;min-height:188px!important;}
-  :is(html,html.mobile-device) body #appView .profile-cover-image {object-fit:cover!important;}
-  :is(html,html.mobile-device) body #appView .profile-large-avatar {width:94px!important;height:94px!important;}
-  :is(html,html.mobile-device) body #appView .profile-avatar-edit {width:36px!important;height:36px!important;}
-  :is(html,html.mobile-device) body #appView .profile-title-block h2 {font-size:21px!important;}
-  :is(html,html.mobile-device) body #appView #profileUsername,
-  :is(html,html.mobile-device) body #appView .profile-bio {font-size:14px!important;line-height:1.5!important;}
-  :is(html,html.mobile-device) body #appView .profile-edit-top {margin:10px 9px 12px!important;padding:12px!important;}
-  :is(html,html.mobile-device) body #appView .profile-edit-top :is(textarea,.privacy-row,button) {font-size:14px!important;}
-  :is(html,html.mobile-device) body #appView .profile-post-head img {width:44px!important;height:44px!important;}
-  :is(html,html.mobile-device) body #appView .profile-post-head strong {font-size:16px!important;}
-  :is(html,html.mobile-device) body #appView .profile-post-head small {font-size:12px!important;}
-  :is(html,html.mobile-device) body #appView .profile-post-text {font-size:15px!important;line-height:1.6!important;}
-  :is(html,html.mobile-device) body #appView .profile-post-stats {font-size:12px!important;}
-  :is(html,html.mobile-device) body #appView .chat-contact-avatar {width:46px!important;height:46px!important;}
-  :is(html,html.mobile-device) body #appView :is(.chat-contact strong,.conversation-title strong) {font-size:16px!important;}
-  :is(html,html.mobile-device) body #appView :is(.chat-contact small,.conversation-title small) {font-size:12px!important;}
-  :is(html,html.mobile-device) body #appView .message-bubble {font-size:15px!important;line-height:1.55!important;padding:10px 12px!important;}
-  :is(html,html.mobile-device) body #appView :is(.chat-input,.message-input) {min-height:46px!important;font-size:15px!important;}
-  :is(html,html.mobile-device) body #appView .admin-head p,
-  :is(html,html.mobile-device) body #appView .admin-item strong {font-size:15px!important;}
-  :is(html,html.mobile-device) body #appView .admin-item span,
-  :is(html,html.mobile-device) body #appView .admin-role-badge {font-size:12px!important;}
-  :is(html,html.mobile-device) body #appView .admin-stats strong {font-size:22px!important;}
-  :is(html,html.mobile-device) body #appView .admin-stats span {font-size:12px!important;}
-  :is(html,html.mobile-device) body #appView .admin-actions button {font-size:13px!important;min-height:40px!important;}
-  :is(html,html.mobile-device) body #appView :is(.premium-nav,.mobile-bottom-nav) {
-    width:calc(100% - 8px)!important;height:76px!important;min-height:76px!important;padding:5px!important;
-  }
-  :is(html,html.mobile-device) body #appView :is(.premium-nav .nav-btn,.mobile-bottom-nav .nav-btn) {
-    height:64px!important;min-height:64px!important;
-  }
-  :is(html,html.mobile-device) body #appView :is(.premium-nav .atta-icon,.mobile-bottom-nav .atta-icon) {
-    width:26px!important;height:26px!important;
-  }
-  :is(html,html.mobile-device) body #appView :is(.premium-nav .nav-btn span,.mobile-bottom-nav .nav-btn span) {
-    font-size:12px!important;font-weight:700!important;
-  }
-  :is(html,html.mobile-device) body .call-overlay-header strong {font-size:17px!important;}
-  :is(html,html.mobile-device) body .call-overlay-header small {font-size:12px!important;}
-  :is(html,html.mobile-device) body .call-peer-avatar {width:52px!important;height:52px!important;}
-  :is(html,html.mobile-device) body .round-call-btn {width:62px!important;height:62px!important;}
-  :is(html,html.mobile-device) body .round-call-btn :is(.round-icon,svg) {width:27px!important;height:27px!important;}
-  :is(html,html.mobile-device) body .round-call-btn small {font-size:12px!important;}
-}
-/* Use native layout proportions on narrow web-wrapper screens as well. */
-@media(max-width:359px) {
-  #appView .reference-header-title {display:none!important;}
-  #appView .header-icon-btn {width:39px!important;min-width:39px!important;}
-  #authView .atta-login-card {padding-inline:12px!important;}
 }
