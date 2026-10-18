@@ -39,5 +39,5 @@ assert.ok(!html.includes('text-align:justify'), 'Do not stretch Arabic words acr
 assert.ok(main.includes('tab != "القرآن" && (tab != "الرسائل"'), 'Hide app nav in reader');
 assert.ok(!html.includes('aria-label="رجوع"'), 'Use Android system back, no duplicate back button');
 assert.ok(video.includes('localVideo?.addSink(localFrameProbe)'), 'Native camera frames feed the local preview');
-assert.ok(gradle.includes('versionCode = 176') && gradle.includes('versionName = "1.0.76"'));
+assert.ok(gradle.includes('versionCode = 177') && gradle.includes('versionName = "1.0.77"'));
 console.log('PASS: Quran 604-page reader, verse recitations, tafsir, system navigation, native WebRTC camera preview');

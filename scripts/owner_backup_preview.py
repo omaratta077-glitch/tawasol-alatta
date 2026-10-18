@@ -58,8 +58,8 @@ def main():
     del password
     token = login['token']
     preview = request_json(origin, '/api/admin/reset/preview', {'token': token})
-    if preview.get('owner') != 'omar1' or preview.get('keepAccount') != 'omar1':
-        raise RuntimeError('Safety halt: server owner/keepAccount is not omar1. Verify SUPER_ADMIN_USERNAME.')
+    if preview.get('owner') != 'omar1':
+        raise RuntimeError('Safety halt: server owner is not omar1. Verify SUPER_ADMIN_USERNAME.')
     if username != 'omar1':
         raise RuntimeError('Safety halt: only omar1 may operate this script.')
     public_preview = {key: val for key, val in preview.items() if key != 'token'}

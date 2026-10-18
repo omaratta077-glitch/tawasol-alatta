@@ -1,0 +1,48 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import {webcrypto} from 'node:crypto';
+if(!globalThis.crypto)globalThis.crypto=webcrypto;
+const source=fs.readFileSync(new URL('../cloudflare-site/src/worker.js',import.meta.url),'utf8').replace('import { DurableObject } from "cloudflare:workers";','class DurableObject {}');
+const {SignalingRoom}=await import('data:text/javascript;charset=utf-8,'+encodeURIComponent(source));
+const map=new Map();const objects=new Map();let failMedia=false;let deleted=0;
+const storage={async get(k){return structuredClone(map.get(k))},async put(k,v){map.set(k,structuredClone(v))},async delete(k){map.delete(k)},async deleteAll(){map.clear();deleted++},async list({startAfter='',prefix='',limit=1000}={}){return new Map([...map].filter(([k])=>k>startAfter&&k.startsWith(prefix)).sort(([a],[b])=>a<b?-1:1).slice(0,limit).map(([k,v])=>[k,structuredClone(v)]))}};
+const media={async list({limit=1000,cursor=''}={}){const all=[...objects].sort(([a],[b])=>a<b?-1:1).filter(([k])=>k>cursor);const page=all.slice(0,limit).map(([key,size])=>({key,size,etag:'test'}));return{objects:page,truncated:all.length>limit,cursor:page.at(-1)?.key}},async delete(keys){if(failMedia){failMedia=false;throw Error('R2 unavailable')}for(const k of Array.isArray(keys)?keys:[keys])objects.delete(k)}};
+const messages=[];const ws={deserializeAttachment:()=>({user:'alice',token:'invalid'}),send:x=>messages.push(JSON.parse(x)),close(){}};
+const room=new SignalingRoom({storage,getWebSockets:()=>[ws],waitUntil:p=>p.catch(()=>{})},{SUPER_ADMIN_USERNAME:'omar1',SUPER_ADMIN_EMAIL:'owner@example.test',MEDIA_BUCKET:media});
+const hash=async text=>Buffer.from(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(text))).toString('hex');
+for(const [username,email] of [['omar1','owner@example.test'],['alice','alice@example.test'],['bob','bob@example.test'],['dina','dina@example.test']])await storage.put('user:'+username,{username,email,gender:'male',passwordHash:await hash('password123'),emailVerified:true});
+await storage.put('usernames',['omar1','alice','bob','dina']);
+for(const key of ['post:old','postIds','friends:alice','messages:alice:bob','pending-registration:old','verify-email-rate:alice@example.test','google-account:old','push:alice','unknown-future-key'])await storage.put(key,{old:true});
+for(let i=0;i<205;i++)objects.set('media/'+String(i).padStart(3,'0'),10);
+const sessions={};for(const name of ['omar1','alice','bob','dina'])sessions[name]=await room.createSession(name);
+async function api(path,body,method='POST'){const res=await room.api(new Request('https://unit.example'+path,{method,headers:{'content-type':'application/json'},...(method==='GET'?{}:{body:JSON.stringify(body||{})})}));return{status:res.status,data:await res.json()}}
+let checks=0;const check=(label,test)=>{assert.ok(test,label);checks++;console.log('PASS '+label)};
+check('ordinary user cannot plan complete reset',(await api('/api/admin/reset/plan',{token:sessions.alice})).status===403);
+room.env.SUPER_ADMIN_EMAIL='';check('owner recovery email must be configured before deleting admin',(await api('/api/admin/reset/plan',{token:sessions.omar1})).status===409);room.env.SUPER_ADMIN_EMAIL='owner@example.test';
+const plan=(await api('/api/admin/reset/plan',{token:sessions.omar1})).data;
+check('scope deletes every account including current owner',plan.scope.keepAccount===null&&plan.scope.keptAccounts.length===0&&plan.scope.byCategory.user===4&&plan.scope.media.count===205&&deleted===0);
+check('wrong confirmation is not destructive',(await api('/api/admin/reset/execute',{token:sessions.omar1,planId:plan.planId,confirmation:'wrong'})).status===400&&objects.size===205&&deleted===0);
+check('a different session cannot reuse the reset plan',(await api('/api/admin/reset/execute',{token:sessions.alice,planId:plan.planId,confirmation:plan.confirmation})).status===403);
+let release;const pending=new Promise(resolve=>{release=resolve});room.trackOperation(async()=>{await pending;await storage.put('post:late-write',{author:'alice'})});
+failMedia=true;const executing=api('/api/admin/reset/execute',{token:sessions.omar1,planId:plan.planId,confirmation:plan.confirmation});
+while(!room.resetClosing)await new Promise(resolve=>setTimeout(resolve,0));
+check('new registrations cannot race a reset',(await api('/api/register-request',{username:'racing'})).status===503);release();
+check('media failure keeps all accounts and reports incomplete reset',(await executing).status===503&&!!await storage.get('user:omar1')&&deleted===0);
+check('partial reset keeps maintenance gate closed',(await api('/api/me?token='+sessions.alice,null,'GET')).status===503);
+const resumed=await api('/api/admin/reset/plan',{token:sessions.omar1});check('same owner session can resume after failure',resumed.data.resuming&&resumed.data.planId===plan.planId);
+let result;do{result=await api('/api/admin/reset/execute',{token:sessions.omar1,planId:plan.planId,confirmation:plan.confirmation});assert.equal(result.status,200);}while(!result.data.done);
+check('all R2 objects and all Durable Object keys removed',objects.size===0&&map.size===0&&deleted===1);
+check('no owner record, old session, email reservation or pending registration retained',!map.has('user:omar1')&&!map.has('post:late-write')&&result.data.keptAccounts.length===0);
+check('old accounts cannot reuse old sessions',(await api('/api/me?token='+sessions.alice,null,'GET')).status===401);
+await room.webSocketClose(ws);await room.webSocketError(ws);check('late socket events cannot recreate lastSeen keys',map.size===0);
+check('connected old clients receive reset logout event',messages.some(x=>x.type==='account-reset'));
+const sent=new Map();room.sendVerificationEmail=async(email,code)=>sent.set(email,code);
+async function register(username,email,gender='male',extra={}){const first=await api('/api/register-request',{fullName:'New '+username,username,email,birthDate:'2000-01-01',gender,password:'newpass123',confirmPassword:'newpass123',...extra});assert.equal(first.status,200,JSON.stringify(first.data));const last=await api('/api/register-verify',{verificationId:first.data.verificationId,code:sent.get(email)});assert.equal(last.status,200,JSON.stringify(last.data));return last.data;}
+const alice=await register('alice','alice@example.test');check('same old username and email create a fresh account',alice.token&&!!await storage.get('user:alice')&&!await storage.get('friends:alice')&&!await storage.get('messages:alice:bob'));
+check('reserved admin username cannot be stolen with another email',(await api('/api/register-request',{fullName:'Fake Owner',username:'omar1',email:'fake@example.test',birthDate:'2000-01-01',gender:'male',password:'newpass123',confirmPassword:'newpass123'})).status===400);
+const owner=await register('omar1','owner@example.test');check('owner can create new clean admin account using same name and email',(await api('/api/me?token='+owner.token,null,'GET')).data.user.role==='super_admin');
+check('female signup requires explicit hiding choice',(await api('/api/register-request',{fullName:'New Dina',username:'dina',email:'dina@example.test',birthDate:'2000-01-01',gender:'female',password:'newpass123',confirmPassword:'newpass123'})).status===400);
+await register('dina','dina@example.test','female',{accountHidden:true});check('female hiding selection persists server-side',(await storage.get('user:dina')).accountHidden===true);
+const originalFetch=globalThis.fetch;globalThis.fetch=async()=>new Response(JSON.stringify({aud:'client',iss:'https://accounts.google.com',email_verified:true,sub:'old-bob-google',exp:Math.floor(Date.now()/1000)+3600,email:'bob@example.test'}));room.env.GOOGLE_CLIENT_ID='client';
+try{const bob=await api('/api/google-login',{credential:'verified-google-token',username:'bob',fullName:'New Bob',birthDate:'2000-01-01',gender:'male'});check('old Google email and username create a fresh Google account after reset',bob.status===200&&bob.data.token);}finally{globalThis.fetch=originalFetch;}
+console.log(checks+' FULL RESET CHECKS PASSED (in-memory test data only; no live deletion)');

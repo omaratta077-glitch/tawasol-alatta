@@ -680,13 +680,14 @@ function connect(){
   ws.onmessage=async e=>{
     const msg=JSON.parse(e.data);
 
+    if(msg.type==="account-reset"){await logoutCurrentAccount();location.reload();return;}
     if(CALL_SIGNAL_TYPES.has(msg.type)){
       await handleCallSignal(msg);
       return;
     }
 
     if(msg.type==="joined"){
-      me=msg.user;
+      me={...me,...msg.user};
       renderProfile();
       await loadChatContacts();
       await loadFriendRequests().catch(()=>{});
@@ -1827,19 +1828,40 @@ async function loadAdminDashboard(){
   }catch(e){alert(e.message||"تعذر تحميل لوحة الإدارة")}
 }
 
+let ownerResetPlan=null;
 const resetPreviewButton=$("adminResetPreviewBtn");
+const resetExecuteButton=$("adminResetExecuteBtn");
+const resetConfirmation=$("adminResetConfirmation");
 if(resetPreviewButton){
   resetPreviewButton.onclick=async()=>{
     if(me?.role!=="super_admin")return;
     const report=$("adminResetPreviewReport");
-    resetPreviewButton.disabled=true;
-    report.textContent="جاري فحص مفاتيح قاعدة البيانات وملفات R2 (بدون حذف)...";
+    resetPreviewButton.disabled=true;ownerResetPlan=null;
+    $("adminResetConfirmArea").classList.add("hidden");resetConfirmation.value="";resetExecuteButton.disabled=true;
+    report.textContent="جاري عرض نطاق الحذف (لم يُنفذ الحذف بعد)...";
     try{
-      const d=await api("/api/admin/reset/preview",{method:"POST",body:JSON.stringify({token})});
-      if(d.owner!=="omar1")throw new Error("اسم المدير الرئيسي في Cloudflare مختلف عن omar1؛ راجع الإعدادات");
-      report.textContent=`المدير المحفوظ: ${d.keepAccount}\nمفاتيح قاعدة البيانات: ${d.durableObjectKeys}\nملفات R2: ${d.media?.count??"غير متاحة"}\nحجم R2 (بايت): ${d.media?.bytes??"غير متاح"}\nتفصيل التخزين: ${JSON.stringify(d.byCategory,null,2)}\n\nلم تُحذف أي بيانات. النسخة الاحتياطية تُنفّذ محليًا عبر أداة owner_backup_preview.py.`;
-    }catch(e){report.textContent=e.message||"تعذر معاينة البيانات"}
-    finally{resetPreviewButton.disabled=false}
+      const d=await api("/api/admin/reset/plan",{method:"POST",body:JSON.stringify({token})});
+      ownerResetPlan=d;
+      report.textContent=`لن يبقى أي حساب، بما فيه omar1 الحالي.\nمفاتيح القاعدة: ${d.scope.durableObjectKeys}\nملفات الوسائط: ${d.scope.media.count}\nالحجم بالبايت: ${d.scope.media.bytes}\nتفصيل السجلات: ${JSON.stringify(d.scope.byCategory,null,2)}\nلا تُنشأ نسخة احتياطية.\nاكتب عبارة التأكيد ثم نفّذ الحذف.${d.resuming?"\nتوجد عملية سابقة؛ الزر يستكملها.":""}`;
+      $("adminResetConfirmArea").classList.remove("hidden");
+    }catch(e){report.textContent=e.message||"تعذر تجهيز التصفير";}
+    finally{resetPreviewButton.disabled=false;}
+  };
+  resetConfirmation.oninput=()=>{resetExecuteButton.disabled=!ownerResetPlan || resetConfirmation.value!==ownerResetPlan.confirmation;};
+  resetExecuteButton.onclick=async()=>{
+    if(!ownerResetPlan || resetConfirmation.value!==ownerResetPlan.confirmation)return;
+    const report=$("adminResetPreviewReport");resetExecuteButton.disabled=true;resetPreviewButton.disabled=true;resetConfirmation.disabled=true;
+    try{
+      let result;
+      do{
+        result=await api("/api/admin/reset/execute",{method:"POST",body:JSON.stringify({token,planId:ownerResetPlan.planId,confirmation:ownerResetPlan.confirmation})});
+        report.textContent=`جاري التصفير... ملفات الوسائط المحذوفة: ${result.deletedMedia||0}`;
+      }while(!result.done);
+      await logoutCurrentAccount();
+      alert("اكتمل التصفير: لا توجد حسابات أو منشورات أو رسائل أو ملفات وسائط. أنشئ حسابًا جديدًا؛ الأسماء والإيميلات متاحة مجددًا.");
+      location.reload();
+    }catch(e){report.textContent=(e.message||"توقف التصفير")+"\nأعد الضغط لاستكماله من نفس جلسة المدير.";resetExecuteButton.disabled=false;}
+    finally{resetPreviewButton.disabled=false;resetConfirmation.disabled=false;}
   };
 }
 

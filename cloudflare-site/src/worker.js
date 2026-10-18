@@ -46,6 +46,76 @@ export class SignalingRoom extends DurableObject {
     super(ctx, env);
     this.ctx=ctx;
     this.env=env;
+    this.activeOperations=new Set();
+    this.resetClosing=false;
+    this.resetStepBusy=false;
+  }
+
+  trackOperation(fn){
+    const operation=Promise.resolve().then(fn);
+    this.activeOperations.add(operation);
+    operation.finally(()=>this.activeOperations.delete(operation)).catch(()=>{});
+    return operation;
+  }
+
+  async resetActive(){
+    const state=await this.ctx.storage.get("owner-reset:plan");
+    return this.resetClosing || state?.phase==="deleting";
+  }
+
+  ownerEmail(){return String(this.env.SUPER_ADMIN_EMAIL||"").trim().toLowerCase();}
+
+  ownerRegistrationAllowed(username,email){
+    return username!==this.ownerUsername() || !!this.ownerEmail() && String(email||"").trim().toLowerCase()===this.ownerEmail();
+  }
+
+  async resetInventory(){
+    const byCategory={};let cursor,total=0;
+    do{
+      const page=await this.ctx.storage.list({limit:200,...(cursor?{startAfter:cursor}:{})});
+      const keys=[...page.keys()];
+      for(const key of keys){
+        if(key==="owner-reset:plan")continue;
+        const category=key.includes(":")?key.split(":",1)[0]:key;
+        byCategory[category]=(byCategory[category]||0)+1;total++;
+      }
+      cursor=keys.length===200?keys.at(-1):undefined;
+    }while(cursor);
+    let media={configured:!!this.env.MEDIA_BUCKET,count:0,bytes:0};
+    if(this.env.MEDIA_BUCKET){
+      let next;
+      do{
+        const page=await this.env.MEDIA_BUCKET.list({limit:1000,...(next?{cursor:next}:{})});
+        for(const object of page.objects){media.count++;media.bytes+=Number(object.size||0);}
+        next=page.truncated?page.cursor:undefined;
+      }while(next);
+    }
+    return {durableObjectKeys:total,byCategory,media,keepAccount:null,keptAccounts:[],deleteOwnerAccount:true};
+  }
+
+  async visiblePost(post,viewer,depth=0){
+    if(!post || !await this.canSeeContent(viewer,post.author))return null;
+    const out={...post,likes:[],comments:[],reactions:{}};
+    const visible=async name=>!!name && await this.canViewProfile(viewer,name);
+    for(const name of post.likes||[])if(await visible(name))out.likes.push(name);
+    for(const [kind,names] of Object.entries(post.reactions||{})){
+      out.reactions[kind]=[];
+      for(const name of Array.isArray(names)?names:[])if(await visible(name))out.reactions[kind].push(name);
+    }
+    for(const comment of post.comments||[]){
+      if(!await visible(comment.author))continue;
+      const replies=[];
+      for(const reply of comment.replies||[])if(await visible(reply.author))replies.push({...reply});
+      out.comments.push({...comment,replies});
+    }
+    delete out.sharedPost;
+    if(post.sharedPostId){
+      const original=await this.ctx.storage.get(`post:${post.sharedPostId}`);
+      const shared=original && !original.archived && depth<3?await this.visiblePost(original,viewer,depth+1):null;
+      if(shared)out.sharedPost={...shared,authorInfo:await this.publicUser(shared.author)};
+      else {delete out.sharedPostId;delete out.sharedFrom;out.sharedPost=null;}
+    }
+    return out;
   }
 
   sockets(){ try{return this.ctx.getWebSockets()}catch{return []} }
@@ -188,7 +258,10 @@ export class SignalingRoom extends DurableObject {
 
   async roleFor(username){
     const name=String(username||"").trim().toLowerCase();
-    if(name && name===this.ownerUsername())return "super_admin";
+    if(name && name===this.ownerUsername()){
+      const user=await this.user(name);
+      if(user && (!this.ownerEmail() || String(user.email||"").toLowerCase()===this.ownerEmail()))return "super_admin";
+    }
     // Legacy moderators are intentionally no longer elevated. omar1 is sole admin.
     return "user";
   }
@@ -241,6 +314,7 @@ export class SignalingRoom extends DurableObject {
     if(!reg.email)return "أدخل البريد الإلكتروني لاستلام كود التأكيد";
     if(reg.phone && !/^\+?[0-9]{8,15}$/.test(reg.phone))return "رقم الهاتف غير صحيح";
     if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(reg.email))return "البريد الإلكتروني غير صحيح";
+    if(!this.ownerRegistrationAllowed(reg.username,reg.email))return "اسم المدير محجوز للبريد المعتمد في إعدادات Cloudflare";
     if(reg.password.length<6)return "كلمة المرور 6 أحرف على الأقل";
     if(reg.password!==reg.confirmPassword)return "كلمتا المرور غير متطابقتين";
     if(await this.user(reg.username))return "اسم المستخدم موجود بالفعل";
@@ -337,6 +411,15 @@ export class SignalingRoom extends DurableObject {
   }
 
   async api(request){
+    const path=new URL(request.url).pathname;
+    if(!path.startsWith("/api/admin/reset/")){
+      if(await this.resetActive())return j({ok:false,error:"التطبيق تحت التصفير؛ أعد المحاولة بعد اكتماله",code:"RESET_IN_PROGRESS"},503);
+      return this.trackOperation(()=>this.apiRequest(request));
+    }
+    return this.apiRequest(request);
+  }
+
+  async apiRequest(request){
     const url=new URL(request.url);
 
     if(url.pathname==="/api/diagnostics/env" && request.method==="GET"){
@@ -597,6 +680,10 @@ export class SignalingRoom extends DurableObject {
 
       const reg=pending.registration||{};
 
+      if(!["male","female"].includes(reg.gender) || reg.gender==="female" && typeof reg.accountHidden!=="boolean")
+        return j({ok:false,error:"أعد إنشاء الحساب لاختيار النوع وإعداد الإخفاء"},400);
+      if(!this.ownerRegistrationAllowed(reg.username,reg.email))return j({ok:false,error:"اسم المدير محجوز للبريد المعتمد"},403);
+
       if(await this.user(reg.username)){
         await this.ctx.storage.delete(key);
         return j({ok:false,error:"اسم المستخدم موجود بالفعل"},409);
@@ -753,6 +840,7 @@ export class SignalingRoom extends DurableObject {
           return j({ok:false,error:"كلمة مرور Google الجديدة غير مطابقة أو قصيرة (8 أحرف على الأقل)"},400);
         }
         const gender=String(body.gender||"").trim().toLowerCase();
+        if(!this.ownerRegistrationAllowed(chosenUsername,email))return j({ok:false,error:"اسم المدير محجوز للبريد المعتمد"},403);
         if(!["male","female"].includes(gender))return j({ok:false,error:"اختيار النوع (ذكر أو أنثى) إجباري",code:"GENDER_REQUIRED"},400);
         if(gender==="female" && typeof body.accountHidden!=="boolean")return j({ok:false,error:"اختاري هل تريدين إخفاء الحساب أم لا",code:"HIDDEN_CHOICE_REQUIRED"},400);
         if(gender==="male" && body.accountHidden===true)return j({ok:false,error:"خيار إخفاء الحساب متاح عند اختيار أنثى فقط"},400);
@@ -1018,7 +1106,9 @@ export class SignalingRoom extends DurableObject {
             const u=await this.user(member);
             if(u && (!u.accountHidden || member===s.username || await this.canCommunicate(s.username,member)))visibleMembers.push(member);
           }
-          groups.push({...g,members:visibleMembers});
+          const visibleGroup={...g,members:visibleMembers};
+          if(g.createdBy && !await this.canViewProfile(s.username,g.createdBy))delete visibleGroup.createdBy;
+          groups.push(visibleGroup);
         }
       }
       return j({ok:true,groups});
@@ -1271,7 +1361,7 @@ export class SignalingRoom extends DurableObject {
       const posts=[];
       for(const id of [...ids].reverse()){
         const p=await this.ctx.storage.get(`post:${id}`);
-        if(p && p.author===s.username && p.archived===true)posts.push(p);
+        if(p && p.author===s.username && p.archived===true)posts.push(await this.visiblePost(p,s.username));
         if(posts.length>=100)break;
       }
       return j({ok:true,posts});
@@ -1304,8 +1394,9 @@ export class SignalingRoom extends DurableObject {
       const saved=await this.ctx.storage.get(`saved:${s.username}`)||[];
 
       for(const id of [...ids].reverse().slice(0,limit)){
-        const p=await this.ctx.storage.get(`post:${id}`);
-        if(!p || p.archived===true || !await this.canSeeContent(s.username,p.author))continue;
+        const raw=await this.ctx.storage.get(`post:${id}`);
+        if(!raw || raw.archived===true)continue;
+        const p=await this.visiblePost(raw,s.username);if(!p)continue;
         const reactionCounts={};
         const reactions=p.reactions||{};
         for(const key of ["like","love","haha","wow","sad","angry","dislike"]){
@@ -1317,13 +1408,7 @@ export class SignalingRoom extends DurableObject {
           if((reactions[key]||[]).includes(s.username)){myReaction=key;break;}
         }
 
-        let sharedPost=null;
-        if(p.sharedPostId){
-          const original=await this.ctx.storage.get(`post:${p.sharedPostId}`);
-          if(original && !original.archived && await this.canSeeContent(s.username,original.author)){
-            sharedPost={...original,authorInfo:await this.publicUser(original.author)};
-          }
-        }
+        const sharedPost=p.sharedPost||null;
 
         const authorInfo=await this.publicUser(p.author);
 
@@ -1431,7 +1516,12 @@ export class SignalingRoom extends DurableObject {
       if(!s)return j({ok:false,error:"الجلسة منتهية"},401);
 
       const list=await this.ctx.storage.get(`notifications:${s.username}`)||[];
-      return j({ok:true,notifications:[...list].reverse().slice(0,100)});
+      const visible=[];
+      for(const notification of [...list].reverse()){
+        if(!notification.from || await this.canViewProfile(s.username,notification.from))visible.push(notification);
+        if(visible.length===100)break;
+      }
+      return j({ok:true,notifications:visible});
     }
 
     if(url.pathname==="/api/notifications/read" && request.method==="POST"){
@@ -1712,7 +1802,8 @@ export class SignalingRoom extends DurableObject {
       for(const id of [...ids].reverse()){
         const p=await this.ctx.storage.get(`post:${id}`);
         if(!p || p.archived || !await this.canSeeContent(s.username,p.author))continue;
-        posts.push({...p,authorInfo:await this.publicUser(p.author),savedByMe:true});
+        const visible=await this.visiblePost(p,s.username);
+        if(visible)posts.push({...visible,authorInfo:await this.publicUser(p.author),savedByMe:true});
       }
 
       return j({ok:true,posts});
@@ -1789,7 +1880,7 @@ export class SignalingRoom extends DurableObject {
       });
 
       await this.ctx.storage.put(`post:${post.id}`,post);
-      if(comment.author!==s.username && await this.user(comment.author)){
+      if(comment.author!==s.username && await this.user(comment.author) && await this.canRevealInteraction(s.username,comment.author)){
         const notification={id:crypto.randomUUID(),type:"comment-reply",from:s.username,
           postId:post.id,commentId:comment.id,createdAt:Date.now(),read:false};
         const list=await this.ctx.storage.get(`notifications:${comment.author}`)||[];
@@ -1812,8 +1903,9 @@ export class SignalingRoom extends DurableObject {
       const posts=[];
 
       for(const id of ids){
-        const p=await this.ctx.storage.get(`post:${id}`);
-        if(!p || p.archived || blocked.includes(p.author) || !await this.canSeeContent(s.username,p.author))continue;
+        const raw=await this.ctx.storage.get(`post:${id}`);
+        if(!raw || raw.archived || blocked.includes(raw.author))continue;
+        const p=await this.visiblePost(raw,s.username);if(!p)continue;
         const authorInfo=await this.publicUser(p.author);
         const haystack=`${p.text||""} ${p.author||""} ${authorInfo?.fullName||authorInfo?.displayName||""}`.toLowerCase();
         if(!haystack.includes(q))continue;
@@ -1893,37 +1985,67 @@ export class SignalingRoom extends DurableObject {
       }});
     }
 
-    // Owner-only, READ-ONLY reset preparation. Export every Durable Object key before
-    // approving any destructive operation. There is deliberately NO DELETE endpoint.
-    if(url.pathname==="/api/admin/reset/preview" && request.method==="POST"){
-      const auth=await this.requireAdmin(body.token||"");
-      if(auth.error)return auth.error;
-      const byCategory={};
-      let cursor=undefined,total=0;
-      do {
-        const options={limit:200};
-        if(cursor)options.startAfter=cursor;
-        const page=await this.ctx.storage.list(options);
-        const keys=[...page.keys()];
-        for(const key of keys){
-          const category=key.includes(":")?key.split(":",1)[0]:key;
-          byCategory[category]=(byCategory[category]||0)+1;
-        }
-        total+=keys.length;
-        cursor=keys.length===200?keys[keys.length-1]:undefined;
-      } while(cursor);
-      let media={configured:!!this.env.MEDIA_BUCKET,needsSeparateBackup:true};
-      if(this.env.MEDIA_BUCKET){
-        let mediaCursor=undefined,count=0,bytes=0;
-        do {
-          const page=await this.env.MEDIA_BUCKET.list({limit:1000,...(mediaCursor?{cursor:mediaCursor}:{})});
-          for(const obj of page.objects){count++;bytes+=obj.size||0;}
-          mediaCursor=page.truncated?page.cursor:undefined;
-        }while(mediaCursor);
-        media={configured:true,needsSeparateBackup:true,count,bytes};
+    // Only the authenticated owner can review and execute a complete reset.
+    // No user record (including omar1), media or backup is retained by this flow.
+    if(url.pathname==="/api/admin/reset/plan" && request.method==="POST"){
+      const auth=await this.requireAdmin(body.token||"");if(auth.error)return auth.error;
+      const owner=await this.user(auth.session.username);
+      if(this.ownerUsername()!=="omar1" || !this.ownerEmail() || this.ownerEmail()!==String(owner?.email||"").toLowerCase())
+        return j({ok:false,error:"اضبط SUPER_ADMIN_USERNAME=omar1 و SUPER_ADMIN_EMAIL ببريد المدير نفسه أولًا؛ حتى يمكن إعادة إنشاء حساب المدير بأمان",code:"OWNER_EMAIL_REQUIRED"},409);
+      if(!this.env.MEDIA_BUCKET)return j({ok:false,error:"اربط مخزن MEDIA_BUCKET قبل التصفير لمسح ملفات الوسائط أيضًا"},409);
+      const previous=await this.ctx.storage.get("owner-reset:plan");
+      if(previous?.phase==="deleting"){
+        if(previous.tokenHash!==await hashPassword(body.token))return j({ok:false,error:"استكمل التصفير من جلسة المدير التي بدأت العملية"},403);
+        return j({ok:true,planId:previous.id,confirmation:"امسح كل الحسابات",scope:previous.scope,resuming:true});
       }
-      return j({ok:true,dryRun:true,owner:this.ownerUsername(),keepAccount:this.ownerUsername(),
-        durableObjectKeys:total,byCategory,media,deleted:false});
+      const scope=await this.resetInventory();
+      const plan={id:crypto.randomUUID(),tokenHash:await hashPassword(body.token),phase:"review",expiresAt:Date.now()+600000,scope,deletedMedia:0};
+      await this.ctx.storage.put("owner-reset:plan",plan);
+      return j({ok:true,planId:plan.id,confirmation:"امسح كل الحسابات",scope,resuming:false});
+    }
+
+    if(url.pathname==="/api/admin/reset/execute" && request.method==="POST"){
+      const auth=await this.requireAdmin(body.token||"");if(auth.error)return auth.error;
+      const plan=await this.ctx.storage.get("owner-reset:plan");
+      if(!plan || plan.id!==body.planId || plan.tokenHash!==await hashPassword(body.token))
+        return j({ok:false,error:"اعرض تقرير التصفير من هذه الجلسة أولًا"},409);
+      if(body.confirmation!=="امسح كل الحسابات")return j({ok:false,error:"اكتب عبارة التأكيد كما ظهرت في التقرير"},400);
+      if(plan.phase!=="deleting" && Date.now()>plan.expiresAt)return j({ok:false,error:"انتهت صلاحية التقرير؛ اعرضه من جديد"},409);
+      if(this.resetStepBusy)return j({ok:false,error:"توجد دفعة تصفير قيد التنفيذ؛ أعد المحاولة",code:"RESET_BUSY"},409);
+      this.resetStepBusy=true;
+      try{
+        this.resetClosing=true;
+        plan.phase="deleting";
+        await this.ctx.storage.put("owner-reset:plan",plan);
+        // Let already-authorized work settle; the gate now refuses new work.
+        await Promise.allSettled([...this.activeOperations]);
+        for(const ws of this.sockets())try{
+          if(this.meta(ws).user!==auth.session.username)this.send(ws,{type:"account-reset"});
+          ws.close(1012,"Application reset");
+        }catch{}
+        if(this.env.MEDIA_BUCKET){
+          // Always list the first remaining page; deleting while following a cursor can skip keys.
+          const page=await this.env.MEDIA_BUCKET.list({limit:100});
+          if(page.objects.length){
+            await this.env.MEDIA_BUCKET.delete(page.objects.map(object=>object.key));
+            plan.deletedMedia+=page.objects.length;
+            await this.ctx.storage.put("owner-reset:plan",plan);
+            return j({ok:true,done:false,deletedMedia:plan.deletedMedia});
+          }
+        }
+        await this.ctx.storage.deleteAll();
+        this.recentPush?.clear();this.fcmToken=null;this.fcmExpires=0;
+        this.resetClosing=false;
+        return j({ok:true,done:true,users:0,posts:0,durableObjectKeys:0,mediaObjects:0,keptAccounts:[],deletedMedia:plan.deletedMedia,loggedOut:true});
+      }catch{
+        // The persisted gate stays closed on partial R2 failure; retry from the same owner session.
+        return j({ok:false,error:"توقف التصفير قبل اكتماله. أعد المحاولة من جلسة المدير نفسها",code:"RESET_RETRY_REQUIRED"},503);
+      }finally{this.resetStepBusy=false;}
+    }
+
+    if(url.pathname==="/api/admin/reset/preview" && request.method==="POST"){
+      const auth=await this.requireAdmin(body.token||"");if(auth.error)return auth.error;
+      return j({ok:true,dryRun:true,owner:this.ownerUsername(),...await this.resetInventory(),deleted:false});
     }
 
     if(url.pathname==="/api/admin/reset/export" && request.method==="POST"){
@@ -2183,6 +2305,12 @@ export class SignalingRoom extends DurableObject {
   }
 
   async fetch(request){
+    if(new URL(request.url).pathname.startsWith("/api/"))return this.api(request);
+    if(await this.resetActive())return new Response("Application reset in progress",{status:503});
+    return this.trackOperation(()=>this.socketFetch(request));
+  }
+
+  async socketFetch(request){
     const url=new URL(request.url);
 
     if(url.pathname.startsWith("/api/")){
@@ -2209,9 +2337,12 @@ export class SignalingRoom extends DurableObject {
     await this.ctx.storage.put(`lastSeen:${s.username}`,Date.now());
 
     queueMicrotask(async()=>{
-      this.send(server,{type:"joined",user:await this.publicUser(s.username)});
-      await this.deliverPendingMessages(s.username,server);
-      await this.broadcastUsers();
+      if(await this.resetActive())return;
+      this.send(server,{type:"joined",user:{...await this.publicUser(s.username),role:await this.roleFor(s.username)}});
+      await this.trackOperation(async()=>{
+        await this.deliverPendingMessages(s.username,server);
+        await this.broadcastUsers();
+      });
     });
 
     return new Response(null,{status:101,webSocket:client});
@@ -2444,7 +2575,7 @@ export class SignalingRoom extends DurableObject {
     if(!this.env.FIREBASE_SERVICE_ACCOUNT_JSON)return;
     if(!['chat','friend-request','friend-accepted','like','reaction','comment',
       'comment-reply','follow','share'].includes(event.type))return;
-    this.ctx.waitUntil(this.deliverUserPush(to,event));
+    this.ctx.waitUntil(this.trackOperation(()=>this.deliverUserPush(to,event)));
   }
 
   async deliverUserPush(to,event){
@@ -2467,7 +2598,7 @@ export class SignalingRoom extends DurableObject {
     const key=to+':'+event.callId+':'+event.type;
     if(this.recentPush.has(key) && now-this.recentPush.get(key)<30000)return;
     this.recentPush.set(key,now);
-    this.ctx.waitUntil(this.deliverCallPush(to,event));
+    this.ctx.waitUntil(this.trackOperation(()=>this.deliverCallPush(to,event)));
   }
 
   async addCallLog(a,b,kind,status){
@@ -2486,6 +2617,11 @@ export class SignalingRoom extends DurableObject {
   }
 
   async webSocketMessage(ws,message){
+    if(await this.resetActive()){try{ws.close(1012,"Application reset");}catch{}return;}
+    return this.trackOperation(()=>this.handleSocketMessage(ws,message));
+  }
+
+  async handleSocketMessage(ws,message){
     let msg;
     try{
       msg=JSON.parse(typeof message==="string"?message:new TextDecoder().decode(message));
@@ -2621,14 +2757,16 @@ export class SignalingRoom extends DurableObject {
   }
 
   async webSocketClose(ws){
+    if(await this.resetActive())return;
+    return this.trackOperation(()=>this.handleSocketClose(ws));
+  }
+  async handleSocketClose(ws){
     const user=this.meta(ws).user;
-    if(user)await this.ctx.storage.put(`lastSeen:${user}`,Date.now());
+    if(user && await this.session(this.meta(ws).token))await this.ctx.storage.put(`lastSeen:${user}`,Date.now());
     await this.broadcastUsers();
   }
   async webSocketError(ws){
-    const user=this.meta(ws).user;
-    if(user)await this.ctx.storage.put(`lastSeen:${user}`,Date.now());
-    await this.broadcastUsers();
+    return this.webSocketClose(ws);
   }
 }
 
@@ -2641,7 +2779,7 @@ export default {
       return Response.json({
         ok:true,
         app:"تواصل العطا",
-        version:"V13.70-Reviewed"
+        version:"V13.77-Admin-Privacy-Full-Reset"
       });
     }
 

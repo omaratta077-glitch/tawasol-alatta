@@ -920,9 +920,10 @@ html.mobile-device .atta-footer-brand{font-size:clamp(22px,2.8dvh,28px)!importan
         <div><strong id="adminBannedCount">0</strong><span>الموقوفون</span></div>
       </div>
       <div style="margin:12px 0;padding:12px;border:1px solid #b48a37;border-radius:12px;background:#111619">
-        <strong style="color:#e6b94e">تجهيز تصفير الحسابات — معاينة فقط</strong>
-        <p style="color:#c0c4c5;font-size:13px">لن يتم مسح أي حساب أو ملف. احتفظ بالمدير omar1 ثم راجع النسخة الاحتياطية قبل طلب التنفيذ.</p>
+        <strong style="color:#e6b94e">تصفير كل الحسابات والبيانات</strong>
+        <p style="color:#c0c4c5;font-size:13px">الحذف يشمل جميع الحسابات بما فيها حساب المدير الحالي، والمنشورات والرسائل والصور والفيديو. لا تُنشأ نسخة احتياطية. يمكن التسجيل بنفس الإيميلات والأسماء بعد اكتمال التصفير.</p>
         <button type="button" id="adminResetPreviewBtn" class="gold-mini">عرض تقرير البيانات قبل التصفير</button>
+        <div id="adminResetConfirmArea" class="hidden"><input id="adminResetConfirmation" placeholder="اكتب: امسح كل الحسابات" autocomplete="off"><button type="button" id="adminResetExecuteBtn" class="danger" disabled>تنفيذ التصفير الكامل</button></div>
         <pre id="adminResetPreviewReport" style="white-space:pre-wrap;word-break:break-word;color:#f5d78a;font-size:12px" aria-live="polite"></pre>
       </div>
       <div class="admin-tabs">

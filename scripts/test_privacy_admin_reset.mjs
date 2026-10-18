@@ -55,7 +55,7 @@ check('Unauthorised user cannot preview reset', (await post('/api/admin/reset/pr
 check('Unauthorised user cannot export DO', (await post('/api/admin/reset/export',{token:sessions.alice})).status===403);
 check('Unauthorised user cannot export R2 inventory', (await post('/api/admin/reset/media-list',{token:sessions.alice})).status===403);
 const preview=await post('/api/admin/reset/preview',{token:sessions.omar1});
-check('Owner can preview without deletion', preview.status===200 && preview.data.dryRun===true && preview.data.keepAccount==='omar1' && preview.data.media.count===1);
+check('Owner can preview without deletion', preview.status===200 && preview.data.dryRun===true && preview.data.keepAccount===null && preview.data.deleteOwnerAccount===true && preview.data.media.count===1);
 const exported=[];
 let cursor='';
 while(true){
@@ -72,4 +72,24 @@ check('No data was deleted during preview or export', deletes===0 && !!(await st
 check('Gender is required for standard registration', Boolean(await room.validateRegistration({fullName:'X Test',username:'newname',age:20,email:'new@test.com',gender:'',password:'123456',confirmPassword:'123456'})));
 check('Female hiding choice is mandatory', (await room.validateRegistration({fullName:'X Test',username:'newname',age:20,email:'new@test.com',gender:'female',password:'123456',confirmPassword:'123456'})).includes('إخفاء'));
 check('Male registration cannot request hidden account', (await room.validateRegistration({fullName:'X Test',username:'newname',age:20,email:'new@test.com',gender:'male',accountHidden:true,password:'123456',confirmPassword:'123456'})).includes('متاح'));
+// Hidden identities must also be removed from nested public content and legacy data.
+const publicPost={id:'public',author:'bob',text:'visible sample',likes:['dina','bob'],reactions:{love:['dina']},comments:[
+ {id:'hidden-comment',author:'dina',text:'private'},
+ {id:'public-comment',author:'bob',text:'visible',replies:[{id:'hidden-reply',author:'dina',text:'private reply'}]}
+]};
+await storage.put('post:public',publicPost);
+await storage.put('post:hidden-source',{id:'hidden-source',author:'dina',text:'private source',likes:[],comments:[]});
+await storage.put('post:shared',{id:'shared',author:'bob',text:'visible shared sample',sharedPostId:'hidden-source',sharedFrom:'dina',likes:[],comments:[]});
+await storage.put('postIds',['public','hidden-source','shared']);
+await storage.put('saved:alice',['public','shared']);
+for(const path of ['/api/posts','/api/saved-posts','/api/explore']){
+ const result=await get(path+'?token='+sessions.alice+'&q=visible');
+ check('Hidden identity absent from '+path, result.status===200&&!JSON.stringify(result.data).includes('dina'));
+}
+const friendFeed=await get('/api/posts?token='+sessions.bob);
+check('Confirmed friend can still see hidden friend interactions',JSON.stringify(friendFeed.data).includes('hidden-comment'));
+await storage.put('notifications:alice',[{id:'legacy-hidden',from:'dina',type:'comment'},{id:'visible-note',from:'bob',type:'comment'}]);
+check('Legacy notifications do not reveal hidden stranger',(await get('/api/notifications?token='+sessions.alice)).data.notifications.length===1);
+await storage.put('groupIds',['legacy']);await storage.put('group:legacy',{id:'legacy',createdBy:'dina',members:['alice','dina','bob']});
+check('Legacy group metadata hides unknown hidden creator',!JSON.stringify((await get('/api/groups?token='+sessions.alice)).data).includes('dina'));
 console.log('ALL PRIVACY AND OWNER PREVIEW TESTS PASSED');

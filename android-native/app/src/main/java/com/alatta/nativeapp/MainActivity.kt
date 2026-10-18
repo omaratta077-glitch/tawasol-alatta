@@ -614,6 +614,9 @@ private class AttaYoutubeFullscreenChrome(
     var resetCode by remember { mutableStateOf("") }
     var resetPassword by remember { mutableStateOf("") }
     var resetConfirm by remember { mutableStateOf("") }
+    var ownerResetPlan by remember { mutableStateOf<JSONObject?>(null) }
+    var ownerResetConfirmation by remember { mutableStateOf("") }
+    var ownerResetReport by remember { mutableStateOf("") }
     var regGender by remember { mutableStateOf("") }
     var regHideChoice by remember { mutableStateOf<Boolean?>(null) }
     var regPass by remember { mutableStateOf("") }
@@ -743,6 +746,18 @@ private class AttaYoutubeFullscreenChrome(
         prefs.edit().putString("token", token).putString("name", displayName).putString("username", myUsername).apply()
         password = ""; regPass = ""; regConfirm = ""; googleIdToken = ""; googlePassword = ""; googlePasswordConfirm = ""
         resetPassword = ""; resetConfirm = ""; authMode = "login"; tab = "الرئيسية"
+    }
+    fun clearLocalSession() {
+        activeCall = null; incomingCall = null; pendingPermissionCall = null
+        AttaPush.activeCallId = ""
+        chatWith = ""; messages = emptyList(); inboxPreviews = emptyList(); recentChatPeers.clear()
+        posts = emptyList(); ownPosts = emptyList(); publicPosts = emptyList(); archivedPosts = emptyList()
+        notifications = emptyList(); friends = emptyList(); publicFriends = emptyList(); requests = emptyList(); users = emptyList(); groups = emptyList()
+        adminUsers = emptyList(); adminPosts = emptyList(); adminRole = ""
+        profile = JSONObject(); publicProfile = null; displayName = ""; myUsername = ""; myAvatar = ""
+        googleIdToken = ""; googleEmail = ""; ownerResetPlan = null; ownerResetConfirmation = ""
+        visited.clear(); tab = "الرئيسية"; token = ""; authMode = "login"
+        prefs.edit().clear().apply()
     }
     fun chooseGoogle(signup: Boolean) {
         if (busy) return
@@ -1180,6 +1195,10 @@ private class AttaYoutubeFullscreenChrome(
                     object : WebSocketListener() {
                         override fun onMessage(webSocket: WebSocket, text: String) {
                             val msg = try { JSONObject(text) } catch (_: Exception) { return }
+                            if (msg.optString("type") == "account-reset") {
+                                scope.launch { clearLocalSession() }
+                                return
+                            }
                             val signal = if (msg.optString("type") == "chat" && msg.optString("mediaType") == "call-signal")
                                 try { JSONObject(msg.optString("media")).apply {
                                     if (!has("from")) put("from", msg.optString("from"))
@@ -1305,16 +1324,8 @@ private class AttaYoutubeFullscreenChrome(
         confirmButton = {
             TextButton(onClick = {
                 confirmLogout = false
-                activeCall = null; incomingCall = null
-                AttaPush.activeCallId = ""
-                chatWith = ""; messages = emptyList(); inboxPreviews = emptyList()
-                posts = emptyList(); notifications = emptyList(); friends = emptyList()
-                profile = JSONObject(); displayName = ""; myUsername = ""; myAvatar = ""
-                visited.clear(); tab = "الرئيسية"
-                val logoutSession = token
-                AttaPush.unregister(ctx.applicationContext, logoutSession)
-                token = ""
-                prefs.edit().clear().apply()
+                AttaPush.unregister(ctx.applicationContext, token)
+                clearLocalSession()
             }) { Text("تسجيل الخروج", color = GoldLight) }
         },
         dismissButton = { TextButton(onClick = { confirmLogout = false }) { Text("إلغاء", color = White) } }
@@ -2116,12 +2127,31 @@ private class AttaYoutubeFullscreenChrome(
                             if (adminRole == "super_admin") {
                                 item {
                                     CardBox {
-                                        Text("تصفير قاعدة البيانات — معاينة فقط", color = GoldLight, fontWeight = FontWeight.Bold)
-                                        Text("لن يتم حذف أي بيانات. احفظ نسخة احتياطية قبل اعتماد التصفير.", color = Muted, fontSize = 12.sp)
-                                        GoldButton("عرض تقرير التصفير", !busy) {
+                                        Text("تصفير كل الحسابات والبيانات", color = GoldLight, fontWeight = FontWeight.Bold)
+                                        Text("يشمل حساب المدير الحالي وكل المنشورات والرسائل والوسائط. لا تُنشأ نسخة احتياطية.", color = Muted, fontSize = 12.sp)
+                                        GoldButton("عرض نطاق الحذف", !busy) {
                                             task {
-                                                val report = post("/api/admin/reset/preview", JSONObject())
-                                                featureMessage = "المدير: ${report.optString("keepAccount")} | مفاتيح التخزين: ${report.optInt("durableObjectKeys")} | ملفات الصور والفيديو: ${report.optJSONObject("media")?.optInt("count") ?: 0} | لم يتم الحذف"
+                                                ownerResetPlan = post("/api/admin/reset/plan", JSONObject())
+                                                ownerResetConfirmation = ""
+                                                val report = ownerResetPlan?.optJSONObject("scope") ?: JSONObject()
+                                                ownerResetReport = "الحسابات المتبقية: صفر بعد التنفيذ | مفاتيح التخزين: ${report.optInt("durableObjectKeys")} | ملفات الوسائط: ${report.optJSONObject("media")?.optInt("count") ?: 0}"
+                                            }
+                                        }
+                                        if (ownerResetReport.isNotBlank()) Text(ownerResetReport, color = Muted, fontSize = 12.sp)
+                                        if (ownerResetPlan != null) {
+                                            PremiumAuthTextField(ownerResetConfirmation, { ownerResetConfirmation = it }, "اكتب: امسح كل الحسابات")
+                                            GoldButton("تنفيذ التصفير الكامل", !busy && ownerResetConfirmation == "امسح كل الحسابات") {
+                                                task {
+                                                    val planId = ownerResetPlan?.getString("planId") ?: return@task
+                                                    var done = false
+                                                    while (!done) {
+                                                        val result = post("/api/admin/reset/execute", JSONObject().put("planId", planId).put("confirmation", ownerResetConfirmation))
+                                                        done = result.optBoolean("done")
+                                                        ownerResetReport = "جاري التصفير... ملفات محذوفة: ${result.optInt("deletedMedia")}"
+                                                    }
+                                                    clearLocalSession()
+                                                    featureMessage = "اكتمل التصفير. أنشئ حسابًا جديدًا؛ يمكن إعادة استخدام الإيميل واسم المستخدم."
+                                                }
                                             }
                                         }
                                     }
