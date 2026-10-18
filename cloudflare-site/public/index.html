@@ -34,7 +34,7 @@
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
 <link rel="icon" href="logo.svg" type="image/svg+xml">
-<link rel="stylesheet" href="style.css?v=13.72">
+<link rel="stylesheet" href="style.css?v=13.79">
 
 <style id="mobile-final-clean">
 /* V13.48 — CLEAN MOBILE UI: single authoritative mobile layer */
@@ -462,6 +462,37 @@ html.mobile-device .atta-footer-brand{font-size:clamp(22px,2.8dvh,28px)!importan
  #authView .atta-login-card .atta-official-apk-download .atta-apk-title {font-size:14px!important}
 }
 </style>
+<style>
+#messagesPage .message-stories{padding:10px 0;border-bottom:1px solid #3b3523;min-width:0}
+#messagesPage .message-stories .stories-head{display:flex;justify-content:space-between;align-items:center;color:#f6d776;gap:8px}
+#messagesPage .message-stories .stories-head button{font-size:13px;border:0;background:transparent;color:#f6d776;padding:6px}
+#messagesPage .inbox-stories-row{display:flex;gap:10px;overflow-x:auto;padding:10px 1px 3px;max-width:100%;overscroll-behavior-x:contain}
+#messagesPage .inbox-story{display:flex;flex:0 0 66px;width:66px;flex-direction:column;align-items:center;gap:5px;border:0;background:transparent;color:#f7f8f9;padding:0;min-width:0;cursor:pointer}
+#messagesPage .inbox-story img,#messagesPage .inbox-story .story-add-circle{width:52px;height:52px;border:2px solid #e6b94e;border-radius:50%;object-fit:cover;display:grid;place-items:center;background:#111619;color:#f6d776;font-size:30px}
+#messagesPage .inbox-story small{font-size:12px!important;line-height:1.5!important;font-weight:500!important;white-space:nowrap;max-width:66px;overflow:hidden;text-overflow:ellipsis}
+#adminPage{box-sizing:border-box;min-width:0}
+#adminPage .admin-head{flex-wrap:wrap;gap:8px;min-width:0}
+#adminPage .admin-head>div{min-width:0;max-width:100%}
+#adminPage .admin-head h2{font-size:24px;line-height:1.5;margin:8px 0}
+#adminPage .admin-tabs{display:flex;gap:6px;min-width:0;max-width:100%;overflow-x:auto}
+#adminPage .admin-tabs button{flex:1 0 auto;min-width:0;font-size:14px!important;white-space:nowrap}
+#adminPage .search-box{display:flex;max-width:100%;min-width:0}
+#adminPage .search-box input{flex:1;width:0;min-width:0}
+#adminPage .search-box button{flex:none}
+#adminPage #adminResetConfirmation{width:100%;max-width:100%;min-width:0}
+#adminPage .admin-item-main,#adminPage .admin-item-text{min-width:0;max-width:100%}
+#adminPage .admin-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px}
+#adminPage .admin-activity,#adminPage .admin-delete-resume{padding:12px;margin:12px 0;border:1px solid #635127;border-radius:12px;background:#111619;color:#f6d776}
+#adminPage .admin-activity p{font-size:12px;color:#c9d0d4}
+#adminPage .activity-row{display:grid;grid-template-columns:52px 1fr 58px;gap:8px;align-items:center;margin:9px 0;font-size:12px}
+#adminPage .activity-bars{display:grid;gap:3px}
+#adminPage .activity-track{height:6px;background:#2a3033;border-radius:4px;overflow:hidden}
+#adminPage .activity-track span{display:block;height:100%;background:#f6d776}
+#adminPage .activity-track.posts span{background:#6db8e7}
+#adminPage .admin-actions{display:flex;flex-wrap:wrap;gap:6px}
+#adminPage .admin-actions button{white-space:nowrap}
+@media(max-width:480px){html.mobile-device #appView #adminPage{padding:112px 10px 0!important}html.mobile-device #appView #adminPage .admin-head h2{font-size:24px!important}html.mobile-device #appView #adminPage .admin-tabs button{font-size:14px!important}#adminPage .admin-item{flex-wrap:wrap}#adminPage .admin-actions{width:100%}}
+</style>
 </head>
 <body>
 
@@ -661,17 +692,6 @@ html.mobile-device .atta-footer-brand{font-size:clamp(22px,2.8dvh,28px)!importan
   </div>
 
   <aside class="reference-rightbar">
-    <section class="reference-side-card stories-side-card">
-      <div class="reference-card-title">
-        <strong>القصص</strong>
-        <button id="sideShowStoriesBtn" type="button">عرض الكل ‹</button>
-      </div>
-      <div id="storiesStripSide" class="reference-stories-row">
-        <button id="sideAddStoryBtn" class="side-add-story">
-          <span>+</span><small>إضافة قصة</small>
-        </button>
-      </div>
-    </section>
 
     <section class="reference-side-card">
       <div class="reference-card-title">
@@ -698,7 +718,6 @@ html.mobile-device .atta-footer-brand{font-size:clamp(22px,2.8dvh,28px)!importan
 
 <main class="social-main">
     <section id="homePage" class="page active-page">
-      <div class="stories-section mobile-status-section"><div class="stories-head mobile-status-head"><strong>الحالات</strong><button id="addStoryBtn">إضافة حالة</button></div><div id="storiesStrip" class="stories-strip"></div></div>
       <section id="mobileFriendsSuggestions" class="reference-side-card mobile-friends-suggestions">
         <div class="reference-card-title">
           <strong class="side-title-with-icon"><span data-atta-icon="users"></span>أشخاص قد تعرفهم</strong>
@@ -798,6 +817,10 @@ html.mobile-device .atta-footer-brand{font-size:clamp(22px,2.8dvh,28px)!importan
             <label class="photo-btn" aria-label="تغيير الصورة"><span data-atta-icon="camera"></span><input id="avatarInput" type="file" accept="image/*" hidden></label>
           </div>
 
+          <section class="message-stories" aria-label="قصص الأصدقاء">
+            <div class="stories-head"><strong>القصص</strong><button id="addStoryBtn" type="button">إضافة قصة</button></div>
+            <div id="storiesStrip" class="inbox-stories-row"></div>
+          </section>
           <div class="side-tabs">
             <button class="side-tab active" data-tab="users">المستخدمون</button>
             <button class="side-tab" data-tab="groups">المجموعات</button>
@@ -917,8 +940,18 @@ html.mobile-device .atta-footer-brand{font-size:clamp(22px,2.8dvh,28px)!importan
         <div><strong id="adminUsersCount">0</strong><span>المستخدمون</span></div>
         <div><strong id="adminPostsCount">0</strong><span>المنشورات</span></div>
         <div><strong id="adminReportsCount">0</strong><span>البلاغات</span></div>
-        <div><strong id="adminBannedCount">0</strong><span>الموقوفون</span></div>
+        <div><strong id="adminBannedCount">0</strong><span>المحظورون</span></div>
+        <div><strong id="adminDisabledCount">0</strong><span>المعطّلون</span></div>
+        <div><strong id="adminActiveCount">0</strong><span>الحسابات المفعّلة</span></div>
+        <div><strong id="adminOnlineCount">0</strong><span>المتصلون الآن</span></div>
+        <div><strong id="adminUsersTodayCount">0</strong><span>مستخدمون جدد اليوم</span></div>
+        <div><strong id="adminPostsTodayCount">0</strong><span>منشورات اليوم</span></div>
+        <div><strong id="adminUsersWeekCount">0</strong><span>جدد خلال ٧ أيام</span></div>
+        <div><strong id="adminPostsWeekCount">0</strong><span>منشورات خلال ٧ أيام</span></div>
+        <div><strong id="adminArchivedCount">0</strong><span>منشورات مؤرشفة</span></div>
       </div>
+      <div class="admin-activity"><strong>آخر ٧ أيام • بتوقيت الرياض</strong><p>ذهبي: مستخدمون جدد · أزرق: منشورات</p><div id="adminActivityChart" aria-label="إحصائيات آخر سبعة أيام"></div><button type="button" id="adminRefreshBtn" class="gold-mini">تحديث الإحصائيات</button></div>
+      <div id="adminDeleteResume" class="admin-delete-resume hidden" aria-live="polite"></div>
       <div style="margin:12px 0;padding:12px;border:1px solid #b48a37;border-radius:12px;background:#111619">
         <strong style="color:#e6b94e">تصفير كل الحسابات والبيانات</strong>
         <p style="color:#c0c4c5;font-size:13px">الحذف يشمل جميع الحسابات بما فيها حساب المدير الحالي، والمنشورات والرسائل والصور والفيديو. لا تُنشأ نسخة احتياطية. يمكن التسجيل بنفس الإيميلات والأسماء بعد اكتمال التصفير.</p>
@@ -931,7 +964,7 @@ html.mobile-device .atta-footer-brand{font-size:clamp(22px,2.8dvh,28px)!importan
         <button data-admin-tab="posts">المنشورات</button>
         <button data-admin-tab="reports">البلاغات</button>
       </div>
-      <div id="adminUsersPanel" class="admin-panel"><div id="adminUsersList"></div></div>
+      <div id="adminUsersPanel" class="admin-panel"><div class="search-box"><input id="adminUserSearch" placeholder="ابحث بالاسم أو اسم المستخدم"><button id="adminUserSearchBtn" type="button">بحث</button></div><div id="adminUsersList"></div><button id="adminMoreUsersBtn" type="button" class="gold-mini hidden">عرض المزيد</button></div>
       <div id="adminPostsPanel" class="admin-panel hidden"><div id="adminPostsList"></div></div>
       <div id="adminReportsPanel" class="admin-panel hidden"><div id="adminReportsList"></div></div>
     </section>
@@ -1108,7 +1141,7 @@ html.mobile-device .atta-footer-brand{font-size:clamp(22px,2.8dvh,28px)!importan
 
 <script src="config.js"></script>
 <script src="icons.js?v=13.60"></script>
-<script src="app.js?v=13.72"></script>
+<script src="app.js?v=13.79"></script>
 
 <audio id="incomingRingAudio" src="audio/incoming-ring.wav" preload="auto" loop></audio>
 <audio id="outgoingRingAudio" src="audio/outgoing-ring.wav" preload="auto" loop></audio>

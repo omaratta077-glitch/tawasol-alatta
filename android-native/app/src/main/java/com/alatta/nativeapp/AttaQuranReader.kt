@@ -49,7 +49,10 @@ internal fun QuranReaderScreen(modifier: Modifier = Modifier, onExit: () -> Unit
             settings.allowFileAccess = false
             settings.allowContentAccess = false
             settings.mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
-            settings.textZoom = 100 // Avoid Android text auto-enlargement breaking the Mushaf layout.
+            settings.textZoom = 100 // Reader controls preserve a readable 24–44 px Quran font.
+            settings.setSupportZoom(true)
+            settings.builtInZoomControls = true
+            settings.displayZoomControls = false
             settings.useWideViewPort = true
             settings.mediaPlaybackRequiresUserGesture = false // Playback starts only after an explicit verse choice.
             webViewClient = object : WebViewClient() {

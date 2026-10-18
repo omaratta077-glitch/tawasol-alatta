@@ -337,12 +337,12 @@ internal fun PremiumMenuEntry(icon: String, label: String, danger: Boolean = fal
 }
 
 @Composable
-internal fun StoryRing(label: String, url: String, isAdd: Boolean, onClick: () -> Unit) {
+internal fun StoryRing(label: String, url: String, isAdd: Boolean, diameter: Int = 62, onClick: () -> Unit) {
     Column(
-        Modifier.width(75.dp).clickable(onClick = onClick),
+        Modifier.width((diameter + 13).dp).clickable(onClick = onClick),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Box(Modifier.size(62.dp)
+        Box(Modifier.size(diameter.dp)
             .border(1.7.dp, PremiumGoldLight, CircleShape)
             .padding(3.dp)
             .clip(CircleShape)

@@ -680,7 +680,7 @@ function connect(){
   ws.onmessage=async e=>{
     const msg=JSON.parse(e.data);
 
-    if(msg.type==="account-reset"){await logoutCurrentAccount();location.reload();return;}
+    if(["account-reset","account-disabled","account-deleted"].includes(msg.type)){await logoutCurrentAccount();location.reload();return;}
     if(CALL_SIGNAL_TYPES.has(msg.type)){
       await handleCallSignal(msg);
       return;
@@ -1819,10 +1819,12 @@ async function loadAdminDashboard(){
   if(!me || me.role!=="super_admin")return;
   try{
     const d=await api(`/api/admin/summary?token=${encodeURIComponent(token)}`);
-    $("adminUsersCount").textContent=d.counts.users||0;
-    $("adminPostsCount").textContent=d.counts.posts||0;
-    $("adminReportsCount").textContent=d.counts.reports||0;
-    $("adminBannedCount").textContent=d.counts.banned||0;
+    const fields={adminUsersCount:"users",adminPostsCount:"posts",adminReportsCount:"reports",adminBannedCount:"banned",adminDisabledCount:"disabled",adminActiveCount:"active",adminOnlineCount:"online",adminUsersTodayCount:"usersToday",adminPostsTodayCount:"postsToday",adminUsersWeekCount:"users7Days",adminPostsWeekCount:"posts7Days",adminArchivedCount:"archivedPosts"};
+    for(const [id,key] of Object.entries(fields))$(id).textContent=d.counts[key]||0;
+    const maximum=Math.max(1,...(d.daily||[]).flatMap(day=>[day.users,day.posts]));
+    $("adminActivityChart").innerHTML=(d.daily||[]).map(day=>`<div class="activity-row"><time>${adminEscape(day.date.slice(5))}</time><div class="activity-bars"><div class="activity-track"><span style="width:${day.users/maximum*100}%"></span></div><div class="activity-track posts"><span style="width:${day.posts/maximum*100}%"></span></div></div><span>${day.users} / ${day.posts}</span></div>`).join("");
+    const resume=$("adminDeleteResume");resume.classList.toggle("hidden",!d.deletion);
+    resume.innerHTML=d.deletion?`حذف قيد الاستكمال: @${adminEscape(d.deletion.username)} <button class="danger" data-admin-action="delete_user" data-user="${adminEscape(d.deletion.username)}">استكمال الحذف</button>`:"";
     $("adminRoleBadge").textContent=d.role==="super_admin"?"المدير الرئيسي":"مشرف";
     await loadAdminUsers();
   }catch(e){alert(e.message||"تعذر تحميل لوحة الإدارة")}
@@ -1865,13 +1867,22 @@ if(resetPreviewButton){
   };
 }
 
-async function loadAdminUsers(){
-  const d=await api(`/api/admin/users?token=${encodeURIComponent(token)}`);
-  $("adminUsersList").innerHTML=d.users.length?d.users.map(u=>{
-    const owner=u.role==="super_admin", mod=u.role==="moderator";
-    return `<div class="admin-item"><div class="admin-item-main"><img src="${adminEscape(u.avatar||avatarFallback(u.displayName||u.username))}"><div class="admin-item-text"><strong>${adminEscape(u.displayName||u.username)}</strong><span>@${adminEscape(u.username)} · ${owner?'مدير رئيسي':mod?'مشرف':u.banned?'موقوف':'مستخدم'}</span></div></div><div class="admin-actions">${owner?'':`<button class="${u.banned?'gold':'danger'}" data-admin-action="${u.banned?'unban':'ban'}" data-user="${adminEscape(u.username)}">${u.banned?'فك الحظر':'حظر'}</button>`}</div></div>`;
-  }).join(""):'<div class="admin-empty">لا يوجد مستخدمون</div>';
+let adminUsersNextOffset=null;
+async function loadAdminUsers(append=false){
+  const q=$("adminUserSearch")?.value.trim()||"";
+  const d=await api(`/api/admin/users?token=${encodeURIComponent(token)}&q=${encodeURIComponent(q)}&offset=${append?adminUsersNextOffset||0:0}`);
+  const markup=d.users.map(u=>{
+    const owner=u.role==="super_admin",status=u.banned?"محظور":u.disabled?"معطّل":"مفعّل";
+    const username=adminEscape(u.username);
+    return `<div class="admin-item"><div class="admin-item-main"><img src="${adminEscape(u.avatar||avatarFallback(u.displayName||u.username))}"><div class="admin-item-text"><strong>${adminEscape(u.displayName||u.username)}</strong><span>@${username} · ${owner?'مدير رئيسي':status}</span><span>${adminDate(u.createdAt)}</span></div></div><div class="admin-actions">${owner?'':`${u.banned||u.disabled?`<button class="gold" data-admin-action="activate" data-user="${username}">إعادة تفعيل</button>`:`<button class="gold" data-admin-action="suspend" data-user="${username}">تعطيل</button><button class="danger" data-admin-action="ban" data-user="${username}">حظر</button>`}<button class="danger" data-admin-action="delete_user" data-user="${username}">حذف نهائي</button>`}</div></div>`;
+  }).join("");
+  if(append)$("adminUsersList").insertAdjacentHTML("beforeend",markup);
+  else $("adminUsersList").innerHTML=markup||'<div class="admin-empty">لا يوجد مستخدمون</div>';
+  adminUsersNextOffset=d.nextOffset;$("adminMoreUsersBtn").classList.toggle("hidden",d.nextOffset===null);
 }
+if($("adminRefreshBtn"))$("adminRefreshBtn").onclick=loadAdminDashboard;
+if($("adminUserSearchBtn"))$("adminUserSearchBtn").onclick=()=>loadAdminUsers().catch(e=>alert(e.message));
+if($("adminMoreUsersBtn"))$("adminMoreUsersBtn").onclick=()=>loadAdminUsers(true).catch(e=>alert(e.message));
 
 async function loadAdminPosts(){
   const d=await api(`/api/admin/posts?token=${encodeURIComponent(token)}`);
@@ -1894,10 +1905,18 @@ document.addEventListener("click",async e=>{
   }
   const btn=e.target.closest("[data-admin-action]"); if(!btn)return;
   const action=btn.dataset.adminAction;
-  if((action==="ban"||action==="delete_post") && !confirm(action==="ban"?"هل تريد حظر هذا المستخدم؟":"هل تريد حذف هذا المنشور نهائيًا؟"))return;
+  if(["ban","suspend","delete_post"].includes(action) && !confirm(action==="delete_post"?"هل تريد حذف هذا المنشور نهائيًا؟":`هل تريد ${action==="ban"?"حظر":"تعطيل"} @${btn.dataset.user}؟ سيُمنع من الدخول حتى إعادة تفعيله.`))return;
+  let confirmation="";
+  if(action==="delete_user"){
+    confirmation=prompt(`حذف @${btn.dataset.user} نهائيًا مع منشوراته ورسائله وملفاته. يمكن التسجيل مجددًا بنفس الاسم والإيميل. اكتب اسم المستخدم للتأكيد:`,"");
+    if(confirmation!==btn.dataset.user)return;
+  }
   btn.disabled=true;
   try{
-    await api("/api/admin/action",{method:"POST",body:JSON.stringify({token,action,username:btn.dataset.user||"",postId:btn.dataset.post||"",reportId:btn.dataset.report||""})});
+    if(action==="delete_user"){
+      let result;
+      do{result=await api("/api/admin/users/delete",{method:"POST",body:JSON.stringify({token,username:btn.dataset.user,confirmation})});btn.textContent=`جاري الحذف... ${result.deletedMedia||0} ملف`;}while(!result.done);
+    }else await api("/api/admin/action",{method:"POST",body:JSON.stringify({token,action,username:btn.dataset.user||"",postId:btn.dataset.post||"",reportId:btn.dataset.report||""})});
     await loadAdminDashboard();
     const active=document.querySelector("[data-admin-tab].active")?.dataset.adminTab;
     if(active==="posts")await loadAdminPosts(); if(active==="reports")await loadAdminReports();
@@ -1921,6 +1940,7 @@ function showPage(pageId){
   if(pageId==="searchPage")resetExploreSearch();
   if(pageId==="savedPage")loadSavedPostsPage();
   if(pageId==="messagesPage"){
+    loadStories();
     resetMessagesInbox();
     loadChatContacts();
   }
@@ -2082,7 +2102,7 @@ if($("friendsFindPeopleBtn")){
 }
 
 if($("sideAddStoryBtn"))$("sideAddStoryBtn").onclick=()=>$("addStoryBtn")?.click();
-if($("sideShowStoriesBtn"))$("sideShowStoriesBtn").onclick=()=>showPage("homePage");
+
 
 if($("railSavedBtn"))$("railSavedBtn").onclick=()=>showPage("savedPage");
 if($("railMoreBtn"))$("railMoreBtn").onclick=()=>alert("قائمة المزيد سيتم توسيعها تدريجيًا.");
@@ -2798,50 +2818,18 @@ async function loadStories(){
     const d=await api(`/api/stories?token=${encodeURIComponent(token)}`);
     const stories=d.stories||[];
 
-    const renderSideStory=s=>{
-      const u=s.authorInfo||{username:s.author};
-      const av=u.avatar||avatarFallback(u.displayName||u.username);
-      return `<button class="story-item" data-story="${s.id}">
-        <span class="story-ring"><img src="${av}" alt=""></span>
-        <small>${esc(u.displayName||u.username)}</small>
-      </button>`;
-    };
-
     const renderFeedStory=s=>{
       const u=s.authorInfo||{username:s.author};
-      const av=u.avatar||avatarFallback(u.displayName||u.username);
-      const cover=s.media||av;
-      return `<button class="feed-story-card" data-story="${s.id}">
-        <img class="story-cover" src="${cover}" alt="">
-        <span class="story-shade"></span>
-        <img class="story-avatar" src="${av}" alt="">
-        <span class="story-name">${esc(u.displayName||u.username)}</span>
-      </button>`;
+      const avatar=u.avatar||avatarFallback(u.displayName||u.username);
+      return `<button class="inbox-story" data-story="${esc(s.id)}" type="button"><img src="${esc(avatar)}" alt=""><small>${esc(u.displayName||u.username)}</small></button>`;
     };
 
     if($("storiesStrip")){
-      const mine=me?.avatar||avatarFallback(me?.fullName||me?.displayName||me?.username||"أنت");
-      const add=`<button id="feedAddStoryBtn" class="feed-story-card feed-story-add" type="button">
-        <img class="story-add-photo" src="${mine}" alt="">
-        <span class="story-plus">+</span>
-        <span class="story-add-bottom">إضافة حالة</span>
-      </button>`;
+      const add=`<button id="feedAddStoryBtn" class="inbox-story" type="button"><span class="story-add-circle">+</span><small>إضافة قصة</small></button>`;
       $("storiesStrip").innerHTML=add+(stories.length
         ? stories.map(renderFeedStory).join("")
         : '<div class="story-empty">لا توجد حالات من الأصدقاء بعد.</div>');
       if($("feedAddStoryBtn"))$("feedAddStoryBtn").onclick=()=>$("addStoryBtn")?.click();
-    }
-
-    if($("storiesStripSide")){
-      const add=`<button id="sideAddStoryInline" class="side-add-story">
-        <span class="story-plus-icon">${uiIcon("plus")}</span><small>إضافة قصة</small>
-      </button>`;
-      $("storiesStripSide").innerHTML=add+(stories.length
-        ? stories.slice(0,5).map(renderSideStory).join("")
-        : '<div class="reference-side-empty">لا توجد قصص</div>');
-      if($("sideAddStoryInline")){
-        $("sideAddStoryInline").onclick=()=>$("addStoryBtn")?.click();
-      }
     }
 
     document.querySelectorAll("[data-story]").forEach(b=>{

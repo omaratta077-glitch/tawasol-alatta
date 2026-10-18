@@ -15,7 +15,10 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.async
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withTimeoutOrNull
 import org.json.JSONArray
 import org.json.JSONObject
@@ -32,6 +35,8 @@ import org.webrtc.MediaConstraints
 import org.webrtc.MediaStream
 import org.webrtc.PeerConnection
 import org.webrtc.PeerConnectionFactory
+import org.webrtc.RtpParameters
+import org.webrtc.RtpSender
 import org.webrtc.RtpReceiver
 import org.webrtc.RtpTransceiver
 import org.webrtc.SdpObserver
@@ -41,8 +46,17 @@ import org.webrtc.SurfaceViewRenderer
 import org.webrtc.VideoSink
 import org.webrtc.VideoSource
 import org.webrtc.VideoTrack
-import java.net.HttpURLConnection
-import java.net.URL
+import okhttp3.OkHttpClient
+import okhttp3.Call
+import okhttp3.Callback
+import okhttp3.Response
+import java.io.IOException
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
+import okhttp3.Request
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.RequestBody.Companion.toRequestBody
+import java.util.concurrent.TimeUnit
 import java.net.URLEncoder
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicBoolean
@@ -52,8 +66,8 @@ import java.util.concurrent.atomic.AtomicBoolean
  * No HTML, WebView, canvas or site call page is loaded here.
  * Its JSON signaling protocol matches cloudflare-site/public/app.js:
  * call-request / call-ringing / call-accept / offer / answer / ice / hangup.
- * The site's authenticated /api/message-send + /api/conversation remain the
- * shared signaling transport; site YouTube and video code stay untouched.
+ * The existing signed-in WebSocket provides immediate inbound signaling, with
+ * authenticated /api/call-media-signals as the small stored fallback.
  */
 internal class NativeRtcCall(
     private val context: Context,
@@ -69,6 +83,57 @@ internal class NativeRtcCall(
     companion object {
         private const val BASE = "https://tawasol-alatta.omaratta077-4fd.workers.dev"
         private val factoryInitialized = AtomicBoolean(false)
+        private val http = OkHttpClient.Builder().connectTimeout(4, TimeUnit.SECONDS)
+            .readTimeout(6, TimeUnit.SECONDS).callTimeout(9, TimeUnit.SECONDS).build()
+        private val turnLock = Mutex()
+        private var cachedIce: JSONObject? = null
+        private var cachedIceToken = ""
+        private var cachedIceExpires = 0L
+        private var activeEngine: NativeRtcCall? = null
+
+        // Feed the existing signed-in WebSocket directly into the one native engine.
+        fun deliverSignal(signal: JSONObject) { activeEngine?.enqueueSignal(signal) }
+        fun clearIceCache() { cachedIce = null; cachedIceToken = ""; cachedIceExpires = 0L }
+        suspend fun prewarmIce(token: String) { try { turnCredentials(token) } catch (e: CancellationException) { throw e } catch (_: Exception) { } }
+
+        private suspend fun turnCredentials(token: String): JSONObject = turnLock.withLock {
+            if (cachedIceToken == token && cachedIceExpires > System.currentTimeMillis())
+                return@withLock requireNotNull(cachedIce)
+            val result = requestJson("/api/turn-credentials?token=${URLEncoder.encode(token, "UTF-8")}")
+            if ((result.optJSONArray("iceServers")?.length() ?: 0) == 0) error("خوادم TURN غير متاحة")
+            cachedIce = result; cachedIceToken = token
+            cachedIceExpires = System.currentTimeMillis() + (result.optLong("ttl", 3600L) - 300L).coerceIn(60L, 3600L) * 1000L
+            result
+        }
+
+        private suspend fun requestJson(path: String, post: JSONObject? = null): JSONObject {
+            val request = Request.Builder().url(BASE + path).header("Accept", "application/json").apply {
+                if (post != null) this.post(post.toString().toRequestBody("application/json; charset=utf-8".toMediaType()))
+            }.build()
+            return suspendCancellableCoroutine { continuation ->
+                val call = http.newCall(request)
+                // A hang-up timeout really cancels the socket request, instead of waiting for IO.
+                continuation.invokeOnCancellation { call.cancel() }
+                call.enqueue(object : Callback {
+                    override fun onFailure(call: Call, e: IOException) {
+                        if (continuation.isActive) continuation.resumeWithException(e)
+                    }
+                    override fun onResponse(call: Call, response: Response) {
+                        try {
+                            val parsed = response.use {
+                                val value = JSONObject(it.body?.string().orEmpty().ifBlank { "{}" })
+                                if (!it.isSuccessful || !value.optBoolean("ok", true))
+                                    error(value.optString("error", "خطأ اتصال بالخادم (${it.code})"))
+                                value
+                            }
+                            if (continuation.isActive) continuation.resume(parsed)
+                        } catch (e: Exception) {
+                            if (continuation.isActive) continuation.resumeWithException(e)
+                        }
+                    }
+                })
+            }
+        }
     }
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
@@ -104,7 +169,8 @@ internal class NativeRtcCall(
     private var started = false
     private var ended = false
     private var offerStarted = false
-    private var candidatesSent = 0
+    private val signalMutex = Mutex()
+    private var videoSender: RtpSender? = null
     private var pollJob: Job? = null
     private var callTimeoutJob: Job? = null
     private var speaker = session.type == "video"
@@ -132,13 +198,14 @@ internal class NativeRtcCall(
         scope.launch {
             try {
                 report("جارٍ تشغيل الكاميرا والميكروفون...")
+                // Start the network request alongside camera initialization, usually served from prewarm.
+                val pendingServers = async(Dispatchers.IO) { loadIceServers() }
                 initializeNativeMedia()
                 if (ended) return@launch
-                // Poll saved signals WITHOUT consuming the global /api/call-signals
-                // queue used by MainActivity for incoming-call notifications.
-                val ice = loadIceServers()
+                val ice = pendingServers.await()
                 if (ended) return@launch
                 createPeer(ice)
+                activeEngine = this@NativeRtcCall
                 pollJob = scope.launch { pollConversation() }
                 if (session.incoming) {
                     report("جارٍ الرد على المكالمة...")
@@ -192,7 +259,8 @@ internal class NativeRtcCall(
             localVideo?.addSink(localFrameProbe)
             localView?.let { localVideo?.addSink(it) }
             // One native camera capture serves BOTH the PiP and the WebRTC sender.
-            capture.startCapture(640, 480, 24)
+            capture.startCapture(640, 360, 20)
+            videoSource?.adaptOutputFormat(640, 360, 20)
         }
         audioManager.mode = AudioManager.MODE_IN_COMMUNICATION
         @Suppress("DEPRECATION")
@@ -205,7 +273,7 @@ internal class NativeRtcCall(
             PeerConnection.IceServer.builder("stun:stun.l.google.com:19302").createIceServer()
         )
         return try {
-            val d = api("/api/turn-credentials?token=${urlEncode(token)}")
+            val d = turnCredentials(token)
             val servers = d.optJSONArray("iceServers") ?: return fallback
             val result = ArrayList<PeerConnection.IceServer>()
             for (i in 0 until servers.length()) {
@@ -223,7 +291,8 @@ internal class NativeRtcCall(
                     .createIceServer()
             }
             result.ifEmpty { fallback }
-        } catch (_: Exception) {
+        } catch (cancelled: CancellationException) { throw cancelled }
+        catch (_: Exception) {
             // Direct STUN fallback preserves audio/video on open networks.
             report("TURN غير متاح — جارٍ تجربة STUN")
             fallback
@@ -247,7 +316,7 @@ internal class NativeRtcCall(
             override fun onIceConnectionReceivingChange(receiving: Boolean) {}
             override fun onIceGatheringChange(state: PeerConnection.IceGatheringState?) {}
             override fun onIceCandidate(candidate: IceCandidate?) {
-                if (candidate == null || ended || candidatesSent++ >= 24) return
+                if (candidate == null || ended) return
                 scope.launch {
                     runCatching {
                         sendSignal("ice", JSONObject().put("candidate", JSONObject()
@@ -284,7 +353,30 @@ internal class NativeRtcCall(
             }
         }) ?: error("تعذر إنشاء اتصال WebRTC")
         localAudio?.let { peer?.addTrack(it, listOf("atta-stream")) }
-        localVideo?.let { peer?.addTrack(it, listOf("atta-stream")) }
+        localVideo?.let { videoSender = peer?.addTrack(it, listOf("atta-stream")) }
+        if (session.type == "video") peer?.setBitrate(null, 300_000, 750_000)
+        applyVideoPolicy()
+    }
+
+    private fun applyVideoPolicy() {
+        val sender = videoSender ?: return
+        val parameters = sender.parameters
+        parameters.degradationPreference = RtpParameters.DegradationPreference.MAINTAIN_FRAMERATE
+        parameters.encodings.forEach { encoding ->
+            encoding.maxBitrateBps = 650_000
+            encoding.maxFramerate = 20
+        }
+        if (parameters.encodings.isNotEmpty() && !sender.setParameters(parameters))
+            report("جارٍ ضبط جودة الفيديو تلقائيًا")
+    }
+
+    private fun enqueueSignal(signal: JSONObject) {
+        if (ended) return
+        scope.launch {
+            try { receiveSignal(signal) }
+            catch (e: CancellationException) { throw e }
+            catch (_: Exception) { /* Stored signaling retries through the small fallback endpoint. */ }
+        }
     }
 
     private fun attachRemoteTrack(track: VideoTrack) {
@@ -301,31 +393,31 @@ internal class NativeRtcCall(
         // Multiple independent readers are harmless; they do not consume messages.
         while (scope.isActive && !ended) {
             try {
-                val d = api("/api/conversation?token=${urlEncode(token)}&with=${urlEncode(session.peer)}")
-                val messages = d.optJSONArray("messages") ?: JSONArray()
-                for (i in 0 until messages.length()) {
-                    val m = messages.optJSONObject(i) ?: continue
-                    if (m.optString("mediaType") != "call-signal" ||
-                        !m.optString("to").equals(me, ignoreCase = true) ||
-                        !m.optString("from").equals(session.peer, ignoreCase = true)) continue
-                    val s = runCatching { JSONObject(m.optString("media")) }.getOrNull() ?: continue
-                    s.put("from", s.optString("from").ifBlank { m.optString("from") })
-                    s.put("signalId", s.optString("signalId").ifBlank { "stored:${m.optString("id")}" })
-                    receiveSignal(s)
-                }
+                // Fetch only this call's SDP/ICE: never download chat images/history every poll.
+                val d = api("/api/call-media-signals?token=${urlEncode(token)}&with=${urlEncode(session.peer)}&callId=${urlEncode(session.callId)}")
+                val signals = d.optJSONArray("signals") ?: JSONArray()
+                for (i in 0 until signals.length()) signals.optJSONObject(i)?.let { receiveSignal(it) }
             } catch (cancelled: CancellationException) { throw cancelled }
             catch (_: Exception) { /* the next poll retries without dropping the call */ }
             // Fast signaling while connecting; conserve requests during established calls.
-            delay(if (peer?.connectionState() == PeerConnection.PeerConnectionState.CONNECTED) 1700L else 450L)
+            delay(if (peer?.connectionState() == PeerConnection.PeerConnectionState.CONNECTED) 2500L else 900L)
         }
     }
 
-    private suspend fun receiveSignal(s: JSONObject) {
+    private suspend fun receiveSignal(s: JSONObject) = signalMutex.withLock {
+        try { processSignal(s) }
+        catch (e: Exception) {
+            seen.remove(s.optString("signalId").ifBlank { "${s.optString("type")}:${s.optLong("createdAt")}" })
+            throw e
+        }
+    }
+
+    private suspend fun processSignal(s: JSONObject) {
         if (ended || s.optString("callId") != session.callId ||
             !s.optString("from").equals(session.peer, ignoreCase = true) ||
             (s.has("to") && !s.optString("to").equals(me, ignoreCase = true))) return
         val age = System.currentTimeMillis() - s.optLong("createdAt")
-        if (age !in 0..120000L) return
+        if (age !in -30000L..120000L) return
         val kind = s.optString("type")
         val key = s.optString("signalId").ifBlank { "${kind}:${s.optLong("createdAt")}" }
         if (!seen.add(key)) return
@@ -413,14 +505,7 @@ internal class NativeRtcCall(
         }
         if (local) conn.setLocalDescription(observer, sdp) else conn.setRemoteDescription(observer, sdp)
         withTimeoutOrNull(12000L) { result.await() } ?: error("مهلة تعيين SDP")
-    }
-
-    private suspend fun waitForIce(conn: PeerConnection) {
-        // SDP includes gathered candidates even if the second peer cannot trickle.
-        repeat(15) {
-            if (ended || conn.iceGatheringState() == PeerConnection.IceGatheringState.COMPLETE) return
-            delay(100L)
-        }
+        applyVideoPolicy()
     }
 
     private suspend fun sendSignal(kind: String, extra: JSONObject = JSONObject()) {
@@ -429,34 +514,19 @@ internal class NativeRtcCall(
             .put("callId", session.callId).put("callType", session.type)
             .put("signalId", UUID.randomUUID().toString())
             .put("createdAt", System.currentTimeMillis())
-        api("/api/message-send", JSONObject()
-            .put("token", token).put("to", session.peer).put("text", "")
-            .put("media", packet.toString()).put("mediaType", "call-signal"))
+        val body = JSONObject().put("token", token).put("to", session.peer).put("text", "")
+            .put("media", packet.toString()).put("mediaType", "call-signal")
+        // Preserve signalId across retries so WebSocket and HTTP copies are deduplicated.
+        for (attempt in 0..2) {
+            try { api("/api/message-send", body); return }
+            catch (e: CancellationException) { throw e }
+            catch (e: Exception) { if (attempt == 2) throw e else delay(150L * (attempt + 1)) }
+        }
     }
 
     private fun urlEncode(text: String) = URLEncoder.encode(text, "UTF-8")
 
-    private suspend fun api(path: String, post: JSONObject? = null): JSONObject = withContext(Dispatchers.IO) {
-        val conn = URL(BASE + path).openConnection() as HttpURLConnection
-        try {
-            conn.connectTimeout = 7500
-            conn.readTimeout = 8500
-            conn.setRequestProperty("Accept", "application/json")
-            if (post != null) {
-                conn.requestMethod = "POST"
-                conn.doOutput = true
-                conn.setRequestProperty("Content-Type", "application/json")
-                conn.outputStream.use { it.write(post.toString().toByteArray(Charsets.UTF_8)) }
-            }
-            val response = if (conn.responseCode in 200..299) conn.inputStream else conn.errorStream
-            val data = response?.bufferedReader()?.use { it.readText() }.orEmpty()
-            val parsed = runCatching { JSONObject(data) }.getOrElse { JSONObject() }
-            if (conn.responseCode !in 200..299 || parsed.optBoolean("ok", true).not()) {
-                throw IllegalStateException(parsed.optString("error", "خطأ اتصال بالخادم (${conn.responseCode})"))
-            }
-            parsed
-        } finally { conn.disconnect() }
-    }
+    private suspend fun api(path: String, post: JSONObject? = null): JSONObject = requestJson(path, post)
 
     fun toggleMute(): Boolean {
         muted = !muted
@@ -488,6 +558,7 @@ internal class NativeRtcCall(
     }
 
     fun stop() {
+        if (activeEngine === this) activeEngine = null
         if (ended) return
         ended = true
         callTimeoutJob?.cancel()

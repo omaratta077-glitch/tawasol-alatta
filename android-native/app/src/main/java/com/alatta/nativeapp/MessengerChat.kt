@@ -140,6 +140,9 @@ internal fun MessengerInbox(
     myUsername: String,
     contacts: List<JSONObject>,
     inbox: List<ChatPreview>,
+    stories: List<JSONObject>,
+    onAddStory: () -> Unit,
+    onStory: (JSONObject) -> Unit,
     loading: Boolean,
     onOpen: (String) -> Unit,
     onProfile: (String) -> Unit,
@@ -228,21 +231,17 @@ internal fun MessengerInbox(
                 )
             }
         }
-        // These are contacts, NOT claimed to be online. Presence requires a separate API.
-        if (contacts.isNotEmpty() && query.isBlank()) {
-            Text("الأصدقاء", color = ChatSecondary, fontSize = 12.sp,
+        // Stories have one location: the message inbox, replacing the old friends strip.
+        if (query.isBlank()) {
+            Text("القصص", color = ChatGold, fontSize = 12.sp,
                 modifier = Modifier.padding(horizontal = 15.dp, vertical = 1.dp))
             Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())
-                .padding(horizontal = 14.dp, vertical = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                contacts.take(16).forEach { user ->
-                    Column(Modifier.width(58.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        ChatAvatar(user, size = 46, showRing = true, onClick = { onProfile(user.optString("username")) })
-                        Text(contactName(user), color = ChatText, fontSize = 11.sp,
-                            maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center)
-                    }
+                .padding(horizontal = 14.dp, vertical = 7.dp),
+                horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+                StoryRing("إضافة قصة", "", true, diameter = 49, onClick = onAddStory)
+                stories.forEach { story ->
+                    val author = story.optJSONObject("authorInfo") ?: JSONObject().put("username", story.optString("author"))
+                    StoryRing(contactName(author), author.optString("avatar"), false, diameter = 49) { onStory(story) }
                 }
             }
         }

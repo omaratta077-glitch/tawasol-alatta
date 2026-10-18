@@ -49,6 +49,9 @@ export class SignalingRoom extends DurableObject {
     this.activeOperations=new Set();
     this.resetClosing=false;
     this.resetStepBusy=false;
+    this.accountDeleteBusy=false;
+    this.accountDeleteClosing=false;
+    this.accountStatusBusy=new Set();
   }
 
   trackOperation(fn){
@@ -60,7 +63,7 @@ export class SignalingRoom extends DurableObject {
 
   async resetActive(){
     const state=await this.ctx.storage.get("owner-reset:plan");
-    return this.resetClosing || state?.phase==="deleting";
+    return this.resetClosing || state?.phase==="deleting" || this.accountDeleteClosing || !!await this.ctx.storage.get("admin-delete:job");
   }
 
   ownerEmail(){return String(this.env.SUPER_ADMIN_EMAIL||"").trim().toLowerCase();}
@@ -130,13 +133,19 @@ export class SignalingRoom extends DurableObject {
     return null;
   }
 
+  async accountState(user){
+    if(!user)return null;
+    const state=await this.ctx.storage.get(`account-state:${user.username}`);
+    return state?{...user,banned:!!state.banned,disabled:!!state.disabled,moderationVersion:Number(state.version||0)}:user;
+  }
+
   async user(username){
-    return await this.ctx.storage.get(`user:${username}`)||null;
+    return this.accountState(await this.ctx.storage.get(`user:${username}`)||null);
   }
 
   async publicUser(username){
     const u=await this.user(username);
-    if(!u)return null;
+    if(!u || u.banned || u.disabled)return null;
     return {
       username:u.username,
       displayName:u.displayName||u.username,
@@ -163,9 +172,9 @@ export class SignalingRoom extends DurableObject {
   // friend request initiated by the hidden account. A friendship never makes it public.
   async canViewProfile(viewer, target){
     if(!viewer || !target || await this.isBlockedBetween(viewer,target))return false;
-    if(viewer===target)return true;
     const u=await this.user(target);
-    if(!u)return false;
+    if(!u || u.banned || u.disabled)return false;
+    if(viewer===target)return true;
     if(!u.accountHidden)return true;
     if(await this.canCommunicate(viewer,target))return true;
     return (await this.incomingFriendRequests(viewer)).some(r=>r.from===target);
@@ -203,14 +212,17 @@ export class SignalingRoom extends DurableObject {
   // One authorization policy for HTTP chat, WebSocket chat, call signaling and presence.
   async canCommunicate(a,b){
     if(!a || !b || a===b || await this.isBlockedBetween(a,b))return false;
+    const ua=await this.user(a),ub=await this.user(b);
+    if(!ua || !ub || ua.banned || ub.banned || ua.disabled || ub.disabled)return false;
     return (await this.friends(a)).includes(b) && (await this.friends(b)).includes(a);
   }
 
   async canSeeContent(viewer,author){
     if(!author)return false;
-    if(viewer===author)return true;
     if(await this.isBlockedBetween(viewer,author))return false;
     const user=await this.user(author);
+    if(!user || user.banned || user.disabled)return false;
+    if(viewer===author)return true;
     return !!user && ((user.accountHidden || user.accountPrivate)
       ? await this.canCommunicate(viewer,author) : true);
   }
@@ -238,7 +250,7 @@ export class SignalingRoom extends DurableObject {
   async createSession(username){
     const token=crypto.randomUUID()+crypto.randomUUID();
     const user=await this.user(username);
-    await this.ctx.storage.put(`session:${token}`,{username,createdAt:Date.now(),authVersion:Number(user?.authVersion||0)});
+    await this.ctx.storage.put(`session:${token}`,{username,createdAt:Date.now(),authVersion:Number(user?.authVersion||0),moderationVersion:Number(user?.moderationVersion||0)});
     return token;
   }
 
@@ -246,7 +258,7 @@ export class SignalingRoom extends DurableObject {
     const session=token ? (await this.ctx.storage.get(`session:${token}`)||null) : null;
     if(!session)return null;
     const u=await this.user(session.username);
-    if(!u || u.banned || Number(session.authVersion||0)!==Number(u.authVersion||0))return null;
+    if(!u || u.banned || u.disabled || Number(session.moderationVersion||0)!==Number(u.moderationVersion||0) || Number(session.authVersion||0)!==Number(u.authVersion||0))return null;
     // Keep the existing sessions working, but cap lifetime for safety.
     if(Date.now()-Number(session.createdAt||0)>30*24*60*60*1000)return null;
     return session;
@@ -410,13 +422,169 @@ export class SignalingRoom extends DurableObject {
     if(!response.ok)throw new Error('EMAIL_SEND_FAILED');
   }
 
+  async allRecords(prefix){
+    const records=[];let cursor;
+    do{
+      const page=await this.ctx.storage.list({prefix,limit:300,...(cursor?{startAfter:cursor}:{})});
+      for(const value of page.values())records.push(prefix==="user:"?await this.accountState(value):value);
+      cursor=page.size===300?[...page.keys()].at(-1):undefined;
+    }while(cursor);
+    return records;
+  }
+
+  async adminStatistics(){
+    const users=await this.allRecords("user:"),posts=await this.allRecords("post:");
+    // Calendar days use the owner's Saudi timezone, including the midnight boundary.
+    const dayKey=time=>new Date(Number(time)+3*3600000).toISOString().slice(0,10);
+    const now=Date.now(),today=dayKey(now);
+    const daily=Array.from({length:7},(_,i)=>({date:dayKey(now-(6-i)*86400000),users:0,posts:0}));
+    const byDay=new Map(daily.map(d=>[d.date,d]));
+    for(const [items,field] of [[users,"users"],[posts,"posts"]])for(const item of items){
+      const timestamp=Number(item?.createdAt||0);
+      if(timestamp>0 && timestamp<=now){const day=byDay.get(dayKey(timestamp));if(day)day[field]++;}
+    }
+    const enabled=users.filter(u=>!u.banned && !u.disabled);
+    const reports=await this.ctx.storage.get("reports")||[];
+    const deletion=await this.ctx.storage.get("admin-delete:job");
+    return {timezone:"Asia/Riyadh",generatedAt:now,daily,counts:{
+      users:users.length,posts:posts.length,active:enabled.length,
+      banned:users.filter(u=>u.banned).length,disabled:users.filter(u=>u.disabled).length,
+      online:enabled.filter(u=>!!this.findUser(u.username)).length,
+      archivedPosts:posts.filter(p=>p.archived).length,reports:reports.filter(r=>!r.resolved).length,
+      usersToday:byDay.get(today).users,postsToday:byDay.get(today).posts,
+      users7Days:daily.reduce((n,d)=>n+d.users,0),posts7Days:daily.reduce((n,d)=>n+d.posts,0)
+    },deletion:deletion?{username:deletion.username,phase:deletion.phase,deletedMedia:deletion.deletedMedia}:null};
+  }
+
+  disconnectAccount(username,reason="account-disabled"){
+    for(const ws of this.sockets())if(this.meta(ws).user===username)try{
+      this.send(ws,{type:reason});ws.close(1008,"Account unavailable");
+    }catch{}
+  }
+
+  async deleteAccountStep(auth,body){
+    const target=String(body.username||"").trim().toLowerCase();
+    if(!/^[a-z0-9_]{3,24}$/.test(target))return j({ok:false,error:"اسم المستخدم غير صالح"},400);
+    if(target===this.ownerUsername() || target===auth.session.username)return j({ok:false,error:"لا يمكن حذف حساب المدير الرئيسي من إدارة الحسابات"},403);
+    if(body.confirmation!==target)return j({ok:false,error:"اكتب اسم المستخدم نفسه لتأكيد الحذف النهائي"},400);
+    if(this.accountDeleteBusy)return j({ok:false,error:"دفعة حذف قيد التنفيذ؛ أعد المحاولة",code:"DELETE_BUSY"},409);
+    let job=await this.ctx.storage.get("admin-delete:job");
+    if(job && job.username!==target)return j({ok:false,error:"استكمل حذف الحساب السابق من لوحة الإدارة أولًا"},409);
+    const user=await this.user(target);
+    if(!job && !user)return j({ok:false,error:"المستخدم غير موجود"},404);
+    if(!this.env.MEDIA_BUCKET)return j({ok:false,error:"اربط MEDIA_BUCKET لحذف ملفات الحساب أيضًا"},409);
+    if(this.accountDeleteBusy)return j({ok:false,error:"دفعة حذف قيد التنفيذ؛ أعد المحاولة",code:"DELETE_BUSY"},409);
+    if(this.resetClosing || this.resetStepBusy)return j({ok:false,error:"توجد عملية تصفير جارية",code:"RESET_IN_PROGRESS"},409);
+    this.accountDeleteBusy=true;
+    try{
+      this.accountDeleteClosing=true;
+      if(!job){
+        job={username:target,email:String(user.email||"").toLowerCase(),phone:String(user.phone||""),phase:"inventory",cursor:null,
+          postIds:[],storyIds:[],mediaBatches:0,nextBatch:0,deletedMedia:0};
+        await this.ctx.storage.put("admin-delete:job",job);
+      }
+      // Keep the gate durable across failures and restarts; drain writes already authorized.
+      await Promise.allSettled([...this.activeOperations]);
+      this.disconnectAccount(target,"account-deleted");
+      if(job.phase==="inventory"){
+        const page=await this.ctx.storage.list({limit:150,...(job.cursor?{startAfter:job.cursor}:{})});
+        for(const [key,value] of page){
+          if(key.startsWith("post:") && value.author===target)job.postIds.push(key.slice(5));
+          if(key.startsWith("story:") && value.author===target)job.storyIds.push(key.slice(6));
+        }
+        job.postIds=[...new Set(job.postIds)];job.storyIds=[...new Set(job.storyIds)];
+        job.cursor=page.size===150?[...page.keys()].at(-1):null;
+        if(!job.cursor)job.phase="media_inventory";
+      }else if(job.phase==="media_inventory"){
+        // Inventory completes BEFORE deleting R2 keys, so pagination cannot skip objects.
+        const page=await this.env.MEDIA_BUCKET.list({limit:300,include:["customMetadata"],...(job.cursor?{cursor:job.cursor}:{})});
+        const keys=page.objects.filter(o=>o.customMetadata?.owner===target).map(o=>o.key);
+        if(keys.length){await this.ctx.storage.put(`admin-delete-media:${job.mediaBatches}`,keys);job.mediaBatches++;}
+        job.cursor=page.truncated?page.cursor:null;
+        if(!job.cursor)job.phase="media_delete";
+      }else if(job.phase==="media_delete"){
+        if(job.nextBatch<job.mediaBatches){
+          const key=`admin-delete-media:${job.nextBatch}`,keys=await this.ctx.storage.get(key)||[];
+          if(keys.length)await this.env.MEDIA_BUCKET.delete(keys);
+          job.deletedMedia+=keys.length;job.nextBatch++;
+          // Save progress before removing its manifest; repeated deletes are safe.
+          await this.ctx.storage.put("admin-delete:job",job);
+          await this.ctx.storage.delete(key);
+        }else{job.phase="cleanup";job.cursor=null;}
+      }else if(job.phase==="cleanup"){
+        const page=await this.ctx.storage.list({limit:100,...(job.cursor?{startAfter:job.cursor}:{})});
+        const posts=new Set(job.postIds),stories=new Set(job.storyIds);
+        const resetRateKey=`reset-rate:${await hashPassword(job.email)}`;
+        const remove=async key=>this.ctx.storage.delete(key);
+        const ownPrefixes=["account-state","friends","friendIncoming","friendOutgoing","blocked","following","followers","notifications","saved","calls","callSignals","fcmTokens","lastSeen","lastCallPushResult","pushTestLast"];
+        for(const [key,value] of page){
+          if(key==="admin-delete:job")continue;
+          if(key.startsWith("admin-delete-media:")){await remove(key);continue;}
+          if(key===`user:${target}` || ownPrefixes.some(p=>key===`${p}:${target}`) ||
+            key===`verify-email-rate:${job.email}` || key===resetRateKey ||
+            key.startsWith("login-fail:") && [target,job.email,job.phone].filter(Boolean).includes(key.slice(11)) ||
+            key.startsWith("session:") && value?.username===target ||
+            key.startsWith("google-account:") && value===target || key.startsWith("fcmOwner:") && value===target ||
+            key.startsWith("pending-registration:") && (value?.registration?.username===target || value?.registration?.email===job.email) ||
+            key.startsWith("reset:") && value?.username===target ||
+            key.startsWith("messages:") && key.slice(9).split(":").includes(target)){
+            await remove(key);continue;
+          }
+          let next=value;
+          if(key==="usernames" || key==="moderators")next=(value||[]).filter(x=>x!==target);
+          else if(key==="postIds")next=(value||[]).filter(x=>!posts.has(x));
+          else if(key==="storyIds")next=(value||[]).filter(x=>!stories.has(x));
+          else if(key.startsWith("post:")){
+            if(value.author===target){await remove(key);continue;}
+            next={...value,likes:(value.likes||[]).filter(x=>x!==target),reactions:Object.fromEntries(Object.entries(value.reactions||{}).map(([k,v])=>[k,Array.isArray(v)?v.filter(x=>x!==target):v])),
+              comments:(value.comments||[]).filter(c=>c.author!==target).map(c=>({...c,replies:(c.replies||[]).filter(r=>r.author!==target)}))};
+            if(posts.has(next.sharedPostId)){delete next.sharedPostId;delete next.sharedFrom;delete next.sharedPost;}
+          }else if(key.startsWith("story:") && value.author===target){await remove(key);continue;}
+          else if(key.startsWith("group:")){
+            next={...value,members:(value.members||[]).filter(x=>x!==target)};
+            if(next.createdBy===target)next.createdBy="";
+            if(next.owner===target)next.owner="";
+          }else if(key.startsWith("messages:"))next=(value||[]).filter(m=>m.from!==target && m.to!==target);
+          else if(["friends:","blocked:","followers:","following:"].some(p=>key.startsWith(p)))next=(value||[]).filter(x=>x!==target);
+          else if(key.startsWith("friendIncoming:"))next=(value||[]).filter(x=>x.from!==target);
+          else if(key.startsWith("friendOutgoing:"))next=(value||[]).filter(x=>x.to!==target);
+          else if(key.startsWith("saved:"))next=(value||[]).filter(x=>!posts.has(x));
+          else if(["notifications:","callSignals:","calls:"].some(p=>key.startsWith(p)))next=(value||[]).filter(x=>![x.from,x.to,x.by,x.username,x.peer,x.with].includes(target) && !posts.has(x.postId) && !stories.has(x.storyId));
+          else if(key==="reports")next=(value||[]).filter(x=>![x.reporter,x.username,x.targetUsername].includes(target) && !(x.targetType==="user" && x.targetId===target) && !posts.has(x.targetId));
+          if(next!==value)await this.ctx.storage.put(key,next);
+        }
+        job.cursor=page.size===100?[...page.keys()].at(-1):null;
+        if(!job.cursor){
+          await this.ctx.storage.delete("admin-delete:job");
+          this.accountDeleteClosing=false;
+          return j({ok:true,done:true,username:target,deletedMedia:job.deletedMedia});
+        }
+      }
+      await this.ctx.storage.put("admin-delete:job",job);
+      return j({ok:true,done:false,username:target,phase:job.phase,deletedMedia:job.deletedMedia});
+    }catch(err){
+      console.error("Account deletion paused",err);
+      return j({ok:false,error:"توقف الحذف مؤقتًا؛ استكمله من لوحة الإدارة. التطبيق ينتظر اكتمال الحذف",code:"ACCOUNT_DELETE_RETRY"},503);
+    }finally{this.accountDeleteBusy=false;}
+  }
+
   async api(request){
     const path=new URL(request.url).pathname;
-    if(!path.startsWith("/api/admin/reset/")){
-      if(await this.resetActive())return j({ok:false,error:"التطبيق تحت التصفير؛ أعد المحاولة بعد اكتماله",code:"RESET_IN_PROGRESS"},503);
-      return this.trackOperation(()=>this.apiRequest(request));
+    const deleting=!!await this.ctx.storage.get("admin-delete:job");
+    if(path.startsWith("/api/admin/reset/")){
+      if(deleting || this.accountDeleteClosing)return j({ok:false,error:"استكمل حذف الحساب الجاري أولًا",code:"ACCOUNT_DELETE_IN_PROGRESS"},409);
+      return this.apiRequest(request);
     }
-    return this.apiRequest(request);
+    if(path==="/api/admin/users/delete"){
+      const reset=await this.ctx.storage.get("owner-reset:plan");
+      if(this.resetClosing || reset?.phase==="deleting")return j({ok:false,error:"توجد عملية تصفير جارية",code:"RESET_IN_PROGRESS"},503);
+      return this.apiRequest(request);
+    }
+    const adminRead=request.method==="GET" && ["/api/admin/users","/api/admin/summary"].includes(path);
+    if(deleting || this.accountDeleteClosing){
+      if(!adminRead)return j({ok:false,error:"جاري حذف حساب بواسطة الإدارة؛ حاول بعد قليل",code:"ACCOUNT_DELETE_IN_PROGRESS"},503);
+    }else if(await this.resetActive())return j({ok:false,error:"التطبيق تحت التصفير؛ أعد المحاولة بعد اكتماله",code:"RESET_IN_PROGRESS"},503);
+    return this.trackOperation(()=>this.apiRequest(request));
   }
 
   async apiRequest(request){
@@ -865,7 +1033,7 @@ export class SignalingRoom extends DurableObject {
         await this.ctx.storage.put(googleKey,username);
       }
       const googleUser=await this.user(username);
-      if(googleUser?.banned)return j({ok:false,error:"تم إيقاف هذا الحساب بواسطة الإدارة"},403);
+      if(googleUser?.banned || googleUser?.disabled)return j({ok:false,error:"تم إيقاف هذا الحساب بواسطة الإدارة"},403);
       const token=await this.createSession(username);
       return j({ok:true,token,user:await this.publicUser(username)});
     }
@@ -893,7 +1061,7 @@ export class SignalingRoom extends DurableObject {
         await this.ctx.storage.put(rateKey,fresh,{expirationTtl:610});
         return j({ok:false,error:"اسم المستخدم أو كلمة المرور غير صحيحة"},401);
       }
-      if(u.banned)return j({ok:false,error:"تم إيقاف هذا الحساب بواسطة الإدارة"},403);
+      if(u.banned || u.disabled)return j({ok:false,error:"تم إيقاف هذا الحساب بواسطة الإدارة"},403);
       await this.ctx.storage.delete(rateKey);
       if(!u.passwordHash.startsWith('pbkdf2:')){
         u.passwordHash=await securePassword(password);
@@ -1702,6 +1870,26 @@ export class SignalingRoom extends DurableObject {
       });
     }
 
+    if(url.pathname==="/api/call-media-signals" && request.method==="GET"){
+      const s=await this.session(url.searchParams.get("token")||"");
+      if(!s)return j({ok:false,error:"الجلسة منتهية"},401);
+      const other=String(url.searchParams.get("with")||"").trim().toLowerCase();
+      const callId=String(url.searchParams.get("callId")||"");
+      if(!/^[A-Za-z0-9_-]{8,128}$/.test(callId))return j({ok:false,error:"مكالمة غير صالحة"},400);
+      if(!await this.canCommunicate(s.username,other))return j({ok:false,error:"المكالمات للأصدقاء فقط"},403);
+      const key=[s.username,other].sort().join(":"),messages=await this.ctx.storage.get(`messages:${key}`)||[];
+      const signals=[];
+      for(const m of messages){
+        if(m.mediaType!=="call-signal" || m.from!==other || m.to!==s.username || Date.now()-Number(m.ts||0)>120000)continue;
+        try{
+          const packet=JSON.parse(m.media);
+          if(packet.callId!==callId)continue;
+          signals.push({...packet,from:m.from,to:m.to,createdAt:m.ts,signalId:String(packet.signalId||m.id)});
+        }catch{}
+      }
+      const response=j({ok:true,signals});response.headers.set("cache-control","no-store");return response;
+    }
+
     if(url.pathname==="/api/conversation" && request.method==="GET"){
       const s=await this.session(url.searchParams.get("token")||"");
       if(!s)return j({ok:false,error:"الجلسة منتهية"},401);
@@ -2011,6 +2199,7 @@ export class SignalingRoom extends DurableObject {
         return j({ok:false,error:"اعرض تقرير التصفير من هذه الجلسة أولًا"},409);
       if(body.confirmation!=="امسح كل الحسابات")return j({ok:false,error:"اكتب عبارة التأكيد كما ظهرت في التقرير"},400);
       if(plan.phase!=="deleting" && Date.now()>plan.expiresAt)return j({ok:false,error:"انتهت صلاحية التقرير؛ اعرضه من جديد"},409);
+      if(this.accountDeleteClosing || this.accountDeleteBusy)return j({ok:false,error:"استكمل حذف الحساب أولًا",code:"ACCOUNT_DELETE_IN_PROGRESS"},409);
       if(this.resetStepBusy)return j({ok:false,error:"توجد دفعة تصفير قيد التنفيذ؛ أعد المحاولة",code:"RESET_BUSY"},409);
       this.resetStepBusy=true;
       try{
@@ -2077,25 +2266,26 @@ export class SignalingRoom extends DurableObject {
     if(url.pathname==="/api/admin/summary" && request.method==="GET"){
       const auth=await this.requireAdmin(url.searchParams.get("token")||"");
       if(auth.error)return auth.error;
-      const usernames=await this.ctx.storage.get("usernames")||[];
-      const postIds=await this.ctx.storage.get("postIds")||[];
-      const reports=await this.ctx.storage.get("reports")||[];
-      let banned=0;
-      for(const name of usernames){ const u=await this.user(name); if(u?.banned)banned++; }
-      return j({ok:true,role:auth.role,owner:this.ownerUsername(),counts:{users:usernames.length,posts:postIds.length,reports:reports.filter(r=>!r.resolved).length,banned}});
+      return j({ok:true,role:auth.role,owner:this.ownerUsername(),...await this.adminStatistics()});
     }
 
     if(url.pathname==="/api/admin/users" && request.method==="GET"){
-      const auth=await this.requireAdmin(url.searchParams.get("token")||"");
-      if(auth.error)return auth.error;
-      const usernames=await this.ctx.storage.get("usernames")||[];
+      const auth=await this.requireAdmin(url.searchParams.get("token")||"");if(auth.error)return auth.error;
+      const query=String(url.searchParams.get("q")||"").trim().toLowerCase();
       const list=[];
-      for(const name of usernames){
-        const u=await this.user(name); if(!u)continue;
-        list.push({username:u.username,displayName:u.displayName||u.fullName||u.username,avatar:u.avatar||"",banned:!!u.banned,role:await this.roleFor(u.username),createdAt:u.createdAt||0});
+      for(const u of await this.allRecords("user:")){
+        if(query && !`${u.username} ${u.displayName||""} ${u.fullName||""}`.toLowerCase().includes(query))continue;
+        list.push({username:u.username,displayName:u.displayName||u.fullName||u.username,avatar:u.avatar||"",banned:!!u.banned,disabled:!!u.disabled,role:await this.roleFor(u.username),createdAt:u.createdAt||0});
       }
-      list.sort((a,b)=>b.createdAt-a.createdAt);
-      return j({ok:true,users:list.slice(0,500)});
+      list.sort((a,b)=>b.createdAt-a.createdAt || a.username.localeCompare(b.username));
+      const offset=Math.max(0,Number(url.searchParams.get("offset"))||0);
+      const limit=Math.max(1,Math.min(100,Number(url.searchParams.get("limit"))||100));
+      return j({ok:true,users:list.slice(offset,offset+limit),total:list.length,nextOffset:offset+limit<list.length?offset+limit:null});
+    }
+
+    if(url.pathname==="/api/admin/users/delete" && request.method==="POST"){
+      const auth=await this.requireAdmin(body.token||"");if(auth.error)return auth.error;
+      return this.deleteAccountStep(auth,body);
     }
 
     if(url.pathname==="/api/admin/reports" && request.method==="GET"){
@@ -2121,14 +2311,27 @@ export class SignalingRoom extends DurableObject {
       const target=String(body.username||"").trim().toLowerCase();
       const owner=this.ownerUsername();
 
-      if(["ban","unban","make_moderator","remove_moderator"].includes(action)){
-        if(!target || !await this.user(target))return j({ok:false,error:"المستخدم غير موجود"},404);
-        if(target===owner)return j({ok:false,error:"لا يمكن تعديل صلاحيات أو إيقاف حساب المدير الرئيسي"},403);
-        if(["make_moderator","remove_moderator"].includes(action))return j({ok:false,error:"تعيين مشرفين متوقف: صلاحيات الإدارة للحساب الرئيسي فقط"},403);
-        const u=await this.user(target);
-        if(action==="ban" || action==="unban"){ u.banned=action==="ban"; u.bannedAt=u.banned?Date.now():0; u.bannedBy=u.banned?auth.session.username:""; await this.ctx.storage.put(`user:${target}`,u); }
-        if(action==="make_moderator" || action==="remove_moderator"){ let mods=await this.ctx.storage.get("moderators")||[]; mods=action==="make_moderator"?[...new Set([...mods,target])]:mods.filter(x=>x!==target); await this.ctx.storage.put("moderators",mods); }
-        return j({ok:true});
+      if(["ban","unban","suspend","activate","make_moderator","remove_moderator"].includes(action)){
+        let u=await this.user(target);
+        if(!target || !u)return j({ok:false,error:"المستخدم غير موجود"},404);
+        if(target===owner)return j({ok:false,error:"لا يمكن إيقاف حساب المدير الرئيسي"},403);
+        if(["make_moderator","remove_moderator"].includes(action))return j({ok:false,error:"صلاحيات الإدارة للحساب الرئيسي فقط"},403);
+        if(this.accountStatusBusy.has(target))return j({ok:false,error:"جاري تحديث هذا الحساب؛ حاول بعد قليل"},409);
+        this.accountStatusBusy.add(target);
+        try{
+        u=await this.user(target);
+        u.banned=action==="ban";u.disabled=action==="suspend";
+        u.bannedAt=u.banned?Date.now():0;u.bannedBy=u.banned?auth.session.username:"";
+        u.disabledAt=u.disabled?Date.now():0;u.disabledBy=u.disabled?auth.session.username:"";
+        // Reactivation requires a fresh login: old sessions must never come back to life.
+        u.authVersion=Number(u.authVersion||0)+1;
+        u.moderationVersion=Number(u.moderationVersion||0)+1;
+        // This separate state cannot be undone by an in-flight profile save with stale fields.
+        await this.ctx.storage.put(`account-state:${target}`,{banned:u.banned,disabled:u.disabled,version:u.moderationVersion,changedAt:Date.now()});
+        await this.ctx.storage.put(`user:${target}`,u);
+        if(u.banned || u.disabled)this.disconnectAccount(target);
+        return j({ok:true,status:u.banned?"banned":u.disabled?"disabled":"active"});
+        }finally{this.accountStatusBusy.delete(target);}
       }
 
       if(action==="delete_post"){
@@ -2779,7 +2982,7 @@ export default {
       return Response.json({
         ok:true,
         app:"تواصل العطا",
-        version:"V13.78-Configurable-Owner"
+        version:"V13.79-Admin-Quran-Calls"
       });
     }
 

@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 import assert from 'node:assert/strict';
 const source=fs.readFileSync(new URL('../cloudflare-site/public/app.js',import.meta.url),'utf8');
-const begin=source.indexOf('let ownerResetPlan=null;');const end=source.indexOf('\nasync function loadAdminUsers()',begin);
+const begin=source.indexOf('let ownerResetPlan=null;');const end=source.indexOf('\nlet adminUsersNextOffset=',begin);
 assert.ok(begin>=0&&end>begin);
 const nodes=new Map();for(const id of ['adminResetPreviewBtn','adminResetExecuteBtn','adminResetConfirmation','adminResetConfirmArea','adminResetPreviewReport'])nodes.set(id,{value:'',disabled:false,textContent:'',classList:{add(){},remove(){}}});
 const calls=[];let logout=0,reloads=0,attempt=0;

@@ -641,7 +641,13 @@ private class AttaYoutubeFullscreenChrome(
     var confirmLogout by remember { mutableStateOf(false) }
     var showStoryComposer by remember { mutableStateOf(false) }
     var confirmPostDelete by remember { mutableStateOf("") }
-    var confirmBanUser by remember { mutableStateOf("") }
+    var confirmAccountUser by remember { mutableStateOf("") }
+    var confirmAccountAction by remember { mutableStateOf("suspend") }
+    var deleteAccountConfirmation by remember { mutableStateOf("") }
+    var accountDeleteProgress by remember { mutableStateOf("") }
+    var adminSummary by remember { mutableStateOf(JSONObject()) }
+    var adminSearch by remember { mutableStateOf("") }
+    var adminNextOffset by remember { mutableStateOf(-1) }
     var adminRole by remember { mutableStateOf("") }
     var adminUsers by remember { mutableStateOf(emptyList<JSONObject>()) }
     var adminPosts by remember { mutableStateOf(emptyList<JSONObject>()) }
@@ -750,10 +756,13 @@ private class AttaYoutubeFullscreenChrome(
     fun clearLocalSession() {
         activeCall = null; incomingCall = null; pendingPermissionCall = null
         AttaPush.activeCallId = ""
+        NativeRtcCall.clearIceCache()
         chatWith = ""; messages = emptyList(); inboxPreviews = emptyList(); recentChatPeers.clear()
         posts = emptyList(); ownPosts = emptyList(); publicPosts = emptyList(); archivedPosts = emptyList()
         notifications = emptyList(); friends = emptyList(); publicFriends = emptyList(); requests = emptyList(); users = emptyList(); groups = emptyList()
         adminUsers = emptyList(); adminPosts = emptyList(); adminRole = ""
+        adminSummary = JSONObject(); adminSearch = ""; adminNextOffset = -1
+        confirmAccountUser = ""; deleteAccountConfirmation = ""; accountDeleteProgress = ""
         profile = JSONObject(); publicProfile = null; displayName = ""; myUsername = ""; myAvatar = ""
         googleIdToken = ""; googleEmail = ""; ownerResetPlan = null; ownerResetConfirmation = ""
         visited.clear(); tab = "الرئيسية"; token = ""; authMode = "login"
@@ -1000,13 +1009,14 @@ private class AttaYoutubeFullscreenChrome(
 
     suspend fun load(which: String) {
         when (which) {
-            "الرئيسية" -> { posts = get("/api/posts?limit=40").arr("posts"); stories = get("/api/stories").arr("stories"); try { notifications = get("/api/notifications").arr("notifications") } catch (_: Exception) { } }
+            "الرئيسية" -> { posts = get("/api/posts?limit=40").arr("posts"); try { notifications = get("/api/notifications").arr("notifications") } catch (_: Exception) { } }
             "استكشاف" -> posts = get("/api/explore").arr("posts")
             "الأصدقاء" -> { users = get("/api/users?q=${enc(search)}").arr("users"); friends = get("/api/friends").arr("friends"); requests = get("/api/friend-requests").arr("requests") }
             "الرسائل" -> {
                 if (chatWith.isNotBlank()) {
                     messages = get("/api/conversation?with=${enc(chatWith)}").arr("messages")
                 } else {
+                    stories = get("/api/stories").arr("stories")
                     inboxLoading = true
                     try {
                         val people = get("/api/friends").arr("friends")
@@ -1064,8 +1074,12 @@ private class AttaYoutubeFullscreenChrome(
             "المحفوظات" -> posts = get("/api/saved-posts").arr("posts")
             "الإدارة" -> {
                 if (adminRole == "super_admin") {
-                    adminUsers = get("/api/admin/users").arr("users")
-                    adminPosts = get("/api/admin/posts").arr("posts")
+                    adminSummary = get("/api/admin/summary")
+                    val accounts = get("/api/admin/users?q=${enc(adminSearch)}")
+                    adminUsers = accounts.arr("users")
+                    adminNextOffset = if (accounts.isNull("nextOffset")) -1 else accounts.optInt("nextOffset", -1)
+                    // During a paused deletion only owner status and account reads are available.
+                    if (adminSummary.isNull("deletion")) adminPosts = get("/api/admin/posts").arr("posts")
                 }
             }
             "أرشيفي" -> archivedPosts = get("/api/post-archive-list").arr("posts")
@@ -1184,6 +1198,9 @@ private class AttaYoutubeFullscreenChrome(
 
     // A single lightweight authenticated WebSocket receives incoming calls in the
     // foreground. WebRTC transport itself is active only while a call screen is open.
+    LaunchedEffect(token) {
+        if (token.isNotBlank()) NativeRtcCall.prewarmIce(token)
+    }
     LaunchedEffect(token, myUsername) {
         if (token.isBlank() || myUsername.isBlank()) return@LaunchedEffect
         val socketClient = OkHttpClient.Builder().pingInterval(25, TimeUnit.SECONDS).build()
@@ -1195,7 +1212,7 @@ private class AttaYoutubeFullscreenChrome(
                     object : WebSocketListener() {
                         override fun onMessage(webSocket: WebSocket, text: String) {
                             val msg = try { JSONObject(text) } catch (_: Exception) { return }
-                            if (msg.optString("type") == "account-reset") {
+                            if (msg.optString("type") in setOf("account-reset", "account-disabled", "account-deleted")) {
                                 scope.launch { clearLocalSession() }
                                 return
                             }
@@ -1205,11 +1222,12 @@ private class AttaYoutubeFullscreenChrome(
                                     if (!has("to")) put("to", msg.optString("to"))
                                 } } catch (_: Exception) { null }
                                 else msg
-                            if (signal?.optString("type") in setOf("call-request", "hangup", "call-reject")) {
+                            if (signal?.optString("type") in setOf("call-request", "call-ringing", "call-accept", "offer", "answer", "ice", "hangup", "call-reject")) {
                                 val packet = signal!!
                                 scope.launch(Dispatchers.Main) {
-                                    handleIncomingCallEvent(packet)
-                                    if (tab == "الرسائل" && token.isNotBlank()) {
+                                    NativeRtcCall.deliverSignal(packet)
+                                    if (packet.optString("type") in setOf("call-request", "hangup", "call-reject")) handleIncomingCallEvent(packet)
+                                    if (packet.optString("type") in setOf("call-request", "hangup", "call-reject") && tab == "الرسائل" && token.isNotBlank()) {
                                         try { load("الرسائل") } catch (_: Exception) { }
                                     }
                                 }
@@ -1424,7 +1442,7 @@ private class AttaYoutubeFullscreenChrome(
                 showStoryComposer = false
                 if (storyText.isNotBlank()) task {
                     post("/api/stories", JSONObject().put("text", storyText))
-                    storyText = ""; load("الرئيسية")
+                    storyText = ""; load("الرسائل")
                 }
             }, enabled = storyText.isNotBlank()) { Text("نشر القصة", color = if (storyText.isNotBlank()) GoldLight else Muted) }
         },
@@ -1464,19 +1482,38 @@ private class AttaYoutubeFullscreenChrome(
         }) { Text("حذف نهائي", color = Color(0xFFFF8B8B)) } },
         dismissButton = { TextButton(onClick = { confirmPostDelete = "" }) { Text("إلغاء", color = GoldLight) } }
     )
-    if (confirmBanUser.isNotBlank()) AlertDialog(
-        onDismissRequest = { confirmBanUser = "" }, containerColor = Panel,
-        title = { Text("إيقاف الحساب؟", color = GoldLight) },
-        text = { Text("سيُمنع هذا المستخدم من تسجيل الدخول حتى إعادة تفعيل حسابه.", color = White) },
-        confirmButton = { TextButton(onClick = {
-            val username = confirmBanUser; confirmBanUser = ""
-            task {
-                post("/api/admin/action", JSONObject().put("action", "ban").put("username", username))
-                adminUsers = get("/api/admin/users").arr("users")
-            }
-        }) { Text("إيقاف الحساب", color = Color(0xFFFF8B8B)) } },
-        dismissButton = { TextButton(onClick = { confirmBanUser = "" }) { Text("إلغاء", color = GoldLight) } }
-    )
+    if (confirmAccountUser.isNotBlank()) {
+        val permanent = confirmAccountAction == "delete_user"
+        val actionLabel = if (permanent) "حذف الحساب نهائيًا" else if (confirmAccountAction == "ban") "حظر الحساب" else "تعطيل الحساب"
+        AlertDialog(
+            onDismissRequest = { if (!busy) confirmAccountUser = "" }, containerColor = Panel,
+            title = { Text(actionLabel, color = GoldLight) },
+            text = { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(if (permanent) "سيُحذف @$confirmAccountUser مع منشوراته ورسائله وملفاته نهائيًا. يمكنه إنشاء حساب جديد بنفس الاسم والإيميل بعد اكتمال الحذف. اكتب اسم المستخدم للتأكيد."
+                    else "سيُمنع @$confirmAccountUser من الدخول وسيُخفى حسابه ومحتواه حتى إعادة التفعيل.", color = White)
+                if (permanent) PremiumAuthTextField(deleteAccountConfirmation, { deleteAccountConfirmation = it }, confirmAccountUser)
+                if (accountDeleteProgress.isNotBlank()) Text(accountDeleteProgress, color = GoldLight, fontSize = 12.sp)
+                if (error.isNotBlank()) Text(error, color = Color(0xFFFF8B8B), fontSize = 12.sp)
+            } },
+            confirmButton = { TextButton(enabled = !busy && (!permanent || deleteAccountConfirmation == confirmAccountUser), onClick = {
+                val username = confirmAccountUser
+                val action = confirmAccountAction
+                task {
+                    if (permanent) {
+                        var done = false
+                        while (!done) {
+                            val result = post("/api/admin/users/delete", JSONObject().put("username", username).put("confirmation", deleteAccountConfirmation))
+                            done = result.optBoolean("done")
+                            accountDeleteProgress = "جاري حذف بيانات الحساب... ملفات محذوفة: ${result.optInt("deletedMedia")}"
+                        }
+                    } else post("/api/admin/action", JSONObject().put("action", action).put("username", username))
+                    confirmAccountUser = ""; deleteAccountConfirmation = ""; accountDeleteProgress = ""
+                    load("الإدارة")
+                }
+            }) { Text(if (busy) "جاري التنفيذ..." else actionLabel, color = Color(0xFFFF8B8B)) } },
+            dismissButton = { TextButton(enabled = !busy, onClick = { confirmAccountUser = "" }) { Text("إغلاق", color = GoldLight) } }
+        )
+    }
     LaunchedEffect(token, myUsername) {
         recentChatPeers.clear()
         if (token.isNotBlank() && myUsername.isNotBlank()) {
@@ -1867,29 +1904,7 @@ private class AttaYoutubeFullscreenChrome(
                                         }
                                     }
                                 }
-                                item {
-                                    CardBox {
-                                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                                            Text("القصص", color = White, fontSize = 17.sp,
-                                                fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-                                            Text("عرض الكل", color = GoldLight, fontSize = 12.sp,
-                                                modifier = Modifier.clickable {
-                                                    featureMessage = "القائمة تعرض القصص المتاحة حاليًا من السيرفر."
-                                                })
-                                        }
-                                        Spacer(Modifier.height(10.dp))
-                                        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                                            horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                            StoryRing("إضافة قصة", "", true) { showStoryComposer = true }
-                                            stories.take(20).forEach { st ->
-                                                val storyPhoto = media(st.optString("media").ifBlank { st.optString("image") })
-                                                StoryRing(st.optJSONObject("authorInfo")?.name() ?: "مستخدم", storyPhoto, false) {
-                                                    selectedStory = st
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
+
                             }
                             items(if (tab == "استكشاف" && search.isNotBlank()) posts.filter { p ->
                                 p.optString("text").contains(search.trim(), ignoreCase = true) ||
@@ -1951,7 +1966,7 @@ private class AttaYoutubeFullscreenChrome(
                                                 }
                                                 if (!isMyPost && canModerate) {
                                                     DropdownMenuItem(text = { Text("إيقاف حساب الناشر", color = Color(0xFFFF8B8B)) }, onClick = {
-                                                        postMenuExpanded = false; confirmBanUser = p.optString("author")
+                                                        postMenuExpanded = false; confirmAccountUser = p.optString("author")
                                                     })
                                                 }
                                             }
@@ -2127,6 +2142,19 @@ private class AttaYoutubeFullscreenChrome(
                             if (adminRole == "super_admin") {
                                 item {
                                     CardBox {
+                                        AdminStatisticsPanel(adminSummary)
+                                        GoldButton("تحديث الإحصائيات", !busy) { task { load("الإدارة") } }
+                                        adminSummary.optJSONObject("deletion")?.let { deletion ->
+                                            Text("حذف حساب قيد الاستكمال: @${deletion.optString("username")}", color = GoldLight)
+                                            GoldButton("استكمال حذف الحساب", !busy) {
+                                                confirmAccountAction = "delete_user"; confirmAccountUser = deletion.optString("username")
+                                                deleteAccountConfirmation = ""; accountDeleteProgress = ""; error = ""
+                                            }
+                                        }
+                                    }
+                                }
+                                item {
+                                    CardBox {
                                         Text("تصفير كل الحسابات والبيانات", color = GoldLight, fontWeight = FontWeight.Bold)
                                         Text("يشمل حساب المدير الحالي وكل المنشورات والرسائل والوسائط. لا تُنشأ نسخة احتياطية.", color = Muted, fontSize = 12.sp)
                                         GoldButton("عرض نطاق الحذف", !busy) {
@@ -2156,20 +2184,41 @@ private class AttaYoutubeFullscreenChrome(
                                         }
                                     }
                                 }
-                                item { SectionTitle("إدارة الحسابات") }
+                                item {
+                                    SectionTitle("إدارة الحسابات")
+                                    PremiumAuthTextField(adminSearch, { adminSearch = it }, "ابحث بالاسم أو اسم المستخدم")
+                                    GoldButton("بحث", !busy) { task { load("الإدارة") } }
+                                }
                                 items(adminUsers) { u ->
                                     val username = u.optString("username")
                                     CardBox {
                                         Text(u.optString("displayName").ifBlank { username }, color = White, fontWeight = FontWeight.Bold)
                                         Text("@$username", color = Muted, fontSize = 12.sp)
-                                        Row {
-                                            if (u.optBoolean("banned")) TextButton(onClick = { task {
-                                                post("/api/admin/action", JSONObject().put("action", "unban").put("username", username))
-                                                adminUsers = get("/api/admin/users").arr("users")
-                                            } }) { Text("إعادة تفعيل", color = GoldLight) }
-                                            else if (username != myUsername && u.optString("role") != "super_admin") TextButton(onClick = { confirmBanUser = username }) { Text("إيقاف الحساب", color = Color(0xFFFF8B8B)) }
+                                        Text(if (u.optBoolean("banned")) "محظور" else if (u.optBoolean("disabled")) "معطّل" else "مفعّل", color = GoldLight, fontSize = 12.sp)
+                                        if (username != myUsername && u.optString("role") != "super_admin") {
+                                            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) {
+                                                if (u.optBoolean("banned") || u.optBoolean("disabled")) TextButton(enabled = !busy, onClick = { task {
+                                                    post("/api/admin/action", JSONObject().put("action", "activate").put("username", username))
+                                                    load("الإدارة")
+                                                } }) { Text("إعادة تفعيل", color = GoldLight) }
+                                                else {
+                                                    TextButton(onClick = { confirmAccountAction = "suspend"; confirmAccountUser = username; error = "" }) { Text("تعطيل", color = GoldLight) }
+                                                    TextButton(onClick = { confirmAccountAction = "ban"; confirmAccountUser = username; error = "" }) { Text("حظر", color = Color(0xFFFF8B8B)) }
+                                                }
+                                                TextButton(onClick = {
+                                                    confirmAccountAction = "delete_user"; confirmAccountUser = username
+                                                    deleteAccountConfirmation = ""; accountDeleteProgress = ""; error = ""
+                                                }) { Text("حذف نهائي", color = Color(0xFFFF8B8B)) }
+                                            }
                                         }
                                     }
+                                }
+                                if (adminNextOffset >= 0) item {
+                                    GoldButton("عرض المزيد من الحسابات", !busy) { task {
+                                        val accounts = get("/api/admin/users?q=${enc(adminSearch)}&offset=$adminNextOffset")
+                                        adminUsers = (adminUsers + accounts.arr("users")).distinctBy { it.optString("username") }
+                                        adminNextOffset = if (accounts.isNull("nextOffset")) -1 else accounts.optInt("nextOffset", -1)
+                                    } }
                                 }
                                 item { SectionTitle("إدارة المنشورات") }
                                 items(adminPosts) { p ->
@@ -2262,6 +2311,9 @@ private class AttaYoutubeFullscreenChrome(
                                     myUsername = myUsername,
                                     contacts = friends,
                                     inbox = inboxPreviews,
+                                    stories = stories,
+                                    onAddStory = { showStoryComposer = true },
+                                    onStory = { selectedStory = it },
                                     loading = inboxLoading,
                                     onOpen = { username -> openChat(username) },
                                     onProfile = { username -> openPublicProfile(username) },
@@ -2555,6 +2607,49 @@ private class AttaYoutubeFullscreenChrome(
                 )
             }
             }
+        }
+    }
+}
+
+
+@Composable
+private fun AdminStatisticsPanel(summary: JSONObject) {
+    val counts = summary.optJSONObject("counts") ?: JSONObject()
+    val metrics = listOf(
+        "المستخدمون" to "users", "المنشورات" to "posts",
+        "مستخدمون جدد اليوم" to "usersToday", "منشورات اليوم" to "postsToday",
+        "جدد خلال ٧ أيام" to "users7Days", "منشورات خلال ٧ أيام" to "posts7Days",
+        "حسابات مفعّلة" to "active", "متصلون الآن" to "online",
+        "حسابات محظورة" to "banned", "حسابات معطّلة" to "disabled",
+        "بلاغات مفتوحة" to "reports", "منشورات مؤرشفة" to "archivedPosts"
+    )
+    Text("إحصائيات التطبيق", color = GoldLight, fontWeight = FontWeight.Bold)
+    metrics.chunked(2).forEach { pair ->
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            pair.forEach { (label, key) ->
+                Column(Modifier.weight(1f).padding(vertical = 6.dp)) {
+                    Text(counts.optInt(key).toString(), color = White, fontSize = 23.sp, fontWeight = FontWeight.Bold)
+                    Text(label, color = Muted, fontSize = 12.sp)
+                }
+            }
+        }
+    }
+    Text("آخر ٧ أيام • بتوقيت الرياض", color = GoldLight, fontSize = 13.sp)
+    Text("ذهبي: مستخدمون جدد   •   أزرق: منشورات", color = Muted, fontSize = 11.sp)
+    val daily = summary.arr("daily")
+    val maximum = daily.maxOfOrNull { maxOf(it.optInt("users"), it.optInt("posts")) }?.coerceAtLeast(1) ?: 1
+    daily.forEach { day ->
+        Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(day.optString("date").takeLast(5), color = Muted, fontSize = 11.sp, modifier = Modifier.width(46.dp))
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Box(Modifier.fillMaxWidth().height(6.dp).background(Color(0xFF242A2D), RoundedCornerShape(4.dp))) {
+                    if (day.optInt("users") > 0) Box(Modifier.fillMaxWidth(day.optInt("users").toFloat() / maximum).height(6.dp).background(GoldLight, RoundedCornerShape(4.dp)))
+                }
+                Box(Modifier.fillMaxWidth().height(6.dp).background(Color(0xFF242A2D), RoundedCornerShape(4.dp))) {
+                    if (day.optInt("posts") > 0) Box(Modifier.fillMaxWidth(day.optInt("posts").toFloat() / maximum).height(6.dp).background(Color(0xFF6DB8E7), RoundedCornerShape(4.dp)))
+                }
+            }
+            Text("${day.optInt("users")} / ${day.optInt("posts")}", color = White, fontSize = 11.sp, modifier = Modifier.width(48.dp), textAlign = TextAlign.Center)
         }
     }
 }
