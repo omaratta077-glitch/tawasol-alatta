@@ -315,7 +315,8 @@ internal class NativeRtcCall(
                 }
             } catch (cancelled: CancellationException) { throw cancelled }
             catch (_: Exception) { /* the next poll retries without dropping the call */ }
-            delay(1700L)
+            // Fast signaling while connecting; conserve requests during established calls.
+            delay(if (peer?.connectionState() == PeerConnection.PeerConnectionState.CONNECTED) 1700L else 450L)
         }
     }
 
@@ -340,7 +341,7 @@ internal class NativeRtcCall(
                     val conn = requireNotNull(peer)
                     val offer = createDescription(conn, true)
                     setDescription(conn, offer, local = true)
-                    waitForIce(conn)
+                    // Trickle ICE is already sent by onIceCandidate; do not block SDP.
                     sendSignal("offer", JSONObject().put("sdp", JSONObject()
                         .put("type", "offer").put("sdp", conn.localDescription?.description ?: offer.description)))
                 } catch (e: Exception) {
@@ -355,7 +356,7 @@ internal class NativeRtcCall(
                 flushIce()
                 val answer = createDescription(conn, false)
                 setDescription(conn, answer, local = true)
-                waitForIce(conn)
+                // Remote endpoint accepts trickled ICE; send answer promptly.
                 sendSignal("answer", JSONObject().put("sdp", JSONObject()
                     .put("type", "answer").put("sdp", conn.localDescription?.description ?: answer.description)))
                 report("جارٍ إتمام اتصال الفيديو والصوت...")

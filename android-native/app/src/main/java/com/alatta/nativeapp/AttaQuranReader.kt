@@ -4,6 +4,7 @@ import android.graphics.Color as AndroidColor
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
+import androidx.webkit.WebViewAssetLoader
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -34,6 +35,12 @@ import androidx.compose.ui.viewinterop.AndroidView
 internal fun QuranReaderScreen(modifier: Modifier = Modifier, onExit: () -> Unit) {
     val context = LocalContext.current
     var loadingProblem by remember { mutableStateOf<String?>(null) }
+    var pageReady by remember { mutableStateOf(false) }
+    val loader = remember(context) {
+        WebViewAssetLoader.Builder()
+            .addPathHandler("/assets/", WebViewAssetLoader.AssetsPathHandler(context))
+            .build()
+    }
     val reader = remember(context) {
         WebView(context).apply {
             setBackgroundColor(AndroidColor.rgb(253, 247, 230))
@@ -47,22 +54,14 @@ internal fun QuranReaderScreen(modifier: Modifier = Modifier, onExit: () -> Unit
             settings.mediaPlaybackRequiresUserGesture = false // Playback starts only after an explicit verse choice.
             webViewClient = object : WebViewClient() {
                 override fun shouldInterceptRequest(view: WebView?, request: WebResourceRequest?): WebResourceResponse? {
-                    // Serve the bundled Mushaf through a normal HTTPS document navigation.
-                    // This avoids the fragile loadDataWithBaseURL path on some Android WebViews
-                    // while keeping same-origin fetches to the public read-only Quran API.
-                    if (request?.url?.toString() == "https://api.alquran.cloud/__atta_mushaf_local__.html") {
-                        return try {
-                            WebResourceResponse("text/html", "UTF-8", context.assets.open("atta-quran.html"))
-                        } catch (_: Exception) {
-                            WebResourceResponse("text/plain", "UTF-8", 404, "Missing Quran asset", emptyMap(),
-                                "Missing Quran asset".byteInputStream())
-                        }
-                    }
-                    return super.shouldInterceptRequest(view, request)
+                    // AndroidX serves the packaged reader from a stable, secure origin.
+                    // External Quran API requests remain normal HTTPS requests.
+                    return request?.url?.let { uri -> loader.shouldInterceptRequest(uri) }
                 }
                 override fun onPageFinished(view: WebView?, url: String?) {
                     view?.evaluateJavascript("Boolean(document.getElementById('indexButton') && document.getElementById('pageText') && document.querySelector('.toolbar'))") { result ->
-                        loadingProblem = if (result == "true") null else "تعذّر عرض واجهة المصحف. افتح القسم مرة أخرى أو حدّث Android System WebView."
+                        pageReady = result == "true"
+                        loadingProblem = if (pageReady) null else "تعذّر عرض واجهة المصحف. جرّب فتح القسم مرة أخرى أو تحديث Android System WebView."
                     }
                 }
 
@@ -74,7 +73,7 @@ internal fun QuranReaderScreen(modifier: Modifier = Modifier, onExit: () -> Unit
             }
             // Asset is intercepted locally; it is never downloaded from the API.
             // This real document navigation works more reliably than data URLs on HONOR WebView.
-            loadUrl("https://api.alquran.cloud/__atta_mushaf_local__.html")
+            loadUrl("https://appassets.androidplatform.net/assets/atta-quran.html")
         }
     }
     DisposableEffect(reader) {

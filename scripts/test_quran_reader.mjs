@@ -23,7 +23,7 @@ for (const feature of ['playHere', 'playSurah', 'loadTafsir', 'hizbQuarter', 'lo
     assert.ok(html.includes(feature), `Missing Quran reader action: ${feature}`);
 }
 assert.ok(html.includes('٢٤٠') && html.includes('٦٠٤') && html.includes('١١٤'));
-assert.ok(kotlin.includes('shouldInterceptRequest') && kotlin.includes('loadUrl("https://api.alquran.cloud/__atta_mushaf_local__.html")'));
+assert.ok(kotlin.includes("WebViewAssetLoader") && kotlin.includes("appassets.androidplatform.net/assets/atta-quran.html"));
 assert.ok(!kotlin.includes('addJavascriptInterface'), 'Do not expose native JS bridges to Quran provider origin');
 assert.ok(main.includes('"القرآن" -> QuranReaderScreen(Modifier.weight(1f), onExit ='));
 assert.ok(kotlin.includes('settings.textZoom = 100'));
@@ -39,5 +39,5 @@ assert.ok(!html.includes('text-align:justify'), 'Do not stretch Arabic words acr
 assert.ok(main.includes('tab != "القرآن" && (tab != "الرسائل"'), 'Hide app nav in reader');
 assert.ok(!html.includes('aria-label="رجوع"'), 'Use Android system back, no duplicate back button');
 assert.ok(video.includes('localVideo?.addSink(localFrameProbe)'), 'Native camera frames feed the local preview');
-assert.ok(gradle.includes('versionCode = 174') && gradle.includes('versionName = "1.0.74"'));
+assert.ok(gradle.includes('versionCode = 175') && gradle.includes('versionName = "1.0.75"'));
 console.log('PASS: Quran 604-page reader, verse recitations, tafsir, system navigation, native WebRTC camera preview');
