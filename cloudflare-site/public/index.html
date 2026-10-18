@@ -499,12 +499,20 @@ html.mobile-device .atta-footer-brand{font-size:clamp(22px,2.8dvh,28px)!importan
           <input id="ageInput" type="date" required aria-label="تاريخ الميلاد" title="تاريخ الميلاد">
           <input id="phoneInput" type="tel" placeholder="رقم الهاتف">
           <input id="emailInput" type="email" placeholder="البريد الإلكتروني لاستلام كود التأكيد">
-          <select id="genderInput">
-            <option value="">الجنس (اختياري)</option>
+          <label for="genderInput" style="display:block;color:#e6b94e;font-size:13px">النوع (إجباري)</label>
+          <select id="genderInput" required>
+            <option value="">اختر: ذكر أو أنثى</option>
             <option value="male">ذكر</option>
             <option value="female">أنثى</option>
-            <option value="other">أخرى</option>
           </select>
+          <div id="hiddenAccountChoice" class="hidden" style="padding:12px;border:1px solid #7f6026;border-radius:12px">
+            <label for="hiddenAccountInput" style="color:#e6b94e">هل تريدين إخفاء الحساب تمامًا من البحث وقوائم الأصدقاء؟</label>
+            <select id="hiddenAccountInput" aria-label="اختيار إخفاء الحساب">
+              <option value="">اختاري نعم أو لا</option>
+              <option value="true">نعم، إخفاء الحساب</option>
+              <option value="false">لا، الحساب ظاهر</option>
+            </select>
+          </div>
           <input id="countryInput" placeholder="الدولة (اختياري)">
           <div class="register-verification-hint">سيتم إرسال كود تأكيد من 6 أرقام إلى بريدك الإلكتروني قبل إنشاء الحساب.</div>
         </div>
@@ -910,6 +918,12 @@ html.mobile-device .atta-footer-brand{font-size:clamp(22px,2.8dvh,28px)!importan
         <div><strong id="adminPostsCount">0</strong><span>المنشورات</span></div>
         <div><strong id="adminReportsCount">0</strong><span>البلاغات</span></div>
         <div><strong id="adminBannedCount">0</strong><span>الموقوفون</span></div>
+      </div>
+      <div style="margin:12px 0;padding:12px;border:1px solid #b48a37;border-radius:12px;background:#111619">
+        <strong style="color:#e6b94e">تجهيز تصفير الحسابات — معاينة فقط</strong>
+        <p style="color:#c0c4c5;font-size:13px">لن يتم مسح أي حساب أو ملف. احتفظ بالمدير omar1 ثم راجع النسخة الاحتياطية قبل طلب التنفيذ.</p>
+        <button type="button" id="adminResetPreviewBtn" class="gold-mini">عرض تقرير البيانات قبل التصفير</button>
+        <pre id="adminResetPreviewReport" style="white-space:pre-wrap;word-break:break-word;color:#f5d78a;font-size:12px" aria-live="polite"></pre>
       </div>
       <div class="admin-tabs">
         <button class="active" data-admin-tab="users">المستخدمون</button>

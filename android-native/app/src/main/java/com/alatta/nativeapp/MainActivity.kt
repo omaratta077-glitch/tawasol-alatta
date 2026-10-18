@@ -290,6 +290,26 @@ class MainActivity : ComponentActivity() {
     fun clearNotificationNavigation() { requestedNotificationTab = null }
 }
 
+@Composable private fun AttaSignupPrivacyChoice(
+    gender: String, onGender: (String) -> Unit,
+    hideChoice: Boolean?, onHideChoice: (Boolean?) -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text("النوع (إجباري)", color = GoldLight, fontSize = 13.sp)
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            FilterChip(selected = gender == "male", onClick = { onGender("male"); onHideChoice(false) }, label = { Text("ذكر") })
+            FilterChip(selected = gender == "female", onClick = { onGender("female"); onHideChoice(null) }, label = { Text("أنثى") })
+        }
+        if (gender == "female") {
+            Text("هل تريدين إخفاء الحساب من البحث وقوائم الأصدقاء؟", color = GoldLight, fontSize = 13.sp)
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                FilterChip(selected = hideChoice == true, onClick = { onHideChoice(true) }, label = { Text("نعم، إخفاء") })
+                FilterChip(selected = hideChoice == false, onClick = { onHideChoice(false) }, label = { Text("لا، إظهار") })
+            }
+        }
+    }
+}
+
 @Composable private fun GoldButton(text: String, enabled: Boolean = true, onClick: () -> Unit) {
     Button(onClick = onClick, enabled = enabled, colors = ButtonDefaults.buttonColors(containerColor = Gold, contentColor = Black), shape = RoundedCornerShape(12.dp), modifier = Modifier.shadow(7.dp, RoundedCornerShape(12.dp), ambientColor = Gold.copy(alpha = .35f), spotColor = Gold.copy(alpha = .30f)).heightIn(min = 42.dp)) {
         Text(text, fontWeight = FontWeight.Bold, fontSize = 13.sp, maxLines = 1)
@@ -582,6 +602,7 @@ private class AttaYoutubeFullscreenChrome(
     var googlePassword by remember { mutableStateOf("") }
     var googlePasswordConfirm by remember { mutableStateOf("") }
     var googleGender by remember { mutableStateOf("") }
+    var googleHideChoice by remember { mutableStateOf<Boolean?>(null) }
     var nativeUsernameSignup by remember { mutableStateOf(false) }
     var birthDateSignup by remember { mutableStateOf(false) }
     var changePasswordDialog by remember { mutableStateOf(false) }
@@ -594,6 +615,7 @@ private class AttaYoutubeFullscreenChrome(
     var resetPassword by remember { mutableStateOf("") }
     var resetConfirm by remember { mutableStateOf("") }
     var regGender by remember { mutableStateOf("") }
+    var regHideChoice by remember { mutableStateOf<Boolean?>(null) }
     var regPass by remember { mutableStateOf("") }
     var regConfirm by remember { mutableStateOf("") }
     var verificationId by remember { mutableStateOf("") }
@@ -752,6 +774,7 @@ private class AttaYoutubeFullscreenChrome(
                 googlePassword = ""
                 googlePasswordConfirm = ""
                 googleGender = ""
+                googleHideChoice = null
                 authMode = "googleProfile"
             }
             // One validated server request decides whether this Google identity already
@@ -1025,7 +1048,7 @@ private class AttaYoutubeFullscreenChrome(
             }
             "المحفوظات" -> posts = get("/api/saved-posts").arr("posts")
             "الإدارة" -> {
-                if (adminRole == "super_admin" || adminRole == "moderator") {
+                if (adminRole == "super_admin") {
                     adminUsers = get("/api/admin/users").arr("users")
                     adminPosts = get("/api/admin/posts").arr("posts")
                 }
@@ -1422,7 +1445,7 @@ private class AttaYoutubeFullscreenChrome(
         confirmButton = { TextButton(onClick = {
             val id = confirmPostDelete; confirmPostDelete = ""
             task {
-                if (adminRole == "super_admin" || adminRole == "moderator") {
+                if (adminRole == "super_admin") {
                     post("/api/admin/action", JSONObject().put("action", "delete_post").put("postId", id))
                 } else post("/api/post-delete", JSONObject().put("postId", id))
                 load(tab)
@@ -1576,18 +1599,19 @@ private class AttaYoutubeFullscreenChrome(
                             AttaBirthDatePicker(regBirthDate, { regBirthDate = it })
                             PremiumAuthTextField(regPhone, { regPhone = it }, "رقم الهاتف (اختياري)")
                             PremiumAuthTextField(regEmail, { regEmail = it }, "البريد الإلكتروني لاستقبال كود التأكيد")
-                            PremiumAuthTextField(regGender, { regGender = it }, "النوع (اختياري)")
+                            AttaSignupPrivacyChoice(regGender, { regGender = it }, regHideChoice, { regHideChoice = it })
                             PremiumAuthTextField(regCountry, { regCountry = it }, "الدولة (اختياري)")
                             PremiumAuthTextField(regCity, { regCity = it }, "المدينة (اختياري)")
                             PremiumAuthTextField(regPass, { regPass = it }, "كلمة المرور", password = true)
                             PremiumAuthTextField(regConfirm, { regConfirm = it }, "تأكيد كلمة المرور", password = true)
                             if (!birthDateSignup) Text("إنشاء حساب بتاريخ الميلاد يحتاج نشر تحديث Cloudflare v1.0.14 أولًا.", color = Color(0xFFFFC78E), fontSize = 12.sp)
-                            PremiumAuthGoldButton("إرسال كود التأكيد", !busy && birthDateSignup && regName.trim().length >= 3 && regUsername.matches(Regex("[a-z0-9_]{3,24}")) && attaAgeFromBirthDate(regBirthDate) != null && regEmail.isNotBlank() && regPass.length >= 6 && regPass == regConfirm) {
+                            PremiumAuthGoldButton("إرسال كود التأكيد", !busy && birthDateSignup && regName.trim().length >= 3 && regUsername.matches(Regex("[a-z0-9_]{3,24}")) && attaAgeFromBirthDate(regBirthDate) != null && regEmail.isNotBlank() && regGender in listOf("male", "female") && (regGender != "female" || regHideChoice != null) && regPass.length >= 6 && regPass == regConfirm) {
                                 task {
                                     val body = JSONObject()
                                         .put("fullName", regName.trim()).put("username", regUsername.trim())
                                         .put("birthDate", regBirthDate).put("age", attaAgeFromBirthDate(regBirthDate) ?: 0).put("phone", regPhone.trim())
-                                        .put("email", regEmail.trim()).put("gender", regGender.trim())
+                                        .put("email", regEmail.trim()).put("gender", regGender)
+                                        .put("accountHidden", regGender == "female" && regHideChoice == true)
                                         .put("country", regCountry.trim()).put("city", regCity.trim()).put("password", regPass)
                                         .put("confirmPassword", regConfirm)
                                     val result = withContext(Dispatchers.IO) { api("/api/register-request", body) }
@@ -1633,7 +1657,7 @@ private class AttaYoutubeFullscreenChrome(
                             PremiumAuthTextField(googlePasswordConfirm, { googlePasswordConfirm = it }, "تأكيد كلمة المرور", password = true)
                             AttaBirthDatePicker(googleBirthDate, { googleBirthDate = it })
                             PremiumAuthTextField(googleCity, { googleCity = it.take(80) }, "المدينة (اختياري)")
-                            PremiumAuthTextField(googleGender, { googleGender = it.take(20) }, "النوع: ذكر أو أنثى")
+                            AttaSignupPrivacyChoice(googleGender, { googleGender = it }, googleHideChoice, { googleHideChoice = it })
                             if (!nativeUsernameSignup || !birthDateSignup) Text(
                                 "خادم Cloudflare الحالي لا يعلن دعمه لإكمال تسجيل Google. يجب نشر تحديث الخادم أولًا؛ لن نُنشئ اسم مستخدم تلقائيًا.",
                                 color = Color(0xFFFFC78E), fontSize = 12.sp)
@@ -1647,6 +1671,8 @@ private class AttaYoutubeFullscreenChrome(
                                     googlePassword.length < 8 -> error = "كلمة المرور يجب أن تتكون من 8 أحرف على الأقل."
                                     googlePassword != googlePasswordConfirm -> error = "تأكيد كلمة المرور غير مطابق."
                                     attaAgeFromBirthDate(googleBirthDate) == null -> error = "اختر تاريخ ميلاد صحيحًا من التقويم."
+                                    googleGender !in listOf("male", "female") -> error = "اختيار النوع (ذكر أو أنثى) إجباري."
+                                    googleGender == "female" && googleHideChoice == null -> error = "اختاري هل تريدين إخفاء الحساب أم لا."
                                     else -> task {
                                         val data = JSONObject()
                                             .put("credential", googleIdToken)
@@ -1656,7 +1682,8 @@ private class AttaYoutubeFullscreenChrome(
                                             .put("birthDate", googleBirthDate)
                                             .put("age", attaAgeFromBirthDate(googleBirthDate))
                                             .put("city", googleCity.trim())
-                                            .put("gender", googleGender.trim())
+                                            .put("gender", googleGender)
+                                            .put("accountHidden", googleGender == "female" && googleHideChoice == true)
                                             .put("password", googlePassword)
                                             .put("confirmPassword", googlePasswordConfirm)
                                         val result = withContext(Dispatchers.IO) { api("/api/google-login", data) }
@@ -1879,7 +1906,7 @@ private class AttaYoutubeFullscreenChrome(
                                 CardBox {
                                     var postMenuExpanded by remember(postId) { mutableStateOf(false) }
                                     val isMyPost = p.optString("author").equals(myUsername, ignoreCase = true)
-                                    val canModerate = adminRole == "super_admin" || adminRole == "moderator"
+                                    val canModerate = adminRole == "super_admin"
                                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                                         Avatar(author.optString("avatar"), author.name(), onClick = { openPublicProfile(p.optString("author")) })
                                         Text(author.name().ifBlank { p.optString("author") }, color = GoldLight,
@@ -2007,11 +2034,11 @@ private class AttaYoutubeFullscreenChrome(
                             }
                             item {
                                 CardBox {
-                                    if (adminRole == "super_admin" || adminRole == "moderator") {
+                                    if (adminRole == "super_admin") {
                                         PremiumMenuEntry("shield", "لوحة الإدارة") { navigate("الإدارة") }
                                         HorizontalDivider(color = Border.copy(alpha = .5f))
                                     }
-                                    if (adminRole != "super_admin" && adminRole != "moderator") {
+                                    if (adminRole != "super_admin") {
                                         Text("صلاحية الإدارة غير مفعّلة لهذا الحساب على الخادم", color = Muted, fontSize = 12.sp)
                                         TextButton(onClick = { task {
                                             try { load("القائمة") }
@@ -2086,7 +2113,19 @@ private class AttaYoutubeFullscreenChrome(
                         }
                         "الإدارة" -> LazyColumn(Modifier.weight(1f).padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                             item { SectionTitle("لوحة الإدارة • ${if (adminRole == "super_admin") "المدير الرئيسي" else "مشرف"}") }
-                            if (adminRole == "super_admin" || adminRole == "moderator") {
+                            if (adminRole == "super_admin") {
+                                item {
+                                    CardBox {
+                                        Text("تصفير قاعدة البيانات — معاينة فقط", color = GoldLight, fontWeight = FontWeight.Bold)
+                                        Text("لن يتم حذف أي بيانات. احفظ نسخة احتياطية قبل اعتماد التصفير.", color = Muted, fontSize = 12.sp)
+                                        GoldButton("عرض تقرير التصفير", !busy) {
+                                            task {
+                                                val report = post("/api/admin/reset/preview", JSONObject())
+                                                featureMessage = "المدير: ${report.optString("keepAccount")} | مفاتيح التخزين: ${report.optInt("durableObjectKeys")} | ملفات الصور والفيديو: ${report.optJSONObject("media")?.optInt("count") ?: 0} | لم يتم الحذف"
+                                            }
+                                        }
+                                    }
+                                }
                                 item { SectionTitle("إدارة الحسابات") }
                                 items(adminUsers) { u ->
                                     val username = u.optString("username")

@@ -133,7 +133,7 @@ async function startAuthenticatedApp(sessionToken,user=null){
   }
 
   me=user;
-  const canAdmin=me?.role==="super_admin" || me?.role==="moderator";
+  const canAdmin=me?.role==="super_admin";
   $("adminRailBtn")?.classList.toggle("hidden",!canAdmin);
   $("adminMoreBtn")?.classList.toggle("hidden",!canAdmin);
   viewedProfileUsername=me.username;
@@ -1815,7 +1815,7 @@ function adminEscape(v){return String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;"
 function adminDate(v){try{return new Date(Number(v)||0).toLocaleString("ar-SA")}catch{return ""}}
 
 async function loadAdminDashboard(){
-  if(!me || !["super_admin","moderator"].includes(me.role))return;
+  if(!me || me.role!=="super_admin")return;
   try{
     const d=await api(`/api/admin/summary?token=${encodeURIComponent(token)}`);
     $("adminUsersCount").textContent=d.counts.users||0;
@@ -1827,11 +1827,27 @@ async function loadAdminDashboard(){
   }catch(e){alert(e.message||"تعذر تحميل لوحة الإدارة")}
 }
 
+const resetPreviewButton=$("adminResetPreviewBtn");
+if(resetPreviewButton){
+  resetPreviewButton.onclick=async()=>{
+    if(me?.role!=="super_admin")return;
+    const report=$("adminResetPreviewReport");
+    resetPreviewButton.disabled=true;
+    report.textContent="جاري فحص مفاتيح قاعدة البيانات وملفات R2 (بدون حذف)...";
+    try{
+      const d=await api("/api/admin/reset/preview",{method:"POST",body:JSON.stringify({token})});
+      if(d.owner!=="omar1")throw new Error("اسم المدير الرئيسي في Cloudflare مختلف عن omar1؛ راجع الإعدادات");
+      report.textContent=`المدير المحفوظ: ${d.keepAccount}\nمفاتيح قاعدة البيانات: ${d.durableObjectKeys}\nملفات R2: ${d.media?.count??"غير متاحة"}\nحجم R2 (بايت): ${d.media?.bytes??"غير متاح"}\nتفصيل التخزين: ${JSON.stringify(d.byCategory,null,2)}\n\nلم تُحذف أي بيانات. النسخة الاحتياطية تُنفّذ محليًا عبر أداة owner_backup_preview.py.`;
+    }catch(e){report.textContent=e.message||"تعذر معاينة البيانات"}
+    finally{resetPreviewButton.disabled=false}
+  };
+}
+
 async function loadAdminUsers(){
   const d=await api(`/api/admin/users?token=${encodeURIComponent(token)}`);
   $("adminUsersList").innerHTML=d.users.length?d.users.map(u=>{
     const owner=u.role==="super_admin", mod=u.role==="moderator";
-    return `<div class="admin-item"><div class="admin-item-main"><img src="${adminEscape(u.avatar||avatarFallback(u.displayName||u.username))}"><div class="admin-item-text"><strong>${adminEscape(u.displayName||u.username)}</strong><span>@${adminEscape(u.username)} · ${owner?'مدير رئيسي':mod?'مشرف':u.banned?'موقوف':'مستخدم'}</span></div></div><div class="admin-actions">${owner?'':`<button class="${u.banned?'gold':'danger'}" data-admin-action="${u.banned?'unban':'ban'}" data-user="${adminEscape(u.username)}">${u.banned?'فك الحظر':'حظر'}</button>${me.role==='super_admin'?`<button class="gold" data-admin-action="${mod?'remove_moderator':'make_moderator'}" data-user="${adminEscape(u.username)}">${mod?'إلغاء الإشراف':'تعيين مشرف'}</button>`:''}`}</div></div>`;
+    return `<div class="admin-item"><div class="admin-item-main"><img src="${adminEscape(u.avatar||avatarFallback(u.displayName||u.username))}"><div class="admin-item-text"><strong>${adminEscape(u.displayName||u.username)}</strong><span>@${adminEscape(u.username)} · ${owner?'مدير رئيسي':mod?'مشرف':u.banned?'موقوف':'مستخدم'}</span></div></div><div class="admin-actions">${owner?'':`<button class="${u.banned?'gold':'danger'}" data-admin-action="${u.banned?'unban':'ban'}" data-user="${adminEscape(u.username)}">${u.banned?'فك الحظر':'حظر'}</button>`}</div></div>`;
   }).join(""):'<div class="admin-empty">لا يوجد مستخدمون</div>';
 }
 
@@ -3396,6 +3412,11 @@ $("authBtn").onclick=async()=>{
     };
 
     if(authMode==="register"){
+      const gender=$("genderInput").value;
+      const hidden=$("hiddenAccountInput").value;
+      if(!["male","female"].includes(gender))throw new Error("اختيار النوع (ذكر أو أنثى) إجباري");
+      if(gender==="female" && !["true","false"].includes(hidden))throw new Error("اختاري هل تريدين إخفاء الحساب أم لا");
+      body.accountHidden=gender==="female" && hidden==="true";
       body.fullName=$("fullNameInput").value.trim();
       body.birthDate=$("ageInput").value;
       body.phone=$("phoneInput").value.trim();
@@ -3730,6 +3751,13 @@ queueMicrotask(()=>{
 });
 
 
+// One privacy selector for the existing email registration form.
+const registerGender=$("genderInput"), registerHidden=$("hiddenAccountChoice");
+registerGender?.addEventListener("change",()=>{
+  registerHidden?.classList.toggle("hidden",registerGender.value!=="female");
+  if(registerGender.value!=="female")$("hiddenAccountInput").value="";
+});
+
 // V13.8 — Google Identity Services (free verified-email signup/login).
 // Google checks email ownership. No verification code is sent or exposed.
 // AL-ATTA v1.0.10: manually choose profile for first-time Google accounts.
@@ -3745,15 +3773,31 @@ function requestGoogleProfile(){
       <label style="color:#e6b94e;font-size:13px">تاريخ الميلاد (اليوم / الشهر / السنة)</label>
       <input name="birthDate" type="date" required aria-label="تاريخ الميلاد" style="padding:13px;border-radius:11px;background:#080b0d;color:#fff;border:1px solid #514125">
       <input name="city" maxlength="80" placeholder="المدينة (اختياري)" style="padding:13px;border-radius:11px;background:#080b0d;color:#fff;border:1px solid #514125">
+      <select name="gender" required style="padding:13px;border-radius:11px;background:#080b0d;color:#fff;border:1px solid #514125">
+        <option value="">النوع (إجباري)</option><option value="male">ذكر</option><option value="female">أنثى</option>
+      </select>
+      <label data-hidden-label style="display:none;color:#e6b94e;font-size:13px">هل تريدين إخفاء الحساب؟
+        <select name="accountHidden" style="width:100%;padding:12px;background:#080b0d;color:#fff;border:1px solid #514125">
+          <option value="">اختاري نعم أو لا</option><option value="true">نعم، إخفاء</option><option value="false">لا، إظهار</option>
+        </select>
+      </label>
       <button type="submit" style="border:0;background:#e6b94e;color:#070707;padding:13px;border-radius:13px;font-weight:800">تأكيد وإنشاء الحساب</button>
       <button type="button" data-cancel style="background:transparent;color:#d9c89a;border:1px solid #6b5429;padding:11px;border-radius:13px">إلغاء</button>
     </form>`;
     const form=overlay.querySelector("form");
     const finish=value=>{overlay.remove();resolve(value)};
     overlay.querySelector("[data-cancel]").onclick=()=>finish(null);
+    form.elements.gender.onchange=()=>{
+      const female=form.elements.gender.value==="female";
+      form.querySelector("[data-hidden-label]").style.display=female?"block":"none";
+      if(!female)form.elements.accountHidden.value="";
+    };
     form.onsubmit=e=>{
       e.preventDefault();
-      finish({fullName:form.elements.fullName.value.trim(),username:form.elements.username.value.trim().toLowerCase(),birthDate:form.elements.birthDate.value,city:form.elements.city.value.trim()});
+      if(form.elements.gender.value==="female" && !["true","false"].includes(form.elements.accountHidden.value)){
+        alert("اختاري هل تريدين إخفاء الحساب أم لا");return;
+      }
+      finish({fullName:form.elements.fullName.value.trim(),username:form.elements.username.value.trim().toLowerCase(),birthDate:form.elements.birthDate.value,city:form.elements.city.value.trim(),gender:form.elements.gender.value,accountHidden:form.elements.gender.value==="female" && form.elements.accountHidden.value==="true"});
     };
     document.body.appendChild(overlay);
     const born=form.elements.birthDate;

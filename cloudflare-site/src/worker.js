@@ -80,12 +80,26 @@ export class SignalingRoom extends DurableObject {
       bio:u.bio||"",
       cover:u.cover||"",
       accountPrivate:!!u.accountPrivate,
+      accountHidden:!!u.accountHidden,
       avatar:u.avatar||"",
       isOnline:!!this.findUser(username),
       lastSeen:Number(await this.ctx.storage.get(`lastSeen:${username}`))||0
     };
   }
 
+
+  // A hidden account is never discoverable by search, presence lists or public friend lists.
+  // Direct access is reserved for its owner, confirmed friends and the receiver of a
+  // friend request initiated by the hidden account. A friendship never makes it public.
+  async canViewProfile(viewer, target){
+    if(!viewer || !target || await this.isBlockedBetween(viewer,target))return false;
+    if(viewer===target)return true;
+    const u=await this.user(target);
+    if(!u)return false;
+    if(!u.accountHidden)return true;
+    if(await this.canCommunicate(viewer,target))return true;
+    return (await this.incomingFriendRequests(viewer)).some(r=>r.from===target);
+  }
 
   async friends(username){
     return await this.ctx.storage.get(`friends:${username}`)||[];
@@ -127,7 +141,15 @@ export class SignalingRoom extends DurableObject {
     if(viewer===author)return true;
     if(await this.isBlockedBetween(viewer,author))return false;
     const user=await this.user(author);
-    return !!user && (!user.accountPrivate || await this.canCommunicate(viewer,author));
+    return !!user && ((user.accountHidden || user.accountPrivate)
+      ? await this.canCommunicate(viewer,author) : true);
+  }
+
+  // Public likes, comments and follows could disclose a hidden account to strangers.
+  // Its owner can interact with friends and use the private friend-request flow.
+  async canRevealInteraction(actor,audience){
+    const u=await this.user(actor);
+    return !u?.accountHidden || actor===audience || await this.canCommunicate(actor,audience);
   }
 
   async setBlock(username,target,block){
@@ -167,15 +189,16 @@ export class SignalingRoom extends DurableObject {
   async roleFor(username){
     const name=String(username||"").trim().toLowerCase();
     if(name && name===this.ownerUsername())return "super_admin";
-    const moderators=await this.ctx.storage.get("moderators")||[];
-    return moderators.includes(name)?"moderator":"user";
+    // Legacy moderators are intentionally no longer elevated. omar1 is sole admin.
+    return "user";
   }
 
   async requireAdmin(token){
     const session=await this.session(String(token||""));
     if(!session)return {error:j({ok:false,error:"الجلسة منتهية"},401)};
     const role=await this.roleFor(session.username);
-    if(role!=="super_admin" && role!=="moderator")return {error:j({ok:false,error:"غير مصرح لك بالدخول إلى لوحة الإدارة"},403)};
+    // All administration, including backups, is restricted to the configured owner.
+    if(role!=="super_admin")return {error:j({ok:false,error:"صلاحيات المدير الرئيسي فقط"},403)};
     return {session,role};
   }
 
@@ -200,7 +223,8 @@ export class SignalingRoom extends DurableObject {
       age:this.birthDateAge(body.birthDate),
       phone:String(body.phone||"").trim().replace(/\s+/g,""),
       email:String(body.email||"").trim().toLowerCase(),
-      gender:String(body.gender||"").trim(),
+      gender:String(body.gender||"").trim().toLowerCase(),
+      accountHidden:body.accountHidden,
       country:String(body.country||"").trim(),
       password:String(body.password||""),
       confirmPassword:String(body.confirmPassword||"")
@@ -211,6 +235,9 @@ export class SignalingRoom extends DurableObject {
     if(reg.fullName.length<3)return "اكتب الاسم الكامل";
     if(!/^[a-z0-9_]{3,24}$/.test(reg.username))return "اسم المستخدم من 3 إلى 24 حرفًا إنجليزيًا أو رقمًا أو _";
     if(reg.age===null)return "اختر تاريخ ميلاد صحيحًا من التقويم (الحد الأدنى للعمر 13 عامًا)";
+    if(!["male","female"].includes(reg.gender))return "اختيار النوع (ذكر أو أنثى) إجباري";
+    if(reg.gender==="female" && typeof reg.accountHidden!=="boolean")return "اختاري هل تريدين إخفاء الحساب أم لا";
+    if(reg.gender==="male" && reg.accountHidden===true)return "خيار إخفاء الحساب متاح عند اختيار أنثى فقط";
     if(!reg.email)return "أدخل البريد الإلكتروني لاستلام كود التأكيد";
     if(reg.phone && !/^\+?[0-9]{8,15}$/.test(reg.phone))return "رقم الهاتف غير صحيح";
     if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(reg.email))return "البريد الإلكتروني غير صحيح";
@@ -481,6 +508,7 @@ export class SignalingRoom extends DurableObject {
           phone:reg.phone,
           email:reg.email,
           gender:reg.gender,
+          accountHidden:reg.gender==="female" && reg.accountHidden===true,
           country:reg.country,
           passwordHash:await securePassword(reg.password)
         },
@@ -600,6 +628,7 @@ export class SignalingRoom extends DurableObject {
         emailVerified:true,
         emailVerifiedAt:Date.now(),
         gender:reg.gender,
+        accountHidden:reg.gender==="female" && reg.accountHidden===true,
         country:reg.country,
         passwordHash:reg.passwordHash,
         avatar:"",
@@ -723,6 +752,10 @@ export class SignalingRoom extends DurableObject {
         if(body.password!==undefined && (String(body.password).length<8 || body.password!==body.confirmPassword)){
           return j({ok:false,error:"كلمة مرور Google الجديدة غير مطابقة أو قصيرة (8 أحرف على الأقل)"},400);
         }
+        const gender=String(body.gender||"").trim().toLowerCase();
+        if(!["male","female"].includes(gender))return j({ok:false,error:"اختيار النوع (ذكر أو أنثى) إجباري",code:"GENDER_REQUIRED"},400);
+        if(gender==="female" && typeof body.accountHidden!=="boolean")return j({ok:false,error:"اختاري هل تريدين إخفاء الحساب أم لا",code:"HIDDEN_CHOICE_REQUIRED"},400);
+        if(gender==="male" && body.accountHidden===true)return j({ok:false,error:"خيار إخفاء الحساب متاح عند اختيار أنثى فقط"},400);
         const chosenFullName=String(body.fullName||"").trim();
         const chosenBirthDate=String(body.birthDate||"").trim();
         const chosenAge=this.birthDateAge(chosenBirthDate);
@@ -737,7 +770,7 @@ export class SignalingRoom extends DurableObject {
         await this.ctx.storage.put(`user:${username}`,{
           username,displayName:fullName,fullName,age,birthDate:chosenBirthDate,city,phone:"",email,
           emailVerified:true,emailVerifiedAt:Date.now(),googleIdHash:idHash,
-          gender:"",country:"",passwordHash:(String(body.password||'').length>=8 && body.password===body.confirmPassword)
+          gender,accountHidden:gender==="female" && body.accountHidden===true,country:"",passwordHash:(String(body.password||'').length>=8 && body.password===body.confirmPassword)
             ?await securePassword(body.password):null,avatar:"",createdAt:Date.now()
         });
         await this.ctx.storage.put("usernames",[...new Set([...all,username])]);
@@ -949,6 +982,17 @@ export class SignalingRoom extends DurableObject {
         ...(Array.isArray(body.members)?body.members:[])
       ])].map(x=>String(x).trim().toLowerCase()).filter(Boolean);
 
+      for(const member of members){
+        if(!await this.user(member))return j({ok:false,error:"أحد أعضاء المجموعة غير موجود"},400);
+      }
+      for(const member of members){
+        const u=await this.user(member);
+        if(!u?.accountHidden)continue;
+        for(const other of members){
+          if(other!==member && !await this.canCommunicate(member,other))
+            return j({ok:false,error:"خصوصية الحساب المخفي: المجموعات مع الأصدقاء فقط"},403);
+        }
+      }
       const id=crypto.randomUUID();
       const group={id,name,members,createdBy:s.username,createdAt:Date.now()};
       await this.ctx.storage.put(`group:${id}`,group);
@@ -968,7 +1012,14 @@ export class SignalingRoom extends DurableObject {
       const groups=[];
       for(const id of ids){
         const g=await this.ctx.storage.get(`group:${id}`);
-        if(g && g.members.includes(s.username))groups.push(g);
+        if(g && g.members.includes(s.username)){
+          const visibleMembers=[];
+          for(const member of g.members){
+            const u=await this.user(member);
+            if(u && (!u.accountHidden || member===s.username || await this.canCommunicate(s.username,member)))visibleMembers.push(member);
+          }
+          groups.push({...g,members:visibleMembers});
+        }
       }
       return j({ok:true,groups});
     }
@@ -1146,7 +1197,7 @@ export class SignalingRoom extends DurableObject {
 
       for(const name of names){
         const u=await this.publicUser(name);
-        if(!u || await this.isBlockedBetween(s.username,u.username))continue;
+        if(!u || u.accountHidden && u.username!==s.username || await this.isBlockedBetween(s.username,u.username))continue;
         if(!q || u.username.includes(q) || String(u.fullName||u.displayName||"").toLowerCase().includes(q)){
           users.push({...u,friendState:await this.friendState(s.username,u.username)});
         }
@@ -1299,6 +1350,7 @@ export class SignalingRoom extends DurableObject {
       const post=await this.ctx.storage.get(`post:${body.postId}`);
       if(!post)return j({ok:false,error:"المنشور غير موجود"},404);
       if(post.archived || !await this.canSeeContent(s.username,post.author))return j({ok:false,error:"المنشور غير متاح"},403);
+      if(!await this.canRevealInteraction(s.username,post.author))return j({ok:false,error:"يمكن للحساب المخفي التفاعل علنًا مع الأصدقاء فقط"},403);
 
       post.likes=post.likes||[];
       const idx=post.likes.indexOf(s.username);
@@ -1338,6 +1390,7 @@ export class SignalingRoom extends DurableObject {
       const post=await this.ctx.storage.get(`post:${body.postId}`);
       if(!post)return j({ok:false,error:"المنشور غير موجود"},404);
       if(post.archived || !await this.canSeeContent(s.username,post.author))return j({ok:false,error:"المنشور غير متاح"},403);
+      if(!await this.canRevealInteraction(s.username,post.author))return j({ok:false,error:"يمكن للحساب المخفي التفاعل علنًا مع الأصدقاء فقط"},403);
 
       const text=String(body.text||"").trim().slice(0,1000);
       if(!text)return j({ok:false,error:"اكتب تعليقًا"},400);
@@ -1410,8 +1463,9 @@ export class SignalingRoom extends DurableObject {
       if(!s)return j({ok:false,error:"الجلسة منتهية"},401);
       const target=String(body.username||"").trim().toLowerCase();
       if(!target || target===s.username)return j({ok:false,error:"مستخدم غير صالح"},400);
-      if(!await this.user(target))return j({ok:false,error:"المستخدم غير موجود"},404);
+      if(!await this.user(target) || !(await this.canViewProfile(s.username,target)))return j({ok:false,error:"المستخدم غير موجود"},404);
       if(await this.isBlockedBetween(s.username,target))return j({ok:false,error:"لا يمكن إرسال طلب صداقة بسبب الحظر"},403);
+      if(!await this.canRevealInteraction(s.username,target))return j({ok:false,error:"الحساب المخفي يتابع الأصدقاء فقط"},403);
       const following=await this.ctx.storage.get(`following:${s.username}`)||[];
       const followers=await this.ctx.storage.get(`followers:${target}`)||[];
       const exists=following.includes(target);
@@ -1437,13 +1491,19 @@ export class SignalingRoom extends DurableObject {
       if(!s)return j({ok:false,error:"الجلسة منتهية"},401);
       const username=String(url.searchParams.get("username")||s.username).trim().toLowerCase();
       const u=await this.publicUser(username);
-      if(!u)return j({ok:false,error:"المستخدم غير موجود"},404);
-      if(username!==s.username && await this.isBlockedBetween(s.username,username))return j({ok:false,error:"هذا الملف الشخصي غير متاح"},403);
+      if(!u || !(await this.canViewProfile(s.username,username)))return j({ok:false,error:"المستخدم غير موجود"},404);
 
       return j({
         ok:true,
         user:u,
-        friendCount:(await this.friends(username)).length,
+        // Hide private friendships from aggregate counts shown to other people.
+        friendCount:(await (async()=>{
+          const names=await this.friends(username);
+          if(username===s.username)return names.length;
+          let count=0;
+          for(const name of names){const friend=await this.user(name);if(friend && !friend.accountHidden)count++;}
+          return count;
+        })()),
         friendState:await this.friendState(s.username,username),
         blockedByMe:(await this.blockedUsers(s.username)).includes(username),
         blockRestricted:await this.isBlockedBetween(s.username,username)
@@ -1584,6 +1644,7 @@ export class SignalingRoom extends DurableObject {
       const post=await this.ctx.storage.get(`post:${body.postId}`);
       if(!post)return j({ok:false,error:"المنشور غير موجود"},404);
       if(post.archived || !await this.canSeeContent(s.username,post.author))return j({ok:false,error:"المنشور غير متاح"},403);
+      if(!await this.canRevealInteraction(s.username,post.author))return j({ok:false,error:"يمكن للحساب المخفي التفاعل علنًا مع الأصدقاء فقط"},403);
 
       const allowed=["like","love","haha","wow","sad","angry","dislike"];
       const reaction=String(body.reaction||"like");
@@ -1664,6 +1725,7 @@ export class SignalingRoom extends DurableObject {
       const source=await this.ctx.storage.get(`post:${body.postId}`);
       if(!source)return j({ok:false,error:"المنشور غير موجود"},404);
       if(source.archived || !await this.canSeeContent(s.username,source.author))return j({ok:false,error:"المنشور غير متاح"},403);
+      if(!await this.canRevealInteraction(s.username,source.author))return j({ok:false,error:"الحساب المخفي لا يشارك منشور غير صديق"},403);
 
       const id=crypto.randomUUID();
       const post={
@@ -1710,6 +1772,7 @@ export class SignalingRoom extends DurableObject {
       const post=await this.ctx.storage.get(`post:${body.postId}`);
       if(!post)return j({ok:false,error:"المنشور غير موجود"},404);
       if(post.archived || !await this.canSeeContent(s.username,post.author))return j({ok:false,error:"المنشور غير متاح"},403);
+      if(!await this.canRevealInteraction(s.username,post.author))return j({ok:false,error:"يمكن للحساب المخفي التفاعل علنًا مع الأصدقاء فقط"},403);
 
       const text=String(body.text||"").trim().slice(0,1000);
       if(!text)return j({ok:false,error:"اكتب ردًا"},400);
@@ -1824,9 +1887,69 @@ export class SignalingRoom extends DurableObject {
         bio:u.bio||"",
         cover:u.cover||"",
         accountPrivate:!!u.accountPrivate,
+        accountHidden:!!u.accountHidden,
         avatar:u.avatar||"",
         role:await this.roleFor(u.username)
       }});
+    }
+
+    // Owner-only, READ-ONLY reset preparation. Export every Durable Object key before
+    // approving any destructive operation. There is deliberately NO DELETE endpoint.
+    if(url.pathname==="/api/admin/reset/preview" && request.method==="POST"){
+      const auth=await this.requireAdmin(body.token||"");
+      if(auth.error)return auth.error;
+      const byCategory={};
+      let cursor=undefined,total=0;
+      do {
+        const options={limit:200};
+        if(cursor)options.startAfter=cursor;
+        const page=await this.ctx.storage.list(options);
+        const keys=[...page.keys()];
+        for(const key of keys){
+          const category=key.includes(":")?key.split(":",1)[0]:key;
+          byCategory[category]=(byCategory[category]||0)+1;
+        }
+        total+=keys.length;
+        cursor=keys.length===200?keys[keys.length-1]:undefined;
+      } while(cursor);
+      let media={configured:!!this.env.MEDIA_BUCKET,needsSeparateBackup:true};
+      if(this.env.MEDIA_BUCKET){
+        let mediaCursor=undefined,count=0,bytes=0;
+        do {
+          const page=await this.env.MEDIA_BUCKET.list({limit:1000,...(mediaCursor?{cursor:mediaCursor}:{})});
+          for(const obj of page.objects){count++;bytes+=obj.size||0;}
+          mediaCursor=page.truncated?page.cursor:undefined;
+        }while(mediaCursor);
+        media={configured:true,needsSeparateBackup:true,count,bytes};
+      }
+      return j({ok:true,dryRun:true,owner:this.ownerUsername(),keepAccount:this.ownerUsername(),
+        durableObjectKeys:total,byCategory,media,deleted:false});
+    }
+
+    if(url.pathname==="/api/admin/reset/export" && request.method==="POST"){
+      const auth=await this.requireAdmin(body.token||"");
+      if(auth.error)return auth.error;
+      // The export includes password hashes and session tokens. Treat it as SECRET.
+      const limit=Math.max(1,Math.min(30,Number(body.limit)||15));
+      const startAfter=String(body.startAfter||"");
+      const entries=await this.ctx.storage.list({limit,...(startAfter?{startAfter}:{})});
+      const values=[...entries.entries()].map(([key,value])=>({key,value}));
+      const next=values.length===limit?values[values.length-1].key:null;
+      const response=j({ok:true,entries:values,next,limit});
+      response.headers.set("cache-control","no-store");
+      return response;
+    }
+
+    if(url.pathname==="/api/admin/reset/media-list" && request.method==="POST"){
+      const auth=await this.requireAdmin(body.token||"");
+      if(auth.error)return auth.error;
+      if(!this.env.MEDIA_BUCKET)return j({ok:false,error:"MEDIA_BUCKET_NOT_CONFIGURED"},503);
+      const page=await this.env.MEDIA_BUCKET.list({limit:100,
+        ...(body.cursor?{cursor:String(body.cursor)}:{})});
+      const response=j({ok:true,objects:page.objects.map(o=>({key:o.key,size:o.size,etag:o.etag})),
+        next:page.truncated?page.cursor:null});
+      response.headers.set("cache-control","no-store");
+      return response;
     }
 
     if(url.pathname==="/api/admin/summary" && request.method==="GET"){
@@ -1879,7 +2002,7 @@ export class SignalingRoom extends DurableObject {
       if(["ban","unban","make_moderator","remove_moderator"].includes(action)){
         if(!target || !await this.user(target))return j({ok:false,error:"المستخدم غير موجود"},404);
         if(target===owner)return j({ok:false,error:"لا يمكن تعديل صلاحيات أو إيقاف حساب المدير الرئيسي"},403);
-        if(["make_moderator","remove_moderator"].includes(action) && auth.role!=="super_admin")return j({ok:false,error:"هذه العملية للمدير الرئيسي فقط"},403);
+        if(["make_moderator","remove_moderator"].includes(action))return j({ok:false,error:"تعيين مشرفين متوقف: صلاحيات الإدارة للحساب الرئيسي فقط"},403);
         const u=await this.user(target);
         if(action==="ban" || action==="unban"){ u.banned=action==="ban"; u.bannedAt=u.banned?Date.now():0; u.bannedBy=u.banned?auth.session.username:""; await this.ctx.storage.put(`user:${target}`,u); }
         if(action==="make_moderator" || action==="remove_moderator"){ let mods=await this.ctx.storage.get("moderators")||[]; mods=action==="make_moderator"?[...new Set([...mods,target])]:mods.filter(x=>x!==target); await this.ctx.storage.put("moderators",mods); }
@@ -1912,8 +2035,9 @@ export class SignalingRoom extends DurableObject {
       const target=String(body.username||"").trim().toLowerCase();
       if(!target || target===s.username)return j({ok:false,error:"مستخدم غير صالح"},400);
       const targetUser=await this.user(target);
-      if(!targetUser)return j({ok:false,error:"المستخدم غير موجود"},404);
+      if(!targetUser || (targetUser.accountHidden && !(await this.canViewProfile(s.username,target))))return j({ok:false,error:"المستخدم غير موجود"},404);
       if(await this.isBlockedBetween(s.username,target))return j({ok:false,error:"لا يمكن طلب الصداقة بسبب الحظر"},403);
+      if(targetUser.accountHidden)return j({ok:false,error:"هذا الحساب لا يستقبل طلبات صداقة جديدة"},403);
       if(targetUser.allowFriendRequests===false)return j({ok:false,error:"هذا المستخدم لا يستقبل طلبات صداقة"},403);
 
       const state=await this.friendState(s.username,target);
@@ -2043,13 +2167,14 @@ export class SignalingRoom extends DurableObject {
       const s=await this.session(url.searchParams.get("token")||"");
       if(!s)return j({ok:false,error:"الجلسة منتهية"},401);
       const username=String(url.searchParams.get("username")||s.username).trim().toLowerCase();
-      if(!await this.user(username))return j({ok:false,error:"المستخدم غير موجود"},404);
       if(await this.isBlockedBetween(s.username,username))return j({ok:false,error:"قائمة الأصدقاء غير متاحة"},403);
+      if(!await this.user(username) || !(await this.canViewProfile(s.username,username)))return j({ok:false,error:"المستخدم غير موجود"},404);
       const result=[];
       for(const name of await this.friends(username)){
         if(await this.isBlockedBetween(username,name))continue;
         const u=await this.publicUser(name);
-        if(u)result.push(u);
+        // A friend may be known directly but is never exposed on somebody else's list.
+        if(u && (username===s.username || !u.accountHidden))result.push(u);
       }
       return j({ok:true,friends:result});
     }
@@ -2141,7 +2266,8 @@ export class SignalingRoom extends DurableObject {
     }
 
     for(const ws of this.sockets()){
-      this.send(ws,{type:"users",users});
+      const viewer=this.meta(ws).user;
+      this.send(ws,{type:"users",users:users.filter(u=>!u.accountHidden || u.username===viewer)});
     }
   }
 
