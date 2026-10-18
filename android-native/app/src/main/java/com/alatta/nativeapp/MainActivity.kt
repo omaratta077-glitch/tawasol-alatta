@@ -1733,7 +1733,7 @@ private class AttaYoutubeFullscreenChrome(
                             )
                         } // Home uses the search icon in the single-line header; no second search bar.
                     }
-                    if (tab != "الرئيسية" && tab != "الرسائل") {
+                    if (tab != "الرئيسية" && tab != "الرسائل" && tab != "القرآن") {
                         Row(Modifier.fillMaxWidth().height(47.dp)
                             .padding(horizontal = 12.dp, vertical = 3.dp),
                             verticalAlignment = Alignment.CenterVertically,
@@ -1767,7 +1767,8 @@ private class AttaYoutubeFullscreenChrome(
                         }
                     }
                     when (tab) {
-                        "القرآن", "الأحاديث", "الأذكار" -> KnowledgeScreen(tab, knowledgeSearch, Modifier.weight(1f))
+                        "القرآن" -> QuranReaderScreen(Modifier.weight(1f))
+                        "الأحاديث", "الأذكار" -> KnowledgeScreen(tab, knowledgeSearch, Modifier.weight(1f))
                         "الرياضة" -> FootballScreen(Modifier.weight(1f))
                         "الرئيسية", "استكشاف", "المحفوظات" -> LazyColumn(Modifier.weight(1f).padding(horizontal = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             if (tab == "استكشاف") {
@@ -2433,7 +2434,7 @@ private class AttaYoutubeFullscreenChrome(
                             }
                         }
                     }
-                    if (tab != "الرسائل" || chatWith.isBlank()) PremiumBottomNav(tab, ::navigate)
+                    if (tab != "القرآن" && (tab != "الرسائل" || chatWith.isBlank())) PremiumBottomNav(tab, ::navigate)
                 }
                 if (token.isNotBlank()) {
                     if (busy) LinearProgressIndicator(modifier = Modifier.fillMaxWidth(), color = Gold)

@@ -27,12 +27,6 @@ import androidx.compose.ui.viewinterop.AndroidView
 private data class KnowledgeEntry(val title: String, val body: String, val source: String = "")
 private val gold = Color(0xFFF6D776)
 private val panel = Color(0xFF111518)
-private val quranEntries = listOf(
-    KnowledgeEntry("سورة الفاتحة", "بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ ۝ الْحَمْدُ لِلَّهِ رَبِّ الْعَالَمِينَ ۝ الرَّحْمَٰنِ الرَّحِيمِ ۝ مَالِكِ يَوْمِ الدِّينِ ۝ إِيَّاكَ نَعْبُدُ وَإِيَّاكَ نَسْتَعِينُ ۝ اهْدِنَا الصِّرَاطَ الْمُسْتَقِيمَ ۝ صِرَاطَ الَّذِينَ أَنْعَمْتَ عَلَيْهِمْ غَيْرِ الْمَغْضُوبِ عَلَيْهِمْ وَلَا الضَّالِّينَ", "الفاتحة 1–7"),
-    KnowledgeEntry("سورة الإخلاص", "قُلْ هُوَ اللَّهُ أَحَدٌ ۝ اللَّهُ الصَّمَدُ ۝ لَمْ يَلِدْ وَلَمْ يُولَدْ ۝ وَلَمْ يَكُنْ لَهُ كُفُوًا أَحَدٌ", "الإخلاص 1–4"),
-    KnowledgeEntry("سورة الفلق", "قُلْ أَعُوذُ بِرَبِّ الْفَلَقِ ۝ مِنْ شَرِّ مَا خَلَقَ ۝ وَمِنْ شَرِّ غَاسِقٍ إِذَا وَقَبَ ۝ وَمِنْ شَرِّ النَّفَّاثَاتِ فِي الْعُقَدِ ۝ وَمِنْ شَرِّ حَاسِدٍ إِذَا حَسَدَ", "الفلق 1–5"),
-    KnowledgeEntry("سورة الناس", "قُلْ أَعُوذُ بِرَبِّ النَّاسِ ۝ مَلِكِ النَّاسِ ۝ إِلَٰهِ النَّاسِ ۝ مِنْ شَرِّ الْوَسْوَاسِ الْخَنَّاسِ ۝ الَّذِي يُوَسْوِسُ فِي صُدُورِ النَّاسِ ۝ مِنَ الْجِنَّةِ وَالنَّاسِ", "الناس 1–6")
-)
 private val hadithEntries = listOf(
     KnowledgeEntry("النية", "إنما الأعمال بالنيات، وإنما لكل امرئ ما نوى.", "رواه البخاري ومسلم"),
     KnowledgeEntry("حب الخير للآخرين", "لا يؤمن أحدكم حتى يحب لأخيه ما يحب لنفسه.", "رواه البخاري ومسلم"),
@@ -49,7 +43,6 @@ private val dhikrEntries = listOf(
 @Composable
 internal fun KnowledgeScreen(section: String, query: String, modifier: Modifier = Modifier) {
     val entries = when (section) {
-        "القرآن" -> quranEntries
         "الأحاديث" -> hadithEntries
         else -> dhikrEntries
     }

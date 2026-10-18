@@ -277,6 +277,15 @@ async function createPeer(){
   }
   const preview=$('localVideo');
   const placeholder=$('localCameraPlaceholder');
+  // The tile must stay visible even if the camera captures but WebView fails
+  // to composite its frames; distinguish this from a missing camera track.
+  $('localPip').style.display='block';
+  videoDiagnostic('تم فتح الكاميرا الأمامية — جارٍ عرض المعاينة');
+  cameraTracks[0].addEventListener('ended',()=>{
+   placeholder.textContent='توقفت الكاميرا — راجع صلاحيات الهاتف';
+   placeholder.style.display='grid';
+   videoDiagnostic('توقفت الكاميرا أثناء المكالمة');
+  });
   placeholder.textContent='جارٍ عرض الكاميرا...';
   placeholder.style.display='grid';
   preview.srcObject=local;
@@ -298,8 +307,19 @@ async function createPeer(){
       if(preview.videoWidth<1||preview.videoHeight<1||preview.readyState<2)return;
       const width=180,height=Math.round(width*preview.videoHeight/preview.videoWidth);
       if(canvas.width!==width||canvas.height!==height){canvas.width=width;canvas.height=height;}
-      try{ctx.drawImage(preview,0,0,width,height);canvas.style.display='block';}
-      catch(_){canvas.style.display='none';}
+      try{
+       ctx.drawImage(preview,0,0,width,height);
+       // Android/HONOR WebView sometimes returns an all-black canvas even
+       // while the actual <video> texture is valid. A black canvas overlaid
+       // the working selfie preview in the previous release. Only use the
+       // 2D fallback when real non-black pixels are available.
+       let visible=false;
+       for(const x of [.2,.5,.8])for(const y of [.2,.5,.8]){
+        const px=ctx.getImageData(Math.floor(width*x),Math.floor(height*y),1,1).data;
+        if(Math.max(px[0],px[1],px[2])>23){visible=true;break;}
+       }
+       canvas.style.display=visible?'block':'none';
+      }catch(_){canvas.style.display='none';}
      };
      paint();localCanvasTimer=setInterval(paint,125);
     }
@@ -341,7 +361,12 @@ async function createPeer(){
    if(active&&!localPreviewFrame){
     if(placeholder.textContent==='جارٍ عرض الكاميرا...')
      placeholder.textContent='الكاميرا لا تعرض صورة — راجع الإذن و WebView';
-    videoDiagnostic('الكاميرا تعمل لكن المعاينة سوداء: تأكد من إذن الكاميرا، أو حدّث Android System WebView.');
+    const dims=preview.videoWidth+'×'+preview.videoHeight;
+    const state=preview.readyState;
+    const track=local?.getVideoTracks()[0];
+    videoDiagnostic('الكاميرا '+(track?.readyState||'غير معروفة')+
+     ' — المعاينة '+dims+' — التشغيل '+state+
+     '. إذا بقيت سوداء، حدّث Android System WebView.');
    }
   },6000);
 }

@@ -29,5 +29,6 @@ jobs:
           node scripts/test_call_push.mjs
           node scripts/test_fcm_reserved_key.mjs
           node scripts/test_call_video_stage.mjs
+          node scripts/test_quran_reader.mjs
           node scripts/test_call_history.mjs
           node scripts/test_social_push.mjs

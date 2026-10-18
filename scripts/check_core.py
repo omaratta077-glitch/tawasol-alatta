@@ -58,8 +58,8 @@ check("Foreground ring state declared in AttaPush",
       "AttaPush.foregroundRingCallId == callId" in ring_screen)
 
 check("Native Google bridge removed", not (ROOT/(android+"GoogleWebBridge.kt")).exists())
-check("Official version 1.0.69", 'versionCode = 169' in gradle and 'versionName = "1.0.69"' in gradle)
-check("Four additional screens and scrollable navigation", all(x in main for x in ['KnowledgeScreen(tab', 'FootballScreen(']) and all(x in read(android+"PremiumChrome.kt") for x in ['"القرآن"', '"الأحاديث"', '"الأذكار"', '"الرياضة"', '.horizontalScroll(scroll)']) and (ROOT/(android+"AlattaKnowledgeScreens.kt")).is_file())
+check("Official version 1.0.70", 'versionCode = 170' in gradle and 'versionName = "1.0.70"' in gradle)
+check("Four additional screens and scrollable navigation", all(x in main for x in ['QuranReaderScreen(', 'KnowledgeScreen(tab', 'FootballScreen(']) and all(x in read(android+"PremiumChrome.kt") for x in ['"القرآن"', '"الأحاديث"', '"الأذكار"', '"الرياضة"', '.horizontalScroll(scroll)']) and (ROOT/(android+"AlattaKnowledgeScreens.kt")).is_file())
 check("Quran-first categories and click-to-play preview", all(x in main for x in [
     'var youtubeCategory by remember { mutableStateOf("قرآن") }',
     '"أحاديث" -> "أحاديث نبوية صحيحة شرح"',
@@ -75,7 +75,7 @@ check("Background FCM integration declared", all((ROOT/(android+x)).is_file() fo
 check("Notification Intent.data does not shadow Firebase payload", 'this.data = Uri.parse("alatta://notification/${Uri.encode(eventId)}")' in read(android+"AttaPush.kt"))
 check("Social, chat and call FCM routing", 'scheduleUserPush' in worker and
       'deliverUserPush' in worker and 'notifyActivity(this, d)' in read(android+'AttaPush.kt') and
-      'ACTION_OPEN_NOTIFICATION' in main and 'versionCode = 169' in gradle)
+      'ACTION_OPEN_NOTIFICATION' in main and 'versionCode = 170' in gradle)
 check("Site/Android keep screen on without changing player", 'FLAG_KEEP_SCREEN_ON' in main and
       'youtube-screen-awake.js' in read('cloudflare-site/public/index.html') and
       (ROOT/'cloudflare-site/public/youtube-screen-awake.js').is_file())
@@ -136,5 +136,17 @@ check("Accepted FCM call is not re-notified and stale dialogs expire",
       'LaunchedEffect(incomingCall?.callId)' in main and
       'delay(45000L)' in main and
       'if (AttaPush.activeCallId == session.callId) AttaPush.activeCallId = ""' in main)
+
+# Interactive Quran has one source of truth; never duplicate a second reader.
+quran_reader = ROOT / "android-native/app/src/main/assets/atta-quran.html"
+quran_kotlin = ROOT / (android + "AttaQuranReader.kt")
+check("One full Quran reader with selectable verses and system back",
+      quran_reader.is_file() and quran_kotlin.is_file() and
+      'QuranReaderScreen(Modifier.weight(1f))' in main and
+      'tab != "القرآن" && (tab != "الرسائل"' in main and
+      all(text in quran_reader.read_text(encoding="utf-8") for text in [
+          '/page/', '/surah/', '/juz/', '/hizbQuarter/', 'ar.muyassar',
+          'ar.minshawi', 'ar.abdulbasit', 'ar.husary', 'playSurah', 'playHere']))
+
 if fails:raise SystemExit(f"FAIL: {len(fails)} checks failed")
 print('PASS: static repository check complete. APK build/device tests are still required.')

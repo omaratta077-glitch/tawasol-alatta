@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="color-scheme" content="light" />
+<title>المصحف الشريف — تواصل العطا</title>
+<style>
+:root{--paper:#fdf7e6;--ink:#14100b;--sepia:#884300;--accent:#9d540e;--border:#d7b893;--shade:#f0e2cb}
+*{box-sizing:border-box}html,body{margin:0;height:100%;background:var(--paper);color:var(--ink)}
+body{font-family:'Noto Naskh Arabic','Traditional Arabic',serif;display:flex;flex-direction:column;overflow:hidden}
+button,select,input{font:inherit}button{cursor:pointer}button:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.toolbar{height:75px;flex:none;display:flex;align-items:center;justify-content:space-between;gap:4px;padding:7px 14px 4px;background:var(--paper);z-index:3;direction:ltr}
+.toolbar .group{display:flex;align-items:center;gap:8px}
+.top-pill{border:2px solid var(--border);border-radius:24px;padding:2px 13px;color:var(--sepia);background:#f4ead9;font-size:17px;font-weight:bold;white-space:nowrap;min-height:38px}
+.icon-button{width:39px;height:42px;display:grid;place-items:center;background:transparent;border:0;color:var(--sepia);font:700 30px/1 sans-serif}
+.icon-button.bookmark{font-size:27px}
+.icon-button.bookmark.selected{color:#a26c0e}
+.icon-button.index{font-size:24px;letter-spacing:1px}
+#reader{flex:1;overflow:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding:2px 13px 20px}
+#pageText{max-width:770px;margin:auto;min-height:100%;font-family:'Noto Naskh Arabic','Traditional Arabic',serif;font-size:clamp(27px,6.0vw,41px);line-height:2.08;text-align:justify;text-align-last:center;direction:rtl;color:#080707;font-weight:400;word-spacing:0.07em}
+.ayah{cursor:pointer;border-radius:5px;-webkit-tap-highlight-color:#ead5af;transition:background-color .1s}
+.ayah:active,.ayah.active{background:#f5e5bd}
+.verse-num{color:#995c1c;white-space:nowrap;display:inline-block;font-size:.67em;border:1px solid #c9aa72;border-radius:50%;padding:0 .16em;line-height:1.34;vertical-align:middle;margin:0 .08em}
+.surah-heading{font:700 27px/1.7 'Noto Naskh Arabic',serif;text-align:center;display:block;color:var(--sepia);padding:7px 5px;border-top:2px solid var(--border);border-bottom:2px solid var(--border);margin:17px 0 9px;background:#fff8e9}
+.basmalah{display:block;text-align:center;line-height:2;font-size:30px;margin:8px 0 10px}
+.loading,.empty{font:18px/2 'Noto Naskh Arabic',sans-serif;text-align:center;padding:60px 16px;color:#86551f}
+.foot{flex:none;height:59px;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 14px max(7px,env(safe-area-inset-bottom));background:var(--paper);direction:ltr}
+.foot .page-count{border-radius:28px;background:var(--shade);color:var(--sepia);padding:2px 24px;font:20px/1.8 'Noto Naskh Arabic',sans-serif;text-align:center;white-space:nowrap}
+.page-arrow{width:39px;height:37px;border:0;border-radius:8px;background:#e5cfb2;color:var(--sepia);font:700 32px/1 sans-serif}
+.overlay{display:none;position:fixed;inset:0;z-index:10;background:#1b120977;align-items:flex-end;justify-content:center}
+.overlay.open{display:flex}
+.sheet{position:relative;background:var(--paper);width:100%;max-width:720px;max-height:89dvh;border-radius:18px 18px 0 0;box-shadow:0 -9px 35px #0003;display:flex;flex-direction:column;padding:12px 16px max(18px,env(safe-area-inset-bottom));overflow:hidden}
+.sheet-header{display:flex;align-items:center;justify-content:space-between;gap:8px;border-bottom:1px solid var(--border);padding-bottom:10px;font:700 22px/1.5 'Noto Naskh Arabic',serif}
+.close{width:32px;height:32px;border:none;border-radius:50%;background:var(--shade);color:var(--sepia);font:22px sans-serif}
+.sheet-body{overflow:auto;padding:8px 1px;overscroll-behavior:contain}
+.tabs{display:flex;gap:6px;padding:6px 0;overflow:auto}
+.tab{flex:1;border:1px solid var(--border);background:#fff8e9;color:var(--sepia);border-radius:12px;padding:8px 4px;white-space:nowrap;font-size:16px}
+.tab.active{background:var(--sepia);color:white}
+.search-box{width:100%;padding:11px;border:1px solid var(--border);border-radius:12px;background:white;color:#23170b;margin:7px 0}
+.index-item{display:flex;justify-content:space-between;align-items:center;width:100%;text-align:right;border:0;border-bottom:1px solid #e4d4be;background:transparent;padding:10px 7px;color:#38210f;font-size:18px;gap:10px}
+.index-item small{color:#966328;font-size:13px}
+.verse-label{font-size:19px;color:var(--sepia);font-weight:bold}
+.verse-preview{font-size:19px;line-height:1.95;margin:8px 0 14px}
+.choice{display:flex;flex-direction:column;gap:10px;margin:10px 0}
+.choice button{width:100%;background:#f3e4cf;color:#683607;border:1px solid var(--border);border-radius:12px;padding:10px;font-size:18px}
+.choice button.primary{background:var(--sepia);color:white}
+.row{display:flex;gap:10px;align-items:center;margin:12px 0;justify-content:space-between;font-size:17px}
+.row select{flex:1;min-width:0;background:#fffaf0;color:#4c2c11;padding:8px;border:1px solid var(--border);border-radius:9px;font-size:16px}
+#tafsirText{white-space:pre-wrap;font-size:20px;line-height:1.95;color:#28211a;margin:7px 0}
+#audioBar{display:none;position:fixed;bottom:56px;left:9px;right:9px;z-index:4;border:1px solid #d5b180;border-radius:15px;background:#fff8eafa;box-shadow:0 4px 20px #0002;padding:9px;direction:rtl;align-items:center;gap:9px}
+#audioBar button{border:0;border-radius:50%;background:#9a550f;color:white;width:40px;height:40px;font-size:21px}
+#audioBar #audioName{flex:1;font:15px/1.6 'Noto Naskh Arabic',sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#audioBar .stop{background:#70462a}
+.note{font-size:13px;line-height:1.8;color:#775634}
+@media(max-width:360px){.toolbar{padding:7px 7px;gap:0}.top-pill{font-size:15px;padding:2px 9px}.icon-button{width:34px}.foot .page-count{font-size:17px;padding:2px 17px}#pageText{font-size:27px}}
+</style>
+</head>
+<body>
+<header class="toolbar" aria-label="أدوات المصحف">
+ <div class="group"><button class="icon-button bookmark" id="bookmarkButton" aria-label="حفظ علامة عند الصفحة">▮</button><button class="top-pill" id="juzButton">الجزء ١</button></div>
+ <button class="icon-button index" id="indexButton" aria-label="فهرس المصحف">▦</button>
+ <div class="group"><button class="icon-button" id="searchButton" aria-label="البحث في السور">⌕</button><button class="top-pill" id="surahButton">الفاتحة</button></div>
+</header>
+<main id="reader" aria-live="polite"><section id="pageText" aria-label="آيات المصحف"><div class="loading">جارٍ تحميل المصحف الشريف...</div></section></main>
+<footer class="foot" aria-label="التنقل بين صفحات المصحف"><button class="page-arrow" id="prevButton" aria-label="الصفحة السابقة">›</button><div class="page-count" id="pageCount">١ / ٦٠٤</div><button class="page-arrow" id="nextButton" aria-label="الصفحة التالية">‹</button></footer>
+<div id="audioBar"><button id="pauseAudio" aria-label="إيقاف مؤقت">Ⅱ</button><span id="audioName"></span><button id="stopAudio" class="stop" aria-label="إيقاف التلاوة">×</button></div>
+<div class="overlay" id="indexOverlay" role="dialog" aria-modal="true" aria-label="الفهرس"><div class="sheet">
+ <div class="sheet-header"><span>فهرس المصحف الشريف</span><button class="close" data-close aria-label="إغلاق">×</button></div>
+ <div class="tabs"><button class="tab active" data-tab="surah">السور ١١٤</button><button class="tab" data-tab="juz">الأجزاء ٣٠</button><button class="tab" data-tab="quarter">أرباع الأحزاب ٢٤٠</button><button class="tab" data-tab="page">الصفحات ٦٠٤</button></div>
+ <div class="sheet-body"><input class="search-box" id="indexSearch" placeholder="ابحث عن اسم السورة أو رقم الجزء..." type="search" /><div id="indexList"><div class="loading">جارٍ تحميل الفهرس...</div></div></div>
+</div></div>
+<div class="overlay" id="verseOverlay" role="dialog" aria-modal="true" aria-label="خيارات الآية"><div class="sheet">
+ <div class="sheet-header"><span id="verseTitle">الآية</span><button class="close" data-close aria-label="إغلاق">×</button></div>
+ <div class="sheet-body"><div class="verse-preview" id="versePreview"></div>
+ <div class="row"><label for="reciter">القارئ</label><select id="reciter">
+ <option value="ar.minshawi">محمد صديق المنشاوي — مرتل</option>
+ <option value="ar.minshawimujawwad">محمد صديق المنشاوي — مجود</option>
+ <option value="ar.abdulbasit">عبد الباسط عبد الصمد — مرتل</option>
+ <option value="ar.abdulbasitmujawwad">عبد الباسط عبد الصمد — مجود</option>
+ <option value="ar.husary">محمود خليل الحصري</option>
+ </select></div>
+ <div class="choice"><button class="primary" id="playHere">▶ تشغيل من هذه الآية</button><button id="playSurah">▶ تشغيل من أول السورة</button><button id="showTafsir">عرض التفسير الميسر</button></div>
+ <div id="tafsirText" aria-live="polite"></div><p class="note">القراءة والتفسير والتسجيلات تُحمَّل عبر الإنترنت من خدمة القرآن السحابية. التفسير يُعرض منفصلًا عن نص المصحف.</p></div>
+</div></div>
+<audio id="recitation" preload="none"></audio>
+<script>
+'use strict';
+const API='https://api.alquran.cloud/v1';
+const $=id=>document.getElementById(id);
+const ar=n=>String(n).replace(/\d/g,d=>'٠١٢٣٤٥٦٧٨٩'[Number(d)]);
+const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
+const pageMemory='atta-quran-last-page-v1', bookmarkMemory='atta-quran-bookmark-v1';
+let page=1, surahs=[], ayahs=[], selected=null, indexTab='surah', holdTimer=0, holdActivated=false;
+let recitationItems=[], recitationIndex=0, playingSurah=0, loadSerial=0, audioSerial=0, previousTouchX=0;
+let preferredReciter='ar.minshawi';
+try {page=clamp(Number(localStorage.getItem(pageMemory))||1,1,604);preferredReciter=localStorage.getItem('atta-quran-reciter-v1')||preferredReciter;}catch(_){}
+$('reciter').value=[...$('reciter').options].some(o=>o.value===preferredReciter)?preferredReciter:'ar.minshawi';
+const sanitize=s=>String(s||'').replace(/[\u200b\u200c]/g,'').trim();
+function errText(e){return e&&e.message?e.message:'تعذر الاتصال بمصدر القرآن';}
+async function get(path){const res=await fetch(API+path,{cache:'default'});if(!res.ok)throw Error('الخدمة غير متاحة ('+res.status+')');const data=await res.json();if(data.code!==200||!data.data)throw Error('البيانات غير متاحة');return data.data;}
+function overlay(id,on){$(id).classList.toggle('open',on);}
+function closeOverlays(){overlay('indexOverlay',false);overlay('verseOverlay',false)}
+document.querySelectorAll('[data-close]').forEach(b=>b.addEventListener('click',closeOverlays));
+['indexOverlay','verseOverlay'].forEach(id=>$(id).addEventListener('click',e=>{if(e.target===$(id))closeOverlays()}));
+function surahName(n){return surahs.find(s=>s.number===n)?.name?.replace(/^سُورَةُ\s*/, '') || 'سورة '+ar(n);}
+function pageTitle(verse){let name=verse?.surah?.name||surahName(verse?.surah?.number);return String(name||'القرآن').replace(/^سُورَةُ\s*/,'');}
+function marker(n){return '﴿'+ar(n)+'﴾';}
+function showBookmark(){let value=0;try{value=Number(localStorage.getItem(bookmarkMemory))||0}catch(_){} $('bookmarkButton').classList.toggle('selected',value===page);$('bookmarkButton').title=value?'العلامة عند صفحة '+ar(value):'حفظ الصفحة';}
+function loadPage(number){
+ page=clamp(Number(number)||1,1,604);const serial=++loadSerial;
+ $('pageText').replaceChildren();const loader=document.createElement('div');loader.className='loading';loader.textContent='جارٍ تحميل الصفحة '+ar(page)+'...';$('pageText').append(loader);
+ $('pageCount').textContent=ar(page)+' / ٦٠٤';$('reader').scrollTop=0;showBookmark();
+ try {localStorage.setItem(pageMemory,String(page));}catch(_){}
+ get('/page/'+page+'/quran-uthmani').then(data=>{
+  if(serial!==loadSerial)return;
+  ayahs=Array.isArray(data.ayahs)?data.ayahs:[];
+  if(!ayahs.length)throw Error('الصفحة لا تحتوي آيات');
+  const first=ayahs[0];$('juzButton').textContent='الجزء '+ar(first.juz||1);$('surahButton').textContent=pageTitle(first);
+  const quarter=Number(first.hizbQuarter||1);const hizb=Math.ceil(quarter/4);
+  $('pageCount').textContent=ar(page)+'   ·   الحزب '+ar(hizb)+'   ·   الربع '+ar(((quarter-1)%4)+1);
+  const root=$('pageText');root.replaceChildren();
+  for(const ayah of ayahs){
+   const surah=Number(ayah.surah?.number||0);const number=Number(ayah.numberInSurah||0);
+   if(number===1){
+    const heading=document.createElement('div');heading.className='surah-heading';heading.textContent='۞ '+(ayah.surah?.name||surahName(surah))+' ۞';root.append(heading);
+    if(surah!==1 && surah!==9){const basmalah=document.createElement('div');basmalah.className='basmalah';basmalah.textContent='بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ';root.append(basmalah);}
+   }
+   const span=document.createElement('span');span.className='ayah';span.tabIndex=0;span.setAttribute('role','button');span.setAttribute('aria-label','الآية '+ar(number)+' — خيارات التلاوة والتفسير');
+   const text=document.createElement('span');text.textContent=sanitize(ayah.text)+' ';
+   const label=document.createElement('span');label.className='verse-num';label.textContent=ar(number);span.append(text,label,document.createTextNode(' '));
+   span.addEventListener('click',e=>{if(holdActivated){holdActivated=false;return}openVerse(ayah,false)});
+   span.addEventListener('contextmenu',e=>{e.preventDefault();openVerse(ayah,true)});
+   span.addEventListener('touchstart',()=>{holdActivated=false;clearTimeout(holdTimer);holdTimer=setTimeout(()=>{holdActivated=true;openVerse(ayah,true)},600)},{passive:true});
+   ['touchend','touchmove','touchcancel'].forEach(name=>span.addEventListener(name,()=>clearTimeout(holdTimer),{passive:true}));
+   span.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();openVerse(ayah,false)}});
+   root.append(span);
+  }
+ }).catch(e=>{if(serial!==loadSerial)return;$('pageText').innerHTML='';const x=document.createElement('div');x.className='empty';x.textContent='تعذر تحميل هذه الصفحة. تأكد من الإنترنت. '+errText(e);const retry=document.createElement('button');retry.className='top-pill';retry.textContent='إعادة المحاولة';retry.onclick=()=>loadPage(page);x.append(document.createElement('br'),retry);$('pageText').append(x)});
+}
+function openVerse(ayah,showExplanation){selected=ayah;$('verseTitle').textContent='سورة '+pageTitle(ayah)+' — الآية '+ar(ayah.numberInSurah);$('versePreview').textContent=sanitize(ayah.text)+' '+marker(ayah.numberInSurah);$('tafsirText').textContent='';overlay('verseOverlay',true);if(showExplanation)loadTafsir();}
+async function loadTafsir(){if(!selected)return;const key=selected.surah.number+':'+selected.numberInSurah;const current=selected;$('tafsirText').textContent='جارٍ تحميل التفسير الميسر...';try{const d=await get('/ayah/'+key+'/ar.muyassar');if(selected===current)$('tafsirText').textContent=sanitize(d.text)||'لا يوجد نص تفسير متاح لهذه الآية.';}catch(e){if(selected===current)$('tafsirText').textContent='تعذر تحميل التفسير الميسر الآن. '+errText(e)}}
+$('showTafsir').addEventListener('click',loadTafsir);
+function stopRecitation(){audioSerial++;const audio=$('recitation');audio.pause();audio.removeAttribute('src');audio.load();recitationItems=[];recitationIndex=0;playingSurah=0;$('audioBar').style.display='none';}
+async function startRecitation(fromStart){if(!selected)return;const target=selected;const surah=Number(target.surah.number);const startVerse=fromStart?1:Number(target.numberInSurah);const reciter=$('reciter').value;try{localStorage.setItem('atta-quran-reciter-v1',reciter);}catch(_){}
+ closeOverlays();stopRecitation();const request=audioSerial;$('audioBar').style.display='flex';$('audioName').textContent='جارٍ تحميل تلاوة '+surahName(surah)+'...';
+ try{const result=await get('/surah/'+surah+'/'+encodeURIComponent(reciter));if(request!==audioSerial)return;if(!Array.isArray(result.ayahs)||!result.ayahs.length)throw Error('تلاوة القارئ غير متاحة');recitationItems=result.ayahs.filter(a=>a.audio&&a.numberInSurah>=startVerse);if(!recitationItems.length)throw Error('التسجيل المطلوب غير موجود');recitationIndex=0;playingSurah=surah;playCurrent();}
+ catch(e){if(request!==audioSerial)return;$('audioName').textContent='تعذر تشغيل القارئ: '+errText(e);$('pauseAudio').textContent='!';}
+}
+function playCurrent(){const item=recitationItems[recitationIndex];if(!item){stopRecitation();return;} const audio=$('recitation');const reciterName=$('reciter').selectedOptions[0]?.textContent||'القارئ';$('audioName').textContent=surahName(playingSurah)+' — '+ar(item.numberInSurah)+' — '+reciterName;audio.src=item.audio;audio.play().then(()=>{$('pauseAudio').textContent='Ⅱ'}).catch(()=>{$('audioName').textContent='اضغط تشغيل للسماح بالصوت';$('pauseAudio').textContent='▶'});}
+$('recitation').addEventListener('ended',()=>{if(recitationIndex+1<recitationItems.length){recitationIndex++;playCurrent()}else stopRecitation()});
+$('recitation').addEventListener('error',()=>{$('audioName').textContent='تسجيل هذه الآية غير متاح — جرّب قارئًا آخر';$('pauseAudio').textContent='▶'});
+$('pauseAudio').addEventListener('click',()=>{const audio=$('recitation');if(!audio.src)return;if(audio.paused){audio.play().then(()=>{$('pauseAudio').textContent='Ⅱ'}).catch(()=>{})}else{audio.pause();$('pauseAudio').textContent='▶'}});
+$('stopAudio').addEventListener('click',stopRecitation);$('playHere').addEventListener('click',()=>startRecitation(false));$('playSurah').addEventListener('click',()=>startRecitation(true));
+async function initIndex(){if(surahs.length)return;try{const data=await get('/surah');if(!Array.isArray(data)||data.length!==114)throw Error('فهرس السور غير مكتمل');surahs=data;renderIndex();}catch(e){$('indexList').textContent='تعذر تحميل فهرس السور: '+errText(e);}}
+function indexOpen(tab='surah',filter=''){indexTab=tab;$('indexSearch').value=filter;overlay('indexOverlay',true);document.querySelectorAll('[data-tab]').forEach(x=>x.classList.toggle('active',x.dataset.tab===indexTab));renderIndex();if(tab==='surah')initIndex();}
+function jumpToSegment(path){$('indexList').textContent='جارٍ الوصول إلى الموضع...';get(path).then(data=>{const ayah=data.ayahs?.[0];if(!ayah||!ayah.page)throw Error('تعذر تحديد بداية الجزء');closeOverlays();loadPage(ayah.page);}).catch(e=>{$('indexList').textContent='تعذر فتح هذا الموضع: '+errText(e)});}
+function renderIndex(){const list=$('indexList');list.replaceChildren();const q=$('indexSearch').value.trim();
+ const item=(title,extra,action)=>{const b=document.createElement('button');b.className='index-item';const a=document.createElement('span');a.textContent=title;const small=document.createElement('small');small.textContent=extra;b.append(a,small);b.onclick=action;list.append(b)};
+ if(indexTab==='surah'){
+  if(!surahs.length){list.textContent='جارٍ تحميل قائمة السور...';return;}
+  surahs.filter(s=>!q||s.name.includes(q)||String(s.number)===q).forEach(s=>item(ar(s.number)+'  '+s.name,ar(s.numberOfAyahs)+' آية',()=>jumpToSegment('/surah/'+s.number+'/quran-uthmani?limit=1')));
+ }else if(indexTab==='juz'){for(let j=1;j<=30;j++)if(!q||String(j).includes(q)||ar(j).includes(q))item('الجزء '+ar(j),'فتح بداية الجزء',()=>jumpToSegment('/juz/'+j+'/quran-uthmani?limit=1'));
+ }else if(indexTab==='quarter'){for(let j=1;j<=240;j++)if(!q||String(j).includes(q)||ar(j).includes(q))item('الربع '+ar(j),'الحزب '+ar(Math.ceil(j/4))+' — الجزء '+ar(Math.ceil(j/8)),()=>jumpToSegment('/hizbQuarter/'+j+'/quran-uthmani?limit=1'));
+ }else{for(let j=1;j<=604;j++)if(!q||String(j).includes(q)||ar(j).includes(q))item('صفحة '+ar(j),'من ٦٠٤ صفحة',()=>{closeOverlays();loadPage(j)})}
+ if(!list.children.length)list.textContent='لا توجد نتائج مطابقة.';
+}
+document.querySelectorAll('[data-tab]').forEach(b=>b.addEventListener('click',()=>{indexTab=b.dataset.tab;document.querySelectorAll('[data-tab]').forEach(x=>x.classList.toggle('active',x===b));renderIndex()}));
+$('indexSearch').addEventListener('input',renderIndex);
+$('indexButton').onclick=()=>indexOpen('surah');$('surahButton').onclick=()=>indexOpen('surah');$('juzButton').onclick=()=>indexOpen('juz');$('searchButton').onclick=()=>indexOpen('surah');
+$('bookmarkButton').onclick=()=>{let stored=0;try{stored=Number(localStorage.getItem(bookmarkMemory))||0;}catch(_){}if(stored===page){indexOpen('page',String(stored));return;}try{localStorage.setItem(bookmarkMemory,String(page))}catch(_){}showBookmark()};
+$('prevButton').onclick=()=>loadPage(page-1);$('nextButton').onclick=()=>loadPage(page+1);
+$('reader').addEventListener('touchstart',e=>{if(e.touches.length===1)previousTouchX=e.touches[0].clientX},{passive:true});
+$('reader').addEventListener('touchend',e=>{if(e.changedTouches.length!==1||!previousTouchX)return;const delta=e.changedTouches[0].clientX-previousTouchX;previousTouchX=0;if(Math.abs(delta)>125&&!$('verseOverlay').classList.contains('open'))loadPage(page+(delta>0?1:-1))},{passive:true});
+// Audio and overlays are stopped when Android removes this reader; back is handled by Android itself.
+window.addEventListener('pagehide',stopRecitation);
+loadPage(page);initIndex();
+</script>
+</body></html>
