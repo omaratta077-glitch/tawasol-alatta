@@ -12,6 +12,12 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import androidx.compose.foundation.clickable
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -90,38 +96,68 @@ internal fun QuranReaderScreen(modifier: Modifier = Modifier, onExit: () -> Unit
             TextButton(onClick={changePage(page+1)},enabled=page<604) { Text("›",color=gold) }
         }
     }
-    if (pane != null) AlertDialog(onDismissRequest={pane=null},
-        title={ Text(when(pane){"index"->"فهرس السور";"parts"->"الأجزاء";"marks"->"المرجعيات";"notes"->"الملاحظات";else->"البحث"}) },
-        text={ Column(Modifier.heightIn(max=520.dp)) {
-            Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceEvenly) {
-                listOf("index" to "الفهرس","parts" to "الأجزاء","marks" to "المرجعيات","notes" to "الملاحظات").forEach { (id,name) ->
-                    TextButton(onClick={pane=id}) { Text(name,color=gold) }
+    if (pane != null) Dialog(onDismissRequest = { pane = null }) {
+        Surface(
+            modifier = Modifier.fillMaxWidth().heightIn(max = 580.dp),
+            shape = RoundedCornerShape(24.dp),
+            color = Color(0xFFFCF9F2),
+            contentColor = Color(0xFF221B14)
+        ) {
+            Column(Modifier.padding(16.dp)) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text(when(pane) {"index" -> "فهرس السور"; "parts" -> "الأجزاء";
+                        "marks" -> "المرجعيات"; "notes" -> "الملاحظات"; else -> "البحث" },
+                        color = Color(0xFF221B14), style = MaterialTheme.typography.titleLarge)
+                    TextButton(onClick = { pane = null }) { Text("إغلاق", color = gold) }
+                }
+                Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                    verticalAlignment = Alignment.CenterVertically) {
+                    listOf("index" to "الفهرس", "parts" to "الأجزاء", "marks" to "المرجعيات", "notes" to "الملاحظات").forEach { (id, name) ->
+                        TextButton(onClick = { pane = id }, modifier = Modifier.padding(end = 3.dp)) {
+                            Text(name, maxLines = 1, softWrap = false,
+                                color = if (pane == id) gold else Color(0xFF55483A))
+                        }
+                    }
+                }
+                when (pane) {
+                    "index", "search" -> {
+                        OutlinedTextField(value = query, onValueChange = { query = it },
+                            label = { Text("بحث في أسماء السور") }, singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                            textStyle = androidx.compose.ui.text.TextStyle(color = Color(0xFF221B14)))
+                        LazyColumn(modifier = Modifier.weight(1f, fill = false)) {
+                            items(chapters.filter { query.isBlank() || it.second.contains(query) || it.first.toString() == query }) { (n, name, p) ->
+                                Text("$n  $name     صفحة $p", Modifier.fillMaxWidth().clickable { changePage(p) }.padding(12.dp),
+                                    color = Color(0xFF221B14), maxLines = 2)
+                                HorizontalDivider(color = Color(0xFFE8E0D2))
+                            }
+                        }
+                    }
+                    "parts" -> LazyColumn(Modifier.weight(1f, fill = false)) {
+                        items((1..30).toList()) { n ->
+                            Text("الجزء $n  •  صفحة ${juzStarts[n-1]}",
+                                Modifier.fillMaxWidth().clickable { changePage(juzStarts[n-1]) }.padding(12.dp), color = Color(0xFF221B14))
+                        }
+                    }
+                    "marks" -> {
+                        val saved = prefs.getInt("bookmark", -1)
+                        Text(if (saved > 0) "العلامة المحفوظة: صفحة $saved" else "لا توجد مرجعيات محفوظة", color = Color(0xFF221B14))
+                        if (saved > 0) TextButton(onClick = { changePage(saved) }) { Text("الانتقال إلى العلامة", color = gold) }
+                        TextButton(onClick = { prefs.edit().putInt("bookmark", page).apply(); pane = null }) { Text("حفظ الصفحة الحالية", color = gold) }
+                    }
+                    "notes" -> {
+                        LaunchedEffect(page) { note = prefs.getString("note_$page", "") ?: "" }
+                        Text("ملاحظات الصفحة $page", color = Color(0xFF221B14))
+                        OutlinedTextField(value = note, onValueChange = { note = it },
+                            modifier = Modifier.fillMaxWidth(), minLines = 3,
+                            textStyle = androidx.compose.ui.text.TextStyle(color = Color(0xFF221B14)))
+                        TextButton(onClick = { prefs.edit().putString("note_$page", note).apply(); pane = null }) { Text("حفظ الملاحظة", color = gold) }
+                    }
                 }
             }
-            when (pane) {
-                "index","search" -> {
-                    OutlinedTextField(value=query,onValueChange={query=it},label={Text("بحث في أسماء السور")},singleLine=true,modifier=Modifier.fillMaxWidth())
-                    LazyColumn { items(chapters.filter{query.isBlank() || it.second.contains(query) || it.first.toString()==query}) { (n,name,p) ->
-                        Text("$n  $name      صفحة $p",Modifier.fillMaxWidth().clickable{changePage(p)}.padding(12.dp))
-                    } }
-                }
-                "parts" -> LazyColumn { items((1..30).toList()) { n ->
-                    Text("الجزء $n    •    صفحة ${juzStarts[n-1]}",Modifier.fillMaxWidth().clickable{changePage(juzStarts[n-1])}.padding(12.dp))
-                } }
-                "marks" -> {
-                    val saved=prefs.getInt("bookmark",-1)
-                    Text(if(saved>0) "العلامة المحفوظة: صفحة $saved" else "لا توجد مرجعيات محفوظة")
-                    if(saved>0) TextButton(onClick={changePage(saved)}){Text("الانتقال إلى العلامة")}
-                    TextButton(onClick={prefs.edit().putInt("bookmark",page).apply();pane=null}){Text("حفظ الصفحة الحالية")}
-                }
-                "notes" -> {
-                    LaunchedEffect(page){ note=prefs.getString("note_$page","") ?: "" }
-                    Text("ملاحظات الصفحة $page")
-                    OutlinedTextField(value=note,onValueChange={note=it},modifier=Modifier.fillMaxWidth(),minLines=3)
-                    TextButton(onClick={prefs.edit().putString("note_$page",note).apply();pane=null}){Text("حفظ الملاحظة")}
-                }
-            }
-        } }, confirmButton={TextButton(onClick={pane=null}){Text("إغلاق")}})
+        }
+    }
 }
 
 private class MushafPageView(
@@ -163,15 +199,13 @@ private class MushafPageView(
         val viewport = drawing.documentViewBox ?: RectF(0f, 0f, drawing.documentWidth, drawing.documentHeight)
         if (viewport.width() <= 0f || viewport.height() <= 0f) return
         val inset = 8f * resources.displayMetrics.density
-        val ratio = minOf((width - 2 * inset) / viewport.width(), (height - 2 * inset) / viewport.height())
+        val ratio = minOf(((width - 2 * inset).coerceAtLeast(1f)) / viewport.width(), ((height - 2 * inset).coerceAtLeast(1f)) / viewport.height())
         val destW = viewport.width() * ratio
         val destH = viewport.height() * ratio
         val left = (width - destW) / 2f
         val top = (height - destH) / 2f
-        canvas.save()
-        canvas.translate(left, top)
-        canvas.scale(ratio, ratio)
-        drawing.renderToCanvas(canvas)
-        canvas.restore()
+        // AndroidSVG applies its own viewport transform; don't pre-scale the Canvas.
+        // The previous extra scale made glyphs enormous and clipped the printed page.
+        drawing.renderToCanvas(canvas, RectF(left, top, left + destW, top + destH))
     }
 }
