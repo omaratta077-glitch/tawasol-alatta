@@ -11,11 +11,11 @@
 *{box-sizing:border-box}
 html,body{width:100%;height:100%;margin:0;overflow:hidden;-webkit-text-size-adjust:100%;text-size-adjust:100%;background:var(--paper);color:var(--ink)}
 body{font-family:'Noto Naskh Arabic','Traditional Arabic',serif;display:flex;flex-direction:column}
-button,select,input{font:inherit}button{cursor:pointer}button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
-.toolbar{height:52px;flex:none;display:flex;align-items:center;justify-content:space-between;gap:4px;padding:4px 11px;background:var(--paper);border-bottom:1px solid #efe5d1;direction:ltr}
+button,select,input{font:inherit;direction:rtl;text-align:right}button{cursor:pointer}button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.toolbar{height:52px;flex:none;display:flex;align-items:center;justify-content:space-between;gap:4px;padding:4px 11px;background:var(--paper);border-bottom:1px solid #efe5d1;direction:rtl}
 .toolbar .group{display:flex;align-items:center;gap:5px;min-width:0}
 .top-pill{border:1.5px solid var(--border);border-radius:20px;padding:2px 10px;color:var(--sepia);background:#f4ead9;font:700 14px/1.5 'Noto Naskh Arabic',sans-serif;white-space:nowrap;height:32px;max-width:116px;overflow:hidden;text-overflow:ellipsis}
-.icon-button{width:32px;height:34px;display:grid;place-items:center;background:transparent;border:0;color:var(--sepia);font:700 24px/1 sans-serif;flex:none}
+.icon-button{text-align:center;width:32px;height:34px;display:grid;place-items:center;background:transparent;border:0;color:var(--sepia);font:700 24px/1 sans-serif;flex:none}
 .icon-button.bookmark{font-size:22px}.icon-button.bookmark.selected{color:#a26c0e}.icon-button.index{font-size:22px}
 #reader{flex:1;min-height:0;display:flex;flex-direction:column;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding:5px 11px 7px;background:var(--paper)}
 #pageText{width:100%;max-width:650px;flex:0 0 auto;margin:auto;font-family:'Noto Naskh Arabic','Traditional Arabic',serif;font-size:21px;line-height:1.83;text-align:center;direction:rtl;color:#0d0b09;font-weight:400;word-spacing:normal;letter-spacing:normal;overflow-wrap:normal;word-break:normal}
@@ -25,9 +25,9 @@ button,select,input{font:inherit}button{cursor:pointer}button:focus-visible{outl
 .surah-heading{font:700 1.12em/1.6 'Noto Naskh Arabic',serif;text-align:center;display:block;color:var(--sepia);padding:3px 4px;border-top:1px solid var(--border);border-bottom:1px solid var(--border);margin:6px 0 4px;background:#fff6e6}
 .basmalah{display:block;text-align:center;line-height:1.65;font-size:1.04em;margin:3px 0 7px}
 .loading,.empty{font:16px/1.9 'Noto Naskh Arabic',sans-serif;text-align:center;padding:24px 12px;color:#86551f}
-.foot{flex:none;height:44px;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:2px 11px;background:var(--paper);border-top:1px solid #efe5d1;direction:ltr}
+.foot{flex:none;height:44px;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:2px 11px;background:var(--paper);border-top:1px solid #efe5d1;direction:rtl}
 .foot .page-count{border-radius:22px;background:var(--shade);color:var(--sepia);padding:2px 12px;font:14px/1.7 'Noto Naskh Arabic',sans-serif;text-align:center;white-space:nowrap}
-.page-arrow{width:36px;height:34px;border:0;border-radius:9px;background:#e5cfb2;color:var(--sepia);font:700 26px/1 sans-serif;flex:none}
+.page-arrow{text-align:center;width:36px;height:34px;border:0;border-radius:9px;background:#e5cfb2;color:var(--sepia);font:700 26px/1 sans-serif;flex:none}
 .overlay{display:none;position:fixed;inset:0;z-index:10;background:#1b120984;align-items:center;justify-content:center;padding:12px;overscroll-behavior:contain}
 .overlay.open{display:flex}
 .sheet{background:var(--paper);width:100%;max-width:540px;max-height:calc(100% - 12px);border:1px solid var(--border);border-radius:16px;box-shadow:0 9px 35px #0003;display:flex;flex-direction:column;overflow:hidden;padding:10px 12px 12px}
@@ -55,7 +55,7 @@ button,select,input{font:inherit}button{cursor:pointer}button:focus-visible{outl
 #audioBar #audioName{flex:1;font:13px/1.6 'Noto Naskh Arabic',sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #audioBar .stop{background:#70462a}
 .note{font-size:12px;line-height:1.6;color:#775634}
-@media(max-width:360px){.toolbar{padding:3px 6px}.top-pill{font-size:13px;padding:2px 7px;max-width:100px}.icon-button{width:29px}.foot .page-count{font-size:12px;padding:2px 7px}#reader{padding-left:8px;padding-right:8px}.tab{font-size:11px}}
+@media(max-width:360px){.toolbar{padding:3px 6px}.top-pill{font-size:13px;padding:2px 7px;max-width:100px}.icon-button{text-align:center;width:29px}.foot .page-count{font-size:12px;padding:2px 7px}#reader{padding-left:8px;padding-right:8px}.tab{font-size:11px}}
 @media(max-height:550px){.toolbar{height:45px}.foot{height:40px}#verseOverlay .sheet{height:88vh}}
 </style>
 </head>
