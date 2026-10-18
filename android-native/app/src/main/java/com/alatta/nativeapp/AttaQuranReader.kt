@@ -27,7 +27,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 
 /**
  * One dedicated Mushaf view: 114 surahs, 30 juz, 240 quarters, 604 pages.
- * Quranic text, tafsir and recitation come from Al Quran Cloud via HTTPS.
+ * Printed pages and verse metadata are packaged locally. Tafsir/recitation use HTTPS.
  * No WebRTC, Worker, or YouTube player is created or modified here.
  * MainActivity's existing BackHandler uses Android system back navigation.
  */
@@ -38,6 +38,13 @@ internal fun QuranReaderScreen(modifier: Modifier = Modifier, onExit: () -> Unit
     var pageReady by remember { mutableStateOf(false) }
     val loader = remember(context) {
         WebViewAssetLoader.Builder()
+            .addPathHandler("/mushaf/", WebViewAssetLoader.PathHandler { path ->
+                if (!Regex("[0-9]{3}\\.svg").matches(path)) return@PathHandler null
+                try {
+                    // Android's asset merge expands source .svg.gz files and strips .gz.
+                    WebResourceResponse("image/svg+xml", "UTF-8", context.assets.open("mushaf/pages/$path"))
+                } catch (_: java.io.IOException) { null }
+            })
             .addPathHandler("/assets/", WebViewAssetLoader.AssetsPathHandler(context))
             .build()
     }
@@ -49,7 +56,7 @@ internal fun QuranReaderScreen(modifier: Modifier = Modifier, onExit: () -> Unit
             settings.allowFileAccess = false
             settings.allowContentAccess = false
             settings.mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
-            settings.textZoom = 100 // Reader controls preserve a readable 24–44 px Quran font.
+            settings.textZoom = 100 // The packaged printed-page artwork keeps its original line layout.
             settings.setSupportZoom(true)
             settings.builtInZoomControls = true
             settings.displayZoomControls = false

@@ -1,0 +1,3 @@
+# Needed only to regenerate the already-packaged page artwork.
+scour==0.38.2
+svgelements==1.9.6

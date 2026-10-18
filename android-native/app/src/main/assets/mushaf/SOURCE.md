@@ -1,0 +1,4 @@
+Madani Hafs page art from Batoul Apps Quran SVG, originally converted from Quran Printing Complex artwork.
+Source: https://github.com/batoulapps/quran-svg/tree/78d97544bfdc57e9f04bc97ace3f857ed972d772
+MIT license included. Optimized with the upstream converter. Original Quran glyph paths and numeral paths are retained. Brown floral frames, a light stroke and viewport fit are presentation changes; these frames are not facsimiles of a particular printed ornament.
+Metadata and verse preview text: https://api.alquran.cloud/v1/quran/quran-uthmani, fetched 2026-10-18. All 6236 endpoints are assigned sequentially from the SVG artwork. All 114 chapter counts and printed chapter-start pages are checked against upstream surah.json. Printed page allocations come from the artwork, not the API; page breaks differ on 25 pages. No claim is made that every glyph or ornament matches the user screenshot edition pixel-for-pixel.

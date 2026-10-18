@@ -2982,7 +2982,7 @@ export default {
       return Response.json({
         ok:true,
         app:"تواصل العطا",
-        version:"V13.79-Admin-Quran-Calls"
+        version:"V13.80-Madani-Mushaf"
       });
     }
 
