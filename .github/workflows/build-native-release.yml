@@ -118,6 +118,7 @@ jobs:
           node scripts/test_backend.mjs
           node scripts/test_privacy_admin_reset.mjs
           node scripts/test_full_reset.mjs
+          node scripts/test_owner_change.mjs
           node scripts/test_admin_reset_ui.mjs
           node scripts/test_google_signup_pbkdf_cap.mjs
           node scripts/verify_sources.mjs

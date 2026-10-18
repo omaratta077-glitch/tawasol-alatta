@@ -1842,7 +1842,7 @@ if(resetPreviewButton){
     try{
       const d=await api("/api/admin/reset/plan",{method:"POST",body:JSON.stringify({token})});
       ownerResetPlan=d;
-      report.textContent=`لن يبقى أي حساب، بما فيه omar1 الحالي.\nمفاتيح القاعدة: ${d.scope.durableObjectKeys}\nملفات الوسائط: ${d.scope.media.count}\nالحجم بالبايت: ${d.scope.media.bytes}\nتفصيل السجلات: ${JSON.stringify(d.scope.byCategory,null,2)}\nلا تُنشأ نسخة احتياطية.\nاكتب عبارة التأكيد ثم نفّذ الحذف.${d.resuming?"\nتوجد عملية سابقة؛ الزر يستكملها.":""}`;
+      report.textContent=`لن يبقى أي حساب، بما فيه حساب المدير ${d.owner||me.username} الحالي.\nمفاتيح القاعدة: ${d.scope.durableObjectKeys}\nملفات الوسائط: ${d.scope.media.count}\nالحجم بالبايت: ${d.scope.media.bytes}\nتفصيل السجلات: ${JSON.stringify(d.scope.byCategory,null,2)}\nلا تُنشأ نسخة احتياطية.\nاكتب عبارة التأكيد ثم نفّذ الحذف.${d.resuming?"\nتوجد عملية سابقة؛ الزر يستكملها.":""}`;
       $("adminResetConfirmArea").classList.remove("hidden");
     }catch(e){report.textContent=e.message||"تعذر تجهيز التصفير";}
     finally{resetPreviewButton.disabled=false;}

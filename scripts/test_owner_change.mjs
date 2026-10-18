@@ -1,0 +1,25 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import {webcrypto} from 'node:crypto';
+if(!globalThis.crypto)globalThis.crypto=webcrypto;
+const code=fs.readFileSync(new URL('../cloudflare-site/src/worker.js',import.meta.url),'utf8').replace('import { DurableObject } from "cloudflare:workers";','class DurableObject {}');
+const {SignalingRoom}=await import('data:text/javascript;charset=utf-8,'+encodeURIComponent(code));
+const map=new Map();const storage={async get(k){return structuredClone(map.get(k))},async put(k,v){map.set(k,structuredClone(v))},async delete(k){map.delete(k)},async deleteAll(){map.clear()},async list({startAfter='',limit=1000}={}){return new Map([...map].sort(([a],[b])=>a<b?-1:1).filter(([k])=>k>startAfter).slice(0,limit))}};
+const env={SUPER_ADMIN_USERNAME:'omar1',SUPER_ADMIN_EMAIL:'old@example.test',MEDIA_BUCKET:{async list(){return{objects:[],truncated:false}},async delete(){}}};
+const room=new SignalingRoom({storage,getWebSockets:()=>[]},env);
+const passwordHash=Buffer.from(await crypto.subtle.digest('SHA-256',new TextEncoder().encode('known-new-password'))).toString('hex');
+await storage.put('user:omar1',{username:'omar1',email:'old@example.test'});
+await storage.put('user:owner_new',{username:'owner_new',email:'new@example.test',passwordHash,emailVerified:true});await storage.put('usernames',['omar1','owner_new']);
+const oldToken=await room.createSession('omar1');
+async function api(path,body,method='POST'){const res=await room.api(new Request('https://unit.example'+path,{method,headers:{'content-type':'application/json'},...(method==='GET'?{}:{body:JSON.stringify(body)})}));return{status:res.status,data:await res.json()}}
+assert.equal(await room.roleFor('omar1'),'super_admin');assert.equal(await room.roleFor('owner_new'),'user');
+env.SUPER_ADMIN_USERNAME='owner_new';env.SUPER_ADMIN_EMAIL='new@example.test';
+const login=await api('/api/login',{username:'owner_new',password:'known-new-password'});assert.equal(login.status,200);const newToken=login.data.token;
+assert.equal((await api('/api/me?token='+newToken,null,'GET')).data.user.role,'super_admin');
+assert.equal((await api('/api/admin/summary?token='+oldToken,null,'GET')).status,403);
+assert.equal((await api('/api/admin/summary?token='+newToken,null,'GET')).status,200);
+const plan=await api('/api/admin/reset/plan',{token:newToken});assert.equal(plan.status,200);assert.equal(plan.data.owner,'owner_new');
+assert.equal((await api('/api/admin/reset/preview',{token:oldToken})).status,403);
+env.SUPER_ADMIN_EMAIL='wrong@example.test';assert.equal((await api('/api/admin/reset/plan',{token:newToken})).status,403);env.SUPER_ADMIN_EMAIL='new@example.test';
+const reset=await api('/api/admin/reset/execute',{token:newToken,planId:plan.data.planId,confirmation:plan.data.confirmation});assert.equal(reset.status,200);assert.equal(reset.data.done,true);assert.equal(map.size,0);
+console.log('PASS changing Cloudflare owner grants new account, revokes old admin, requires matching email and permits full reset');

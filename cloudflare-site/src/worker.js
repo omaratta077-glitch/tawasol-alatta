@@ -262,7 +262,7 @@ export class SignalingRoom extends DurableObject {
       const user=await this.user(name);
       if(user && (!this.ownerEmail() || String(user.email||"").toLowerCase()===this.ownerEmail()))return "super_admin";
     }
-    // Legacy moderators are intentionally no longer elevated. omar1 is sole admin.
+    // Only the owner configured in Cloudflare is elevated; legacy moderators are not.
     return "user";
   }
 
@@ -1986,22 +1986,22 @@ export class SignalingRoom extends DurableObject {
     }
 
     // Only the authenticated owner can review and execute a complete reset.
-    // No user record (including omar1), media or backup is retained by this flow.
+    // No user record (including the current owner), media or backup is retained by this flow.
     if(url.pathname==="/api/admin/reset/plan" && request.method==="POST"){
       const auth=await this.requireAdmin(body.token||"");if(auth.error)return auth.error;
       const owner=await this.user(auth.session.username);
-      if(this.ownerUsername()!=="omar1" || !this.ownerEmail() || this.ownerEmail()!==String(owner?.email||"").toLowerCase())
-        return j({ok:false,error:"اضبط SUPER_ADMIN_USERNAME=omar1 و SUPER_ADMIN_EMAIL ببريد المدير نفسه أولًا؛ حتى يمكن إعادة إنشاء حساب المدير بأمان",code:"OWNER_EMAIL_REQUIRED"},409);
+      if(!/^[a-z0-9_]{3,24}$/.test(this.ownerUsername()) || !this.ownerEmail() || this.ownerEmail()!==String(owner?.email||"").toLowerCase())
+        return j({ok:false,error:"اضبط SUPER_ADMIN_USERNAME باسم حساب المدير و SUPER_ADMIN_EMAIL ببريد الحساب نفسه أولًا",code:"OWNER_EMAIL_REQUIRED"},409);
       if(!this.env.MEDIA_BUCKET)return j({ok:false,error:"اربط مخزن MEDIA_BUCKET قبل التصفير لمسح ملفات الوسائط أيضًا"},409);
       const previous=await this.ctx.storage.get("owner-reset:plan");
       if(previous?.phase==="deleting"){
         if(previous.tokenHash!==await hashPassword(body.token))return j({ok:false,error:"استكمل التصفير من جلسة المدير التي بدأت العملية"},403);
-        return j({ok:true,planId:previous.id,confirmation:"امسح كل الحسابات",scope:previous.scope,resuming:true});
+        return j({ok:true,owner:this.ownerUsername(),planId:previous.id,confirmation:"امسح كل الحسابات",scope:previous.scope,resuming:true});
       }
       const scope=await this.resetInventory();
       const plan={id:crypto.randomUUID(),tokenHash:await hashPassword(body.token),phase:"review",expiresAt:Date.now()+600000,scope,deletedMedia:0};
       await this.ctx.storage.put("owner-reset:plan",plan);
-      return j({ok:true,planId:plan.id,confirmation:"امسح كل الحسابات",scope,resuming:false});
+      return j({ok:true,owner:this.ownerUsername(),planId:plan.id,confirmation:"امسح كل الحسابات",scope,resuming:false});
     }
 
     if(url.pathname==="/api/admin/reset/execute" && request.method==="POST"){
@@ -2779,7 +2779,7 @@ export default {
       return Response.json({
         ok:true,
         app:"تواصل العطا",
-        version:"V13.77-Admin-Privacy-Full-Reset"
+        version:"V13.78-Configurable-Owner"
       });
     }
 

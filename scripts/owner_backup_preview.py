@@ -58,10 +58,8 @@ def main():
     del password
     token = login['token']
     preview = request_json(origin, '/api/admin/reset/preview', {'token': token})
-    if preview.get('owner') != 'omar1':
-        raise RuntimeError('Safety halt: server owner is not omar1. Verify SUPER_ADMIN_USERNAME.')
-    if username != 'omar1':
-        raise RuntimeError('Safety halt: only omar1 may operate this script.')
+    if preview.get('owner') != username:
+        raise RuntimeError('Safety halt: logged-in username is not the configured Cloudflare owner.')
     public_preview = {key: val for key, val in preview.items() if key != 'token'}
     print(json.dumps(public_preview, ensure_ascii=False, indent=2))
     if args.preview:
