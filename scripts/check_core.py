@@ -58,7 +58,7 @@ check("Foreground ring state declared in AttaPush",
       "AttaPush.foregroundRingCallId == callId" in ring_screen)
 
 check("Native Google bridge removed", not (ROOT/(android+"GoogleWebBridge.kt")).exists())
-check("Official version 1.0.82", 'versionCode = 182' in gradle and 'versionName = "1.0.82"' in gradle)
+check("Official version 1.0.84", 'versionCode = 184' in gradle and 'versionName = "1.0.84"' in gradle)
 check("Four additional screens and scrollable navigation", all(x in main for x in ['QuranReaderScreen(', 'KnowledgeScreen(tab', 'FootballScreen(']) and all(x in read(android+"PremiumChrome.kt") for x in ['"القرآن"', '"الأحاديث"', '"الأذكار"', '"الرياضة"', '.horizontalScroll(scroll)']) and (ROOT/(android+"AlattaKnowledgeScreens.kt")).is_file())
 check("Quran-first categories and click-to-play preview", all(x in main for x in [
     'var youtubeCategory by remember { mutableStateOf("قرآن") }',
@@ -75,7 +75,7 @@ check("Background FCM integration declared", all((ROOT/(android+x)).is_file() fo
 check("Notification Intent.data does not shadow Firebase payload", 'this.data = Uri.parse("alatta://notification/${Uri.encode(eventId)}")' in read(android+"AttaPush.kt"))
 check("Social, chat and call FCM routing", 'scheduleUserPush' in worker and
       'deliverUserPush' in worker and 'notifyActivity(this, d)' in read(android+'AttaPush.kt') and
-      'ACTION_OPEN_NOTIFICATION' in main and 'versionCode = 182' in gradle)
+      'ACTION_OPEN_NOTIFICATION' in main and 'versionCode = 184' in gradle)
 check("Site/Android keep screen on without changing player", 'FLAG_KEEP_SCREEN_ON' in main and
       'youtube-screen-awake.js' in read('cloudflare-site/public/index.html') and
       (ROOT/'cloudflare-site/public/youtube-screen-awake.js').is_file())
@@ -155,13 +155,13 @@ check("Quran uses one Native Android SVG renderer without WebView",
       'internal fun QuranReaderScreen(' in quran_source and
       'AndroidView(factory = { MushafPageView(' in quran_source and
       'SVG.getFromInputStream' in quran_source and
-      'GZIPInputStream' in quran_source and
+      'GZIPInputStream' not in quran_source and
       'WebView(' not in quran_source and
       'loadDataWithBaseURL(' not in quran_source)
 check("Quran bundled 604 offline printed pages with compact controls",
       all((ROOT / f"android-native/app/src/main/assets/mushaf/pages/{p:03d}.svg.gz").is_file() for p in range(1,605)) and
       (ROOT / 'android-native/app/src/main/assets/mushaf/index.json').is_file() and
-      'mushaf/pages/%03d.svg.gz' in quran_source and
-      all(x in quran_source for x in ['فهرس السور','السابق','التالي','BackHandler','prefs.edit().putInt("page"']))
+      'mushaf/pages/%03d.svg' in quran_source and 'GZIPInputStream' not in quran_source and
+      all(x in quran_source for x in ['فهرس السور','changePage(page-1)','changePage(page+1)','BackHandler','prefs.edit().putInt("page"']))
 if fails:raise SystemExit(f"FAIL: {len(fails)} checks failed")
 print('PASS: static repository check complete. APK build/device tests are still required.')

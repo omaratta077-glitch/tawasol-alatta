@@ -9,7 +9,7 @@ const source = fs.readFileSync(path.join(app,'java/com/alatta/nativeapp/AttaQura
 assert.match(source,/internal fun QuranReaderScreen\(/);
 assert.match(source,/AndroidView\(factory = \{ MushafPageView\(/);
 assert.match(source,/SVG\.getFromInputStream/);
-assert.match(source,/GZIPInputStream/);
+assert.doesNotMatch(source,/GZIPInputStream/);
 assert.doesNotMatch(source,/WebView\(|loadDataWithBaseURL\(/);
 assert.match(source,/BackHandler/);
 assert.match(source,/putInt\("page"/);
@@ -25,3 +25,9 @@ for(const p of [1,356,604]){
 const index=JSON.parse(fs.readFileSync(path.join(app,'assets/mushaf/index.json'),'utf8'));
 assert.ok(index.pages, 'offline Quran index missing');
 console.log('PASS: Native offline Quran reader, 604 compressed SVG pages, sampled valid pages, history and back navigation');
+
+// Android asset merger expands .svg.gz to .svg before bundling the APK.
+assert.match(source, /mushaf\/pages\/%03d\.svg/);
+assert.doesNotMatch(source, /GZIPInputStream|mushaf\/pages\/%03d\.svg\.gz/);
+
+for (const control of ["فهرس السور","الأجزاء","المرجعيات","الملاحظات","بحث في أسماء السور","bookmark","note_$page"]) assert.ok(source.includes(control), `reader control missing: ${control}`);
