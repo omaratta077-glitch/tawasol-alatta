@@ -6,13 +6,16 @@ const main=readFileSync('android-native/app/src/main/java/com/alatta/nativeapp/M
 assert.ok(native.includes('val loadCallPage: (WebView) -> Unit'), 'keep one WebView loader');
 assert.ok(native.includes('AndroidView(\n            factory = { webView }'), 'one stable WebView for entire session');
 assert.equal((native.match(/AndroidView\(/g)||[]).length,1,'do not remount video view on minimize or restore');
-assert.ok(native.includes('if (videoCall) {\n                    // The sole video WebView'), 'video surface below transparent Compose stage');
+assert.ok(native.includes('} else if (videoCall) Column'), 'native video controls survive a black WebView');
+assert.ok(native.includes('.padding(top = 66.dp, bottom = 108.dp)'), 'WebView does not sit behind native video controls');
+assert.ok(native.includes('fun minimizeCall()'), 'video HTML minimize button must invoke native minimize');
+assert.ok(html.includes("document.documentElement.classList.add('native-host')"), 'video HTML contains a single media-only stage');
 assert.ok(native.includes('fun videoDiagnostic(message: String)'), 'native video diagnostic bridge');
 assert.ok(html.includes('localPreviewFrame') && html.includes('preview.play().catch(e=>') && html.includes('localCameraPlaceholder'), 'camera preview state shown');
 assert.ok(html.includes('meta.presentedFrames>0') && html.includes('remoteFrameConfirmed'), 'remote presentation detection');
 assert.ok(html.includes('لا تصل بيانات فيديو من الطرف الآخر'), 'diagnose received video vs decoded frames');
 assert.ok(main.includes('GoogleNativeSignIn.pickAccount') && main.includes('atta-site-youtube-bridge.js'), 'Google and shared YouTube preserved');
-console.log('PASS native WebRTC video stage and media diagnosis regression');
+console.log('PASS full video WebView without opaque Compose overlay and media diagnosis regression');
 
 assert.ok(html.includes("facingMode:{ideal:'user'}") && html.includes('const watchLocalFrame='), 'site-like camera capture and continuous frame probe');
 

@@ -7,7 +7,11 @@ async function hashPassword(text){
   return [...new Uint8Array(buf)].map(b=>b.toString(16).padStart(2,"0")).join("");
 }
 
-const KDF_ITERATIONS=180000;
+// Cloudflare Workers WebCrypto currently rejects PBKDF2 rounds > 100,000.
+// Keep the stored format versioned as pbkdf2:<rounds>:<salt>:<digest>.
+// Any older hash with a different supported round count is still read by
+// passwordMatches using the rounds embedded in its stored value.
+const KDF_ITERATIONS=100000;
 async function securePassword(password){
   const salt=crypto.getRandomValues(new Uint8Array(16));
   const key=await crypto.subtle.importKey('raw',encoder.encode(String(password)),{name:'PBKDF2'},false,['deriveBits']);
@@ -1010,8 +1014,9 @@ export class SignalingRoom extends DurableObject {
             (!this.env.FIREBASE_PROJECT_ID || this.env.FIREBASE_PROJECT_ID===service.project_id);
         }catch(_){/* Never return credentials or private keys. */}
       }
+      const lastCallPush=await this.ctx.storage.get('lastCallPushResult:'+session.username)||null;
       return j({ok:true,serverConfigured:configured,projectMatches,
-        registeredDevices:registered.length});
+        registeredDevices:registered.length,lastCallPush});
     }
 
     // User-triggered delivery check; FCM delivery is asynchronous, not guaranteed.
@@ -2237,21 +2242,48 @@ export class SignalingRoom extends DurableObject {
       const project=String(this.env.FIREBASE_PROJECT_ID||sa.project_id||'');
       if(!project || project!==sa.project_id)throw Error('Firebase project ID mismatch');
       const url='https://fcm.googleapis.com/v1/projects/'+encodeURIComponent(project)+'/messages:send';
+      // Firebase reserves data key "from"; keep it in our internal call/chat
+      // events, but rename it only in the outgoing FCM payload.
+      const fcmData={...data};
+      if(Object.prototype.hasOwnProperty.call(fcmData,'from')){
+        fcmData.sender=String(fcmData.from??'');
+        delete fcmData.from;
+      }
       const survivors=[];
       for(const deviceToken of tokens.slice(-5)){
         attempted++;
         try {
+          // Call invitations must have a visible OS notification when Android
+          // suspends our process. Data-only messages can be delayed/deprioritized
+          // by Doze/OEM background restrictions, even if push-test works.
+          // The service handles this same payload while the app is foregrounded;
+          // Android displays the notification itself when it is backgrounded.
+          const android={priority:'HIGH',ttl};
+          if(fcmData.type==='call-request'){
+            android.notification={
+              channel_id:'alatta_incoming_call_v2',
+              title:fcmData.callType==='video'?'مكالمة فيديو واردة':'مكالمة صوتية واردة',
+              body:'مكالمة واردة من تواصل العطا',
+              visibility:'PUBLIC',notification_priority:'PRIORITY_MAX',
+              tag:'alatta-call-'+String(fcmData.callId||'').slice(0,128)
+            };
+          }
           const resp=await fetch(url,{method:'POST',headers:{
             Authorization:'Bearer '+accessToken,'Content-Type':'application/json'
-          },body:JSON.stringify({message:{token:deviceToken,data,
-            android:{priority:'HIGH',ttl}}})});
+          },body:JSON.stringify({message:{token:deviceToken,data:fcmData,android}})});
           if(resp.ok){accepted++;survivors.push(deviceToken);continue;}
           const body=await resp.json().catch(()=>({}));
           const badToken=resp.status===404 || (resp.status===400 &&
             JSON.stringify(body).includes('UNREGISTERED'));
           if(!badToken)survivors.push(deviceToken);
+          const firebaseError=body?.error||{};
+          const safeReason=String(firebaseError.status||'UNKNOWN').slice(0,48);
+          const field=(firebaseError.details||[]).flatMap(item=>
+            Array.isArray(item.fieldViolations)?item.fieldViolations.map(v=>v.field):[])
+            .filter(v=>typeof v==='string').slice(0,3).join(',');
           lastError='FCM_HTTP_'+resp.status;
-          console.warn('FCM delivery HTTP',resp.status);
+          // Don't log registration tokens, credentials or the whole response body.
+          console.warn('FCM delivery rejected:',resp.status,safeReason,field);
         }catch(_){survivors.push(deviceToken);lastError='FCM_NETWORK_ERROR';}
       }
       if(survivors.length!==tokens.length)
@@ -2265,11 +2297,19 @@ export class SignalingRoom extends DurableObject {
 
   async deliverCallPush(to,event){
     if(!['call-request','hangup','call-reject'].includes(event.type))return;
-    await this.sendFcmToUser(to,{
+    const result=await this.sendFcmToUser(to,{
       type:String(event.type),from:String(event.from),to:String(to),
       callId:String(event.callId),callType:event.callType==='video'?'video':'audio',
       createdAt:String(event.createdAt||Date.now())
     },'45s');
+    if(event.type==='call-request'){
+      // Keep just the last delivery outcome for the recipient's diagnostic menu.
+      // Do not store or expose user ids, FCM tokens, call ids, or credentials.
+      await this.ctx.storage.put('lastCallPushResult:'+to,{
+        timestamp:Date.now(),attempted:result.attempted||0,
+        accepted:result.accepted||0,error:String(result.error||'').slice(0,48)
+      });
+    }
   }
 
   // Social/message push is sent only after the authenticated event was stored.

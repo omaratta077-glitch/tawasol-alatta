@@ -86,6 +86,8 @@ internal object AttaPush {
     // A visible incoming-call dialog rings on its own; suppress only that
     // notification, not all calls just because the Activity is STARTED.
     @Volatile var foregroundRingCallId = ""
+    // A delayed copy of an already accepted FCM invitation must not ring again.
+    @Volatile var activeCallId = ""
     const val ACTION_OPEN_CALL = "com.alatta.nativeapp.OPEN_CALL"
     const val ACTION_REJECT = "com.alatta.nativeapp.REJECT_CALL"
     const val ACTION_ACCEPT = "accept"
@@ -173,8 +175,12 @@ internal object AttaPush {
     }
 
     fun dismiss(context: Context, callId: String) {
-        (context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager)
-            .cancel(callId.hashCode())
+        val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        // Locally posted data-only invitation (foreground).
+        manager.cancel(callId.hashCode())
+        // OS-posted Firebase notification+data invitation (background).
+        // FCM uses notification.tag as its NotificationManager tag with id 0.
+        manager.cancel("alatta-call-$callId", 0)
     }
 
     private fun intentFor(context: Context, call: PushCall, action: String): Intent =
@@ -197,7 +203,7 @@ internal object AttaPush {
         val type = data["type"].orEmpty()
         val account = prefs(context)
         val recipient = data["to"].orEmpty().lowercase()
-        val sender = data["from"].orEmpty().trim().take(64)
+        val sender = (data["sender"] ?: data["from"]).orEmpty().trim().take(64)
         val eventId = data["eventId"].orEmpty()
         val allowed = setOf("chat", "friend-request", "friend-accepted", "like",
             "reaction", "comment", "comment-reply", "follow", "share", "push-test")
@@ -249,6 +255,7 @@ internal object AttaPush {
 
     fun incoming(context: Context, call: PushCall) {
         if (!validSession(context, call)) return
+        if (activeCallId == call.callId) return // Same accepted call, not another incoming call.
         // Foreground calls already have a native dialog + ringtone through the
         // authenticated WebSocket/HTTP path. Never ring the same device twice.
         if (appVisible && foregroundRingCallId == call.callId) return
@@ -345,7 +352,7 @@ class AttaFirebaseMessagingService : FirebaseMessagingService() {
             return
         }
         if (type != "call-request") return
-        val from = d["from"].orEmpty().trim().lowercase()
+        val from = (d["sender"] ?: d["from"]).orEmpty().trim().lowercase()
         val to = d["to"].orEmpty().trim().lowercase()
         val created = d["createdAt"]?.toLongOrNull() ?: return
         if (from.isBlank() || to.isBlank() || id.length !in 8..128) return

@@ -24,6 +24,8 @@ check("Official release builds android-native", 'working-directory: android-nati
 check("Native Google sign in", all(x in main for x in ["GoogleNativeSignIn.pickAccount","/api/google-login"]) and (ROOT/(android+"GoogleNativeSignIn.kt")).exists())
 check("Video, calls, messenger, profiles preserved",all((ROOT/(android+x)).is_file() for x in ["NativeCallScreen.kt","MessengerChat.kt","UserProfileScreen.kt","AttaExpandableVideo.kt","ProfileMedia.kt"]) and (ROOT/"android-native/app/src/main/assets/atta-call.html").is_file())
 check("Cloudflare deployment paths", 'main = "src/worker.js"' in read('cloudflare-site/wrangler.toml') and 'directory = "./public"' in read('cloudflare-site/wrangler.toml'))
+check("Cloudflare PBKDF2 iteration cap for Google signup", bool(re.search(r'const\s+KDF_ITERATIONS\s*=\s*100000\s*;', worker)) and
+      'pbkdf2:${KDF_ITERATIONS}' in worker)
 check("Worker core routes preserved",all(x in worker for x in ['/api/google-login','/api/friend-request','/api/conversation','/api/youtube','/api/call-signal','/ws']))
 check("Version declared", bool(re.search(r'versionName\s*=\s*"\d+\.\d+\.\d+"',gradle)) and bool(re.search(r'versionCode\s*=\s*\d+',gradle)))
 check("No legacy root Android source copies", not any((ROOT/p).exists() for p in ["MainActivity.kt","GoogleNativeSignIn.kt","AndroidManifest.xml","build.gradle.kts"]))
@@ -45,7 +47,7 @@ check("Foreground ring state declared in AttaPush",
       "AttaPush.foregroundRingCallId == callId" in ring_screen)
 
 check("Native Google bridge removed", not (ROOT/(android+"GoogleWebBridge.kt")).exists())
-check("Official version 1.0.64", 'versionCode = 164' in gradle and 'versionName = "1.0.64"' in gradle)
+check("Official version 1.0.69", 'versionCode = 169' in gradle and 'versionName = "1.0.69"' in gradle)
 check("Four additional screens and scrollable navigation", all(x in main for x in ['KnowledgeScreen(tab', 'FootballScreen(']) and all(x in read(android+"PremiumChrome.kt") for x in ['"القرآن"', '"الأحاديث"', '"الأذكار"', '"الرياضة"', '.horizontalScroll(scroll)']) and (ROOT/(android+"AlattaKnowledgeScreens.kt")).is_file())
 check("Quran-first categories and click-to-play preview", all(x in main for x in [
     'var youtubeCategory by remember { mutableStateOf("قرآن") }',
@@ -62,7 +64,7 @@ check("Background FCM integration declared", all((ROOT/(android+x)).is_file() fo
 check("Notification Intent.data does not shadow Firebase payload", 'this.data = Uri.parse("alatta://notification/${Uri.encode(eventId)}")' in read(android+"AttaPush.kt"))
 check("Social, chat and call FCM routing", 'scheduleUserPush' in worker and
       'deliverUserPush' in worker and 'notifyActivity(this, d)' in read(android+'AttaPush.kt') and
-      'ACTION_OPEN_NOTIFICATION' in main and 'versionCode = 164' in gradle)
+      'ACTION_OPEN_NOTIFICATION' in main and 'versionCode = 169' in gradle)
 check("Site/Android keep screen on without changing player", 'FLAG_KEEP_SCREEN_ON' in main and
       'youtube-screen-awake.js' in read('cloudflare-site/public/index.html') and
       (ROOT/'cloudflare-site/public/youtube-screen-awake.js').is_file())
@@ -90,8 +92,38 @@ video_web=read("android-native/app/src/main/assets/atta-call.html")
 check("Visible Android call-video stage and camera diagnostics",
       'if (videoCall) {' in video_native and
       'AndroidView(\n            factory = { webView }' in video_native and
-      'The sole video WebView is already behind this transparent' in video_native and
+      'The WebView occupies ONLY the' in video_native and
       'fun videoDiagnostic(message: String)' in video_native and
       'window.__attaResumeMedia' in video_web and 'AttaBridge.cameraReady()' in video_web)
+check("FCM reserved data key converted safely", "fcmData.sender=String(fcmData.from??'')" in worker and "delete fcmData.from" in worker and "data:fcmData" in worker and 'data["sender"] ?: data["from"]' in push_source and 'd["sender"] ?: d["from"]' in push_source)
+
+# An FCM notification+data packet is displayed by Android itself when the app
+# is asleep; the launcher Intent then receives the custom payload on tap.
+check("OS-displayed background call notification and safe call controls",
+      "android.notification={" in worker and
+      "channel_id:'alatta_incoming_call_v2'" in worker and
+      'lastCallPushResult:' in worker and
+      'intent.getStringExtra("type") == "call-request"' in main and
+      'manager.cancel("alatta-call-$callId", 0)' in push_source and
+      'The WebView occupies ONLY the' in video_native)
+
+# Regression guard: FCM / WebSocket / HTTP can deliver the same invitation.
+accept_fn=main.split('fun acceptIncomingInvite(invitation: NativeCallSession)',1)[-1].split('fun sendSelectedChatMedia(',1)[0]
+request_fn=main.split('fun handleIncomingCallEvent(signal: JSONObject)',1)[-1].split('val activity = ctx as? MainActivity',1)[0]
+check("Same call ID is never busy after answering",
+      'fun acceptIncomingInvite(invitation: NativeCallSession)' in main and
+      'knownCalls.add(id)' in accept_fn and
+      accept_fn.rfind('knownCalls.add(id)') < accept_fn.rfind('openCall(') and
+      'if (activeCall?.callId == callId ||' in request_fn and
+      request_fn.index('if (activeCall?.callId == callId ||') < request_fn.index('sendCallResponse(invite, "busy")') and
+      'onClick = { acceptIncomingInvite(invitation) }' in main and
+      'acceptIncomingInvite(session)' in main)
+check("Accepted FCM call is not re-notified and stale dialogs expire",
+      '@Volatile var activeCallId = ""' in push_source and
+      'if (activeCallId == call.callId) return' in push_source and
+      'AttaPush.activeCallId = callId' in main and
+      'LaunchedEffect(incomingCall?.callId)' in main and
+      'delay(45000L)' in main and
+      'if (AttaPush.activeCallId == session.callId) AttaPush.activeCallId = ""' in main)
 if fails:raise SystemExit(f"FAIL: {len(fails)} checks failed")
 print('PASS: static repository check complete. APK build/device tests are still required.')

@@ -285,6 +285,12 @@ internal fun NativeCallScreen(
                 @JavascriptInterface
                 fun close() { activity?.runOnUiThread { onClose() } }
 
+                // Use the WebView's actual on-screen controls for video calls.
+                // Compose overlays over video surfaces may render a black frame on
+                // certain Android/HONOR WebView implementations.
+                @JavascriptInterface
+                fun minimizeCall() { activity?.runOnUiThread { onMinimize() } }
+
                 @JavascriptInterface
                 fun onStatus(message: String) {
                     activity?.runOnUiThread {
@@ -434,7 +440,9 @@ internal fun NativeCallScreen(
         // Compose controls are transparent over the live video, not covering it.
         AndroidView(
             factory = { webView },
-            modifier = if (videoCall) Modifier.fillMaxSize()
+            modifier = if (videoCall && !minimized) Modifier.fillMaxSize()
+                    .padding(top = 66.dp, bottom = 108.dp)
+                else if (videoCall) Modifier.fillMaxSize()
                 else Modifier.fillMaxSize().alpha(.01f),
             update = loadCallPage
         )
@@ -442,6 +450,7 @@ internal fun NativeCallScreen(
         if (minimized) {
             Row(
                 Modifier.fillMaxSize().border(1.dp, CallGold.copy(alpha = .65f), RoundedCornerShape(15.dp))
+                    .background(CallPanel, RoundedCornerShape(15.dp))
                     .clickable { onRestore() }.padding(horizontal = 10.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -458,6 +467,56 @@ internal fun NativeCallScreen(
                         .background(Color(0xFFE83838)).clickable { endCall() },
                     contentAlignment = Alignment.Center
                 ) { SiteIcon("phone-off", tint = CallWhite, size = 20.dp) }
+            }
+        // Always render call controls natively, even when Android WebView's
+        // compositor cannot draw a video frame. The WebView occupies ONLY the
+        // central stage; headers and controls are outside its bounds, not opaque
+        // full-screen Compose overlays over its camera surface.
+        } else if (videoCall) Column(Modifier.fillMaxSize()) {
+            Row(Modifier.fillMaxWidth().height(66.dp).background(CallBackground)
+                .padding(horizontal = 12.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically) {
+                TextButton(onClick = { onMinimize() }) {
+                    SiteIcon("chevron-left", tint = CallGold, size = 24.dp)
+                }
+                Column(horizontalAlignment = Alignment.End) {
+                    Text("مكالمة فيديو", color = CallGold, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                    Text(peerDisplayName, color = CallWhite, fontSize = 12.sp, maxLines = 1)
+                    Text(callStatus, color = CallMuted, fontSize = 10.sp, maxLines = 1)
+                }
+            }
+            Spacer(Modifier.weight(1f))
+            if (videoHint.isNotBlank()) {
+                Text(videoHint, color = Color(0xFFFFD28A), textAlign = TextAlign.Right,
+                    fontSize = 11.sp, maxLines = 2, modifier = Modifier.fillMaxWidth()
+                        .background(CallBackground).padding(horizontal = 12.dp, vertical = 3.dp))
+            } else if (!localCameraReady) {
+                Text("جارٍ إظهار معاينة كاميرتك...", color = CallMuted, textAlign = TextAlign.Right,
+                    fontSize = 11.sp, modifier = Modifier.fillMaxWidth()
+                        .background(CallBackground).padding(horizontal = 12.dp, vertical = 3.dp))
+            }
+            if (videoNeedsGesture) {
+                TextButton(onClick = {
+                    nativeAction("window.__attaResumeMedia && window.__attaResumeMedia()")
+                    videoNeedsGesture = false
+                }, modifier = Modifier.fillMaxWidth().background(CallBackground)) {
+                    Text("اضغط لإظهار فيديو المكالمة", color = CallGold, fontSize = 12.sp)
+                }
+            }
+            Row(Modifier.fillMaxWidth().height(108.dp).background(CallBackground)
+                .padding(horizontal = 8.dp), horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically) {
+                CallControl(if (muted) "mic-off" else "mic", "الميكروفون", active = muted, compact = true) {
+                    muted = !muted; nativeAction("toggleMute()")
+                }
+                CallControl(if (cameraOff) "camera-off" else "video", "الكاميرا", active = cameraOff, compact = true) {
+                    cameraOff = !cameraOff; nativeAction("toggleCamera()")
+                }
+                CallControl("volume", "السماعة", active = speakerOn, compact = true) {
+                    speakerOn = !speakerOn; nativeAction("toggleSpeaker()")
+                }
+                CallControl("phone-off", "إنهاء", danger = true, compact = true) { endCall() }
             }
         } else Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
             Row(
@@ -583,17 +642,18 @@ private fun CallControl(
     label: String,
     active: Boolean = false,
     danger: Boolean = false,
+    compact: Boolean = false,
     onClick: () -> Unit
 ) {
     Column(horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(9.dp)) {
         Box(
-            modifier = Modifier.size(68.dp).clip(CircleShape)
+            modifier = Modifier.size(if (compact) 52.dp else 68.dp).clip(CircleShape)
                 .background(if (danger) Color(0xFFE83838) else if (active) Color(0xFF665029) else CallPanel)
                 .border(BorderStroke(1.dp, if (danger) Color(0xFFFF6666) else CallGold.copy(alpha = .26f)), CircleShape)
                 .clickable(onClick = onClick),
             contentAlignment = Alignment.Center
-        ) { SiteIcon(icon, tint = CallWhite, size = 30.dp) }
-        Text(label, color = CallWhite, fontSize = 11.sp, maxLines = 1)
+        ) { SiteIcon(icon, tint = CallWhite, size = if (compact) 23.dp else 30.dp) }
+        Text(label, color = CallWhite, fontSize = if (compact) 10.sp else 11.sp, maxLines = 1)
     }
 }
