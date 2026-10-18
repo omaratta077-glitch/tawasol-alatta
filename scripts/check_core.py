@@ -31,7 +31,18 @@ check("Version declared", bool(re.search(r'versionName\s*=\s*"\d+\.\d+\.\d+"',gr
 check("No legacy root Android source copies", not any((ROOT/p).exists() for p in ["MainActivity.kt","GoogleNativeSignIn.kt","AndroidManifest.xml","build.gradle.kts"]))
 check("One actual site YouTube player, no Android duplication", main.count("fun YouTubePlayer(")==1 and "YouTubePlayer(youtubeId)" in main and 'loadUrl("$BASE/")' in main and 'atta-site-youtube-bridge.js' in main and 'document.body.replaceChildren(host)' not in main and 'new YT.Player(' not in main and 'attaYouTubeHtml' not in main and 'www.youtube.com/embed/' not in main and 'syncAttaYouTube' not in gradle and (ROOT/'android-native/app/src/main/assets/atta-site-youtube-bridge.js').is_file() and 'AttaYouTubeEmbed.create' in read('cloudflare-site/public/youtube-section.js') and 'global.AttaYouTubeEmbed=' in read('cloudflare-site/public/youtube-player-shared.js'))
 check("One compact header search and no duplicate friend search", main.count('AttaCompactSearch(')==2 and 'SectionTitle("البحث وإضافة صديق")' not in main and 'OutlinedTextField(search, { search = it }, label = { Text("ابحث بالاسم أو اسم المستخدم") }' not in main)
-check("No unresolved merge markers", not any(re.match(r"^(<<<<<<< |=======\s*$|>>>>>>> )", line) for f in (ROOT/"android-native/app/src/main/java").rglob("*.kt") for line in f.read_text(encoding="utf-8").splitlines()))
+# Git conflict markers can break the Worker, Gradle and JS tests as well as Kotlin.
+# Inspect all project source/config files and report the exact location if found.
+SOURCE_EXTENSIONS = {".kt", ".kts", ".js", ".mjs", ".py", ".html", ".css", ".xml", ".yml", ".yaml", ".toml", ".properties"}
+merge_conflicts = []
+for source_file in ROOT.rglob("*"):
+    if source_file.is_file() and source_file.suffix in SOURCE_EXTENSIONS and ".git" not in source_file.parts:
+        for line_number, line in enumerate(source_file.read_text(encoding="utf-8").splitlines(), 1):
+            if re.match(r"^(?:<<<<<<<(?: |$)|=======$|>>>>>>>(?: |$))", line):
+                merge_conflicts.append(f"{source_file.relative_to(ROOT)}:{line_number}")
+check("No unresolved merge markers", not merge_conflicts)
+for location in merge_conflicts:
+    print("CONFLICT: " + location)
 check("PushCall visibility compatible", "internal var incomingPush by mutableStateOf<PushCall?>" in main)
 # Protect the cross-file foreground ringtone contract. Partial uploads must
 # include MainActivity.kt, NativeCallScreen.kt, and AttaPush.kt from one version.

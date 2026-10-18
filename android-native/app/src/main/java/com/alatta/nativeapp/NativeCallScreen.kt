@@ -468,7 +468,6 @@ internal fun NativeCallScreen(
                     contentAlignment = Alignment.Center
                 ) { SiteIcon("phone-off", tint = CallWhite, size = 20.dp) }
             }
-<<<<<<< HEAD
         // Always render call controls natively, even when Android WebView's
         // compositor cannot draw a video frame. The WebView occupies ONLY the
         // central stage; headers and controls are outside its bounds, not opaque
@@ -520,14 +519,6 @@ internal fun NativeCallScreen(
                 CallControl("phone-off", "إنهاء", danger = true, compact = true) { endCall() }
             }
         } else Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
-=======
-        // Keep native Compose controls for AUDIO calls only. VIDEO calls now
-        // render their full header, small local preview, remote video and controls
-        // directly inside the same stable WebView, with no full-screen Compose
-        // layer painted above the video surface. This is the same layout approach
-        // as the working website and avoids a black WebView video compositor.
-        } else if (!videoCall) Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
->>>>>>> a9e93afa597f2ea057d2bc14ce29616f60ca0c55
             Row(
                 Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 14.dp),
                 verticalAlignment = Alignment.CenterVertically,

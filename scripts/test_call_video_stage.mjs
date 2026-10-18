@@ -6,16 +6,10 @@ const main=readFileSync('android-native/app/src/main/java/com/alatta/nativeapp/M
 assert.ok(native.includes('val loadCallPage: (WebView) -> Unit'), 'keep one WebView loader');
 assert.ok(native.includes('AndroidView(\n            factory = { webView }'), 'one stable WebView for entire session');
 assert.equal((native.match(/AndroidView\(/g)||[]).length,1,'do not remount video view on minimize or restore');
-<<<<<<< HEAD
 assert.ok(native.includes('} else if (videoCall) Column'), 'native video controls survive a black WebView');
 assert.ok(native.includes('.padding(top = 66.dp, bottom = 108.dp)'), 'WebView does not sit behind native video controls');
 assert.ok(native.includes('fun minimizeCall()'), 'video HTML minimize button must invoke native minimize');
 assert.ok(html.includes("document.documentElement.classList.add('native-host')"), 'video HTML contains a single media-only stage');
-=======
-assert.ok(native.includes('} else if (!videoCall) Column'), 'video screen does not create a Compose layer above WebView');
-assert.ok(native.includes('fun minimizeCall()'), 'video HTML minimize button must invoke native minimize');
-assert.ok(html.includes("if(cfg.type!=='video')document.documentElement.classList.add('native-host')"), 'video must use WebView own visible controls');
->>>>>>> a9e93afa597f2ea057d2bc14ce29616f60ca0c55
 assert.ok(native.includes('fun videoDiagnostic(message: String)'), 'native video diagnostic bridge');
 assert.ok(html.includes('localPreviewFrame') && html.includes('preview.play().catch(e=>') && html.includes('localCameraPlaceholder'), 'camera preview state shown');
 assert.ok(html.includes('meta.presentedFrames>0') && html.includes('remoteFrameConfirmed'), 'remote presentation detection');

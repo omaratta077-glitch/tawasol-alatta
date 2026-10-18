@@ -33,7 +33,6 @@ try{
     assert.equal(item.android.priority,'HIGH');
     assert.ok(item.android.ttl.endsWith('s'));
   }
-<<<<<<< HEAD
   assert.equal(captured[0].android.notification.channel_id,'alatta_incoming_call_v2');
   assert.equal(captured[0].android.notification.notification_priority,'PRIORITY_MAX');
   assert.equal(captured[0].android.notification.tag,'alatta-call-call-abc123');
@@ -43,15 +42,9 @@ try{
   assert.equal(delivery.accepted,1);
   assert.equal(delivery.attempted,1);
   assert.equal(delivery.error,'');
-=======
->>>>>>> a9e93afa597f2ea057d2bc14ce29616f60ca0c55
   assert.equal(captured[0].data.sender,'alice');
   assert.equal(captured[0].data.callType,'video');
   assert.equal(captured[1].data.sender,'alice');
   assert.equal(captured[2].data.sender,'');
-<<<<<<< HEAD
   console.log('PASS: call notifications use OS-visible channel, user/test keep data-only, no reserved from key');
-=======
-  console.log('PASS: call, chat and test FCM payloads contain no reserved from key');
->>>>>>> a9e93afa597f2ea057d2bc14ce29616f60ca0c55
 }finally{globalThis.fetch=fetchBefore;}
