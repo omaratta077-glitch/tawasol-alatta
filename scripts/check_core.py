@@ -22,7 +22,7 @@ check("Four original GitHub signing secrets",all("secrets."+x in workflow for x 
 check("Signature SHA-1 safeguard", '62E90655FDAF3788706105CF4D998592CBBD8275' in workflow)
 check("Official release builds android-native", 'working-directory: android-native' in workflow and 'assembleRelease' in workflow)
 check("Native Google sign in", all(x in main for x in ["GoogleNativeSignIn.pickAccount","/api/google-login"]) and (ROOT/(android+"GoogleNativeSignIn.kt")).exists())
-check("Video, calls, messenger, profiles preserved",all((ROOT/(android+x)).is_file() for x in ["NativeCallScreen.kt","MessengerChat.kt","UserProfileScreen.kt","AttaExpandableVideo.kt","ProfileMedia.kt"]) and (ROOT/"android-native/app/src/main/assets/atta-call.html").is_file())
+check("Video, calls, messenger, profiles preserved",all((ROOT/(android+x)).is_file() for x in ["NativeCallScreen.kt","MessengerChat.kt","UserProfileScreen.kt","AttaExpandableVideo.kt","ProfileMedia.kt"]) and (ROOT/(android+"NativeRtcCall.kt")).is_file())
 check("Cloudflare deployment paths", 'main = "src/worker.js"' in read('cloudflare-site/wrangler.toml') and 'directory = "./public"' in read('cloudflare-site/wrangler.toml'))
 check("Cloudflare PBKDF2 iteration cap for Google signup", bool(re.search(r'const\s+KDF_ITERATIONS\s*=\s*100000\s*;', worker)) and
       'pbkdf2:${KDF_ITERATIONS}' in worker)
@@ -58,7 +58,7 @@ check("Foreground ring state declared in AttaPush",
       "AttaPush.foregroundRingCallId == callId" in ring_screen)
 
 check("Native Google bridge removed", not (ROOT/(android+"GoogleWebBridge.kt")).exists())
-check("Official version 1.0.71", 'versionCode = 171' in gradle and 'versionName = "1.0.71"' in gradle)
+check("Official version 1.0.72", 'versionCode = 172' in gradle and 'versionName = "1.0.72"' in gradle)
 check("Four additional screens and scrollable navigation", all(x in main for x in ['QuranReaderScreen(', 'KnowledgeScreen(tab', 'FootballScreen(']) and all(x in read(android+"PremiumChrome.kt") for x in ['"القرآن"', '"الأحاديث"', '"الأذكار"', '"الرياضة"', '.horizontalScroll(scroll)']) and (ROOT/(android+"AlattaKnowledgeScreens.kt")).is_file())
 check("Quran-first categories and click-to-play preview", all(x in main for x in [
     'var youtubeCategory by remember { mutableStateOf("قرآن") }',
@@ -75,7 +75,7 @@ check("Background FCM integration declared", all((ROOT/(android+x)).is_file() fo
 check("Notification Intent.data does not shadow Firebase payload", 'this.data = Uri.parse("alatta://notification/${Uri.encode(eventId)}")' in read(android+"AttaPush.kt"))
 check("Social, chat and call FCM routing", 'scheduleUserPush' in worker and
       'deliverUserPush' in worker and 'notifyActivity(this, d)' in read(android+'AttaPush.kt') and
-      'ACTION_OPEN_NOTIFICATION' in main and 'versionCode = 171' in gradle)
+      'ACTION_OPEN_NOTIFICATION' in main and 'versionCode = 172' in gradle)
 check("Site/Android keep screen on without changing player", 'FLAG_KEEP_SCREEN_ON' in main and
       'youtube-screen-awake.js' in read('cloudflare-site/public/index.html') and
       (ROOT/'cloudflare-site/public/youtube-screen-awake.js').is_file())
@@ -96,16 +96,17 @@ check(f"JavaScript syntax ({len(js)} files)",not failjs)
 for x in failjs:print(x)
 
 
-# The native video must paint into its own stage rather than hiding a WebView
-# behind a full-screen Compose placeholder. Validate both media paths persist.
+# Exactly one native WebRTC media implementation replaces the old call WebView.
 video_native=read(android+"NativeCallScreen.kt")
-video_web=read("android-native/app/src/main/assets/atta-call.html")
-check("Visible Android call-video stage and camera diagnostics",
-      'if (videoCall) {' in video_native and
-      'AndroidView(\n            factory = { webView }' in video_native and
-      'The WebView occupies ONLY the' in video_native and
-      'fun videoDiagnostic(message: String)' in video_native and
-      'window.__attaResumeMedia' in video_web and 'AttaBridge.cameraReady()' in video_web)
+video_engine=read(android+"NativeRtcCall.kt")
+check("Native WebRTC camera preview and remote video without call WebView",
+      all(k in video_engine for k in ["PeerConnectionFactory", "Camera2Enumerator", "Camera1Enumerator", "SurfaceTextureHelper", "createVideoTrack", "createPeerConnection", "addSink", "createOffer", "createAnswer", "call-accept"]) and
+      'SurfaceViewRenderer' in video_native and
+      'AndroidView(factory = { localRenderer }' in video_native and
+      'AndroidView(factory = { remoteRenderer }' in video_native and
+      'io.github.webrtc-sdk:android:' in gradle and
+      not (ROOT/'android-native/app/src/main/assets/atta-call.html').exists() and
+      'WebView(' not in video_native and 'WebView(' not in video_engine)
 check("FCM reserved data key converted safely", "fcmData.sender=String(fcmData.from??'')" in worker and "delete fcmData.from" in worker and "data:fcmData" in worker and 'data["sender"] ?: data["from"]' in push_source and 'd["sender"] ?: d["from"]' in push_source)
 
 # An FCM notification+data packet is displayed by Android itself when the app
@@ -116,7 +117,7 @@ check("OS-displayed background call notification and safe call controls",
       'lastCallPushResult:' in worker and
       'intent.getStringExtra("type") == "call-request"' in main and
       'manager.cancel("alatta-call-$callId", 0)' in push_source and
-      'The WebView occupies ONLY the' in video_native)
+      'SurfaceViewRenderer' in video_native)
 
 # Regression guard: FCM / WebSocket / HTTP can deliver the same invitation.
 accept_fn=main.split('fun acceptIncomingInvite(invitation: NativeCallSession)',1)[-1].split('fun sendSelectedChatMedia(',1)[0]

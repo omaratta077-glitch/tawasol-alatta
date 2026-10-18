@@ -74,17 +74,17 @@ jobs:
           grep -q 'api/conversation' "$MAIN_FILE"
           test -s android-native/app/src/main/java/com/alatta/nativeapp/NativeCallScreen.kt
           test -s android-native/app/src/main/java/com/alatta/nativeapp/UserProfileScreen.kt
-          test -s android-native/app/src/main/assets/atta-call.html
-          grep -q 'getUserMedia' android-native/app/src/main/assets/atta-call.html
-          grep -q 'peerPromise' android-native/app/src/main/assets/atta-call.html
-          grep -q 'mediaReady' android-native/app/src/main/java/com/alatta/nativeapp/NativeCallScreen.kt
+          test -s android-native/app/src/main/java/com/alatta/nativeapp/NativeRtcCall.kt
+          grep -q 'io.github.webrtc-sdk:android:' "$BUILD_FILE"
+          grep -q 'SurfaceViewRenderer' android-native/app/src/main/java/com/alatta/nativeapp/NativeCallScreen.kt
+          test ! -e android-native/app/src/main/assets/atta-call.html
           test -s android-native/app/src/main/java/com/alatta/nativeapp/AttaExpandableVideo.kt
           grep -Eq 'ProfileMediaImage\(|ExpandableProfileMedia\(' "$MAIN_FILE" || {
             echo '::error::Profile media component invocation is missing from MainActivity.kt'
             exit 1
           }
           grep -q 'AttaExpandableVideo(url)' "$MAIN_FILE"
-          grep -q 'call-accept' android-native/app/src/main/assets/atta-call.html
+          grep -q 'call-accept' android-native/app/src/main/java/com/alatta/nativeapp/NativeRtcCall.kt
           grep -q 'chatVideoPicker.launch' "$MAIN_FILE"
           grep -q 'PublicUserProfile(' "$MAIN_FILE"
           grep -q 'NativeCallScreen(' "$MAIN_FILE"

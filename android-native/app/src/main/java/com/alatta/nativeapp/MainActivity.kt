@@ -2461,14 +2461,14 @@ private class AttaYoutubeFullscreenChrome(
                 }
             }
             activeCall?.let { session ->
-                // Keep the same Composable and WebView mounted while minimized.
-                // Removing/reattaching the WebView would destroy the WebRTC connection.
+                // Keep the native WebRTC peer and its Compose screen mounted while minimized.
+                // The separate native camera/renderer lifecycle owns the call.
                 NativeCallScreen(
                     session = session, token = token, myUsername = myUsername,
                     minimized = callMinimized,
                     modifier = if (callMinimized) {
                         // Full-width ongoing-call banner while browsing inside the app.
-                        // Keep the WebRTC composable mounted so media is not interrupted.
+                        // Keep the native WebRTC peer mounted so media is not interrupted.
                         Modifier.align(Alignment.TopCenter)
                             .fillMaxWidth()
                             .padding(top = 72.dp, start = 10.dp, end = 10.dp)

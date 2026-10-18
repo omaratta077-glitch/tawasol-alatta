@@ -12,8 +12,8 @@ android {
         applicationId = "com.alatta.nativeapp"
         minSdk = 26
         targetSdk = 35
-        versionCode = 171
-        versionName = "1.0.71"
+        versionCode = 172
+        versionName = "1.0.72"
     }
 
     // Firebase's public Android configuration is supplied by GitHub Actions vars.
@@ -78,4 +78,6 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("com.google.firebase:firebase-messaging:24.1.2")
+    // Native C++ WebRTC camera/audio/renderers; no call HTML page.
+    implementation("io.github.webrtc-sdk:android:137.7151.03")
 }

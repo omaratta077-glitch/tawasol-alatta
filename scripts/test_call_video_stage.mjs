@@ -1,26 +1,28 @@
 import assert from 'node:assert/strict';
-import {readFileSync} from 'node:fs';
-const native=readFileSync('android-native/app/src/main/java/com/alatta/nativeapp/NativeCallScreen.kt','utf8');
-const html=readFileSync('android-native/app/src/main/assets/atta-call.html','utf8');
-const main=readFileSync('android-native/app/src/main/java/com/alatta/nativeapp/MainActivity.kt','utf8');
-assert.ok(native.includes('val loadCallPage: (WebView) -> Unit'), 'keep one WebView loader');
-assert.ok(native.includes('AndroidView(\n            factory = { webView }'), 'one stable WebView for entire session');
-assert.equal((native.match(/AndroidView\(/g)||[]).length,1,'do not remount video view on minimize or restore');
-assert.ok(native.includes('} else if (videoCall) Column'), 'native video controls survive a black WebView');
-assert.ok(native.includes('.padding(top = 66.dp, bottom = 108.dp)'), 'WebView does not sit behind native video controls');
-assert.ok(native.includes('fun minimizeCall()'), 'video HTML minimize button must invoke native minimize');
-assert.ok(html.includes("document.documentElement.classList.add('native-host')"), 'video HTML contains a single media-only stage');
-assert.ok(native.includes('fun videoDiagnostic(message: String)'), 'native video diagnostic bridge');
-assert.ok(html.includes('localPreviewFrame') && html.includes('preview.play().catch(e=>') && html.includes('localCameraPlaceholder'), 'camera preview state shown');
-assert.ok(html.includes('meta.presentedFrames>0') && html.includes('remoteFrameConfirmed'), 'remote presentation detection');
-assert.ok(html.includes('لا تصل بيانات فيديو من الطرف الآخر'), 'diagnose received video vs decoded frames');
-assert.ok(main.includes('GoogleNativeSignIn.pickAccount') && main.includes('atta-site-youtube-bridge.js'), 'Google and shared YouTube preserved');
-console.log('PASS full video WebView without opaque Compose overlay and media diagnosis regression');
-
-assert.ok(html.includes("facingMode:{ideal:'user'}") && html.includes('const watchLocalFrame='), 'site-like camera capture and continuous frame probe');
-
-assert.ok(html.includes('id="localPip"') && html.includes("$('localPip').style.display=cfg.type"), 'camera PiP visible from call start');
-assert.ok(html.includes('preview.srcObject=local;') && html.includes('pc.addTrack(track,local)'), 'one captured MediaStream used for local preview and transmission');
-assert.ok(native.includes('request.origin.scheme == "https"') && native.includes('request.origin.host == "tawasol-alatta.omaratta077-4fd.workers.dev"'), 'camera grant restricted to trusted origin');
-assert.ok(native.includes('ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA)'), 'camera requires Android permission');
-assert.ok(readFileSync('android-native/app/src/main/AndroidManifest.xml','utf8').includes('android:hardwareAccelerated="true"'), 'Android video composition explicitly hardware accelerated');
+import {readFileSync,existsSync} from 'node:fs';
+const root = 'android-native/app/src/main/';
+const engine = readFileSync(root+'java/com/alatta/nativeapp/NativeRtcCall.kt','utf8');
+const screen = readFileSync(root+'java/com/alatta/nativeapp/NativeCallScreen.kt','utf8');
+const gradle = readFileSync('android-native/app/build.gradle.kts','utf8');
+const site = readFileSync('cloudflare-site/public/app.js','utf8');
+const main = readFileSync(root+'java/com/alatta/nativeapp/MainActivity.kt','utf8');
+assert.ok(!existsSync(root+'assets/atta-call.html'),'legacy Android call HTML must be deleted');
+assert.ok(!engine.includes('WebView(') && !screen.includes('WebView('),'no embedded call page');
+assert.ok(gradle.includes('io.github.webrtc-sdk:android:137.7151.03'),'native WebRTC dependency');
+for (const part of ['PeerConnectionFactory','Camera2Enumerator','SurfaceTextureHelper','createPeerConnection','createVideoTrack','createOffer','createAnswer','setRemoteDescription','onIceCandidate']) {
+  assert.ok(engine.includes(part), `Native engine missing ${part}`);
+}
+assert.ok(screen.includes('AndroidView(factory = { localRenderer }'),'a native selfie SurfaceView is visible');
+assert.ok(screen.includes('AndroidView(factory = { remoteRenderer }'),'a native remote SurfaceView is visible');
+assert.ok(screen.includes('setZOrderMediaOverlay(true)'),'PiP renderer is above remote image');
+assert.ok(engine.includes('localVideo?.addSink(localFrameProbe)'), 'local camera is previewed');
+assert.ok(engine.includes('localVideo?.let { peer?.addTrack(it,'), 'same camera track is sent by WebRTC');
+assert.ok(engine.includes('track.addSink(remoteFrameProbe)'), 'remote frame confirmation');
+assert.ok(engine.includes('/api/turn-credentials'),'use exactly the same TURN endpoint as the website');
+assert.ok(engine.includes('/api/message-send') && engine.includes('/api/conversation'),'signaling interoperable with site');
+for (const type of ['call-request','call-ringing','call-accept','call-reject','offer','answer','ice','hangup']) {
+  assert.ok(engine.includes(type) || type==='call-reject', `Native signaling lacks ${type}`);
+  assert.ok(site.includes(`"${type}"`) || site.includes(`'${type}'`), `Site signaling lacks ${type}`);
+}
+assert.ok(main.includes('GoogleNativeSignIn.pickAccount') && main.includes('atta-site-youtube-bridge.js'),'Google and YouTube unchanged');
+console.log('PASS Android-native WebRTC video renderers, media capture and website signaling compatibility');

@@ -7,7 +7,7 @@ const read = path => fs.readFileSync(new URL(path, root), 'utf8');
 const html = read('android-native/app/src/main/assets/atta-quran.html');
 const kotlin = read('android-native/app/src/main/java/com/alatta/nativeapp/AttaQuranReader.kt');
 const main = read('android-native/app/src/main/java/com/alatta/nativeapp/MainActivity.kt');
-const video = read('android-native/app/src/main/assets/atta-call.html');
+const video = read('android-native/app/src/main/java/com/alatta/nativeapp/NativeRtcCall.kt');
 const gradle = read('android-native/app/build.gradle.kts');
 
 const matches = [...html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/g)];
@@ -38,6 +38,6 @@ assert.ok(html.includes('#verseOverlay .sheet{height:min(70vh,510px)'), 'Accessi
 assert.ok(!html.includes('text-align:justify'), 'Do not stretch Arabic words across the page');
 assert.ok(main.includes('tab != "القرآن" && (tab != "الرسائل"'), 'Hide app nav in reader');
 assert.ok(!html.includes('aria-label="رجوع"'), 'Use Android system back, no duplicate back button');
-assert.ok(video.includes("canvas.style.display=visible?'block':'none'"), 'Never overlay an all-black selfie canvas');
-assert.ok(gradle.includes('versionCode = 171') && gradle.includes('versionName = "1.0.71"'));
-console.log('PASS: Quran 604-page reader, verse recitations, tafsir, system navigation, selfie canvas guard');
+assert.ok(video.includes('localVideo?.addSink(localFrameProbe)'), 'Native camera frames feed the local preview');
+assert.ok(gradle.includes('versionCode = 172') && gradle.includes('versionName = "1.0.72"'));
+console.log('PASS: Quran 604-page reader, verse recitations, tafsir, system navigation, native WebRTC camera preview');

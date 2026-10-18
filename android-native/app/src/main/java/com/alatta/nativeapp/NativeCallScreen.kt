@@ -1,28 +1,16 @@
 package com.alatta.nativeapp
 
-import android.Manifest
 import android.content.Context
-import android.content.pm.PackageManager
 import android.media.AudioManager
 import android.media.Ringtone
 import android.media.RingtoneManager
 import android.media.ToneGenerator
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
-import androidx.lifecycle.LifecycleOwner
-import android.os.Handler
-import android.os.Looper
-import android.webkit.JavascriptInterface
-import android.webkit.PermissionRequest
-import android.webkit.WebChromeClient
-import android.webkit.WebResourceRequest
-import android.webkit.WebResourceError
-import android.webkit.WebView
-import android.webkit.WebViewClient
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -36,32 +24,28 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.LifecycleOwner
+import org.webrtc.RendererCommon
+import org.webrtc.SurfaceViewRenderer
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
 
-/**
- * Foreground incoming-call alert. It uses the user's ringtone and respects the
- * ringer switch. A single controller is attached only while the incoming-call
- * dialog exists; accepting, rejecting or leaving the Activity stops everything.
- */
+/** Native ringtone is scoped to the visible incoming-call prompt. */
 private class IncomingCallAlert(private val context: Context) {
     private val audio = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
     private var ringtone: Ringtone? = null
@@ -75,37 +59,30 @@ private class IncomingCallAlert(private val context: Context) {
         val mode = audio.ringerMode
         if (mode == AudioManager.RINGER_MODE_NORMAL) {
             try {
-                val uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
-                ringtone = RingtoneManager.getRingtone(context, uri)
+                ringtone = RingtoneManager.getRingtone(context, RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE))
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) ringtone?.isLooping = true
                 ringtone?.play()
-            } catch (_: Exception) { /* Silenced/missing ringtone: call dialog still works. */ }
+            } catch (_: Exception) {}
         }
         val vibrate = mode == AudioManager.RINGER_MODE_VIBRATE ||
             (mode == AudioManager.RINGER_MODE_NORMAL && audio.shouldVibrate(AudioManager.VIBRATE_TYPE_RINGER))
-        if (vibrate) {
-            try {
-                vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                    (context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager).defaultVibrator
-                } else {
-                    context.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
-                }
-                if (vibrator?.hasVibrator() == true) {
-                    vibrator?.vibrate(VibrationEffect.createWaveform(longArrayOf(0, 700, 1000, 700, 2400), 0))
-                }
-            } catch (_: Exception) { /* Some devices restrict vibration. */ }
-        }
+        if (vibrate) try {
+            vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S)
+                (context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager).defaultVibrator
+            else context.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+            if (vibrator?.hasVibrator() == true)
+                vibrator?.vibrate(VibrationEffect.createWaveform(longArrayOf(0, 700, 1000, 700, 2400), 0))
+        } catch (_: Exception) {}
     }
     fun stop() {
         started = false
-        try { ringtone?.stop() } catch (_: Exception) {}
-        try { vibrator?.cancel() } catch (_: Exception) {}
+        runCatching { ringtone?.stop() }
+        runCatching { vibrator?.cancel() }
         ringtone = null
         vibrator = null
     }
 }
 
-/** Only an actively displayed incoming invitation is allowed to ring. */
 @Composable
 internal fun IncomingCallRingtone(callId: String) {
     val context = LocalContext.current
@@ -121,9 +98,7 @@ internal fun IncomingCallRingtone(callId: String) {
             }
         }
         lifecycleOwner?.lifecycle?.addObserver(observer)
-        if (lifecycleOwner == null || lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) {
-            alert.start()
-        }
+        if (lifecycleOwner == null || lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) alert.start()
         onDispose {
             lifecycleOwner?.lifecycle?.removeObserver(observer)
             alert.stop()
@@ -132,61 +107,41 @@ internal fun IncomingCallRingtone(callId: String) {
     }
 }
 
-/** The caller hears a ringback ONLY after the recipient acknowledged ringing. */
 private class OutgoingRingback {
     private val handler = Handler(Looper.getMainLooper())
     private var tone: ToneGenerator? = null
-    private var running = false
-    private val repeat = object : Runnable {
+    private var playing = false
+    private val pulse = object : Runnable {
         override fun run() {
-            if (!running) return
-            try { tone?.startTone(ToneGenerator.TONE_PROP_BEEP, 180) } catch (_: Exception) {}
-            handler.postDelayed({
-                if (running) try { tone?.startTone(ToneGenerator.TONE_PROP_BEEP, 180) } catch (_: Exception) {}
-            }, 370)
-            handler.postDelayed(this, 3200)
+            if (!playing) return
+            runCatching { tone?.startTone(ToneGenerator.TONE_PROP_BEEP, 180) }
+            handler.postDelayed(this, 3100L)
         }
     }
     fun start() {
-        if (running) return
-        try {
-            // Caller-side audible ringback uses media volume, not the recipient's
-            // ringtone stream. STREAM_VOICE_CALL can be silent before audio routing
-            // is established on some Android devices.
+        if (playing) return
+        runCatching {
             tone = ToneGenerator(AudioManager.STREAM_MUSIC, 78)
-            running = true
-            handler.post(repeat)
-        } catch (_: Exception) { stop() }
+            playing = true
+            handler.post(pulse)
+        }
     }
     fun stop() {
-        running = false
-        handler.removeCallbacks(repeat)
-        try { tone?.stopTone() } catch (_: Exception) {}
-        try { tone?.release() } catch (_: Exception) {}
+        playing = false
+        handler.removeCallbacks(pulse)
+        runCatching { tone?.stopTone() }
+        runCatching { tone?.release() }
         tone = null
     }
 }
 
-/** Call signalling keeps the private username; only display names go on screen. */
+/** The same call identity and signaling format used by the website. */
 internal data class NativeCallSession(
     val peer: String,
     val type: String,
     val callId: String,
     val incoming: Boolean
 )
-
-private fun nativeActivityLabel(u: JSONObject): String {
-    if (u.optBoolean("isOnline", false)) return "نشط الآن"
-    val last = u.optLong("lastSeen", 0L)
-    if (last <= 0L) return "غير متصل"
-    val minutes = ((System.currentTimeMillis() - last).coerceAtLeast(0L) / 60000L)
-    return when {
-        minutes < 1L -> "نشط منذ لحظات"
-        minutes < 60L -> "نشط منذ $minutes دقيقة"
-        minutes < 1440L -> "نشط منذ ${minutes / 60L} ساعة"
-        else -> "نشط منذ ${minutes / 1440L} يوم"
-    }
-}
 
 private val CallGold = Color(0xFFE6B94E)
 private val CallBackground = Color(0xFF050709)
@@ -206,431 +161,182 @@ internal fun NativeCallScreen(
     onClose: () -> Unit
 ) {
     val context = LocalContext.current
-    val activity = context as? android.app.Activity
-    val audioManager = remember(context) { context.getSystemService(Context.AUDIO_SERVICE) as AudioManager }
-    val oldMode = remember(audioManager) { audioManager.mode }
-    @Suppress("DEPRECATION")
-    val oldSpeaker = remember(audioManager) { audioManager.isSpeakerphoneOn }
+    val latestClose by rememberUpdatedState(onClose)
     val videoCall = session.type == "video"
-
+    var callStatus by remember(session.callId) { mutableStateOf("جارٍ بدء المكالمة...") }
     var peerDisplayName by remember(session.peer) { mutableStateOf("جهة الاتصال") }
-    var peerAvatar by remember(session.peer) { mutableStateOf("") }
-    var callStatus by remember(session.callId) { mutableStateOf("جارٍ الاتصال...") }
+    LaunchedEffect(session.peer, token) {
+        try {
+            val result = withContext(Dispatchers.IO) {
+                val addr = "https://tawasol-alatta.omaratta077-4fd.workers.dev/api/profile-public?username=${URLEncoder.encode(session.peer, "UTF-8")}&token=${URLEncoder.encode(token, "UTF-8")}"
+                val conn = URL(addr).openConnection() as HttpURLConnection
+                try {
+                    conn.connectTimeout = 7000
+                    conn.readTimeout = 7000
+                    if (conn.responseCode in 200..299) JSONObject(conn.inputStream.bufferedReader().use { it.readText() })
+                    else JSONObject()
+                } finally { conn.disconnect() }
+            }
+            val user = result.optJSONObject("user") ?: result
+            val name = listOf("fullName", "displayName", "name")
+                .map { user.optString(it).trim() }
+                .firstOrNull { it.isNotBlank() && it != "null" }
+            if (!name.isNullOrBlank()) peerDisplayName = name
+        } catch (_: Exception) { /* Keep the friendly fallback, never reveal an internal username. */ }
+    }
+    var localReady by remember(session.callId) { mutableStateOf(false) }
+    var remoteReady by remember(session.callId) { mutableStateOf(false) }
     var connectedAt by remember(session.callId) { mutableLongStateOf(0L) }
     var elapsed by remember(session.callId) { mutableIntStateOf(0) }
     var muted by remember(session.callId) { mutableStateOf(false) }
     var cameraOff by remember(session.callId) { mutableStateOf(false) }
     var speakerOn by remember(session.callId) { mutableStateOf(videoCall) }
-    var remoteVideoPlaying by remember(session.callId) { mutableStateOf(false) }
-    var localCameraReady by remember(session.callId) { mutableStateOf(false) }
-    var videoHint by remember(session.callId) { mutableStateOf("") }
-    var videoNeedsGesture by remember(session.callId) { mutableStateOf(false) }
-    var peerActivity by remember(session.peer) { mutableStateOf("") }
     var hangingUp by remember(session.callId) { mutableStateOf(false) }
 
-    // Do not play ringback during call setup. The remote device must explicitly
-    // acknowledge showing its incoming-call UI before the caller hears ringing.
-    DisposableEffect(session.callId, session.incoming, callStatus, connectedAt, hangingUp) {
-        val ringback = if (!session.incoming && !hangingUp && connectedAt == 0L &&
-            callStatus == "يرن الآن...") OutgoingRingback().also { it.start() } else null
-        onDispose { ringback?.stop() }
+    // A single native PeerConnectionFactory, native camera capture, and native
+    // SurfaceViewRenderers are owned by this session. The old call HTML and
+    // its Canvas/WebView overlays have been removed, not duplicated.
+    val engine = remember(session.callId, token) {
+        NativeRtcCall(
+            context.applicationContext, session, token, myUsername,
+            report = { callStatus = it },
+            localFrame = { localReady = true },
+            remoteFrame = { remoteReady = true },
+            connected = { if (connectedAt == 0L) connectedAt = System.currentTimeMillis() },
+            finished = { latestClose() }
+        )
     }
 
-    // Load the real display name and avatar independently of the media engine.
-    LaunchedEffect(session.peer, token) {
-        try {
-            val info = withContext(Dispatchers.IO) {
-                val base = "https://tawasol-alatta.omaratta077-4fd.workers.dev"
-                val url = URL("$base/api/profile-public?username=${URLEncoder.encode(session.peer, "UTF-8")}&token=${URLEncoder.encode(token, "UTF-8")}")
-                val conn = url.openConnection() as HttpURLConnection
-                try {
-                    conn.connectTimeout = 7000
-                    conn.readTimeout = 7000
-                    conn.setRequestProperty("Accept", "application/json")
-                    if (conn.responseCode !in 200..299) JSONObject()
-                    else JSONObject(conn.inputStream.bufferedReader().use { it.readText() })
-                } finally { conn.disconnect() }
-            }
-            val user = info.optJSONObject("user") ?: info
-            val name = listOf("fullName", "displayName", "name")
-                .map { user.optString(it).trim() }.firstOrNull { it.isNotEmpty() && it != "null" }
-            if (!name.isNullOrBlank()) peerDisplayName = name
-            peerAvatar = user.optString("avatar").takeUnless { it == "null" }.orEmpty()
-            peerActivity = nativeActivityLabel(user)
-        } catch (_: Exception) {
-            // Never expose a private signalling ID as the visible name.
+    val localRenderer = remember(engine) { SurfaceViewRenderer(context) }
+    val remoteRenderer = remember(engine) { SurfaceViewRenderer(context) }
+    // SurfaceViewRenderer has its own EGL surface; initialize once, outside the
+    // Compose view factory so minimizing never destroys the media connection.
+    DisposableEffect(engine) {
+        remoteRenderer.init(engine.eglContext(), null)
+        remoteRenderer.setScalingType(RendererCommon.ScalingType.SCALE_ASPECT_FILL)
+        remoteRenderer.setEnableHardwareScaler(true)
+        localRenderer.init(engine.eglContext(), null)
+        localRenderer.setMirror(true)
+        localRenderer.setScalingType(RendererCommon.ScalingType.SCALE_ASPECT_FILL)
+        localRenderer.setZOrderMediaOverlay(true)
+        localRenderer.setEnableHardwareScaler(true)
+        engine.attachRenderers(localRenderer, remoteRenderer)
+        engine.start()
+        onDispose {
+            engine.stop()
+            runCatching { localRenderer.release() }
+            runCatching { remoteRenderer.release() }
+            engine.disposeEgl()
         }
     }
     LaunchedEffect(connectedAt) {
         while (connectedAt > 0L) {
             elapsed = ((System.currentTimeMillis() - connectedAt) / 1000L).toInt().coerceAtLeast(0)
-            delay(1000)
+            kotlinx.coroutines.delay(1000L)
         }
     }
-
-    // WebRTC stays inside the existing trusted page; the visible interface is native
-    // Compose and can never disappear if WebView fails to paint its HTML.
-    val webView = remember(session.callId, token) {
-        WebView(context).apply {
-            setBackgroundColor(android.graphics.Color.rgb(5, 7, 9))
-            // Let Android WebView choose the compositor for HTML5 video. Forcing a
-            // hardware layer here can render a black video surface on some phones.
-            keepScreenOn = true
-            settings.javaScriptEnabled = true
-            settings.domStorageEnabled = true
-            settings.mediaPlaybackRequiresUserGesture = false
-            settings.allowFileAccess = false
-            settings.allowContentAccess = false
-            addJavascriptInterface(object {
-                @JavascriptInterface
-                fun close() { activity?.runOnUiThread { onClose() } }
-
-                // Use the WebView's actual on-screen controls for video calls.
-                // Compose overlays over video surfaces may render a black frame on
-                // certain Android/HONOR WebView implementations.
-                @JavascriptInterface
-                fun minimizeCall() { activity?.runOnUiThread { onMinimize() } }
-
-                @JavascriptInterface
-                fun onStatus(message: String) {
-                    activity?.runOnUiThread {
-                        callStatus = when (message) {
-                            "متصل الآن", "مكالمة جارية" -> "متصل"
-                            "يرن الآن..." -> "يرن الآن..."
-                            else -> message.take(150)
-                        }
-                        if ((message == "متصل الآن" || message == "مكالمة جارية") && connectedAt == 0L) {
-                            connectedAt = System.currentTimeMillis()
-                        }
-                    }
-                }
-
-                @JavascriptInterface
-                fun mediaPlaybackBlocked() {
-                    activity?.runOnUiThread { videoNeedsGesture = true }
-                }
-
-                @JavascriptInterface
-                fun mediaPlaybackReady() {
-                    activity?.runOnUiThread { videoNeedsGesture = false }
-                }
-
-                @JavascriptInterface
-                fun cameraReady() {
-                    activity?.runOnUiThread { localCameraReady = true }
-                }
-
-                @JavascriptInterface
-                fun remoteVideoPlaying() {
-                    activity?.runOnUiThread {
-                        remoteVideoPlaying = true
-                        videoHint = ""
-                    }
-                }
-
-                @JavascriptInterface
-                fun videoDiagnostic(message: String) {
-                    // A short media-only hint, never user ids, tokens, or SDP.
-                    activity?.runOnUiThread { videoHint = message.take(180) }
-                }
-
-                @JavascriptInterface
-                fun setSpeaker(enabled: Boolean) {
-                    activity?.runOnUiThread {
-                        @Suppress("DEPRECATION")
-                        audioManager.isSpeakerphoneOn = enabled
-                        speakerOn = enabled
-                    }
-                }
-
-                @JavascriptInterface
-                fun mediaReady() {
-                    activity?.runOnUiThread {
-                        // Never claim the mic is ready until WebRTC says capture succeeded.
-                        audioManager.mode = AudioManager.MODE_IN_COMMUNICATION
-                        @Suppress("DEPRECATION")
-                        audioManager.isSpeakerphoneOn = videoCall
-                    }
-                }
-            }, "AttaBridge")
-            webChromeClient = object : WebChromeClient() {
-                override fun onPermissionRequest(request: PermissionRequest) {
-                    activity?.runOnUiThread {
-                        val trusted = request.origin.scheme == "https" &&
-                            request.origin.host == "tawasol-alatta.omaratta077-4fd.workers.dev"
-                        val permissions = request.resources.filter { resource ->
-                            (resource == PermissionRequest.RESOURCE_AUDIO_CAPTURE &&
-                                ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) ||
-                            (resource == PermissionRequest.RESOURCE_VIDEO_CAPTURE && videoCall &&
-                                ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED)
-                        }
-                        if (trusted && permissions.isNotEmpty() && permissions.size == request.resources.size) request.grant(permissions.toTypedArray())
-                        else {
-                            request.deny()
-                            if (trusted) {
-                                callStatus = "إذن الكاميرا أو الميكروفون مرفوض. افتح إعدادات التطبيق واسمح باستخدامهما."
-                                videoHint = "التحقق من الأذونات: الكاميرا والميكروفون لازم يكونوا مسموحين في إعدادات HONOR."
-                            } else {
-                                videoHint = "رفض طلب الوسائط من مصدر غير موثوق. تأكد من تحديث Android System WebView."
-                            }
-                        }
-                    }
-                }
-            }
-            webViewClient = object : WebViewClient() {
-                override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean = true
-                override fun onReceivedError(view: WebView?, request: WebResourceRequest?, error: WebResourceError?) {
-                    if (request?.isForMainFrame == true) {
-                        activity?.runOnUiThread {
-                            callStatus = "تعذر تشغيل محرك الاتصال. حاول مرة أخرى."
-                        }
-                    }
-                }
-            }
-        }
-    }
-    // Initialize after the WebView is attached to Compose, not during remember().
-    var pageLoaded by remember(webView) { mutableStateOf(false) }
-    val loadCallPage: (WebView) -> Unit = { view ->
-        if (!pageLoaded) {
-            pageLoaded = true
-                    val cfg = JSONObject().put("peer", session.peer).put("type", session.type)
-                        .put("callId", session.callId).put("incoming", session.incoming)
-                        .put("token", token).put("me", myUsername)
-                    try {
-                        val html = context.assets.open("atta-call.html").bufferedReader().use { it.readText() }
-                            .replace("__CONFIG_JSON__", cfg.toString().replace("</", "<\\/"))
-                        view.post {
-                            view.loadDataWithBaseURL(
-                                "https://tawasol-alatta.omaratta077-4fd.workers.dev/",
-                                html, "text/html", "UTF-8", null
-                            )
-                        }
-                    } catch (_: Exception) {
-                        callStatus = "تعذر تحميل محرك المكالمة. حاول إعادة الاتصال."
-                    }
-        }
-    }
-    fun nativeAction(script: String) {
-        webView.evaluateJavascript(script, null)
+    DisposableEffect(session.callId, callStatus, connectedAt, hangingUp) {
+        val ring = if (!session.incoming && !hangingUp && connectedAt == 0L && callStatus == "يرن الآن...")
+            OutgoingRingback().also { it.start() } else null
+        onDispose { ring?.stop() }
     }
     fun endCall() {
-        hangingUp = true  // Stop ringback before waiting for signalling to finish.
-        nativeAction("window.__attaEndCall && window.__attaEndCall()")
-        // The media layer may have failed to start: allow the native hangup to exit.
-        Handler(Looper.getMainLooper()).postDelayed({ onClose() }, 1700L)
+        if (hangingUp) return
+        hangingUp = true
+        engine.hangup()
     }
-    DisposableEffect(webView) {
-        onDispose {
-            runCatching { webView.loadUrl("about:blank") }
-            runCatching { webView.removeJavascriptInterface("AttaBridge") }
-            runCatching { webView.destroy() }
-            audioManager.mode = oldMode
-            @Suppress("DEPRECATION")
-            audioManager.isSpeakerphoneOn = oldSpeaker
-        }
-    }
-    BackHandler(enabled = !minimized) { onMinimize() }
 
+    BackHandler(enabled = !minimized) { onMinimize() }
     Box(modifier.clip(if (minimized) RoundedCornerShape(15.dp) else RoundedCornerShape(0.dp))
         .background(CallBackground)) {
-        // Mount a SINGLE WebView for this call for its full lifetime. Moving a video
-        // WebView between different AndroidView nodes on minimize/restore can detach
-        // Android's video compositing surface and leave both camera images black.
-        // Compose controls are transparent over the live video, not covering it.
-        AndroidView(
-            factory = { webView },
-            modifier = if (videoCall && !minimized) Modifier.fillMaxSize()
-                    .padding(top = 66.dp, bottom = 108.dp)
-                else if (videoCall) Modifier.fillMaxSize()
-                else Modifier.fillMaxSize().alpha(.01f),
-            update = loadCallPage
-        )
+        if (videoCall) {
+            // The large view is the remote decoded frames, NOT an iframe/WebView.
+            AndroidView(factory = { remoteRenderer }, modifier = Modifier.fillMaxSize())
+            Box(
+                Modifier.align(Alignment.TopEnd)
+                    .padding(top = if (minimized) 2.dp else 93.dp, end = 13.dp)
+                    .size(width = if (minimized) 1.dp else 116.dp, height = if (minimized) 1.dp else 158.dp)
+                    .clip(RoundedCornerShape(13.dp))
+                    .background(CallPanel)
+                    .border(2.dp, CallGold.copy(alpha = .85f), RoundedCornerShape(13.dp))
+            ) {
+                AndroidView(factory = { localRenderer }, modifier = Modifier.fillMaxSize())
+                if (!localReady) {
+                    Text("جارٍ تشغيل كاميرتك...", modifier = Modifier.align(Alignment.Center)
+                        .padding(5.dp), textAlign = TextAlign.Center,
+                        color = CallGold, fontSize = 10.sp)
+                }
+                Text("أنت", color = CallWhite, fontSize = 11.sp,
+                    modifier = Modifier.align(Alignment.BottomStart)
+                        .background(Color(0xB0050709)).padding(horizontal = 8.dp, vertical = 2.dp))
+            }
+        }
 
         if (minimized) {
             Row(
-                Modifier.fillMaxSize().border(1.dp, CallGold.copy(alpha = .65f), RoundedCornerShape(15.dp))
-                    .background(CallPanel, RoundedCornerShape(15.dp))
-                    .clickable { onRestore() }.padding(horizontal = 10.dp, vertical = 8.dp),
+                Modifier.fillMaxSize()
+                    .background(CallPanel.copy(alpha = .96f), RoundedCornerShape(15.dp))
+                    .border(1.dp, CallGold.copy(alpha = .65f), RoundedCornerShape(15.dp))
+                    .clickable { onRestore() }
+                    .padding(horizontal = 10.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 SiteIcon(if (videoCall) "video" else "phone", tint = CallGold, size = 24.dp)
                 Spacer(Modifier.width(8.dp))
                 Column(Modifier.weight(1f)) {
-                    Text(peerDisplayName, color = CallWhite, fontSize = 13.sp,
-                        maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(peerDisplayName, color = CallWhite, fontSize = 13.sp, maxLines = 1)
                     Text(if (connectedAt > 0) "مكالمة جارية — عودة" else callStatus,
                         color = CallGold, fontSize = 10.sp, maxLines = 2)
                 }
-                Box(
-                    Modifier.size(37.dp).clip(CircleShape)
-                        .background(Color(0xFFE83838)).clickable { endCall() },
-                    contentAlignment = Alignment.Center
-                ) { SiteIcon("phone-off", tint = CallWhite, size = 20.dp) }
-            }
-        // Always render call controls natively, even when Android WebView's
-        // compositor cannot draw a video frame. The WebView occupies ONLY the
-        // central stage; headers and controls are outside its bounds, not opaque
-        // full-screen Compose overlays over its camera surface.
-        } else if (videoCall) Column(Modifier.fillMaxSize()) {
-            Row(Modifier.fillMaxWidth().height(66.dp).background(CallBackground)
-                .padding(horizontal = 12.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically) {
-                TextButton(onClick = { onMinimize() }) {
-                    SiteIcon("chevron-left", tint = CallGold, size = 24.dp)
-                }
-                Column(horizontalAlignment = Alignment.End) {
-                    Text("مكالمة فيديو", color = CallGold, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                    Text(peerDisplayName, color = CallWhite, fontSize = 12.sp, maxLines = 1)
-                    Text(callStatus, color = CallMuted, fontSize = 10.sp, maxLines = 1)
+                Box(Modifier.size(37.dp).clip(CircleShape).background(Color(0xFFE83838))
+                    .clickable { endCall() }, contentAlignment = Alignment.Center) {
+                    SiteIcon("phone-off", tint = CallWhite, size = 20.dp)
                 }
             }
-            Spacer(Modifier.weight(1f))
-            if (videoHint.isNotBlank()) {
-                Text(videoHint, color = Color(0xFFFFD28A), textAlign = TextAlign.Right,
-                    fontSize = 11.sp, maxLines = 2, modifier = Modifier.fillMaxWidth()
-                        .background(CallBackground).padding(horizontal = 12.dp, vertical = 3.dp))
-            } else if (!localCameraReady) {
-                Text("جارٍ إظهار معاينة كاميرتك...", color = CallMuted, textAlign = TextAlign.Right,
-                    fontSize = 11.sp, modifier = Modifier.fillMaxWidth()
-                        .background(CallBackground).padding(horizontal = 12.dp, vertical = 3.dp))
-            }
-            if (videoNeedsGesture) {
-                TextButton(onClick = {
-                    nativeAction("window.__attaResumeMedia && window.__attaResumeMedia()")
-                    videoNeedsGesture = false
-                }, modifier = Modifier.fillMaxWidth().background(CallBackground)) {
-                    Text("اضغط لإظهار فيديو المكالمة", color = CallGold, fontSize = 12.sp)
-                }
-            }
-            Row(Modifier.fillMaxWidth().height(108.dp).background(CallBackground)
-                .padding(horizontal = 8.dp), horizontalArrangement = Arrangement.SpaceEvenly,
-                verticalAlignment = Alignment.CenterVertically) {
-                CallControl(if (muted) "mic-off" else "mic", "الميكروفون", active = muted, compact = true) {
-                    muted = !muted; nativeAction("toggleMute()")
-                }
-                CallControl(if (cameraOff) "camera-off" else "video", "الكاميرا", active = cameraOff, compact = true) {
-                    cameraOff = !cameraOff; nativeAction("toggleCamera()")
-                }
-                CallControl("volume", "السماعة", active = speakerOn, compact = true) {
-                    speakerOn = !speakerOn; nativeAction("toggleSpeaker()")
-                }
-                CallControl("phone-off", "إنهاء", danger = true, compact = true) { endCall() }
-            }
-        } else Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
-            Row(
-                Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 14.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Box(
-                    Modifier.size(44.dp).clip(CircleShape).background(CallPanel)
-                        .clickable { onMinimize() }, contentAlignment = Alignment.Center
-                ) { SiteIcon("chevron-left", tint = CallWhite, size = 23.dp) }
-                Text(if (videoCall) "مكالمة فيديو" else "مكالمة صوتية",
-                    fontSize = 14.sp, color = CallGold, fontWeight = FontWeight.Medium)
-                Spacer(Modifier.size(44.dp))
-            }
-
-            Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
-                if (videoCall) {
-                    // The sole video WebView is already behind this transparent
-                    // stage. Do not add a second AndroidView or cover camera frames.
-                    // The compact status appears at bottom-right under the video tile.
-                    if (!remoteVideoPlaying) {
-                        Column(
-                            Modifier.align(Alignment.BottomStart)
-                                .padding(horizontal = 18.dp, vertical = 12.dp)
-                                .background(Color(0xD911161A), RoundedCornerShape(14.dp))
-                                .padding(horizontal = 14.dp, vertical = 9.dp),
-                            horizontalAlignment = Alignment.Start
-                        ) {
-                            Text(peerDisplayName, fontSize = 15.sp, fontWeight = FontWeight.Bold,
-                                color = CallWhite, maxLines = 1, textAlign = TextAlign.Right)
-                            Text(callStatus, color = CallMuted, fontSize = 12.sp, maxLines = 2,
-                                textAlign = TextAlign.Right)
-                            if (localCameraReady) Text("معاينة كاميرتك شغالة — ننتظر صورة الطرف الآخر",
-                                color = CallGold, fontSize = 11.sp, maxLines = 2,
-                                textAlign = TextAlign.Right)
-                            if (videoHint.isNotBlank()) Text(videoHint,
-                                color = Color(0xFFFFD28A), fontSize = 11.sp, maxLines = 3,
-                                textAlign = TextAlign.Right)
-                        }
-                    } else {
-                        Text(peerDisplayName,
-                            modifier = Modifier.align(Alignment.TopStart)
-                                .padding(top = 12.dp, start = 18.dp)
-                                .background(Color(0x9905080B), RoundedCornerShape(12.dp))
-                                .padding(horizontal = 12.dp, vertical = 6.dp),
-                            color = CallWhite, fontSize = 15.sp, maxLines = 1)
-                    }
-                } else {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
-                        Box(
-                            Modifier.size(180.dp)
-                                .border(3.dp, CallGold, CircleShape)
-                                .background(Brush.radialGradient(listOf(Color(0xFF423016), CallBackground)), CircleShape)
-                                .padding(6.dp).clip(CircleShape),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            if (peerAvatar.isNotBlank()) {
-                                ProfileMediaImage(peerAvatar, "صورة المتصل", Modifier.fillMaxSize(), ContentScale.Crop)
-                            } else {
-                                SiteIcon("user", tint = CallGold, size = 82.dp)
-                            }
-                        }
-                        Spacer(Modifier.height(25.dp))
-                        Text(peerDisplayName, fontWeight = FontWeight.Bold, fontSize = 29.sp,
-                            color = CallWhite, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                        Spacer(Modifier.height(11.dp))
-                        Text(callStatus, fontSize = 16.sp, color = CallMuted, maxLines = 3,
-                            lineHeight = 23.sp)
-                        if (connectedAt == 0L && peerActivity.isNotBlank()) {
-                            Text(peerActivity, fontSize = 12.sp, color = CallGold,
-                                modifier = Modifier.padding(top = 5.dp))
-                        }
-                        if (videoCall && localCameraReady) {
-                            Text("تم تفعيل الكاميرا — انتظار فيديو الطرف الآخر", color = CallGold,
-                                fontSize = 12.sp, modifier = Modifier.padding(top = 7.dp))
-                        }
-                        if (connectedAt > 0) {
-                            Spacer(Modifier.height(9.dp))
-                            Text("%02d:%02d".format(elapsed / 60, elapsed % 60),
-                                color = CallGold, fontSize = 17.sp)
-                        }
+        } else {
+            Column(Modifier.fillMaxSize()) {
+                Row(Modifier.fillMaxWidth().height(70.dp).background(CallBackground.copy(alpha = .92f))
+                    .padding(horizontal = 15.dp), verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween) {
+                    TextButton(onClick = onMinimize) { SiteIcon("chevron-left", tint = CallGold, size = 23.dp) }
+                    Column(horizontalAlignment = Alignment.End) {
+                        Text(if (videoCall) "مكالمة فيديو" else "مكالمة صوتية",
+                            fontSize = 19.sp, fontWeight = FontWeight.Bold, color = CallGold)
+                        Text(peerDisplayName, fontSize = 13.sp, color = CallWhite, maxLines = 1)
                     }
                 }
-            }
-            if (videoCall && (connectedAt > 0L || videoNeedsGesture)) {
-                TextButton(onClick = {
-                    nativeAction("window.__attaResumeMedia && window.__attaResumeMedia()")
-                    videoNeedsGesture = false
-                }) { Text(if (videoNeedsGesture) "اضغط لتشغيل الفيديو والصوت" else "عرض الفيديو بطريقة بديلة",
-                    color = CallGold, fontSize = 13.sp) }
-            }
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 21.dp),
-                horizontalArrangement = Arrangement.SpaceEvenly,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                CallControl(if (muted) "mic-off" else "mic", "كتم الصوت", active = muted) {
-                    muted = !muted
-                    nativeAction("toggleMute()")
-                }
-                if (videoCall) {
-                    CallControl(if (cameraOff) "camera-off" else "video", "الكاميرا",
-                        active = cameraOff) {
-                        cameraOff = !cameraOff
-                        nativeAction("toggleCamera()")
+                Spacer(Modifier.weight(1f))
+                if (!videoCall) {
+                    Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
+                        SiteIcon("user", tint = CallGold, size = 96.dp)
                     }
                 }
-                CallControl("volume", "السماعة", active = speakerOn) {
-                    speakerOn = !speakerOn
-                    nativeAction("toggleSpeaker()")
+                Text(callStatus, color = CallGold, textAlign = TextAlign.Center,
+                    fontSize = 15.sp, maxLines = 3,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 17.dp, vertical = 8.dp)
+                        .background(Color(0xDD050709)))
+                if (connectedAt > 0L) Text("%02d:%02d".format(elapsed / 60, elapsed % 60),
+                    color = CallWhite, textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth(), fontSize = 15.sp)
+                if (videoCall && !remoteReady) Text(
+                    if (localReady) "كاميرتك تعمل — انتظار صورة الطرف الآخر" else "جارٍ تشغيل معاينة الكاميرا...",
+                    textAlign = TextAlign.Center, color = CallMuted, fontSize = 11.sp,
+                    modifier = Modifier.fillMaxWidth().background(Color(0xDD050709))
+                        .padding(bottom = 5.dp))
+                Row(Modifier.fillMaxWidth().height(106.dp).background(CallBackground)
+                    .padding(horizontal = 8.dp), horizontalArrangement = Arrangement.SpaceEvenly,
+                    verticalAlignment = Alignment.CenterVertically) {
+                    CallControl(if (muted) "mic-off" else "mic", "الميكروفون", active = muted) {
+                        muted = engine.toggleMute()
+                    }
+                    if (videoCall) CallControl(if (cameraOff) "camera-off" else "video", "الكاميرا", active = cameraOff) {
+                        cameraOff = engine.toggleCamera()
+                    }
+                    CallControl("volume", "السماعة", active = speakerOn) {
+                        speakerOn = engine.toggleSpeaker()
+                    }
+                    CallControl("phone-off", "إنهاء", danger = true) { endCall() }
                 }
-                CallControl("phone-off", "إنهاء", danger = true) { endCall() }
             }
         }
     }
@@ -642,18 +348,18 @@ private fun CallControl(
     label: String,
     active: Boolean = false,
     danger: Boolean = false,
-    compact: Boolean = false,
     onClick: () -> Unit
 ) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(9.dp)) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Box(
-            modifier = Modifier.size(if (compact) 52.dp else 68.dp).clip(CircleShape)
+            Modifier.size(59.dp).clip(CircleShape)
                 .background(if (danger) Color(0xFFE83838) else if (active) Color(0xFF665029) else CallPanel)
-                .border(BorderStroke(1.dp, if (danger) Color(0xFFFF6666) else CallGold.copy(alpha = .26f)), CircleShape)
+                .border(BorderStroke(1.dp, if (danger) Color(0xFFFF6666) else CallGold.copy(alpha = .3f)), CircleShape)
                 .clickable(onClick = onClick),
             contentAlignment = Alignment.Center
-        ) { SiteIcon(icon, tint = CallWhite, size = if (compact) 23.dp else 30.dp) }
-        Text(label, color = CallWhite, fontSize = if (compact) 10.sp else 11.sp, maxLines = 1)
+        ) {
+            SiteIcon(icon, tint = CallWhite, size = 27.dp)
+        }
+        Text(label, color = CallWhite, fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
