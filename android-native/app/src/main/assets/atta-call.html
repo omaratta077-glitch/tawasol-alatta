@@ -63,10 +63,16 @@ html.native-host #localPip{top:12px;right:12px;z-index:5}
 <script>
 'use strict';
 const cfg=__CONFIG_JSON__;
+<<<<<<< HEAD
 // A single WebView paints ONLY video frames and the small local camera tile.
 // Android draws the always-visible call controls outside the WebView stage.
 // This avoids losing the hang-up button if the device cannot paint WebRTC video.
 document.documentElement.classList.add('native-host');
+=======
+// Only audio calls use the native Compose overlay. A video call must paint its
+// own WebView content on top, just like the working browser version.
+if(cfg.type!=='video')document.documentElement.classList.add('native-host');
+>>>>>>> a9e93afa597f2ea057d2bc14ce29616f60ca0c55
 const BASE='https://tawasol-alatta.omaratta077-4fd.workers.dev';
 const types=new Set(['call-request','call-ringing','call-accept','call-reject','offer','answer','ice','hangup']);
 let active=true,pc=null,local=null,remote=null,ws=null,offerSent=false,peerPromise=null;

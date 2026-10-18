@@ -2270,7 +2270,12 @@ export class SignalingRoom extends DurableObject {
           }
           const resp=await fetch(url,{method:'POST',headers:{
             Authorization:'Bearer '+accessToken,'Content-Type':'application/json'
+<<<<<<< HEAD
           },body:JSON.stringify({message:{token:deviceToken,data:fcmData,android}})});
+=======
+          },body:JSON.stringify({message:{token:deviceToken,data:fcmData,
+            android:{priority:'HIGH',ttl}}})});
+>>>>>>> a9e93afa597f2ea057d2bc14ce29616f60ca0c55
           if(resp.ok){accepted++;survivors.push(deviceToken);continue;}
           const body=await resp.json().catch(()=>({}));
           const badToken=resp.status===404 || (resp.status===400 &&
