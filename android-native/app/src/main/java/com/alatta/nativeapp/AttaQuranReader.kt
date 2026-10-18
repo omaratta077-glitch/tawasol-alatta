@@ -87,13 +87,16 @@ internal fun QuranReaderScreen(modifier: Modifier = Modifier, onExit: () -> Unit
                 modifier = Modifier.fillMaxWidth().weight(1f))
         }
         error?.let { Text(it,Modifier.padding(8.dp),color=Color(0xFF933C20)) }
-        Row(Modifier.fillMaxWidth().padding(horizontal=12.dp, vertical=5.dp),
-            horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically) {
-            TextButton(onClick={changePage(page-1)},enabled=page>1) { Text("‹",color=gold) }
-            TextButton(onClick={pane="notes"}) { Text("ملاحظاتي",color=gold) }
-            Text("$page / 604",color=gold)
-            TextButton(onClick={pane="parts"}) { Text("الحزب • الجزء $juz",color=gold) }
-            TextButton(onClick={changePage(page+1)},enabled=page<604) { Text("›",color=gold) }
+        // Compact reading footer: no notes, navigation arrows or oversized controls.
+        // Note editor remains accessible through the index dialog.
+        Row(
+            Modifier.fillMaxWidth().height(30.dp).padding(horizontal = 16.dp),
+            horizontalArrangement = Arrangement.Start,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("صفحة $page", color = gold, fontSize = 12.sp)
+            Spacer(Modifier.width(10.dp))
+            Text("الحزب $hizb", color = gold, fontSize = 12.sp)
         }
     }
     if (pane != null) Dialog(onDismissRequest = { pane = null }) {
