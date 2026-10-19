@@ -4,6 +4,11 @@ import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color as AndroidColor
 import android.graphics.RectF
+import android.media.MediaPlayer
+import android.net.Uri
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.runtime.DisposableEffect
 import android.view.GestureDetector
 import android.view.MotionEvent
 import android.view.View
@@ -37,16 +42,23 @@ import java.util.concurrent.Executors
 internal fun QuranReaderScreen(modifier: Modifier = Modifier, onExit: () -> Unit) {
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences("atta_native_mushaf", Context.MODE_PRIVATE) }
-    var page by remember { mutableIntStateOf(prefs.getInt("page", 1).coerceIn(1, 604)) }
+    var page by remember { mutableIntStateOf(1) } // Open at Al-Fatiha; last read page remains saved in preferences.
     var pane by remember { mutableStateOf<String?>(null) }
     var query by remember { mutableStateOf("") }
     var note by remember { mutableStateOf("") }
     var error by remember { mutableStateOf<String?>(null) }
+    var selectedAyah by remember { mutableIntStateOf(0) }
+    var playbackError by remember { mutableStateOf<String?>(null) }
+    var player by remember { mutableStateOf<MediaPlayer?>(null) }
+    DisposableEffect(Unit) { onDispose { player?.release() } }
     val cream = Color(0xFFFFF9E8)
     val gold = Color(0xFF75520F)
     val index = remember {
         runCatching { JSONObject(context.assets.open("mushaf/index.json").bufferedReader().use { it.readText() })
             .getJSONArray("pages") }.getOrNull()
+    }
+    val ayahDatabase = remember {
+        runCatching { JSONObject(context.assets.open("mushaf/index.json").bufferedReader().use { it.readText() }).getJSONArray("ayahs") }.getOrNull()
     }
     val chapters = remember(index) {
         buildList {
@@ -81,8 +93,9 @@ internal fun QuranReaderScreen(modifier: Modifier = Modifier, onExit: () -> Unit
         pane = null
     }
     BackHandler { if (pane != null) pane = null else onExit() }
+    androidx.compose.runtime.CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
     Column(modifier.fillMaxSize().background(cream)) {
-        Row(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 9.dp),
+        Row(Modifier.fillMaxWidth().padding(horizontal = 5.dp, vertical = 2.dp),
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
             TextButton(onClick = { prefs.edit().putInt("bookmark",page).apply() }) {
                 Text(if (bookmark == page) "◆" else "♧", color = gold)
@@ -94,8 +107,12 @@ internal fun QuranReaderScreen(modifier: Modifier = Modifier, onExit: () -> Unit
             TextButton(onClick = onExit) { Text("رجوع", color = gold) }
         }
         key(page) {
-            AndroidView(factory = { MushafPageView(context,page,changePage) { error = it } },
-                modifier = Modifier.fillMaxWidth().weight(1f))
+            AndroidView(factory = {
+                MushafPageView(context, page, changePage, { chosen ->
+                    selectedAyah = chosen
+                    playbackError = null
+                }) { error = it }
+            }, modifier = Modifier.fillMaxWidth().weight(1f))
         }
         error?.let { Text(it,Modifier.padding(8.dp),color=Color(0xFF933C20)) }
         // Compact reading footer: no notes, navigation arrows or oversized controls.
@@ -172,22 +189,89 @@ internal fun QuranReaderScreen(modifier: Modifier = Modifier, onExit: () -> Unit
             }
         }
     }
+    if (selectedAyah > 0) {
+        val info = ayahDatabase?.optJSONObject(selectedAyah)
+        val surahNumber = info?.optInt("surah", 0) ?: 0
+        val verseNumber = info?.optInt("numberInSurah", 0) ?: 0
+        val verseText = info?.optString("text", "") ?: ""
+        AlertDialog(
+            onDismissRequest = { selectedAyah = 0 },
+            containerColor = Color(0xFFFFF9E8),
+            title = { Text("الآية $verseNumber من السورة $surahNumber", color = gold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(verseText, color = Color(0xFF261B11), fontSize = 19.sp)
+                    Text("اختر القارئ • التلاوة تحتاج اتصال إنترنت", color = gold, fontSize = 13.sp)
+                    listOf(
+                        "مشاري العفاسي" to "Alafasy_128kbps",
+                        "محمود خليل الحصري" to "Husary_128kbps",
+                        "محمد صديق المنشاوي" to "Minshawy_Murattal_128kbps"
+                    ).forEach { (reader, folder) ->
+                        TextButton(onClick = {
+                            player?.release()
+                            player = null
+                            playbackError = null
+                            val address = "https://everyayah.com/data/$folder/%03d%03d.mp3".format(Locale.ROOT, surahNumber, verseNumber)
+                            runCatching {
+                                MediaPlayer().apply {
+                                    setDataSource(context, Uri.parse(address))
+                                    setOnPreparedListener { it.start() }
+                                    setOnErrorListener { _, _, _ -> playbackError = "تعذر تشغيل التلاوة. تحقق من اتصال الإنترنت."; true }
+                                    prepareAsync()
+                                    player = this
+                                }
+                            }.onFailure { playbackError = "تعذر بدء التلاوة: ${it.localizedMessage}" }
+                        }) { Text(reader, color = gold) }
+                    }
+                    playbackError?.let { Text(it, color = Color(0xFF9A3324)) }
+                }
+            },
+            confirmButton = { TextButton(onClick = { player?.release(); player = null; selectedAyah = 0 }) { Text("إغلاق", color = gold) } }
+        )
+    }
+    }
 }
 
 private class MushafPageView(
     context: Context,
     private val page: Int,
     private val navigate: (Int) -> Unit,
+    private val selectAyah: (Int) -> Unit,
     private val reportError: (String) -> Unit
 ) : View(context) {
     private val executor = Executors.newSingleThreadExecutor()
     @Volatile private var svg: SVG? = null
+    private val markers = runCatching {
+        JSONObject(context.assets.open("mushaf/index.json").bufferedReader().use { it.readText() })
+            .getJSONArray("pages").getJSONObject(page).getJSONArray("markers")
+    }.getOrNull()
+    private var displayedViewport: RectF? = null
+    private var pageCoordinates: RectF? = null
     private val detector = GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
         override fun onDown(e: MotionEvent): Boolean = true
+        override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
+            val dst = displayedViewport ?: return false
+            val src = pageCoordinates ?: return false
+            val points = markers ?: return false
+            if (!dst.contains(e.x, e.y) || points.length() == 0) return false
+            val x = src.left + (e.x - dst.left) * src.width() / dst.width()
+            val y = src.top + (e.y - dst.top) * src.height() / dst.height()
+            var nearest = 0
+            var minDistance = Float.MAX_VALUE
+            for (i in 0 until points.length()) {
+                val m = points.optJSONArray(i) ?: continue
+                val dx = (m.optDouble(1) - x).toFloat()
+                val dy = (m.optDouble(2) - y).toFloat()
+                val dist = dx * dx + dy * dy
+                if (dist < minDistance) { minDistance = dist; nearest = m.optInt(0) }
+            }
+            if (nearest > 0) selectAyah(nearest)
+            return nearest > 0
+        }
         override fun onFling(e1: MotionEvent?, e2: MotionEvent, velocityX: Float, velocityY: Float): Boolean {
             val start = e1 ?: return false
             if (kotlin.math.abs(e2.x - start.x) < 80f || kotlin.math.abs(velocityX) < 350f) return false
-            // Arabic book: swiping from right to left moves forward.
+            // RTL book: swipe right to left for the next page.
             if (e2.x < start.x) navigate(page + 1) else navigate(page - 1)
             return true
         }
@@ -212,7 +296,7 @@ private class MushafPageView(
         val drawing = svg ?: return
         val viewport = drawing.documentViewBox ?: RectF(0f, 0f, drawing.documentWidth, drawing.documentHeight)
         if (viewport.width() <= 0f || viewport.height() <= 0f) return
-        val inset = 8f * resources.displayMetrics.density
+        val inset = 2f * resources.displayMetrics.density
         val ratio = minOf(((width - 2 * inset).coerceAtLeast(1f)) / viewport.width(), ((height - 2 * inset).coerceAtLeast(1f)) / viewport.height())
         val destW = viewport.width() * ratio
         val destH = viewport.height() * ratio
@@ -220,6 +304,9 @@ private class MushafPageView(
         val top = (height - destH) / 2f
         // AndroidSVG applies its own viewport transform; don't pre-scale the Canvas.
         // The previous extra scale made glyphs enormous and clipped the printed page.
-        drawing.renderToCanvas(canvas, RectF(left, top, left + destW, top + destH))
+        val target = RectF(left, top, left + destW, top + destH)
+        pageCoordinates = RectF(viewport)
+        displayedViewport = target
+        drawing.renderToCanvas(canvas, target)
     }
 }
