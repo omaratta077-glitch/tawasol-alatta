@@ -39,3 +39,32 @@ jobs:
           node scripts/test_quran_reader.mjs
           node scripts/test_call_history.mjs
           node scripts/test_social_push.mjs
+
+  # Compile real Kotlin on PRs before a signed APK is ever published from main.
+  # Source-only checks cannot detect unresolved Kotlin references.
+  kotlin-compile:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Java 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Set up Gradle 8.9
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - name: Install Android SDK components
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "sdk.dir=$ANDROID_HOME" > android-native/local.properties
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
+            'platforms;android-35' 'build-tools;35.0.0' >/dev/null
+      - name: Compile release Kotlin (no signing, no APK publishing)
+        shell: bash
+        working-directory: android-native
+        run: |
+          set -euo pipefail
+          gradle :app:compileReleaseKotlin --no-daemon --stacktrace 2>&1 | tee "$RUNNER_TEMP/kotlin-compile.log"
