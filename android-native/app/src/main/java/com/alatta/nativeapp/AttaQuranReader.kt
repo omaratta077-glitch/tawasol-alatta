@@ -63,6 +63,17 @@ internal fun QuranReaderScreen(modifier: Modifier = Modifier, onExit: () -> Unit
     }
     val juzStarts = remember { listOf(1,22,42,62,82,102,121,142,162,182,201,222,242,262,282,302,322,342,362,382,402,422,442,462,482,502,522,542,562,582) }
     val juz = (juzStarts.indexOfLast { it <= page } + 1).coerceAtLeast(1)
+    // Each hizb contains four quarters. Read their real start pages from the bundled index.
+    val hizbQuarterStarts = remember(index) {
+        runCatching {
+            val starts = JSONObject(context.assets.open("mushaf/index.json").bufferedReader().use { it.readText() })
+                .getJSONArray("quarterStart")
+            (1 until starts.length()).map { starts.getInt(it) }
+        }.getOrDefault(emptyList())
+    }
+    val hizb = if (hizbQuarterStarts.size == 240) {
+        (((hizbQuarterStarts.count { it <= page } - 1).coerceAtLeast(0)) / 4 + 1).coerceIn(1, 60)
+    } else ((juz - 1) * 2 + 1).coerceIn(1, 60)
     val surah = chapters.lastOrNull { it.third <= page }?.second ?: "الفاتحة"
     val bookmark = prefs.getInt("bookmark", -1)
     val changePage: (Int) -> Unit = { n ->
