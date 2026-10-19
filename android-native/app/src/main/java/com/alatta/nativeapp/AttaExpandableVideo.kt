@@ -6,6 +6,11 @@ import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.*
@@ -181,7 +186,7 @@ internal fun AttaPostMediaViewer(
                         onDragEnd = { if (abs(drag) > 80.dp.toPx()) changeVideo(if (drag < 0) 1 else -1); drag = 0f },
                         onVerticalDrag = { change, amount -> change.consume(); drag += amount }
                     ) })
-                if (controls || !playing) IconButton(onClick = {
+                if (!playing) IconButton(onClick = {
                     if (player.playWhenReady) player.pause() else { if (player.playbackState == Player.STATE_ENDED) player.seekTo(0); if (player.playerError != null) { failed = ""; player.prepare() }; player.play() }
                     controls = true
                 }, modifier = Modifier.align(Alignment.Center).size(76.dp).background(Color(0x99000000), RoundedCornerShape(50))) {
@@ -197,8 +202,16 @@ internal fun AttaPostMediaViewer(
                     if (player?.playerError != null) TextButton(onClick = { failed = ""; player.prepare(); player.play() }) { Text("إعادة المحاولة", color = Color(0xFFE6B94E)) }
                 }
                 if (player != null) {
-                    if (duration > 0) Slider(value = progress, onValueChange = { progress = it; player.seekTo((duration * it).toLong()) },
-                        modifier = Modifier.fillMaxWidth().height(28.dp), colors = SliderDefaults.colors(thumbColor = Color.White, activeTrackColor = Color(0xFFE6B94E)))
+                    if (duration > 0) {
+                        Slider(value = progress, onValueChange = { progress = it; player.seekTo((duration * it).toLong()) },
+                            modifier = Modifier.fillMaxWidth().height(28.dp),
+                            colors = SliderDefaults.colors(thumbColor = Color.White, activeTrackColor = Color(0xFFE6B94E)))
+                        val currentSeconds = player.currentPosition.coerceAtLeast(0) / 1000
+                        val totalSeconds = duration / 1000
+                        Text("%02d:%02d / %02d:%02d".format(currentSeconds / 60, currentSeconds % 60,
+                            totalSeconds / 60, totalSeconds % 60), color = Color.White,
+                            fontSize = 12.sp, modifier = Modifier.align(Alignment.End))
+                    }
                     Row(Modifier.fillMaxWidth().padding(bottom = 6.dp),
                         horizontalArrangement = Arrangement.SpaceEvenly,
                         verticalAlignment = Alignment.CenterVertically) {
@@ -224,6 +237,101 @@ internal fun AttaPostMediaViewer(
         if (sheet != null && loadInteractions != null && sendComment != null) key(id, sheet) {
             PostInteractionsSheet(id, sheet!!, loadInteractions, sendComment, updateStats,
                 onOpenProfile = { username -> onDismiss(); onOpenProfile(username) }, onDismiss = { sheet = null })
+        }
+    }
+}
+
+/** Real callbacks are optional; never fabricate post interactions in media viewer. */
+internal typealias PostInteractionsLoader = suspend (postId: String, category: String, offset: Int) -> JSONObject
+internal typealias PostReactionSender = suspend (postId: String, reaction: String, remove: Boolean) -> Unit
+internal typealias PostCommentSender = suspend (postId: String, message: String) -> JSONObject
+
+private fun postReactionCount(post: JSONObject): Int =
+    post.optInt("reactionCount", post.optInt("likesCount", post.optJSONArray("reactions")?.length() ?: 0))
+
+/** Reuse the existing image loader, supporting pinch zoom without a duplicate player. */
+@Composable
+private fun AttaZoomableImage(url: String, description: String, onTap: () -> Unit) {
+    var zoom by remember(url) { mutableFloatStateOf(1f) }
+    var shift by remember(url) { mutableStateOf(Offset.Zero) }
+    ProfileMediaImage(url, description,
+        Modifier.fillMaxSize()
+            .pointerInput(url) {
+                detectTransformGestures { _, pan, scale, _ ->
+                    zoom = (zoom * scale).coerceIn(1f, 4f)
+                    shift = if (zoom > 1f) shift + pan else Offset.Zero
+                }
+            }
+            .graphicsLayer(scaleX = zoom, scaleY = zoom, translationX = shift.x, translationY = shift.y)
+            .clickable(onClick = onTap),
+        contentScale = ContentScale.Fit)
+}
+
+/** Render comments/reactions only with working server callbacks. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun PostInteractionsSheet(
+    postId: String, tab: String,
+    loadInteractions: PostInteractionsLoader,
+    sendComment: PostCommentSender,
+    onStats: (String, JSONObject) -> Unit,
+    onOpenProfile: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val scope = rememberCoroutineScope()
+    var payload by remember(postId, tab) { mutableStateOf<JSONObject?>(null) }
+    var failure by remember(postId, tab) { mutableStateOf<String?>(null) }
+    var content by remember(postId) { mutableStateOf("") }
+    var sending by remember { mutableStateOf(false) }
+    LaunchedEffect(postId, tab) {
+        try { payload = loadInteractions(postId, tab, 0) }
+        catch (cancelled: CancellationException) { throw cancelled }
+        catch (_: Exception) { failure = "تعذّر تحميل البيانات" }
+    }
+    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = Color(0xFF12161A)) {
+        Column(Modifier.fillMaxWidth().padding(16.dp)) {
+            Text(if (tab == "comments") "التعليقات" else "التفاعلات", color = Color(0xFFE6B94E))
+            failure?.let { Text(it, color = Color(0xFFFFB5B5)) }
+            val records = payload?.optJSONArray("items")
+                ?: payload?.optJSONArray(if (tab == "comments") "comments" else "reactions")
+                ?: payload?.optJSONArray("users")
+            if (records == null && failure == null) CircularProgressIndicator(color = Color(0xFFE6B94E))
+            if (records != null) LazyColumn(Modifier.fillMaxWidth().heightIn(max = 320.dp)) {
+                items(records.length()) { position ->
+                    val item = records.optJSONObject(position)
+                    if (item != null) {
+                        val username = item.optString("username", item.optString("user"))
+                        val displayName = item.optString("displayName", username)
+                        val message = item.optString("text", item.optString("comment"))
+                        Column(Modifier.fillMaxWidth()
+                            .clickable { if (username.isNotBlank()) onOpenProfile(username) }
+                            .padding(vertical = 9.dp)) {
+                            Text(displayName, color = Color(0xFFE6B94E))
+                            if (message.isNotBlank()) Text(message, color = Color.White)
+                        }
+                    }
+                }
+            }
+            if (tab == "comments") {
+                OutlinedTextField(value = content, onValueChange = { content = it },
+                    label = { Text("اكتب تعليقًا", color = Color.LightGray) },
+                    modifier = Modifier.fillMaxWidth(), singleLine = false)
+                TextButton(onClick = {
+                    if (content.isNotBlank() && !sending) scope.launch {
+                        sending = true
+                        try {
+                            val response = sendComment(postId, content.trim())
+                            onStats(postId, response)
+                            content = ""
+                            payload = loadInteractions(postId, "comments", 0)
+                        } catch (cancelled: CancellationException) { throw cancelled }
+                        catch (_: Exception) { failure = "تعذّر إرسال التعليق" }
+                        finally { sending = false }
+                    }
+                }, enabled = content.isNotBlank() && !sending) {
+                    Text("إرسال", color = Color(0xFFE6B94E))
+                }
+            }
         }
     }
 }
