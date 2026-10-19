@@ -153,7 +153,7 @@ check("One full Quran reader with selectable verses and system back",
 quran_source = quran_kotlin.read_text(encoding="utf-8")
 check("Quran uses one Native Android SVG renderer without WebView",
       'internal fun QuranReaderScreen(' in quran_source and
-      'MushafPageView(context, page, changePage,' in quran_source and
+      re.search(r'MushafPageView\s*\(\s*context\s*,\s*page\s*,\s*changePage\s*,', quran_source) is not None and
       'SVG.getFromInputStream' in quran_source and
       'GZIPInputStream' not in quran_source and
       'WebView(' not in quran_source and
