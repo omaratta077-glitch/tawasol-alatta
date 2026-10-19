@@ -22,9 +22,10 @@ bucket_name = "tawasol-alatta-media"
 [[durable_objects.bindings]]
 name = "SIGNALING"
 class_name = "SignalingRoom"
-[previews.vars]
-SUPER_ADMIN_USERNAME = "omar1"
 
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["SignalingRoom"]
+[previews.vars]
+SUPER_ADMIN_USERNAME = "omar1"
+
