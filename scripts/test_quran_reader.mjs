@@ -31,3 +31,9 @@ assert.match(source, /mushaf\/pages\/%03d\.svg/);
 assert.doesNotMatch(source, /GZIPInputStream|mushaf\/pages\/%03d\.svg\.gz/);
 
 for (const control of ["فهرس السور","الأجزاء","المرجعيات","الملاحظات","بحث في أسماء السور","bookmark","note_$page"]) assert.ok(source.includes(control), `reader control missing: ${control}`);
+
+// Recitation range player regression checks.
+for(const fn of ['playRange(', 'audio.pause()', 'audio.resume()', 'audio.next()', 'audio.previous()', 'تكرار النطاق','آخر الصفحة','آخر السورة','customEnd','QURAN_RECITERS']) {
+ assert.ok(source.includes(fn), `missing range playback control ${fn}`);
+}
+assert.match(source, /height\(20\.dp\)/);
