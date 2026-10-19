@@ -95,16 +95,29 @@ internal fun QuranReaderScreen(modifier: Modifier = Modifier, onExit: () -> Unit
     BackHandler { if (pane != null) pane = null else onExit() }
     androidx.compose.runtime.CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
     Column(modifier.fillMaxSize().background(cream)) {
-        Row(Modifier.fillMaxWidth().padding(horizontal = 5.dp, vertical = 2.dp),
-            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-            TextButton(onClick = { prefs.edit().putInt("bookmark",page).apply() }) {
-                Text(if (bookmark == page) "◆" else "♧", color = gold)
+        // Compact fixed-width Arabic header: no wrapped vertical "رجوع" text.
+        Row(
+            Modifier.fillMaxWidth().height(44.dp).padding(horizontal = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            TextButton(onClick = onExit, modifier = Modifier.width(44.dp), contentPadding = PaddingValues(0.dp)) {
+                Text("‹", color = gold, fontSize = 27.sp, maxLines = 1)
             }
-            Text("الجزء $juz", color = gold, style = MaterialTheme.typography.labelLarge)
-            TextButton(onClick = { pane = "index" }) { Text("☷", color = gold) }
-            TextButton(onClick = { pane = "search" }) { Text("⌕", color = gold) }
-            TextButton(onClick = { pane = "index" }) { Text(surah, color = gold) }
-            TextButton(onClick = onExit) { Text("رجوع", color = gold) }
+            TextButton(onClick = { pane = "index" }, modifier = Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 2.dp)) {
+                Text(surah, color = gold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            TextButton(onClick = { pane = "search" }, modifier = Modifier.width(42.dp), contentPadding = PaddingValues(0.dp)) {
+                Text("⌕", color = gold, fontSize = 22.sp)
+            }
+            TextButton(onClick = { pane = "index" }, modifier = Modifier.width(42.dp), contentPadding = PaddingValues(0.dp)) {
+                Text("☷", color = gold, fontSize = 22.sp)
+            }
+            Text("الجزء $juz", color = gold, fontSize = 14.sp, maxLines = 1)
+            TextButton(onClick = { prefs.edit().putInt("bookmark",page).apply() },
+                modifier = Modifier.width(40.dp), contentPadding = PaddingValues(0.dp)) {
+                Text(if (bookmark == page) "◆" else "♧", color = gold, maxLines = 1)
+            }
         }
         key(page) {
             AndroidView(factory = {
@@ -118,7 +131,7 @@ internal fun QuranReaderScreen(modifier: Modifier = Modifier, onExit: () -> Unit
         // Compact reading footer: no notes, navigation arrows or oversized controls.
         // Note editor remains accessible through the index dialog.
         Row(
-            Modifier.fillMaxWidth().height(30.dp).padding(horizontal = 16.dp),
+            Modifier.fillMaxWidth().height(24.dp).padding(horizontal = 12.dp),
             horizontalArrangement = Arrangement.Start,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -271,8 +284,8 @@ private class MushafPageView(
         override fun onFling(e1: MotionEvent?, e2: MotionEvent, velocityX: Float, velocityY: Float): Boolean {
             val start = e1 ?: return false
             if (kotlin.math.abs(e2.x - start.x) < 80f || kotlin.math.abs(velocityX) < 350f) return false
-            // RTL book: swipe right to left for the next page.
-            if (e2.x < start.x) navigate(page + 1) else navigate(page - 1)
+            // Arabic book direction: swipe toward the right to advance to the next page.
+            if (e2.x > start.x) navigate(page + 1) else navigate(page - 1)
             return true
         }
     })
