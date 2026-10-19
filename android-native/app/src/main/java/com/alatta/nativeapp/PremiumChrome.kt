@@ -132,6 +132,7 @@ internal fun PremiumHeader(
         // YouTube is available in the bottom bar; do not duplicate it in the header.
         PremiumTopItem("search", "استكشاف", current, onNavigate)
         PremiumTopItem("message-circle", "الرسائل", current, onNavigate)
+        PremiumTopItem("users", "الأصدقاء", current, onNavigate)
         Box(Modifier.size(38.dp), contentAlignment = Alignment.Center) {
             PremiumTopItem("bell", "الإشعارات", current, onNavigate)
             if (unreadNotifications > 0) {
@@ -186,7 +187,6 @@ internal fun PremiumBottomNav(current: String, go: (String) -> Unit) {
     val destinations = listOf(
         Triple("الرئيسية", "home", "الرئيسية"),
         Triple("الرسائل", "message-circle", "الرسائل"),
-        Triple("الأصدقاء", "users", "الأصدقاء"),
         Triple("القرآن", "book-open", "القرآن"),
         Triple("الأحاديث", "book-text", "الأحاديث"),
         Triple("الأذكار", "hand-heart", "الأذكار"),
@@ -263,7 +263,8 @@ internal fun PremiumReactionAction(
     liked: Boolean,
     selectedReaction: String = "",
     onLike: () -> Unit,
-    onReact: (String) -> Unit
+    onReact: (String) -> Unit,
+    onShowPeople: (() -> Unit)? = null
 ) {
     var expanded by remember { mutableStateOf(false) }
     Box {
@@ -295,7 +296,8 @@ internal fun PremiumReactionAction(
             }
             Text(count.coerceAtLeast(0).toString(),
                 color = if (selectedReaction.isNotBlank() || liked) PremiumGoldLight else PremiumMuted,
-                fontSize = 12.sp)
+                fontSize = 12.sp,
+                modifier = Modifier.sizeIn(minWidth = 36.dp, minHeight = 44.dp).then(if (onShowPeople != null) Modifier.clickable(onClickLabel = "عرض أصحاب التفاعلات", onClick = onShowPeople) else Modifier).wrapContentHeight().padding(horizontal = 5.dp))
         }
         DropdownMenu(
             expanded = expanded,
