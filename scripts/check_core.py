@@ -162,6 +162,9 @@ check("Quran bundled 604 offline printed pages with compact controls",
       all((ROOT / f"android-native/app/src/main/assets/mushaf/pages/{p:03d}.svg.gz").is_file() for p in range(1,605)) and
       (ROOT / 'android-native/app/src/main/assets/mushaf/index.json').is_file() and
       'mushaf/pages/%03d.svg' in quran_source and 'GZIPInputStream' not in quran_source and
-      all(x in quran_source for x in ['فهرس السور','changePage(page-1)','changePage(page+1)','BackHandler','prefs.edit().putInt("page"']))
+      all(x in quran_source for x in ['فهرس السور', 'BackHandler', 'prefs.edit().putInt("page"',
+                                      'height(30.dp)', 'Text("صفحة $page"', 'Text("الحزب $hizb"',
+                                      'onFling(', 'navigate(page + 1)', 'navigate(page - 1)']) and
+      'Text("ملاحظاتي"' not in quran_source)
 if fails:raise SystemExit(f"FAIL: {len(fails)} checks failed")
 print('PASS: static repository check complete. APK build/device tests are still required.')
