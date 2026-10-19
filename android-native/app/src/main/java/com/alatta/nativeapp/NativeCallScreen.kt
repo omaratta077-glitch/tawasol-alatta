@@ -298,12 +298,14 @@ internal fun NativeCallScreen(
                 Row(Modifier.fillMaxWidth().height(70.dp).background(CallBackground.copy(alpha = .92f))
                     .padding(horizontal = 15.dp), verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween) {
-                    TextButton(onClick = onMinimize) { SiteIcon("chevron-left", tint = CallGold, size = 23.dp) }
-                    Column(horizontalAlignment = Alignment.End) {
+                    Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.End) {
                         Text(if (videoCall) "مكالمة فيديو" else "مكالمة صوتية",
-                            fontSize = 19.sp, fontWeight = FontWeight.Bold, color = CallGold)
-                        Text(peerDisplayName, fontSize = 13.sp, color = CallWhite, maxLines = 1)
+                            fontSize = 19.sp, fontWeight = FontWeight.Bold, color = CallGold,
+                            textAlign = TextAlign.End, modifier = Modifier.fillMaxWidth())
+                        Text(peerDisplayName, fontSize = 13.sp, color = CallWhite, maxLines = 1,
+                            textAlign = TextAlign.End, modifier = Modifier.fillMaxWidth())
                     }
+                    TextButton(onClick = onMinimize) { SiteIcon("chevron-left", tint = CallGold, size = 23.dp) }
                 }
                 Spacer(Modifier.weight(1f))
                 if (!videoCall) {
