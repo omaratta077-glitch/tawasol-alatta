@@ -122,7 +122,8 @@ internal fun QuranReaderScreen(modifier: Modifier = Modifier, onExit: () -> Unit
     }
     BackHandler { if (pane != null) pane = null else onExit() }
     androidx.compose.runtime.CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
-    Column(modifier.fillMaxSize().background(cream)) {
+    Box(modifier.fillMaxSize().background(cream)) {
+    Column(Modifier.fillMaxSize()) {
         // Compact fixed-width Arabic header: no wrapped vertical "رجوع" text.
         Row(
             Modifier.fillMaxWidth().height(36.dp).padding(horizontal = 6.dp),
@@ -245,65 +246,90 @@ internal fun QuranReaderScreen(modifier: Modifier = Modifier, onExit: () -> Unit
         }
         val pageEnd = pageNumbers.filter { it >= selectedAyah }.lastOrNull() ?: selectedAyah
         var reciterMenu by remember { mutableStateOf(false) }
-        AlertDialog(
-            onDismissRequest = { selectedAyah = 0 },
-            containerColor = Color(0xFFFFF9E8),
-            title = { Text("التلاوة من الآية $verseNumber", color = gold) },
-            text = {
-                Column(Modifier.heightIn(max = 440.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                    Text(verseText, color = Color(0xFF261B11), fontSize = 18.sp, maxLines = 3)
-                    Box {
-                        OutlinedButton(onClick = { reciterMenu = true }) { Text("القارئ: ${selectedReciter.first} ▾", color = gold) }
-                        DropdownMenu(expanded = reciterMenu, onDismissRequest = { reciterMenu = false }) {
-                            QURAN_RECITERS.forEach { reciter ->
-                                DropdownMenuItem(text = { Text(reciter.first) }, onClick = {
-                                    selectedReciter = reciter; reciterMenu = false
-                                    audio.stop(); isPlaying = false
-                                })
-                            }
-                        }
+        // In-page overlay instead of a full-screen alert dialog.
+        Surface(
+            modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(horizontal = 9.dp, vertical = 26.dp),
+            shape = RoundedCornerShape(22.dp),
+            color = Color(0xFFFFF9E8),
+            tonalElevation = 5.dp,
+            shadowElevation = 8.dp
+        ) {
+            Column(Modifier.padding(12.dp).heightIn(max = 340.dp).verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text("التلاوة من الآية $verseNumber", color = gold, fontSize = 17.sp)
+                    IconButton(onClick = { selectedAyah = 0 }, modifier = Modifier.size(36.dp)) {
+                        Text("✕", color = gold, fontSize = 20.sp)
                     }
-                    Text("نهاية التلاوة", color = gold)
-                    listOf("page" to "آخر الصفحة", "surah" to "آخر السورة", "custom" to "إلى آية برقم محدد من نفس السورة").forEach { (mode, label) ->
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            RadioButton(selected = rangeMode == mode, onClick = { rangeMode = mode })
-                            Text(label, Modifier.clickable { rangeMode = mode }, color = Color(0xFF261B11))
-                        }
-                    }
-                    if (rangeMode == "custom") {
-                        OutlinedTextField(value = customEnd, onValueChange = { customEnd = it.filter(Char::isDigit).take(3) },
-                            label = { Text("رقم آية النهاية (من $verseNumber إلى ${inSurah.size})") },
-                            singleLine = true, modifier = Modifier.fillMaxWidth())
-                    }
-                    val customGlobalEnd = inSurah.firstOrNull {
-                        ayahDatabase?.optJSONObject(it)?.optInt("numberInSurah") == customEnd.toIntOrNull()
-                    }
-                    val targetEnd = when(rangeMode) { "surah" -> surahEnd; "custom" -> customGlobalEnd ?: 0; else -> pageEnd }
-                    val valid = targetEnd in selectedAyah..surahEnd
-                    Button(onClick = { if (valid) startAudio(selectedAyah, targetEnd) }, enabled = valid) {
-                        Text("تشغيل من الآية $verseNumber إلى ${if (rangeMode == "page") "نهاية الصفحة" else if (rangeMode == "surah") "نهاية السورة" else "الآية $customEnd"}")
-                    }
-                    if (!valid) Text("اختر رقم نهاية صحيحًا، لا يقل عن الآية الحالية.", color = Color(0xFF9A3324))
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                        TextButton(onClick = { audio.previous(); isPaused = false }) { Text("السابق") }
-                        TextButton(onClick = {
-                            if (audio.isPaused()) { audio.resume(); isPaused = false } else { audio.pause(); isPaused = true }
-                        }, enabled = isPlaying) { Text(if (isPaused) "استكمال" else "إيقاف مؤقت") }
-                        TextButton(onClick = { audio.next(); isPaused = false }) { Text("التالي") }
-                        TextButton(onClick = { audio.stop(); isPlaying = false; playbackStatus = "تم الإيقاف" }) { Text("إيقاف") }
-                    }
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Checkbox(checked = repeatRange, onCheckedChange = { repeatRange = it })
-                        Text("تكرار النطاق", color = Color(0xFF261B11))
-                    }
-                    Text("${if (currentAyah > 0) "الآية الحالية: ${ayahDatabase?.optJSONObject(currentAyah)?.optInt("numberInSurah") ?: 0} — " else ""}$playbackStatus", color = gold, fontSize = 12.sp)
-                    Text("التلاوة تحتاج اتصال إنترنت. تشغيل الآية التالية يبدأ بعد اكتمال الحالية.", color = gold, fontSize = 11.sp)
                 }
-            },
-            confirmButton = { TextButton(onClick = { selectedAyah = 0 }) { Text("إغلاق القائمة", color = gold) } }
-        )
+                Text(verseText, color = Color(0xFF261B11), fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Box {
+                    OutlinedButton(onClick = { reciterMenu = true }, modifier = Modifier.fillMaxWidth()) {
+                        Text("♫  ${selectedReciter.first}  ▾", color = gold, maxLines = 1)
+                    }
+                    DropdownMenu(expanded = reciterMenu, onDismissRequest = { reciterMenu = false }) {
+                        QURAN_RECITERS.forEach { reciter ->
+                            DropdownMenuItem(text = { Text(reciter.first) }, onClick = {
+                                selectedReciter = reciter; reciterMenu = false
+                                audio.stop(); isPlaying = false
+                            })
+                        }
+                    }
+                }
+                Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                    listOf("page" to "إلى آخر الصفحة", "surah" to "إلى آخر السورة", "custom" to "إلى آية محددة").forEach { (mode, label) ->
+                        FilterChip(selected = rangeMode == mode, onClick = { rangeMode = mode }, label = {
+                            Text(label, fontSize = 12.sp, maxLines = 1)
+                        })
+                    }
+                }
+                if (rangeMode == "custom") {
+                    OutlinedTextField(value = customEnd,
+                        onValueChange = { customEnd = it.filter(Char::isDigit).take(3) },
+                        label = { Text("إلى الآية رقم ($verseNumber – ${inSurah.size})") },
+                        singleLine = true, modifier = Modifier.fillMaxWidth())
+                }
+                val customGlobalEnd = inSurah.firstOrNull {
+                    ayahDatabase?.optJSONObject(it)?.optInt("numberInSurah") == customEnd.toIntOrNull()
+                }
+                val targetEnd = when (rangeMode) { "surah" -> surahEnd; "custom" -> customGlobalEnd ?: 0; else -> pageEnd }
+                val valid = targetEnd in selectedAyah..surahEnd
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceEvenly) {
+                    IconButton(onClick = { repeatRange = !repeatRange }) {
+                        Text("↻", color = if (repeatRange) Color(0xFFCE9928) else gold, fontSize = 24.sp)
+                    }
+                    IconButton(onClick = { audio.previous(); isPaused = false }) {
+                        Text("◀◀", color = gold, fontSize = 18.sp)
+                    }
+                    IconButton(onClick = {
+                        if (!isPlaying && !audio.isPaused()) {
+                            if (valid) startAudio(selectedAyah, targetEnd)
+                        } else if (audio.isPaused()) {
+                            audio.resume(); isPaused = false
+                        } else {
+                            audio.pause(); isPaused = true
+                        }
+                    }, enabled = valid || isPlaying) {
+                        Text(if (isPlaying && !isPaused) "⏸" else "▶", color = gold, fontSize = 27.sp)
+                    }
+                    IconButton(onClick = { audio.next(); isPaused = false }) {
+                        Text("▶▶", color = gold, fontSize = 18.sp)
+                    }
+                    IconButton(onClick = { audio.stop(); isPlaying = false; isPaused = false; playbackStatus = "تم الإيقاف" }) {
+                        Text("■", color = gold, fontSize = 22.sp)
+                    }
+                }
+                if (!valid) Text("اختر رقم آية نهاية صحيحًا", color = Color(0xFF9A3324), fontSize = 12.sp)
+                if (playbackStatus.isNotBlank()) Text(playbackStatus, color = gold, fontSize = 12.sp)
+            }
+        }
+
     }
-    }
+    } // Box
+    } // CompositionLocalProvider
 }
 
 private class MushafPageView(
