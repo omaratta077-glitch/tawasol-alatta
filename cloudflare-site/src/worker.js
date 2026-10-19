@@ -41,6 +41,16 @@ function j(data,status=200){
   });
 }
 
+// Merge legacy likes with modern reactions; one person has one visible reaction.
+function postReactionMembers(post){
+  const members=new Map();
+  for(const name of Array.isArray(post.likes)?post.likes:[])if(typeof name==="string"&&name)members.set(name,"like");
+  for(const kind of ["like","love","haha","wow","sad","angry","dislike"]){
+    for(const name of Array.isArray(post.reactions?.[kind])?post.reactions[kind]:[])if(typeof name==="string"&&name)members.set(name,kind);
+  }
+  return members;
+}
+
 export class SignalingRoom extends DurableObject {
   constructor(ctx, env){
     super(ctx, env);
@@ -1571,10 +1581,7 @@ export class SignalingRoom extends DurableObject {
           reactionCounts[key]=Array.isArray(reactions[key])?reactions[key].length:0;
         }
 
-        let myReaction="";
-        for(const key of Object.keys(reactionCounts)){
-          if((reactions[key]||[]).includes(s.username)){myReaction=key;break;}
-        }
+        const myReaction=postReactionMembers(p).get(s.username)||"";
 
         const sharedPost=p.sharedPost||null;
 
@@ -1584,6 +1591,7 @@ export class SignalingRoom extends DurableObject {
           ...p,
           authorInfo,
           likeCount:(p.likes||[]).length,
+          reactionCount:postReactionMembers(p).size,
           commentCount:(p.comments||[]).length,
           likedByMe:(p.likes||[]).includes(s.username),
           reactionCounts,
@@ -1596,6 +1604,40 @@ export class SignalingRoom extends DurableObject {
       return j({ok:true,posts});
     }
 
+    if(url.pathname==="/api/post-interactions" && request.method==="GET"){
+      const session=await this.session(url.searchParams.get("token")||"");
+      if(!session)return j({ok:false,error:"الجلسة منتهية"},401);
+      const id=String(url.searchParams.get("postId")||"");
+      const raw=await this.ctx.storage.get(`post:${id}`);
+      const post=raw&&!raw.archived?await this.visiblePost(raw,session.username):null;
+      if(!post)return j({ok:false,error:"المنشور غير متاح"},404);
+      const kind=url.searchParams.get("kind")||"reactions";
+      if(!["reactions","comments"].includes(kind))return j({ok:false,error:"نوع القائمة غير صحيح"},400);
+      const requestedOffset=Number(url.searchParams.get("offset")||0),requestedLimit=Number(url.searchParams.get("limit")||30);
+      const offset=Number.isFinite(requestedOffset)?Math.max(0,Math.floor(requestedOffset)):0;
+      const limit=Number.isFinite(requestedLimit)?Math.max(1,Math.min(50,Math.floor(requestedLimit))):30;
+      const members=postReactionMembers(post);
+      const person=async username=>{
+        const u=await this.publicUser(username);
+        return u?{username:u.username,fullName:u.fullName,displayName:u.displayName,avatar:u.avatar}:null;
+      };
+      const result={ok:true,postId:id,kind,reactionCount:members.size,commentCount:post.comments.length,myReaction:members.get(session.username)||""};
+      if(kind==="reactions"){
+        const list=[...members],people=[];
+        for(const [username,reaction] of list.slice(offset,offset+limit)){
+          const u=await person(username);if(u)people.push({...u,reaction});
+        }
+        return j({...result,people,total:list.length,nextOffset:offset+limit<list.length?offset+limit:null});
+      }
+      const list=[...post.comments].reverse(),comments=[];
+      for(const comment of list.slice(offset,offset+limit)){
+        const replies=[];
+        for(const reply of (comment.replies||[]).slice(-30))replies.push({...reply,authorInfo:await person(reply.author)});
+        comments.push({...comment,authorInfo:await person(comment.author),replies});
+      }
+      return j({...result,comments,total:list.length,nextOffset:offset+limit<list.length?offset+limit:null});
+    }
+
     if(url.pathname==="/api/post-like" && request.method==="POST"){
       const s=await this.session(String(body.token||""));
       if(!s)return j({ok:false,error:"الجلسة منتهية"},401);
@@ -1605,13 +1647,12 @@ export class SignalingRoom extends DurableObject {
       if(post.archived || !await this.canSeeContent(s.username,post.author))return j({ok:false,error:"المنشور غير متاح"},403);
       if(!await this.canRevealInteraction(s.username,post.author))return j({ok:false,error:"يمكن للحساب المخفي التفاعل علنًا مع الأصدقاء فقط"},403);
 
-      post.likes=post.likes||[];
-      const idx=post.likes.indexOf(s.username);
+      const wasLike=postReactionMembers(post).get(s.username)==="like";
+      post.likes=(post.likes||[]).filter(name=>name!==s.username);
+      for(const kind of Object.keys(post.reactions||{}))if(Array.isArray(post.reactions[kind]))post.reactions[kind]=post.reactions[kind].filter(name=>name!==s.username);
       let liked=false;
 
-      if(idx>=0){
-        post.likes.splice(idx,1);
-      }else{
+      if(!wasLike){
         post.likes.push(s.username);
         liked=true;
 
@@ -1928,6 +1969,7 @@ export class SignalingRoom extends DurableObject {
       const reaction=String(body.reaction||"like");
       if(!allowed.includes(reaction))return j({ok:false,error:"تفاعل غير صالح"},400);
 
+      post.likes=(post.likes||[]).filter(name=>name!==s.username);
       post.reactions=post.reactions||{};
       for(const key of allowed){
         post.reactions[key]=Array.isArray(post.reactions[key])?post.reactions[key]:[];
@@ -1959,7 +2001,8 @@ export class SignalingRoom extends DurableObject {
 
       const counts={};
       for(const key of allowed)counts[key]=post.reactions[key].length;
-      return j({ok:true,counts});
+      const visible=await this.visiblePost(post,s.username);
+      return j({ok:true,counts,reactionCount:postReactionMembers(visible).size,commentCount:visible.comments.length,myReaction:body.remove===true?"":reaction});
     }
 
     if(url.pathname==="/api/post-save" && request.method==="POST"){
@@ -2982,7 +3025,7 @@ export default {
       return Response.json({
         ok:true,
         app:"تواصل العطا",
-        version:"V13.80-Madani-Mushaf"
+        version:"V13.88-Post-Media"
       });
     }
 
