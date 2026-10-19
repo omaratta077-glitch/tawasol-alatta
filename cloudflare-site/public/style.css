@@ -4706,3 +4706,43 @@ html body #authView .atta-download-strip{display:none!important;}
  .reference-header-actions{gap:2px!important}
  .atta-yt-results{max-height:24dvh}
 }
+
+/* Immersive post media: controls overlay the content, with no title/zoom bars. */
+body.post-media-open{overflow:hidden!important}
+.post-video-preview{display:grid;place-items:center;width:100%;aspect-ratio:16/9;border:0;border-radius:12px;background:#000;color:#fff;cursor:pointer}
+.post-video-preview svg{width:64px;height:64px;padding:15px;border-radius:50%;background:#161b20dd}
+.post-media-viewer{position:fixed;inset:0;z-index:100000;width:100%;height:100%;height:100dvh;background:#000;color:#fff;direction:rtl;overflow:hidden}
+.post-media-viewer[hidden],.post-media-viewer [hidden],.post-interactions-overlay [hidden]{display:none!important}
+.post-media-stage{position:absolute;inset:0;overflow:hidden;touch-action:none}
+.post-media-stage img,.post-media-stage video{width:100%;height:100%;display:block;object-fit:contain;user-select:none;-webkit-user-drag:none}
+.post-media-viewer button{font:inherit;color:#fff;background:transparent;border:0;cursor:pointer;min-height:44px}
+.post-media-play{position:absolute;inset:50% auto auto 50%;transform:translate(-50%,-50%);width:76px;height:76px;display:grid;place-items:center;border-radius:50%;background:#0009!important;font-size:34px!important;z-index:2}
+.post-media-play svg{width:43px;height:43px}
+.post-media-tools{position:absolute;left:0;right:0;bottom:0;padding:24px max(16px,env(safe-area-inset-right)) max(10px,env(safe-area-inset-bottom));background:linear-gradient(transparent,#000d);z-index:2}
+.post-media-actions{display:flex;align-items:center;gap:8px}
+.post-media-actions button{display:flex;align-items:center;gap:6px;padding:6px 9px}
+.post-media-actions svg{width:25px;height:25px}
+.post-media-actions button.active{color:#e6b94e}
+.post-media-error{color:#ffb5b5;font-size:14px}
+.post-media-progress{width:100%;height:24px;accent-color:#e6b94e;direction:ltr;margin:0}
+.post-media-viewer.controls-hidden .post-media-tools,.post-media-viewer.controls-hidden.playing .post-media-play{opacity:0;pointer-events:none}
+.post-media-accessible-close{position:absolute;width:1px;height:1px;clip-path:inset(50%);overflow:hidden}
+.post-media-accessible-close:focus-visible{width:auto;height:44px;clip-path:none;top:8px;right:8px;background:#000b}
+.post-interactions-overlay{position:fixed;inset:0;z-index:100001;background:#0008;display:flex;align-items:flex-end;justify-content:center;color:#fff;direction:rtl}
+.post-interactions-sheet{width:100%;max-width:640px;max-height:83vh;max-height:83dvh;min-height:35vh;background:#101519;border-radius:20px 20px 0 0;display:flex;flex-direction:column;padding:12px 16px max(12px,env(safe-area-inset-bottom));box-sizing:border-box}
+.post-interactions-title{display:flex;align-items:center;justify-content:space-between;color:#e6b94e;gap:12px}
+.post-interactions-title button{background:none;border:0;color:#fff;font-size:27px;width:44px;height:44px;cursor:pointer}
+.post-interactions-rows{overflow:auto;min-height:0;flex:1;overscroll-behavior:contain;padding:10px 0}
+.post-interaction-person{display:grid;grid-template-columns:1fr auto;gap:4px 10px;padding:10px 0;border-bottom:1px solid #ffffff15;text-align:right}
+.post-interaction-profile{display:flex;align-items:center;gap:10px;border:0;background:none;color:#fff;text-align:right;font:inherit;cursor:pointer;min-width:0}
+.post-interaction-profile strong{overflow-wrap:anywhere}
+.post-interaction-profile img{width:40px;height:40px;border-radius:50%;object-fit:cover;flex:none}
+.post-interaction-person p{grid-column:1/-1;margin:0;padding:2px 50px 2px 4px;color:#fff;white-space:pre-wrap;overflow-wrap:anywhere}
+.post-interaction-person span{font-size:25px}
+.post-interaction-person .post-interaction-reply{padding-right:65px;font-size:13px;color:#d1d5d8}
+.post-interactions-error{color:#ffb5b5;white-space:pre-wrap}
+.post-interactions-more{align-self:center;min-height:44px;padding:8px 14px;border:0;background:transparent;color:#e6b94e;cursor:pointer}
+.post-interactions-compose{display:flex;gap:8px;padding-top:12px}
+.post-interactions-compose input{flex:1;min-width:0;min-height:44px;border:1px solid #6b5429;border-radius:10px;background:#090d0f;color:#fff;font:inherit;padding:8px}
+.post-interactions-compose button{border:0;background:none;color:#e6b94e;font:inherit;min-width:52px;cursor:pointer}
+.profile-post-stats button{border:0;background:none;color:inherit;font:inherit;cursor:pointer;min-height:44px}

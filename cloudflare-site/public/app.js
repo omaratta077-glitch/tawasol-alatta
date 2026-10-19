@@ -179,7 +179,7 @@ async function restoreSavedLogin(){
   }catch(err){
     console.warn("Saved login is no longer valid",err);
     clearSavedSession();
-    token="";
+    token="";resetPostMedia();
     me=null;
     appSessionStarted=false;
     $("appView").classList.add("hidden");
@@ -1982,7 +1982,7 @@ async function logoutCurrentAccount(){
       }).catch(()=>{});
     }
   }finally{
-    token="";
+    token="";resetPostMedia();
     me=null;
     viewedProfileUsername="";
     viewedFriendState="none";
@@ -2276,6 +2276,212 @@ async function renderProfilePage(username=me?.username){
   }
 }
 
+// One immersive post viewer. The existing YouTube player is independent.
+const postMediaUI={catalogue:new Map(),playlist:[],index:0,kind:"image",root:null,panel:null,session:null,viewerOpen:false,controls:true,hideTimer:0,panelSerial:0,zoom:1,panX:0,panY:0};
+function postTotalReactionCount(post){
+  if(Number.isFinite(post.reactionCount))return Math.max(0,post.reactionCount);
+  const names=new Set(post.likes||[]);
+  for(const list of Object.values(post.reactions||{}))if(Array.isArray(list))for(const name of list)names.add(name);
+  return names.size;
+}
+function currentMediaPost(){return postMediaUI.playlist[postMediaUI.index]||null;}
+function mediaLayerState(panel=null){return {session:postMediaUI.session,viewer:postMediaUI.viewerOpen,panel};}
+function pushMediaHistory(panel=null){history.pushState({...history.state,attaPostMedia:mediaLayerState(panel)},"");}
+function postMediaBack(){history.back();}
+function refreshMediaBody(){document.body.classList.toggle("post-media-open",postMediaUI.viewerOpen||!!postMediaUI.panel);}
+function setMediaControls(show){
+  postMediaUI.controls=show;
+  postMediaUI.root?.classList.toggle("controls-hidden",!show);
+  clearTimeout(postMediaUI.hideTimer);
+  const video=postMediaUI.root?.querySelector("video");
+  if(show&&postMediaUI.viewerOpen&&postMediaUI.kind==="video"&&video&&!video.paused&&!postMediaUI.panel){
+    postMediaUI.hideTimer=setTimeout(()=>setMediaControls(false),2500);
+  }
+}
+function updateMediaStats(id,data){
+  const post=postMediaUI.catalogue.get(id);
+  for(const item of [post,...postMediaUI.playlist.filter(p=>p.id===id)])if(item){item.reactionCount=data.reactionCount??item.reactionCount;item.commentCount=data.commentCount??item.commentCount;item.myReaction=data.myReaction??item.myReaction;}
+  if(currentMediaPost()?.id!==id||!postMediaUI.viewerOpen)return;
+  const root=postMediaUI.root;
+  root.querySelector('[data-media-people]').textContent=String(postTotalReactionCount(post||data));
+  root.querySelector('[data-media-comments]').innerHTML=iconComment()+`<span>${Number(data.commentCount??post?.commentCount??0)}</span>`;
+  root.querySelector('[data-media-react]').classList.toggle("active",!!(data.myReaction??post?.myReaction));
+}
+function closePostPanel(){
+  postMediaUI.panelSerial++;
+  postMediaUI.panel?.remove();postMediaUI.panel=null;
+  refreshMediaBody();setMediaControls(true);
+  if(postMediaUI.viewerOpen)postMediaUI.root?.focus();
+}
+function closePostViewer(){
+  postMediaUI.viewerOpen=false;postMediaUI.wasFullscreen=false;clearTimeout(postMediaUI.hideTimer);
+  const video=postMediaUI.root?.querySelector("video");
+  if(video){video.pause();video.removeAttribute("src");video.load();}
+  if(postMediaUI.root)postMediaUI.root.hidden=true;
+  if(document.fullscreenElement===postMediaUI.root)postMediaUI.exitPromise=document.exitFullscreen?.().catch(()=>{});
+  refreshMediaBody();postMediaUI.previousFocus?.focus?.();
+}
+function resetPostMedia(){closePostPanel();closePostViewer();postMediaUI.catalogue.clear();postMediaUI.playlist=[];postMediaUI.session=null;}
+window.addEventListener("popstate",event=>{
+  if(!postMediaUI.viewerOpen&&!postMediaUI.panel)return;
+  const target=event.state?.attaPostMedia;
+  if(!target||target.session!==postMediaUI.session){closePostPanel();closePostViewer();postMediaUI.session=null;return;}
+  if(!target.panel)closePostPanel();
+  if(!target.viewer)closePostViewer();
+});
+document.addEventListener("fullscreenchange",()=>{
+  if(document.fullscreenElement===postMediaUI.root){postMediaUI.wasFullscreen=true;return;}
+  if(postMediaUI.wasFullscreen){postMediaUI.wasFullscreen=false;if(postMediaUI.viewerOpen)postMediaBack();}
+});
+function bindPostMedia(posts,scope){
+  for(const post of posts)postMediaUI.catalogue.set(post.id,post);
+  scope.querySelectorAll('[data-open-post-media]').forEach(el=>{
+    const open=()=>openPostMedia(el.dataset.openPostMedia,el.dataset.mediaKind||"image",posts);
+    el.onclick=open;
+    if(el.tagName==="IMG"){el.setAttribute("role","button");el.tabIndex=0;el.onkeydown=e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();open();}};}
+  });
+  scope.querySelectorAll('[data-post-people]').forEach(button=>button.onclick=()=>openPostPanel(button.dataset.postPeople,"reactions"));
+}
+function createPostMediaRoot(){
+  if(postMediaUI.root)return postMediaUI.root;
+  const root=document.createElement("section");root.id="postMediaViewer";root.className="post-media-viewer";root.hidden=true;root.tabIndex=-1;
+  root.setAttribute("role","dialog");root.setAttribute("aria-modal","true");root.setAttribute("aria-label","وسائط المنشور");
+  root.innerHTML=`<div class="post-media-stage"><img alt="صورة المنشور" draggable="false"><video playsinline preload="metadata"></video></div>
+    <button class="post-media-play" aria-label="تشغيل الفيديو">${uiIcon("play")}</button>
+    <div class="post-media-tools"><div class="post-media-error" role="status"></div><input class="post-media-progress" type="range" min="0" max="1000" value="0" aria-label="موضع تشغيل الفيديو">
+    <div class="post-media-actions"><button data-media-react aria-label="إعجاب">${iconHeart()}</button><button data-media-people aria-label="عرض أصحاب التفاعلات">0</button><button data-media-comments aria-label="عرض التعليقات">${iconComment()}<span>0</span></button></div></div>
+    <button class="post-media-accessible-close" aria-label="الرجوع إلى المنشورات">الرجوع</button>`;
+  document.body.append(root);postMediaUI.root=root;
+  const video=root.querySelector("video"),play=root.querySelector(".post-media-play"),range=root.querySelector("input"),stage=root.querySelector(".post-media-stage"),image=root.querySelector("img");
+  play.onclick=async()=>{if(video.paused){if(video.error)video.load();if(video.ended)video.currentTime=0;try{await video.play()}catch{root.querySelector('.post-media-error').textContent="تعذر تشغيل الفيديو. تحقق من الاتصال ثم حاول مجددًا.";}}else video.pause();setMediaControls(true);};
+  video.addEventListener("play",()=>{root.querySelector('.post-media-error').textContent="";play.textContent="Ⅱ";play.setAttribute("aria-label","إيقاف مؤقت");root.classList.add("playing");setMediaControls(true);});
+  video.addEventListener("pause",()=>{play.innerHTML=uiIcon("play");play.setAttribute("aria-label","تشغيل الفيديو");root.classList.remove("playing");setMediaControls(true);});
+  video.addEventListener("ended",()=>setMediaControls(true));
+  video.addEventListener("error",()=>{if(postMediaUI.viewerOpen&&postMediaUI.kind==="video"){root.querySelector('.post-media-error').textContent="تعذر تحميل الفيديو. تحقق من الاتصال ثم حاول مجددًا.";setMediaControls(true);}});
+  video.addEventListener("timeupdate",()=>{range.value=Number.isFinite(video.duration)&&video.duration>0?Math.round(video.currentTime/video.duration*1000):0;});
+  range.oninput=()=>{if(Number.isFinite(video.duration)&&video.duration>0)video.currentTime=Number(range.value)/1000*video.duration;};
+  root.querySelector('[data-media-react]').onclick=async e=>{
+    const post=currentMediaPost();if(!post)return;const button=e.currentTarget;button.disabled=true;
+    try{const data=await api('/api/post-react',{method:'POST',body:JSON.stringify({token,postId:post.id,reaction:"like",remove:post.myReaction==="like"})});updateMediaStats(post.id,data);await loadPosts();}
+    catch(error){root.querySelector('.post-media-error').textContent=error.message;setMediaControls(true);}finally{button.disabled=false;}
+  };
+  root.querySelector('[data-media-people]').onclick=()=>openPostPanel(currentMediaPost().id,"reactions");
+  root.querySelector('[data-media-comments]').onclick=()=>openPostPanel(currentMediaPost().id,"comments");
+  root.querySelector('.post-media-accessible-close').onclick=postMediaBack;
+  const points=new Map();let down=null,pinch=0,baseZoom=1,moved=false,wasPinch=false;
+  function transformImage(){
+    const bounds=stage.getBoundingClientRect();
+    postMediaUI.panX=Math.max(-bounds.width*(postMediaUI.zoom-1)/2,Math.min(bounds.width*(postMediaUI.zoom-1)/2,postMediaUI.panX));
+    postMediaUI.panY=Math.max(-bounds.height*(postMediaUI.zoom-1)/2,Math.min(bounds.height*(postMediaUI.zoom-1)/2,postMediaUI.panY));
+    image.style.transform=`translate(${postMediaUI.panX}px,${postMediaUI.panY}px) scale(${postMediaUI.zoom})`;
+  }
+  stage.addEventListener("pointerdown",e=>{
+    points.set(e.pointerId,{x:e.clientX,y:e.clientY});stage.setPointerCapture?.(e.pointerId);
+    if(points.size===1){down={x:e.clientX,y:e.clientY};moved=false;wasPinch=false;}
+    if(points.size===2){const [a,b]=[...points.values()];pinch=Math.hypot(a.x-b.x,a.y-b.y);baseZoom=postMediaUI.zoom;wasPinch=true;}
+  });
+  stage.addEventListener("pointermove",e=>{
+    const old=points.get(e.pointerId);if(!old)return;points.set(e.pointerId,{x:e.clientX,y:e.clientY});
+    if(down&&Math.hypot(e.clientX-down.x,e.clientY-down.y)>10)moved=true;
+    if(postMediaUI.kind!=="image")return;
+    if(points.size===2&&pinch){const [a,b]=[...points.values()];postMediaUI.zoom=Math.min(5,Math.max(1,baseZoom*Math.hypot(a.x-b.x,a.y-b.y)/pinch));transformImage();}
+    else if(points.size===1&&postMediaUI.zoom>1){postMediaUI.panX+=e.clientX-old.x;postMediaUI.panY+=e.clientY-old.y;transformImage();}
+  });
+  stage.addEventListener("pointerup",e=>{
+    points.delete(e.pointerId);
+    if(wasPinch||points.size||!down)return;
+    const dy=e.clientY-down.y,dx=e.clientX-down.x;
+    if(postMediaUI.kind==="video"&&Math.abs(dy)>80&&Math.abs(dy)>Math.abs(dx)*1.5){changePostVideo(dy<0?1:-1);}
+    else if(!moved)setMediaControls(!postMediaUI.controls);
+    down=null;
+  });
+  stage.addEventListener("pointercancel",()=>{points.clear();down=null;wasPinch=false;});
+  image.ondblclick=()=>{postMediaUI.zoom=postMediaUI.zoom>1?1:2;postMediaUI.panX=0;postMediaUI.panY=0;transformImage();};
+  root.addEventListener("keydown",e=>{
+    if(e.key==="Escape"){e.preventDefault();postMediaBack();}
+    if(!postMediaUI.panel&&postMediaUI.kind==="video"&&["ArrowUp","ArrowDown"].includes(e.key)){e.preventDefault();changePostVideo(e.key==="ArrowUp"?1:-1);}
+    if(e.key==="Tab"){
+      const host=postMediaUI.panel||root,items=[...host.querySelectorAll('button:not(:disabled),input:not(:disabled)')].filter(x=>x.offsetParent!==null);
+      const first=items[0],last=items.at(-1);if(e.shiftKey&&document.activeElement===first){e.preventDefault();last?.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first?.focus();}
+    }
+  });
+  return root;
+}
+function renderPostMedia(autoplay=false){
+  const post=currentMediaPost(),root=postMediaUI.root;if(!post||!root)return;
+  const video=root.querySelector("video"),image=root.querySelector("img");
+  video.pause();root.querySelector('.post-media-error').textContent="";
+  postMediaUI.zoom=1;postMediaUI.panX=0;postMediaUI.panY=0;image.style.transform="";
+  root.dataset.postId=post.id;root.dataset.kind=postMediaUI.kind;
+  const isVideo=postMediaUI.kind==="video";video.hidden=!isVideo;image.hidden=isVideo;
+  root.querySelector('.post-media-play').hidden=!isVideo;root.querySelector('.post-media-progress').hidden=!isVideo;
+  if(isVideo){image.removeAttribute('src');video.src=post.video;video.load();if(autoplay)video.play().catch(()=>setMediaControls(true));}
+  else{video.removeAttribute('src');video.load();image.src=post.image;}
+  updateMediaStats(post.id,{reactionCount:postTotalReactionCount(post),commentCount:post.commentCount||post.comments?.length||0,myReaction:post.myReaction||""});
+  setMediaControls(true);
+}
+function changePostVideo(delta){
+  const next=postMediaUI.index+delta;if(next<0||next>=postMediaUI.playlist.length)return;
+  const wasPlaying=!postMediaUI.root.querySelector('video').paused;
+  postMediaUI.index=next;renderPostMedia(wasPlaying);
+}
+function openPostMedia(id,kind,posts){
+  const post=postMediaUI.catalogue.get(id);if(!post||!post[kind])return;
+  const root=createPostMediaRoot();
+  document.querySelectorAll('video').forEach(v=>v.pause());
+  postMediaUI.previousFocus=document.activeElement;postMediaUI.session=Date.now()+":"+Math.random();
+  postMediaUI.playlist=posts.filter(p=>p[kind]);postMediaUI.index=postMediaUI.playlist.findIndex(p=>p.id===id);postMediaUI.kind=kind;
+  if(postMediaUI.index<0)return;
+  postMediaUI.viewerOpen=true;root.hidden=false;refreshMediaBody();pushMediaHistory();renderPostMedia();root.focus();
+  const session=postMediaUI.session;
+  const enterFullscreen=()=>{if(postMediaUI.viewerOpen&&postMediaUI.session===session&&root.requestFullscreen&&!document.fullscreenElement)root.requestFullscreen().catch(()=>{});};
+  if(postMediaUI.exitPromise)postMediaUI.exitPromise.then(enterFullscreen);else enterFullscreen();
+}
+async function openPostPanel(id,kind){
+  closePostPanel();
+  if(!postMediaUI.viewerOpen)postMediaUI.session=Date.now()+":"+Math.random();
+  pushMediaHistory({id,kind});
+  const panel=document.createElement('div');panel.className='post-interactions-overlay';panel.setAttribute('role','dialog');panel.setAttribute('aria-modal','true');panel.setAttribute('aria-label',kind==='comments'?'التعليقات':'أصحاب التفاعلات');panel.tabIndex=-1;
+  panel.innerHTML=`<section class="post-interactions-sheet"><div class="post-interactions-title"><strong>${kind==='comments'?'التعليقات':'الأشخاص الذين تفاعلوا'}</strong><button aria-label="إغلاق القائمة">×</button></div><div class="post-interactions-rows"></div><div class="post-interactions-error" role="status"></div><button class="post-interactions-more" hidden>عرض المزيد</button>${kind==='comments'?'<form class="post-interactions-compose"><input maxlength="1000" placeholder="اكتب تعليقًا" aria-label="اكتب تعليقًا" required><button>إرسال</button></form>':''}</section>`;
+  (postMediaUI.viewerOpen?postMediaUI.root:document.body).append(panel);postMediaUI.panel=panel;refreshMediaBody();setMediaControls(true);panel.focus();
+  panel.querySelector('.post-interactions-title button').onclick=postMediaBack;
+  panel.addEventListener('click',e=>{if(e.target===panel)postMediaBack();});
+  panel.addEventListener('keydown',e=>{if(e.key==='Escape'){e.preventDefault();e.stopPropagation();postMediaBack();}});
+  const serial=++postMediaUI.panelSerial;let offset=0,busy=false;
+  const rows=panel.querySelector('.post-interactions-rows'),more=panel.querySelector('.post-interactions-more'),error=panel.querySelector('.post-interactions-error');
+  async function fetchRows(reset=false){
+    if(busy)return;busy=true;more.disabled=true;error.textContent='';
+    if(reset){offset=0;rows.textContent='جارٍ التحميل…';}
+    try{
+      const data=await api(`/api/post-interactions?token=${encodeURIComponent(token)}&postId=${encodeURIComponent(id)}&kind=${kind}&offset=${offset}`);
+      if(serial!==postMediaUI.panelSerial)return;
+      if(reset)rows.replaceChildren();
+      for(const item of data[kind==='comments'?'comments':'people']||[]){
+        const person=kind==='comments'?item.authorInfo||{username:item.author}:item,name=person.fullName||person.displayName||person.username||'مستخدم';
+        const row=document.createElement('div');row.className='post-interaction-person';
+        row.innerHTML=`<button class="post-interaction-profile"><img alt="" src="${esc(person.avatar||avatarFallback(name))}"><strong>${esc(name)}</strong></button>${kind==='comments'?`<p>${esc(item.text)}</p>`:`<span>${esc(reactionEmoji[item.reaction]||'👍')}</span>`}`;
+        row.querySelector('button').onclick=()=>{
+          closePostPanel();closePostViewer();postMediaUI.session=null;
+          history.replaceState({...history.state,attaPostMedia:null},'');openUserProfile(person.username);
+        };
+        if(kind==='comments')for(const reply of item.replies||[]){const text=document.createElement('p');text.className='post-interaction-reply';text.textContent=(reply.authorInfo?.fullName||reply.author)+': '+reply.text;row.append(text);}
+        rows.append(row);
+      }
+      if(!rows.childElementCount)rows.textContent=kind==='comments'?'اكتب أول تعليق':'لا توجد تفاعلات بعد';
+      more.hidden=data.nextOffset===null;offset=data.nextOffset;updateMediaStats(id,data);
+    }catch(e){if(serial===postMediaUI.panelSerial){error.textContent=e.message;more.hidden=false;more.textContent='إعادة المحاولة';}}
+    finally{busy=false;more.disabled=false;}
+  }
+  more.onclick=()=>fetchRows(rows.childElementCount===0);
+  const form=panel.querySelector('form');if(form)form.onsubmit=async e=>{
+    e.preventDefault();const input=form.querySelector('input'),button=form.querySelector('button'),text=input.value.trim();if(!text||button.disabled)return;
+    button.disabled=true;error.textContent='';
+    try{await api('/api/post-comment',{method:'POST',body:JSON.stringify({token,postId:id,text})});input.value='';await fetchRows(true);await loadPosts();}
+    catch(e){error.textContent=e.message;}finally{button.disabled=false;}
+  };
+  await fetchRows(true);
+}
+
 async function loadProfilePosts(username){
   const listEl=$("profilePostsList");
   const countEl=$("profilePostsCount");
@@ -2292,7 +2498,7 @@ async function loadProfilePosts(username){
     listEl.innerHTML=posts.map(post=>{
       const a=post.authorInfo||{username:post.author,displayName:post.author};
       const avatar=a.avatar||avatarFallback(a.fullName||a.displayName||a.username);
-      const reactionCount=totalReactionsCount(post.reactionCounts||{});
+      const reactionCount=postTotalReactionCount(post);
       const commentCount=post.commentCount||0;
       return `<article class="profile-post-card" data-profile-post="${esc(post.id)}">
         <button class="profile-post-head profile-link-button" data-open-profile="${esc(a.username)}">
@@ -2300,13 +2506,14 @@ async function loadProfilePosts(username){
           <span><strong>${esc(a.fullName||a.displayName||a.username)}</strong><small>@${esc(a.username)} • ${timeAgoAr(post.createdAt)}</small></span>
         </button>
         ${post.text?`<div class="profile-post-text">${esc(post.text)}</div>`:""}
-        ${post.image?`<img class="profile-post-image" loading="lazy" decoding="async" src="${post.image}" alt="صورة المنشور">`:""}
-        ${post.video?`<video class="profile-post-image post-video" controls playsinline preload="metadata" src="${post.video}"></video>`:""}
+        ${post.image?`<img class="profile-post-image" data-open-post-media="${esc(post.id)}" data-media-kind="image" loading="lazy" decoding="async" src="${esc(post.image)}" alt="صورة المنشور">`:""}
+        ${post.video?`<button class="post-video-preview" data-open-post-media="${esc(post.id)}" data-media-kind="video" aria-label="فتح الفيديو">${uiIcon("play")}</button>`:""}
         ${post.sharedPost?`<div class="shared-post-box"><div class="shared-post-head">@${esc(post.sharedPost.authorInfo?.username||post.sharedPost.author)}</div>${post.sharedPost.text?`<div>${esc(post.sharedPost.text)}</div>`:""}${post.sharedPost.image?`<img loading="lazy" decoding="async" src="${post.sharedPost.image}" class="shared-post-image" alt="">`:""}</div>`:""}
-        <div class="profile-post-footer"><div class="profile-post-stats"><span>♡ ${reactionCount}</span><span>💬 ${commentCount}</span></div><button class="profile-post-open" data-profile-post-open="${esc(post.id)}">عرض المنشور</button></div>
+        <div class="profile-post-footer"><div class="profile-post-stats"><button data-post-people="${esc(post.id)}" aria-label="عرض أصحاب التفاعلات">♡ ${reactionCount}</button><span>💬 ${commentCount}</span></div><button class="profile-post-open" data-profile-post-open="${esc(post.id)}">عرض المنشور</button></div>
       </article>`;
     }).join("");
     bindProfileLinks();
+    bindPostMedia(posts,listEl);
     document.querySelectorAll("[data-profile-post-open]").forEach(btn=>{
       btn.onclick=async()=>{
         showPage("homePage");
@@ -2437,7 +2644,7 @@ async function loadPosts(){
     $("postsFeed").innerHTML=posts.length?posts.map(post=>{
       const a=post.authorInfo||{username:post.author,displayName:post.author};
       const avatar=a.avatar||avatarFallback(a.fullName||a.displayName||a.username);
-      const likeCount=totalReactionsCount(post.reactionCounts||{});
+      const likeCount=postTotalReactionCount(post);
       const commentCount=post.commentCount||0;
       const shareCount=shareCounts[post.id]||0;
       const comments=(post.comments||[]).slice(-5).map(c=>{
@@ -2469,8 +2676,8 @@ async function loadPosts(){
           <button class="post-menu-btn" type="button" aria-label="المزيد">${iconDots()}</button>
         </div>
         ${post.text?`<div class="post-text reference-post-text">${esc(post.text)}</div>`:""}
-        ${post.image?`<img class="post-image reference-post-image" loading="lazy" decoding="async" src="${post.image}" alt="">`:""}
-        ${post.video?`<video class="post-image reference-post-image post-video" controls playsinline preload="metadata" src="${post.video}"></video>`:""}
+        ${post.image?`<img class="post-image reference-post-image" data-open-post-media="${esc(post.id)}" data-media-kind="image" loading="lazy" decoding="async" src="${esc(post.image)}" alt="صورة المنشور">`:""}
+        ${post.video?`<button class="post-video-preview" data-open-post-media="${esc(post.id)}" data-media-kind="video" aria-label="فتح الفيديو">${uiIcon("play")}</button>`:""}
         ${post.sharedPost?`
         <div class="shared-post-box">
           <div class="shared-post-head">@${esc(post.sharedPost.authorInfo?.username||post.sharedPost.author)}</div>
@@ -2483,7 +2690,7 @@ async function loadPosts(){
             <button class="text-action-btn" data-share-post="${post.id}">${iconShare()}<span>مشاركة</span></button>
           </div>
           <div class="reference-post-stats">
-            <button class="stat-btn ${post.myReaction?"active":""}" data-react-main="${post.id}" data-current-reaction="${esc(post.myReaction||"")}" title="إعجاب">${iconHeart()}<span>${likeCount}</span></button>
+            <button class="stat-btn ${post.myReaction?"active":""}" data-react-main="${post.id}" data-current-reaction="${esc(post.myReaction||"")}" title="إعجاب" aria-label="إعجاب">${iconHeart()}</button><button class="stat-btn" data-post-people="${esc(post.id)}" aria-label="عرض أصحاب التفاعلات">${likeCount}</button>
             <button class="stat-btn" data-comment-focus="${post.id}">${iconComment()}<span>${commentCount}</span></button>
             <button class="stat-btn" data-share-post="${post.id}">${iconRepeat()}<span>${shareCount}</span></button>
           </div>
@@ -2502,6 +2709,7 @@ async function loadPosts(){
     }).join(""):`<div class="empty-card">لا توجد منشورات بعد.</div>`;
 
     bindProfileLinks();
+    bindPostMedia(posts,$("postsFeed"));
 
     document.querySelectorAll("[data-like]").forEach(btn=>{
       btn.onclick=async()=>{
@@ -2554,14 +2762,17 @@ async function loadPosts(){
 
 
     document.querySelectorAll("[data-react-main]").forEach(btn=>{
-      let holdTimer=null;
-      btn.addEventListener("pointerdown",()=>{
-        holdTimer=setTimeout(()=>{
+      let holdTimer=null,held=false,startPoint=null;
+      btn.addEventListener("click",e=>{if(held){e.preventDefault();e.stopImmediatePropagation();held=false;}},true);
+      btn.addEventListener("pointerdown",e=>{
+        held=false;startPoint={x:e.clientX,y:e.clientY};
+        holdTimer=setTimeout(()=>{held=true;
           const picker=document.querySelector(`[data-reaction-picker="${btn.dataset.reactMain}"]`);
           if(picker)picker.classList.remove("hidden");
           holdTimer=null;
         },550);
       });
+      btn.addEventListener("pointermove",e=>{if(startPoint&&Math.hypot(e.clientX-startPoint.x,e.clientY-startPoint.y)>10&&holdTimer){clearTimeout(holdTimer);holdTimer=null;}});
       ["pointerup","pointercancel","pointerleave"].forEach(evt=>btn.addEventListener(evt,()=>{
         if(holdTimer){clearTimeout(holdTimer);holdTimer=null;}
       }));
@@ -3915,7 +4126,7 @@ window.addEventListener("load",setupGoogleSignIn);
 
   if ("serviceWorker" in navigator) {
     window.addEventListener("load", () => {
-      navigator.serviceWorker.register("/sw.js?v=13.60", { scope: "/" }).catch(() => {});
+      navigator.serviceWorker.register("/sw.js?v=13.88", { scope: "/" }).catch(() => {});
     });
   }
 

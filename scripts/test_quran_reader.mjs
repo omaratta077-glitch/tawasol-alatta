@@ -7,7 +7,7 @@ const root = new URL('../', import.meta.url).pathname;
 const app = path.join(root, 'android-native/app/src/main');
 const source = fs.readFileSync(path.join(app,'java/com/alatta/nativeapp/AttaQuranReader.kt'),'utf8');
 assert.match(source,/internal fun QuranReaderScreen\(/);
-assert.match(source,/AndroidView\(factory = \{ MushafPageView\(/);
+assert.match(source,/MushafPageView\(context, page, changePage,/);
 assert.match(source,/SVG\.getFromInputStream/);
 assert.doesNotMatch(source,/GZIPInputStream/);
 assert.doesNotMatch(source,/WebView\(|loadDataWithBaseURL\(/);
@@ -31,3 +31,14 @@ assert.match(source, /mushaf\/pages\/%03d\.svg/);
 assert.doesNotMatch(source, /GZIPInputStream|mushaf\/pages\/%03d\.svg\.gz/);
 
 for (const control of ["فهرس السور","الأجزاء","المرجعيات","الملاحظات","بحث في أسماء السور","bookmark","note_$page"]) assert.ok(source.includes(control), `reader control missing: ${control}`);
+
+// Recitation range player regression checks.
+for(const fn of ['playRange(', 'audio.pause()', 'audio.resume()', 'audio.next()', 'audio.previous()', 'repeatRange = !repeatRange','repeat = { repeatRange }','إلى آخر الصفحة','إلى آخر السورة','customEnd','QURAN_RECITERS']) {
+ assert.ok(source.includes(fn), `missing range playback control ${fn}`);
+}
+assert.match(source, /height\(20\.dp\)/);
+
+// Compact player uses an icon for repeat, but must retain a functioning toggle.
+assert.match(source, /IconButton\(onClick = \{ repeatRange = !repeatRange \}\)/);
+assert.match(source, /if \(repeat\(\)\) current = start/);
+console.log('PASS: inline recitation controls, repeat-range state and Arabic labels');
