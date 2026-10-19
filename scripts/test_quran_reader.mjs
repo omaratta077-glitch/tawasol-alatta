@@ -33,7 +33,12 @@ assert.doesNotMatch(source, /GZIPInputStream|mushaf\/pages\/%03d\.svg\.gz/);
 for (const control of ["فهرس السور","الأجزاء","المرجعيات","الملاحظات","بحث في أسماء السور","bookmark","note_$page"]) assert.ok(source.includes(control), `reader control missing: ${control}`);
 
 // Recitation range player regression checks.
-for(const fn of ['playRange(', 'audio.pause()', 'audio.resume()', 'audio.next()', 'audio.previous()', 'تكرار النطاق','آخر الصفحة','آخر السورة','customEnd','QURAN_RECITERS']) {
+for(const fn of ['playRange(', 'audio.pause()', 'audio.resume()', 'audio.next()', 'audio.previous()', 'repeatRange = !repeatRange','repeat = { repeatRange }','إلى آخر الصفحة','إلى آخر السورة','customEnd','QURAN_RECITERS']) {
  assert.ok(source.includes(fn), `missing range playback control ${fn}`);
 }
 assert.match(source, /height\(20\.dp\)/);
+
+// Compact player uses an icon for repeat, but must retain a functioning toggle.
+assert.match(source, /IconButton\(onClick = \{ repeatRange = !repeatRange \}\)/);
+assert.match(source, /if \(repeat\(\)\) current = start/);
+console.log('PASS: inline recitation controls, repeat-range state and Arabic labels');
