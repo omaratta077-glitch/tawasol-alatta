@@ -27,4 +27,4 @@ class_name = "SignalingRoom"
 tag = "v1"
 new_sqlite_classes = ["SignalingRoom"]
 [previews.vars]
-SUPER_ADMIN_USERNAME = "omar1"
+SUPER_ADMIN_USERNAME = "omaratta1"
