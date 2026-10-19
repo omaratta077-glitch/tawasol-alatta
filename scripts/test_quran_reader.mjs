@@ -7,7 +7,7 @@ const root = new URL('../', import.meta.url).pathname;
 const app = path.join(root, 'android-native/app/src/main');
 const source = fs.readFileSync(path.join(app,'java/com/alatta/nativeapp/AttaQuranReader.kt'),'utf8');
 assert.match(source,/internal fun QuranReaderScreen\(/);
-assert.match(source,/AndroidView\(factory = \{ MushafPageView\(/);
+assert.match(source,/MushafPageView\(context, page, changePage,/);
 assert.match(source,/SVG\.getFromInputStream/);
 assert.doesNotMatch(source,/GZIPInputStream/);
 assert.doesNotMatch(source,/WebView\(|loadDataWithBaseURL\(/);
