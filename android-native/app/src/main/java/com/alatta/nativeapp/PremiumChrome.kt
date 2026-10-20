@@ -217,13 +217,13 @@ internal fun PremiumBottomNav(current: String, go: (String) -> Unit) {
             .horizontalScroll(scroll)
             .padding(horizontal = 5.dp, vertical = 5.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(5.dp)
+        horizontalArrangement = Arrangement.spacedBy(3.dp)
     ) {
         destinations.forEach { (name, icon, label) ->
             val addAction = name == "إضافة"
             val selected = current == name && !addAction
             Column(
-                Modifier.width(72.dp).fillMaxHeight()
+                Modifier.width(66.dp).fillMaxHeight()
                     .background(
                         if (selected) PremiumGold.copy(alpha = .20f)
                         else if (addAction) PremiumGold.copy(alpha = .10f)
