@@ -742,6 +742,9 @@ export class SignalingRoom extends DurableObject {
       (url.pathname==="/api/register" || url.pathname==="/api/register-request") &&
       request.method==="POST"
     ){
+      // Consent is mandatory for every new email registration; existing users log in unchanged.
+      if(body.policyAccepted!==true || body.valuesPledgeAccepted!==true)
+        return j({ok:false,error:"يجب الموافقة على سياسة الخصوصية وشروط الاستخدام والتعهد بالقيم والمبادئ الإسلامية قبل إنشاء الحساب",code:"CONSENT_REQUIRED"},400);
       const reg=this.normalizeRegistration(body);
       const validationError=await this.validateRegistration(reg);
       if(validationError)return j({ok:false,error:validationError},400);
@@ -771,7 +774,11 @@ export class SignalingRoom extends DurableObject {
           gender:reg.gender,
           accountHidden:reg.gender==="female" && reg.accountHidden===true,
           country:reg.country,
-          passwordHash:await securePassword(reg.password)
+          passwordHash:await securePassword(reg.password),
+          policyAccepted:true,
+          valuesPledgeAccepted:true,
+          consentPolicyVersion:"2026-10-19",
+          consentAt:now
         },
         codeHash,
         createdAt:now,
@@ -857,6 +864,8 @@ export class SignalingRoom extends DurableObject {
       }
 
       const reg=pending.registration||{};
+      if(reg.policyAccepted!==true || reg.valuesPledgeAccepted!==true)
+        return j({ok:false,error:"الموافقة على السياسات والتعهد بالقيم مطلوبة قبل إنشاء الحساب",code:"CONSENT_REQUIRED"},400);
 
       if(!["male","female"].includes(reg.gender) || reg.gender==="female" && typeof reg.accountHidden!=="boolean")
         return j({ok:false,error:"أعد إنشاء الحساب لاختيار النوع وإعداد الإخفاء"},400);
@@ -896,6 +905,8 @@ export class SignalingRoom extends DurableObject {
         accountHidden:reg.gender==="female" && reg.accountHidden===true,
         country:reg.country,
         passwordHash:reg.passwordHash,
+        policyAccepted:true,valuesPledgeAccepted:true,
+        consentPolicyVersion:reg.consentPolicyVersion,consentAt:reg.consentAt,
         avatar:"",
         createdAt:Date.now()
       });
@@ -1014,6 +1025,8 @@ export class SignalingRoom extends DurableObject {
         if(!/^[a-z0-9_]{3,24}$/.test(chosenUsername)){
           return j({ok:false,error:"USERNAME_REQUIRED: اختر اسم مستخدم من 3 إلى 24 حرفًا إنجليزيًا أو رقمًا أو _",code:"USERNAME_REQUIRED"},409);
         }
+        if(body.policyAccepted!==true || body.valuesPledgeAccepted!==true)
+          return j({ok:false,error:"يجب الموافقة على السياسات والتعهد بالقيم والمبادئ الإسلامية لإنشاء حساب Google",code:"CONSENT_REQUIRED"},400);
         if(body.password!==undefined && (String(body.password).length<8 || body.password!==body.confirmPassword)){
           return j({ok:false,error:"كلمة مرور Google الجديدة غير مطابقة أو قصيرة (8 أحرف على الأقل)"},400);
         }
@@ -1036,6 +1049,7 @@ export class SignalingRoom extends DurableObject {
         await this.ctx.storage.put(`user:${username}`,{
           username,displayName:fullName,fullName,age,birthDate:chosenBirthDate,city,phone:"",email,
           emailVerified:true,emailVerifiedAt:Date.now(),googleIdHash:idHash,
+          policyAccepted:true,valuesPledgeAccepted:true,consentPolicyVersion:"2026-10-19",consentAt:Date.now(),
           gender,accountHidden:gender==="female" && body.accountHidden===true,country:"",passwordHash:(String(body.password||'').length>=8 && body.password===body.confirmPassword)
             ?await securePassword(body.password):null,avatar:"",createdAt:Date.now()
         });
