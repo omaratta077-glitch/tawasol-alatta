@@ -39,13 +39,26 @@ import com.caverock.androidsvg.SVG
 import org.json.JSONObject
 import java.util.Locale
 import java.util.concurrent.Executors
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /** A single offline Android Canvas Mushaf with golden reading controls. */
 @Composable
-internal fun QuranReaderScreen(modifier: Modifier = Modifier, onExit: () -> Unit) {
+internal fun QuranReaderScreen(modifier: Modifier = Modifier, onExit: () -> Unit,
+    initialPage: Int = 1, readingRange: IntRange? = null,
+    onPageChange: (Int) -> Unit = {}, onReadAll: () -> Unit = {},
+    onSharePost: (MushafPostDraft) -> Unit = {}, onStartAudio: () -> Unit = {}) {
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences("atta_native_mushaf", Context.MODE_PRIVATE) }
-    var page by remember { mutableIntStateOf(1) } // Open at Al-Fatiha; last read page remains saved in preferences.
+    var page by remember { mutableIntStateOf(initialPage.coerceIn(1,604)) }
+    val scope = rememberCoroutineScope()
+    var preparingShare by remember { mutableStateOf(false) }
+    var shareFrom by remember { mutableStateOf(initialPage.toString()) }
+    var shareTo by remember { mutableStateOf(initialPage.toString()) }
+    var sharePart by remember { mutableStateOf("1") }
+    LaunchedEffect(initialPage) { page = initialPage.coerceIn(1,604) }
     var pane by remember { mutableStateOf<String?>(null) }
     var query by remember { mutableStateOf("") }
     var note by remember { mutableStateOf("") }
@@ -86,7 +99,7 @@ internal fun QuranReaderScreen(modifier: Modifier = Modifier, onExit: () -> Unit
             }
         }.sortedBy { it.first }
     }
-    val juzStarts = remember { listOf(1,22,42,62,82,102,121,142,162,182,201,222,242,262,282,302,322,342,362,382,402,422,442,462,482,502,522,542,562,582) }
+    val juzStarts = remember { MUSHAF_JUZ_STARTS }
     val juz = (juzStarts.indexOfLast { it <= page } + 1).coerceAtLeast(1)
     // Each hizb contains four quarters. Read their real start pages from the bundled index.
     val hizbQuarterStarts = remember(index) {
@@ -104,6 +117,7 @@ internal fun QuranReaderScreen(modifier: Modifier = Modifier, onExit: () -> Unit
     // Boundaries use the actual numbered verses in the offline index, never page estimates.
     val allAyahs = ayahDatabase
     val startAudio: (Int, Int) -> Unit = { start, end ->
+        onStartAudio()
         rangeStart = start
         rangeEnd = end
         playbackStatus = "جارٍ تجهيز التلاوة..."
@@ -117,8 +131,20 @@ internal fun QuranReaderScreen(modifier: Modifier = Modifier, onExit: () -> Unit
         )
     }
     val changePage: (Int) -> Unit = { n ->
-        page = n.coerceIn(1,604); prefs.edit().putInt("page",page).apply(); error = null
+        page = n.coerceIn(readingRange ?: (1..604)); prefs.edit().putInt("page",page).apply(); error = null
+        onPageChange(page)
         pane = null
+    }
+    val prepareShare: (MushafShareSelection) -> Unit = { selection ->
+        if (!preparingShare) scope.launch {
+            preparingShare = true; error = null
+            try {
+                val draft = withContext(Dispatchers.IO) { prepareMushafPost(context, selection) }
+                onSharePost(draft)
+            } catch (cancelled: CancellationException) { throw cancelled }
+            catch (failure: Exception) { error = failure.message ?: "تعذّر تجهيز مشاركة المصحف" }
+            finally { preparingShare = false }
+        }
     }
     BackHandler { if (pane != null) pane = null else onExit() }
     androidx.compose.runtime.CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
@@ -147,6 +173,14 @@ internal fun QuranReaderScreen(modifier: Modifier = Modifier, onExit: () -> Unit
                 modifier = Modifier.width(40.dp), contentPadding = PaddingValues(0.dp)) {
                 Text(if (bookmark == page) "◆" else "♧", color = gold, maxLines = 1)
             }
+            IconButton(onClick = { shareFrom = page.toString(); shareTo = page.toString(); sharePart = juz.toString(); pane = "share" },
+                modifier = Modifier.size(36.dp)) { SiteIcon("share", tint = gold, size = 19.dp) }
+        }
+        if (readingRange != null) Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp),
+            verticalAlignment = Alignment.CenterVertically) {
+            Text("صفحات ${readingRange.first}–${readingRange.last}", color = gold, fontSize = 11.sp,
+                modifier = Modifier.weight(1f))
+            TextButton(onClick = onReadAll) { Text("المصحف كاملًا", color = gold, fontSize = 11.sp) }
         }
         key(page) {
             AndroidView(factory = {
@@ -180,13 +214,13 @@ internal fun QuranReaderScreen(modifier: Modifier = Modifier, onExit: () -> Unit
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween) {
                     Text(when(pane) {"index" -> "فهرس السور"; "parts" -> "الأجزاء";
-                        "marks" -> "المرجعيات"; "notes" -> "الملاحظات"; else -> "البحث" },
+                        "marks" -> "المرجعيات"; "notes" -> "الملاحظات"; "share" -> "مشاركة المصحف"; else -> "البحث" },
                         color = Color(0xFF221B14), style = MaterialTheme.typography.titleLarge)
                     TextButton(onClick = { pane = null }) { Text("إغلاق", color = gold) }
                 }
                 Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                     verticalAlignment = Alignment.CenterVertically) {
-                    listOf("index" to "الفهرس", "parts" to "الأجزاء", "marks" to "المرجعيات", "notes" to "الملاحظات").forEach { (id, name) ->
+                    listOf("index" to "الفهرس", "parts" to "الأجزاء", "marks" to "المرجعيات", "notes" to "الملاحظات", "share" to "مشاركة").forEach { (id, name) ->
                         TextButton(onClick = { pane = id }, modifier = Modifier.padding(end = 3.dp)) {
                             Text(name, maxLines = 1, softWrap = false,
                                 color = if (pane == id) gold else Color(0xFF55483A))
@@ -209,9 +243,41 @@ internal fun QuranReaderScreen(modifier: Modifier = Modifier, onExit: () -> Unit
                     }
                     "parts" -> LazyColumn(Modifier.weight(1f, fill = false)) {
                         items((1..30).toList()) { n ->
+                          Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                             Text("الجزء $n  •  صفحة ${juzStarts[n-1]}",
-                                Modifier.fillMaxWidth().clickable { changePage(juzStarts[n-1]) }.padding(12.dp), color = Color(0xFF221B14))
+                                Modifier.weight(1f).clickable { changePage(juzStarts[n-1]) }.padding(12.dp), color = Color(0xFF221B14))
+                            IconButton(onClick = { prepareShare(mushafPartSelection(n)) }, enabled = !preparingShare) {
+                                SiteIcon("share", tint = gold, size = 20.dp)
+                            }
+                          }
                         }
+                    }
+                    "share" -> Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        val inputColors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = Color(0xFF221B14), unfocusedTextColor = Color(0xFF221B14),
+                            cursorColor = gold, focusedBorderColor = gold,
+                            focusedLabelColor = gold, unfocusedLabelColor = gold)
+                        Text("معاينة بصورة الصفحة وملف كامل للقراءة، ثم مراجعة المنشور في الرئيسية.", color = gold, fontSize = 12.sp)
+                        OutlinedButton(onClick = { prepareShare(MushafShareSelection(page,page,"صفحة $page من القرآن الكريم")) },
+                            enabled = !preparingShare, modifier = Modifier.fillMaxWidth()) { Text("مشاركة الصفحة الحالية $page", color = gold) }
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedTextField(shareFrom, { shareFrom = it.filter(Char::isDigit).take(3) },
+                                label = { Text("من صفحة", color = gold) }, modifier = Modifier.weight(1f), singleLine = true, colors = inputColors)
+                            OutlinedTextField(shareTo, { shareTo = it.filter(Char::isDigit).take(3) },
+                                label = { Text("إلى صفحة", color = gold) }, modifier = Modifier.weight(1f), singleLine = true, colors = inputColors)
+                        }
+                        OutlinedButton(onClick = {
+                            try { prepareShare(MushafShareSelection(shareFrom.toInt(),shareTo.toInt(),"ورد من القرآن الكريم • صفحات $shareFrom–$shareTo")) }
+                            catch (e: Exception) { error = e.message ?: "اختر نطاقًا صحيحًا" }
+                        }, enabled = !preparingShare, modifier = Modifier.fillMaxWidth()) { Text("مشاركة الصفحات المختارة", color = gold) }
+                        OutlinedTextField(sharePart, { sharePart = it.filter(Char::isDigit).take(2) },
+                            label = { Text("رقم الجزء 1–30", color = gold) }, modifier = Modifier.fillMaxWidth(), singleLine = true, colors = inputColors)
+                        OutlinedButton(onClick = {
+                            try { prepareShare(mushafPartSelection(sharePart.toInt())) }
+                            catch (e: Exception) { error = e.message ?: "اختر جزءًا من 1 إلى 30" }
+                        }, enabled = !preparingShare, modifier = Modifier.fillMaxWidth()) { Text("مشاركة الجزء كاملًا", color = gold) }
+                        Text("حتى 30 صفحة في المنشور الواحد. لن يُنشر شيء قبل ضغطك على نشر.", color = gold, fontSize = 11.sp)
                     }
                     "marks" -> {
                         val saved = prefs.getInt("bookmark", -1)
@@ -227,6 +293,11 @@ internal fun QuranReaderScreen(modifier: Modifier = Modifier, onExit: () -> Unit
                             textStyle = androidx.compose.ui.text.TextStyle(color = Color(0xFF221B14)))
                         TextButton(onClick = { prefs.edit().putString("note_$page", note).apply(); pane = null }) { Text("حفظ الملاحظة", color = gold) }
                     }
+                }
+                error?.let { Text(it, color = Color(0xFF933C20), fontSize = 12.sp) }
+                if (preparingShare) {
+                    LinearProgressIndicator(Modifier.fillMaxWidth(), color = gold)
+                    Text("جارٍ تجهيز الصفحات...", color = gold, fontSize = 12.sp)
                 }
             }
         }
@@ -378,11 +449,8 @@ private class MushafPageView(
     })
     init {
         setBackgroundColor(AndroidColor.rgb(253, 247, 230))
-        val asset = String.format(Locale.ROOT, "mushaf/pages/%03d.svg", page)
         executor.execute {
-            val result = runCatching {
-                context.assets.open(asset).use { SVG.getFromInputStream(it) }
-            }
+            val result = runCatching { loadMushafDrawing(context, page) }
             post {
                 if (result.isSuccess) { svg = result.getOrNull(); invalidate() }
                 else reportError("تعذّر قراءة صفحة $page من الملفات المحلية: ${result.exceptionOrNull()?.message.orEmpty()}")
@@ -397,18 +465,28 @@ private class MushafPageView(
         val viewport = drawing.documentViewBox ?: RectF(0f, 0f, drawing.documentWidth, drawing.documentHeight)
         if (viewport.width() <= 0f || viewport.height() <= 0f) return
         val inset = 2f * resources.displayMetrics.density
-        val ratio = minOf(((width - 2 * inset).coerceAtLeast(1f)) / viewport.width(), ((height - 2 * inset).coerceAtLeast(1f)) / viewport.height())
-        val destW = viewport.width() * ratio
-        val destH = viewport.height() * ratio
-        val left = (width - destW) / 2f
-        val top = (height - destH) / 2f
-        // AndroidSVG applies its own viewport transform; don't pre-scale the Canvas.
-        // The previous extra scale made glyphs enormous and clipped the printed page.
-        val target = RectF(left, top, left + destW, top + destH)
+        val target = renderMushafDrawing(canvas, drawing, RectF(inset,inset,width-inset,height-inset))
         pageCoordinates = RectF(viewport)
         displayedViewport = target
-        drawing.renderToCanvas(canvas, target)
     }
+}
+
+internal fun loadMushafDrawing(context: Context, page: Int): SVG {
+    require(page in 1..604)
+    return context.assets.open(String.format(Locale.ROOT,"mushaf/pages/%03d.svg",page))
+        .use { SVG.getFromInputStream(it) }
+}
+
+/** One aspect-preserving Canvas path for the reader, image preview and PDF export. */
+internal fun renderMushafDrawing(canvas: Canvas, drawing: SVG, bounds: RectF): RectF {
+    val source = drawing.documentViewBox ?: RectF(0f,0f,drawing.documentWidth,drawing.documentHeight)
+    require(source.width() > 0f && source.height() > 0f)
+    val scale = minOf(bounds.width().coerceAtLeast(1f)/source.width(), bounds.height().coerceAtLeast(1f)/source.height())
+    val width = source.width()*scale; val height = source.height()*scale
+    val left = bounds.centerX()-width/2; val top = bounds.centerY()-height/2
+    val target = RectF(left,top,left+width,top+height)
+    drawing.renderToCanvas(canvas,target)
+    return target
 }
 
 

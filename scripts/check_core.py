@@ -58,7 +58,7 @@ check("Foreground ring state declared in AttaPush",
       "AttaPush.foregroundRingCallId == callId" in ring_screen)
 
 check("Native Google bridge removed", not (ROOT/(android+"GoogleWebBridge.kt")).exists())
-check("Official version 1.0.103", 'versionCode = 203' in gradle and 'versionName = "1.0.103"' in gradle)
+check("Official version 1.0.104", 'versionCode = 204' in gradle and 'versionName = "1.0.104"' in gradle)
 check("Four additional screens and scrollable navigation", all(x in main for x in ['QuranReaderScreen(', 'KnowledgeScreen(tab', 'FootballScreen(']) and all(x in read(android+"PremiumChrome.kt") for x in ['"القرآن"', '"الأحاديث"', '"الأذكار"', '"الرياضة"', '.horizontalScroll(scroll)']) and (ROOT/(android+"AlattaKnowledgeScreens.kt")).is_file())
 check("Quran-first categories and click-to-play preview", all(x in main for x in [
     'var youtubeCategory by remember { mutableStateOf("قرآن") }',
@@ -143,8 +143,8 @@ quran_reader = ROOT / "android-native/app/src/main/assets/atta-quran.html"
 quran_kotlin = ROOT / (android + "AttaQuranReader.kt")
 check("One full Quran reader with selectable verses and system back",
       quran_reader.is_file() and quran_kotlin.is_file() and
-      'QuranReaderScreen(Modifier.weight(1f), onExit =' in main and
-      'tab != "القرآن" && (tab != "الرسائل"' in main and
+      'QuranReaderScreen(Modifier.weight(1f),' in main and
+      'if (tab != "الرسائل" || chatWith.isBlank()) PremiumBottomNav' in main and
       all(text in quran_reader.read_text(encoding="utf-8") for text in [
           'mushaf/index.json', '/mushaf/', 'jumpToSegment', 'ar.muyassar',
           'ar.minshawi', 'ar.abdulbasit', 'ar.husary', 'playSurah', 'playHere']))
