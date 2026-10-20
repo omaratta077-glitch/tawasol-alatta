@@ -1067,6 +1067,9 @@ export class SignalingRoom extends DurableObject {
       const rateKey=`login-fail:${username.slice(0,120)}`;
       const attempt=await this.ctx.storage.get(rateKey)||{count:0,until:0};
       if(attempt.until>Date.now() && attempt.count>=12)return j({ok:false,error:"محاولات كثيرة. حاول بعد 10 دقائق"},429);
+      if(!u && username.includes("@")){
+        return j({ok:false,error:"EMAIL_NOT_REGISTERED: هذا البريد غير مسجل. يمكنك إنشاء حساب جديد.",code:"EMAIL_NOT_REGISTERED"},404);
+      }
       if(!u || !await passwordMatches(password,u.passwordHash)){
         const fresh=attempt.until>Date.now()?attempt:{count:0,until:Date.now()+600000};
         fresh.count++;

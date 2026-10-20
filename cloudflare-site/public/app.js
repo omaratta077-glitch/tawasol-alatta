@@ -3715,7 +3715,21 @@ $("authBtn").onclick=async()=>{
       $("authBtn").textContent="تسجيل الدخول";
     }
 
-    $("authMsg").textContent=e.message;
+    if(authMode==="login" && String(e.message||"").includes("EMAIL_NOT_REGISTERED") && body?.username?.includes("@")){
+      $("authMsg").innerHTML="";
+      const msg=document.createElement("p");
+      msg.textContent="هذا البريد غير مسجّل في تواصل العطا. هل تريد إنشاء حساب جديد؟";
+      const signup=document.createElement("button");
+      signup.type="button";signup.className="atta-create-button";
+      signup.textContent="إنشاء حساب بهذا البريد";
+      signup.onclick=()=>{
+        const email=body.username;
+        $("registerTab").click();
+        $("emailInput").value=email;
+        $("authMsg").textContent="";
+      };
+      $("authMsg").append(msg,signup);
+    } else $("authMsg").textContent=e.message;
   }
 };
 

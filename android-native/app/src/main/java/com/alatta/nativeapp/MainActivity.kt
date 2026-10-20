@@ -525,7 +525,7 @@ private fun SignupLegalConsent(
 }
 
 @Composable private fun GoldButton(text: String, enabled: Boolean = true, onClick: () -> Unit) {
-    Button(onClick = onClick, enabled = enabled, colors = ButtonDefaults.buttonColors(containerColor = Gold, contentColor = Black), shape = RoundedCornerShape(12.dp), modifier = Modifier.shadow(7.dp, RoundedCornerShape(12.dp), ambientColor = Gold.copy(alpha = .35f), spotColor = Gold.copy(alpha = .30f)).heightIn(min = 42.dp)) {
+    Button(onClick = onClick, enabled = enabled, colors = ButtonDefaults.buttonColors(containerColor = Gold, contentColor = Black), shape = RoundedCornerShape(12.dp), modifier = Modifier.attaMovingShine().shadow(7.dp, RoundedCornerShape(12.dp), ambientColor = Gold.copy(alpha = .35f), spotColor = Gold.copy(alpha = .30f)).heightIn(min = 42.dp)) {
         Text(text, fontWeight = FontWeight.Bold, fontSize = 13.sp, maxLines = 1)
     }
 }
@@ -537,7 +537,7 @@ private fun SignupLegalConsent(
             disabledContainerColor = Gold, disabledContentColor = Black),
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 5.dp),
         shape = RoundedCornerShape(13.dp),
-        modifier = Modifier.shadow(5.dp, RoundedCornerShape(13.dp),
+        modifier = Modifier.attaMovingShine().shadow(5.dp, RoundedCornerShape(13.dp),
             ambientColor = Gold.copy(alpha = .32f), spotColor = Gold.copy(alpha = .30f))
             .heightIn(min = 40.dp)) {
         Text("نشر", fontWeight = FontWeight.Bold, fontSize = 14.sp, maxLines = 1)
@@ -859,10 +859,10 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
 }
 
 @Composable private fun NativeApp() {
-    AttaPrivacyGate { revoke -> NativeAppContent(revoke) }
+    AttaPrivacyGate { revoke, onSignedIn -> NativeAppContent(revoke, onSignedIn) }
 }
 
-@Composable private fun NativeAppContent(onPrivacyRevoked: () -> Unit) {
+@Composable private fun NativeAppContent(onPrivacyRevoked: () -> Unit, onSignedIn: () -> Unit) {
     var updateCheckRequest by remember { mutableIntStateOf(0) }
     AppUpdatePrompt(updateCheckRequest)
     val ctx = LocalContext.current
@@ -879,6 +879,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
     var username by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var authMode by remember { mutableStateOf("login") }
+    var unregisteredEmailOffer by remember { mutableStateOf("") }
     var regName by remember { mutableStateOf("") }
     var regUsername by remember { mutableStateOf("") }
     var regBirthDate by remember { mutableStateOf("") }
@@ -1071,6 +1072,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
         prefs.edit().putString("token", token).putString("name", displayName).putString("username", myUsername).apply()
         password = ""; regPass = ""; regConfirm = ""; googleIdToken = ""; googlePassword = ""; googlePasswordConfirm = ""
         resetPassword = ""; resetConfirm = ""; authMode = "login"; tab = "الرئيسية"
+        onSignedIn()
     }
     fun clearLocalSession() {
         activeCall = null; incomingCall = null; pendingPermissionCall = null
@@ -1986,10 +1988,29 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                             PremiumAuthTextField(password, { password = it }, "كلمة السر", password = true)
                             PremiumAuthGoldButton("تسجيل الدخول", !busy && username.isNotBlank() && password.isNotBlank()) {
                                 task {
-                                    val result = withContext(Dispatchers.IO) {
-                                        api("/api/login", JSONObject().put("username", username.trim()).put("password", password))
+                                    try {
+                                        val result = withContext(Dispatchers.IO) {
+                                            api("/api/login", JSONObject().put("username", username.trim()).put("password", password))
+                                        }
+                                        unregisteredEmailOffer = ""
+                                        applySession(result, username.trim())
+                                    } catch (e: Exception) {
+                                        if (e.message?.contains("EMAIL_NOT_REGISTERED") == true &&
+                                            username.trim().contains("@")) {
+                                            unregisteredEmailOffer = username.trim()
+                                            regEmail = username.trim()
+                                        } else throw e
                                     }
-                                    applySession(result, username.trim())
+                                }
+                            }
+                            if (unregisteredEmailOffer.isNotBlank()) {
+                                Text("هذا البريد غير مسجّل في تواصل العطا. هل تريد إنشاء حساب جديد؟",
+                                    color = GoldLight, fontSize = 13.sp)
+                                PremiumAuthGoldButton("إنشاء حساب بهذا البريد", !busy) {
+                                    regEmail = unregisteredEmailOffer
+                                    unregisteredEmailOffer = ""
+                                    error = ""
+                                    authMode = "register"
                                 }
                             }
                             if (hasGoogleServices) {
@@ -2003,7 +2024,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                             TextButton(onClick = { authMode = "forgot" }) {
                                 Text("هل نسيت كلمة السر؟", color = GoldLight, fontWeight = FontWeight.Bold)
                             }
-                            PremiumAuthOutlineButton("إنشاء حساب جديد") { authMode = "register"; error = "" }
+                            PremiumAuthOutlineButton("إنشاء حساب جديد") { authMode = "register"; error = ""; unregisteredEmailOffer = "" }
                         } else if (authMode == "register") {
                             Text("إنشاء حساب جديد", color = GoldLight, fontSize = 20.sp, fontWeight = FontWeight.Bold)
                             if (hasGoogleServices) {
