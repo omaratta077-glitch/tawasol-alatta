@@ -1732,8 +1732,20 @@ export class SignalingRoom extends DurableObject {
 
       const list=await this.ctx.storage.get(`notifications:${s.username}`)||[];
       const visible=[];
+      const nameCache=new Map();
       for(const notification of [...list].reverse()){
-        if(!notification.from || await this.canViewProfile(s.username,notification.from))visible.push(notification);
+        if(!notification.from || await this.canViewProfile(s.username,notification.from)){
+          const from=String(notification.from||"").trim().toLowerCase();
+          let fromName="";
+          if(from){
+            if(!nameCache.has(from)){
+              const sender=await this.user(from);
+              nameCache.set(from, sender?.fullName||sender?.displayName||sender?.username||from);
+            }
+            fromName=nameCache.get(from);
+          }
+          visible.push({...notification,fromName});
+        }
         if(visible.length===100)break;
       }
       return j({ok:true,notifications:visible});
