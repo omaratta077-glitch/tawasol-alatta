@@ -84,7 +84,7 @@ try{
  check('friend, call and group references scrubbed',(await storage.get('friends:bob')).length===0&&(await storage.get('calls:bob')).length===1&&(await storage.get('group:one')).members.join()==='bob'&&(await storage.get('messages:group:one')).length===1);
  check('other accounts, data and sessions survive deletion',!!await room.session(bob)&&data.has('post:yesterday')&&data.has('filler:311')&&!data.has('admin-delete:job'));
  const codes=new Map();room.sendVerificationEmail=async(email,code)=>codes.set(email,code);
- const signup=await api('/api/register-request',{username:'alice',fullName:'New Alice',email:'alice@example.test',birthDate:'2000-01-01',gender:'female',accountHidden:true,password:'newpass123',confirmPassword:'newpass123'});
+ const signup=await api('/api/register-request',{username:'alice',fullName:'New Alice',email:'alice@example.test',birthDate:'2000-01-01',gender:'female',accountHidden:true,password:'newpass123',confirmPassword:'newpass123',legalAccepted:true,legalVersion:'2026-10-20'});
  check('same email and username immediately reusable',signup.status===200);
  const verified=await api('/api/register-verify',{verificationId:signup.data.verificationId,code:codes.get('alice@example.test')});
  check('recreated account starts without relationships or old sessions',verified.status===200&&!!verified.data.token&&!await room.session(alice)&&!data.has('friends:alice'));
