@@ -780,7 +780,7 @@ private fun YoutubePostMedia(videoId: String, playing: Boolean, onPlay: () -> Un
         Column(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text("فيديو يوتيوب", color = GoldLight, fontSize = 12.sp, modifier = Modifier.weight(1f))
-                TextButton(onClick = onStop) { Text("إغلاق الفيديو", color = GoldLight) }
+                // Playback stays inline; exiting the feed disposes the player.
             }
             YouTubePlayer(videoId)
         }
@@ -962,6 +962,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
     var activeYoutubePostId by remember { mutableStateOf("") }
     // Reload Home without launching scrolling work from an off-screen navigation item.
     var homeRefreshRequest by remember { mutableIntStateOf(0) }
+    var focusSharedPostId by remember { mutableStateOf("") }
     var quranPage by remember { mutableIntStateOf(1) }
     var quranReadingRange by remember { mutableStateOf<IntRange?>(null) }
     var posts by remember { mutableStateOf(emptyList<JSONObject>()) }
@@ -1084,7 +1085,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
         confirmAccountUser = ""; deleteAccountConfirmation = ""; accountDeleteProgress = ""
         profile = JSONObject(); publicProfile = null; displayName = ""; myUsername = ""; myAvatar = ""
         googleIdToken = ""; googleEmail = ""; ownerResetPlan = null; ownerResetConfirmation = ""
-        mushafPostDraft?.discard(); mushafPostDraft = null; pickedUri = null; draft = ""
+        mushafPostDraft?.discard(); mushafPostDraft = null; pickedUri = null; draft = ""; focusSharedPostId = ""
         youtubePostDraftId = ""; youtubePostDraftTitle = ""; activeYoutubePostId = ""
         youtubePlayRequested = false; youtubeId = ""
         visited.clear(); tab = "الرئيسية"; token = ""; authMode = "login"
@@ -1894,6 +1895,17 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
             catch (_: Exception) { /* UI can still use the account initial. */ }
         } else { myAvatar = ""; adminRole = "" }
     }
+    // After re-sharing, bring that exact post into view, not only the feed top.
+    LaunchedEffect(focusSharedPostId, posts, tab) {
+        val id = focusSharedPostId
+        if (tab == "الرئيسية" && id.isNotBlank()) {
+            val position = posts.indexOfFirst { it.optString("id") == id }
+            if (position >= 0) {
+                homeFeedListState.scrollToItem(position + 1)
+                focusSharedPostId = ""
+            }
+        }
+    }
     LaunchedEffect(token, tab, homeRefreshRequest) {
         if (token.isNotBlank()) {
             try { load(tab) }
@@ -2512,7 +2524,13 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                             }
                                             // The site 'repeat' arrows are the ONE and ONLY share control.
                                             PremiumPostAction("repeat", p.optInt("shareCount").toString(), GoldLight) {
-                                                task { post("/api/post-share", JSONObject().put("postId", postId).put("text", "")); load(tab) }
+                                                task {
+                                                    val created = post("/api/post-share", JSONObject().put("postId", postId).put("text", ""))
+                                                    val sharedId = created.optJSONObject("post")?.optString("id").orEmpty()
+                                                    if (tab != "الرئيسية") navigate("الرئيسية")
+                                                    load("الرئيسية")
+                                                    if (sharedId.isNotBlank()) focusSharedPostId = sharedId
+                                                }
                                             }
                                         }
                                         PremiumPostAction("bookmark",
