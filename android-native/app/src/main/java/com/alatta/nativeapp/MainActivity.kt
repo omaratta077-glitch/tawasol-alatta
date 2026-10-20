@@ -67,6 +67,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
@@ -163,6 +166,7 @@ private fun AttaRightAlignedComments(
     var loading by remember(postId) { mutableStateOf(true) }
     var sending by remember(postId) { mutableStateOf(false) }
     var failure by remember(postId) { mutableStateOf("") }
+    val commentFocusRequester = remember(postId) { FocusRequester() }
     suspend fun refresh() {
         val result = fetchComments()
         comments = result.arr("comments")
@@ -177,7 +181,14 @@ private fun AttaRightAlignedComments(
         usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
         val dialogView = LocalView.current
         val dialogWindow = (dialogView.parent as? DialogWindowProvider)?.window
+        val keyboard = LocalSoftwareKeyboardController.current
         val bottomClearance = attaCommentBottomClearance()
+        // A single tap on the comment icon opens the composer and phone keyboard.
+        LaunchedEffect(postId) {
+            delay(230)
+            commentFocusRequester.requestFocus()
+            keyboard?.show()
+        }
         DisposableEffect(dialogWindow) {
             dialogWindow?.let {
                 WindowCompat.setDecorFitsSystemWindows(it, false)
@@ -205,6 +216,8 @@ private fun AttaRightAlignedComments(
                     items(comments, key = { it.optString("id").ifBlank { it.hashCode().toString() } }) { comment ->
                         AttaCommentEntry(comment, false, onProfile) { id, name ->
                             replyTo = id; replyName = name
+                            commentFocusRequester.requestFocus()
+                            keyboard?.show()
                         }
                         comment.arr("replies").forEach { reply ->
                             AttaCommentEntry(reply, true, onProfile) { _, _ -> }
@@ -225,7 +238,7 @@ private fun AttaRightAlignedComments(
                     verticalAlignment = Alignment.CenterVertically) {
                     OutlinedTextField(value = content, onValueChange = { content = it },
                         placeholder = { Text("اكتب تعليقًا...", color = Muted) },
-                        modifier = Modifier.weight(1f), maxLines = 4,
+                        modifier = Modifier.weight(1f).focusRequester(commentFocusRequester), maxLines = 4,
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedTextColor = White, unfocusedTextColor = White,
                             cursorColor = Gold, focusedBorderColor = Gold,
