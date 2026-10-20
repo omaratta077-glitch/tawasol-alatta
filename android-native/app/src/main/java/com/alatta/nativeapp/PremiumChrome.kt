@@ -25,6 +25,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
@@ -104,7 +105,9 @@ internal fun SiteIcon(name: String, modifier: Modifier = Modifier, tint: Color =
         "check" -> R.drawable.atta_ic_check
         else -> R.drawable.atta_ic_ellipsis
     }
-    Icon(painter = painterResource(resId), contentDescription = name, tint = tint, modifier = modifier.size(size))
+    Icon(painter = painterResource(resId), contentDescription = name, tint = tint,
+        modifier = modifier.size(size).shadow(2.dp, CircleShape,
+            ambientColor = PremiumGold.copy(alpha = .32f), spotColor = PremiumGold.copy(alpha = .2f)))
 }
 
 @Composable
@@ -128,7 +131,10 @@ internal fun PremiumHeader(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(5.dp)
         ) {
-            Image(painterResource(R.drawable.logo_premium), "شعار العطا", Modifier.size(34.dp).clip(CircleShape))
+            Image(painterResource(R.drawable.logo_premium), "شعار العطا",
+                Modifier.size(34.dp).shadow(8.dp, CircleShape,
+                    ambientColor = PremiumGold.copy(alpha = .64f),
+                    spotColor = PremiumGold.copy(alpha = .58f)).clip(CircleShape))
             Text("AL-ATTA", color = PremiumGoldLight, fontWeight = FontWeight.Bold,
                 fontSize = 12.sp, maxLines = 1, softWrap = false)
         }
@@ -165,6 +171,8 @@ private fun PremiumTopItem(name: String, destination: String, current: String, g
     val intensity by glow.animateFloat(initialValue = .08f, targetValue = .24f,
         animationSpec = infiniteRepeatable(tween(1300), repeatMode = RepeatMode.Reverse), label = "gold-glow")
     Box(Modifier.size(38.dp)
+        .shadow(if (current == destination) 6.dp else 1.dp, RoundedCornerShape(10.dp),
+            ambientColor = PremiumGold.copy(alpha = .30f), spotColor = PremiumGold.copy(alpha = .18f))
         .background(if (current == destination) PremiumGold.copy(alpha = intensity) else Color.Transparent,
             RoundedCornerShape(10.dp))
         .clickable { go(destination) }, contentAlignment = Alignment.Center) {
@@ -226,6 +234,8 @@ internal fun PremiumBottomNav(current: String, go: (String) -> Unit) {
                         else Color(0xFF171A1D),
                         RoundedCornerShape(13.dp)
                     )
+                    .shadow(if (selected) 6.dp else 1.dp, RoundedCornerShape(13.dp),
+                        ambientColor = PremiumGold.copy(alpha = .3f), spotColor = PremiumGold.copy(alpha = .16f))
                     .clickable { go(name) },
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center
@@ -245,6 +255,8 @@ internal fun PremiumBottomNav(current: String, go: (String) -> Unit) {
 internal fun PremiumOutlineAction(icon: String, text: String, onClick: () -> Unit) {
     Row(
         Modifier.height(37.dp)
+            .shadow(4.dp, RoundedCornerShape(9.dp),
+                ambientColor = PremiumGold.copy(alpha = .24f), spotColor = PremiumGold.copy(alpha = .18f))
             .border(.8.dp, PremiumBorder.copy(alpha = .85f), RoundedCornerShape(9.dp))
             .background(PremiumPanel, RoundedCornerShape(9.dp))
             .clickable(onClick = onClick)

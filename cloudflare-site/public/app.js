@@ -3664,6 +3664,7 @@ $("authBtn").onclick=async()=>{
     };
 
     if(authMode==="register"){
+      if(!$("registerPrivacyAgreement")?.checked || !$("registerTermsAgreement")?.checked)throw new Error("اقرأ شروط الاستخدام وسياسة الخصوصية ووافق عليهما قبل إنشاء الحساب");
       const gender=$("genderInput").value;
       const hidden=$("hiddenAccountInput").value;
       if(!["male","female"].includes(gender))throw new Error("اختيار النوع (ذكر أو أنثى) إجباري");
@@ -3676,6 +3677,8 @@ $("authBtn").onclick=async()=>{
       body.gender=$("genderInput").value;
       body.country=$("countryInput").value.trim();
       body.confirmPassword=$("confirmPasswordInput").value;
+      body.legalAccepted=true;
+      body.legalVersion="2026-10-20";
 
       $("authBtn").disabled=true;
       $("authBtn").textContent="جاري إرسال الكود...";
@@ -4033,6 +4036,7 @@ function requestGoogleProfile(){
           <option value="">اختاري نعم أو لا</option><option value="true">نعم، إخفاء</option><option value="false">لا، إظهار</option>
         </select>
       </label>
+      <label style="color:#e6b94e;font-size:12px"><input type="checkbox" name="legalAccepted" required> قرأت <a href="/terms.html" target="_blank" rel="noopener noreferrer" style="color:#f8d57f">الشروط</a> و<a href="/privacy.html" target="_blank" rel="noopener noreferrer" style="color:#f8d57f">سياسة الخصوصية</a> وأوافق عليهما</label>
       <button type="submit" style="border:0;background:#e6b94e;color:#070707;padding:13px;border-radius:13px;font-weight:800">تأكيد وإنشاء الحساب</button>
       <button type="button" data-cancel style="background:transparent;color:#d9c89a;border:1px solid #6b5429;padding:11px;border-radius:13px">إلغاء</button>
     </form>`;
@@ -4049,7 +4053,7 @@ function requestGoogleProfile(){
       if(form.elements.gender.value==="female" && !["true","false"].includes(form.elements.accountHidden.value)){
         alert("اختاري هل تريدين إخفاء الحساب أم لا");return;
       }
-      finish({fullName:form.elements.fullName.value.trim(),username:form.elements.username.value.trim().toLowerCase(),birthDate:form.elements.birthDate.value,city:form.elements.city.value.trim(),gender:form.elements.gender.value,accountHidden:form.elements.gender.value==="female" && form.elements.accountHidden.value==="true"});
+      finish({fullName:form.elements.fullName.value.trim(),username:form.elements.username.value.trim().toLowerCase(),birthDate:form.elements.birthDate.value,city:form.elements.city.value.trim(),gender:form.elements.gender.value,accountHidden:form.elements.gender.value==="female" && form.elements.accountHidden.value==="true",legalAccepted:true,legalVersion:"2026-10-20"});
     };
     document.body.appendChild(overlay);
     const born=form.elements.birthDate;

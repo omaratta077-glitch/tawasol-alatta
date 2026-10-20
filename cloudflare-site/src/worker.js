@@ -742,6 +742,7 @@ export class SignalingRoom extends DurableObject {
       (url.pathname==="/api/register" || url.pathname==="/api/register-request") &&
       request.method==="POST"
     ){
+      if(body.legalAccepted!==true || body.legalVersion!=="2026-10-20")return j({ok:false,error:"يجب قراءة شروط الاستخدام وسياسة الخصوصية والموافقة عليهما قبل إنشاء الحساب"},400);
       const reg=this.normalizeRegistration(body);
       const validationError=await this.validateRegistration(reg);
       if(validationError)return j({ok:false,error:validationError},400);
@@ -1002,6 +1003,7 @@ export class SignalingRoom extends DurableObject {
       let username=await this.ctx.storage.get(googleKey);
       if(username && !(await this.user(username)))username=null;
       if(!username){
+        if(body.legalAccepted!==true || body.legalVersion!=="2026-10-20")return j({ok:false,error:"يجب قراءة شروط الاستخدام وسياسة الخصوصية والموافقة عليهما قبل إنشاء الحساب"},400);
         const all=await this.ctx.storage.get("usernames")||[];
         for(const name of all){
           const existing=await this.user(name);
