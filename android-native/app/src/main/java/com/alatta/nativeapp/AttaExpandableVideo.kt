@@ -19,6 +19,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.AbsoluteAlignment
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
@@ -179,8 +181,7 @@ internal fun AttaPostMediaViewer(
             onDispose { window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) }
         }
         BackHandler { if (sheet != null) sheet = null else onDismiss() }
-        // Give the video exactly the space left above the measured social footer.
-        // Safe insets protect both from transient system bars and display cutouts.
+        // The video uses the full safe viewport; social actions live in one rail.
         Column(Modifier.fillMaxSize().background(Color.Black).safeDrawingPadding()) {
             Box(Modifier.weight(1f).fillMaxWidth().clipToBounds()) {
                 if (player != null) {
@@ -199,20 +200,27 @@ internal fun AttaPostMediaViewer(
                         ) })
                     // Use the SINGLE central play/pause button in the controls row below.
                 } else AttaZoomableImage(url, "صورة المنشور", onTap = { controls = !controls })
-                // The approved two circular social actions at the top-right.
-                // They are displayed only when connected to real post APIs.
+                // Physical right edge in both RTL and LTR; one vertical social rail.
                 if (player != null && (sendReaction != null || onShare != null)) {
-                    Column(Modifier.align(Alignment.TopEnd)
-                        .padding(top = 12.dp, end = 14.dp),
+                    Column(Modifier.align(AbsoluteAlignment.TopRight)
+                        .absolutePadding(top = 12.dp, right = 14.dp),
                         verticalArrangement = Arrangement.spacedBy(10.dp),
                         horizontalAlignment = Alignment.CenterHorizontally) {
                         if (sendReaction != null && loadInteractions != null) {
-                            Box(Modifier.size(44.dp).clip(RoundedCornerShape(50))
-                                .background(Color(0xAA080808))
-                                .border(1.dp, Color(0xFFE6B94E), RoundedCornerShape(50))
-                                .clickable { react("love") }, contentAlignment = Alignment.Center) {
-                                SiteIcon(if (selected == "love") "heart-filled" else "heart",
-                                    size = 24.dp, tint = Color(0xFFE6B94E))
+                            PremiumReactionAction(reactions, selected == "like", selected,
+                                onLike = { react("like") }, onReact = react,
+                                onShowPeople = { sheet = "reactions" }, vertical = true)
+                        }
+                        if (loadInteractions != null && sendComment != null) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier.clickable { sheet = "comments" }) {
+                                Box(Modifier.size(44.dp).clip(RoundedCornerShape(50))
+                                    .background(Color(0xAA080808))
+                                    .border(1.dp, PremiumGold, RoundedCornerShape(50)),
+                                    contentAlignment = Alignment.Center) {
+                                    SiteIcon("message-circle", size = 23.dp, tint = Color.White)
+                                }
+                                Text(comments.toString(), color = Color.White, fontSize = 11.sp)
                             }
                         }
                         if (onShare != null) {
@@ -233,8 +241,7 @@ internal fun AttaPostMediaViewer(
                         }
                     }
                 }
-                // Playback controls overlay the bounded video area; the social footer
-                // below has its own measured height and is not part of this auto-hide.
+                // Playback controls auto-hide; the vertical social rail remains visible.
                 if (player != null && controls) Column(
                     Modifier.align(Alignment.BottomCenter).fillMaxWidth()
                         .background(Brush.verticalGradient(listOf(Color.Transparent, Color(0xAA000000))))
@@ -257,7 +264,8 @@ internal fun AttaPostMediaViewer(
                         val totalSeconds = duration / 1000
                         Text("%02d:%02d / %02d:%02d".format(currentSeconds / 60,
                             currentSeconds % 60, totalSeconds / 60, totalSeconds % 60),
-                            color = Color.White, fontSize = 12.sp)
+                            color = Color.White, fontSize = 11.sp,
+                            fontWeight = FontWeight.Light, lineHeight = 13.sp)
                     }
                     Row(Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceEvenly,
@@ -282,20 +290,6 @@ internal fun AttaPostMediaViewer(
                             changeVideo(1)
                         }) { SiteIcon("skip-forward", size = 23.dp, tint = Color.White) }
                     }
-                }
-            }
-            // Keep real post actions visible, outside the video and system bars,
-            // even after playback controls hide. No fixed bottom offset is needed.
-            if (loadInteractions != null && sendComment != null) {
-                Row(Modifier.fillMaxWidth().background(Color(0xFF090D0F))
-                    .heightIn(min = 56.dp).padding(horizontal = 16.dp, vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(24.dp)) {
-                    if (sendReaction != null) {
-                        PremiumReactionAction(reactions, selected == "like", selected,
-                            onLike = { react("like") }, onReact = react, onShowPeople = { sheet = "reactions" })
-                    }
-                    PremiumPostAction("message-circle", comments.toString(), Color.White) { sheet = "comments" }
                 }
             }
         }
@@ -358,7 +352,9 @@ private fun PostInteractionsSheet(
         containerColor = Color(0xFF12161A)) {
         // Measure the scrolling list after reserving the header and composer;
         // the keyboard shrinks the list instead of pushing Send off-screen.
-        Column(Modifier.fillMaxWidth().fillMaxHeight(.85f).imePadding().padding(16.dp)) {
+        val bottomClearance = attaCommentBottomClearance()
+        Column(Modifier.fillMaxWidth().fillMaxHeight(.85f).imePadding()
+            .padding(horizontal = 16.dp, vertical = 12.dp).padding(bottom = bottomClearance)) {
             Text(if (tab == "comments") "التعليقات" else "التفاعلات", color = Color(0xFFE6B94E))
             failure?.let { Text(it, color = Color(0xFFFFB5B5)) }
             val records = payload?.optJSONArray("items")

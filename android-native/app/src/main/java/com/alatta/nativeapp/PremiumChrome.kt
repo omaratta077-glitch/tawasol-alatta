@@ -195,10 +195,10 @@ internal fun PremiumBottomNav(current: String, go: (String) -> Unit) {
     // One horizontally scrolling navigation bar; it replaces the old fixed five-item bar.
     // Same Lucide-style vector icons as the approved interactive prototype.
     val destinations = listOf(
-        // Restore Home in the former Add slot; keep one navigation item for it.
+        // The first item is at the far right in this Arabic navigation row.
         // Remaining screens stay reachable by horizontal swiping, not removed.
-        Triple("الرسائل", "message-circle", "الرسائل"),
         Triple("الرئيسية", "home", "الرئيسية"),
+        Triple("الرسائل", "message-circle", "الرسائل"),
         Triple("الأصدقاء", "users", "الأصدقاء"),
         Triple("الملف", "user-round", "الملف"),
         Triple("القرآن", "book-open", "القرآن"),
@@ -281,40 +281,52 @@ internal fun PremiumReactionAction(
     selectedReaction: String = "",
     onLike: () -> Unit,
     onReact: (String) -> Unit,
-    onShowPeople: (() -> Unit)? = null
+    onShowPeople: (() -> Unit)? = null,
+    vertical: Boolean = false
 ) {
     var expanded by remember { mutableStateOf(false) }
     Box {
-        Row(
-            Modifier.height(44.dp)
+        val reactionModifier = (if (vertical) Modifier.width(48.dp) else Modifier.height(44.dp))
                 .combinedClickable(
                     onClick = onLike,
                     onLongClick = { expanded = true },
                     onClickLabel = if (liked) "إلغاء الإعجاب" else "إعجاب",
                     onLongClickLabel = "عرض التفاعلات"
                 )
-                .padding(horizontal = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(5.dp)
-        ) {
-            val reactionGlyph = when (selectedReaction) {
-                "love" -> "❤️"
-                "haha" -> "😂"
-                "wow" -> "😮"
-                "sad" -> "😢"
-                "angry" -> "😡"
-                else -> ""
-            }
+                .padding(horizontal = if (vertical) 0.dp else 8.dp)
+        val reactionGlyph = when (selectedReaction) {
+            "love" -> "❤️"
+            "haha" -> "😂"
+            "wow" -> "😮"
+            "sad" -> "😢"
+            "angry" -> "😡"
+            else -> ""
+        }
+        @Composable fun ReactionSymbol() {
             if (reactionGlyph.isNotBlank()) {
                 Text(reactionGlyph, fontSize = 21.sp)
             } else {
                 SiteIcon(if (liked) "heart-filled" else "heart", size = 23.dp,
                     tint = if (liked) PremiumGoldLight else PremiumMuted)
             }
+        }
+        @Composable fun ReactionCount() {
             Text(count.coerceAtLeast(0).toString(),
                 color = if (selectedReaction.isNotBlank() || liked) PremiumGoldLight else PremiumMuted,
                 fontSize = 12.sp,
-                modifier = Modifier.sizeIn(minWidth = 36.dp, minHeight = 44.dp).then(if (onShowPeople != null) Modifier.clickable(onClickLabel = "عرض أصحاب التفاعلات", onClick = onShowPeople) else Modifier).wrapContentHeight().padding(horizontal = 5.dp))
+                modifier = Modifier.sizeIn(minWidth = 36.dp, minHeight = if (vertical) 24.dp else 44.dp)
+                    .then(if (onShowPeople != null) Modifier.clickable(onClickLabel = "عرض أصحاب التفاعلات", onClick = onShowPeople) else Modifier)
+                    .wrapContentHeight().padding(horizontal = 5.dp),
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+        }
+        if (vertical) Column(reactionModifier
+            .background(Color(0xAA080808), RoundedCornerShape(24.dp))
+            .border(1.dp, PremiumGold, RoundedCornerShape(24.dp)).padding(vertical = 8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally) {
+            ReactionSymbol(); ReactionCount()
+        } else Row(reactionModifier, verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+            ReactionSymbol(); ReactionCount()
         }
         DropdownMenu(
             expanded = expanded,
@@ -339,6 +351,25 @@ internal fun PremiumReactionAction(
             }
         }
     }
+}
+
+/** Reserve any system-bar space missing from a Dialog's own inset dispatch. */
+@Composable
+internal fun attaCommentBottomClearance(): Dp {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val safeBottom = WindowInsets.safeDrawing.getBottom(density)
+    var ownerContext = context
+    while (ownerContext is android.content.ContextWrapper && ownerContext !is android.app.Activity) {
+        ownerContext = ownerContext.baseContext
+    }
+    val activity = ownerContext as? android.app.Activity
+    val physicalBottom = activity?.window?.decorView?.let {
+        androidx.core.view.ViewCompat.getRootWindowInsets(it)
+            ?.getInsetsIgnoringVisibility(androidx.core.view.WindowInsetsCompat.Type.navigationBars())?.bottom
+    } ?: safeBottom
+    val missing = if (WindowInsets.ime.getBottom(density) > 0) 0 else (physicalBottom - safeBottom).coerceAtLeast(0)
+    return with(density) { missing.toDp() } + 12.dp
 }
 
 

@@ -215,6 +215,7 @@ internal fun PublicUserProfile(
                     .clip(RoundedCornerShape(15.dp)).background(profilePanel).padding(13.dp)) {
                     if (post.optString("text").isNotBlank()) Text(post.optString("text"), color = Color.White,
                         fontSize = 14.sp, modifier = Modifier.padding(bottom = 10.dp))
+                    MushafPostActions(post.optString("text"))
                     val photo = media(post.optString("image"))
                     val video = media(post.optString("video"))
                     if (photo.isNotBlank()) ExpandableProfileMedia(photo, "صورة المنشور", Modifier.fillMaxWidth()

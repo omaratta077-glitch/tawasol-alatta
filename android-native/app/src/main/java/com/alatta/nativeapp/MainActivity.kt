@@ -46,6 +46,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.AbsoluteAlignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
@@ -63,6 +64,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.font.FontWeight
@@ -175,6 +177,7 @@ private fun AttaRightAlignedComments(
         usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
         val dialogView = LocalView.current
         val dialogWindow = (dialogView.parent as? DialogWindowProvider)?.window
+        val bottomClearance = attaCommentBottomClearance()
         DisposableEffect(dialogWindow) {
             dialogWindow?.let {
                 WindowCompat.setDecorFitsSystemWindows(it, false)
@@ -218,7 +221,7 @@ private fun AttaRightAlignedComments(
                     }
                 }
                 Row(Modifier.fillMaxWidth().background(Panel)
-                    .padding(horizontal = 10.dp, vertical = 8.dp),
+                    .padding(horizontal = 10.dp, vertical = 8.dp).padding(bottom = bottomClearance),
                     verticalAlignment = Alignment.CenterVertically) {
                     OutlinedTextField(value = content, onValueChange = { content = it },
                         placeholder = { Text("اكتب تعليقًا...", color = Muted) },
@@ -319,7 +322,11 @@ private fun api(path: String, payload: JSONObject? = null): JSONObject {
     } finally { conn.disconnect() }
 }
 private fun upload(token: String, uri: Uri, mime: String, filename: String, bytes: ByteArray): String {
-    val kind = if (mime.startsWith("video/")) "video" else "image"
+    val kind = when {
+        mime.startsWith("video/") -> "video"
+        mime == "application/pdf" -> "file"
+        else -> "image"
+    }
     val path = "/api/media-upload?token=${enc(token)}&kind=$kind&name=${enc(filename)}"
     val conn = (URL(BASE + path).openConnection() as HttpURLConnection).apply {
         requestMethod = "POST"; doOutput = true
@@ -670,7 +677,20 @@ private class AttaYoutubeFullscreenChrome(
         if (!playbackConfirmed) loading = false
     }
     DisposableEffect(webView, chrome) {
+        val owner = ctx as? ComponentActivity
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            when (event) {
+                androidx.lifecycle.Lifecycle.Event.ON_STOP -> {
+                    webView.evaluateJavascript("document.querySelectorAll('iframe').forEach(function(f){f.contentWindow.postMessage(JSON.stringify({event:'command',func:'pauseVideo',args:[]}), 'https://www.youtube-nocookie.com');f.contentWindow.postMessage(JSON.stringify({event:'command',func:'pauseVideo',args:[]}), 'https://www.youtube.com')})", null)
+                    webView.onPause()
+                }
+                androidx.lifecycle.Lifecycle.Event.ON_START -> webView.onResume()
+                else -> Unit
+            }
+        }
+        owner?.lifecycle?.addObserver(observer)
         onDispose {
+            owner?.lifecycle?.removeObserver(observer)
             chrome.release()
             (webView.parent as? ViewGroup)?.removeView(webView)
             webView.stopLoading()
@@ -689,7 +709,29 @@ private class AttaYoutubeFullscreenChrome(
     }
     // v1.0.57 playback path intentionally unchanged: the HTTPS site still
     // constructs the sole iframe via the existing site bridge.
-    PlayerSurface(Modifier.fillMaxWidth().aspectRatio(16f / 9f))
+    val compact = LocalConfiguration.current.screenHeightDp < 480
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        PlayerSurface(Modifier.fillMaxWidth().height(if (compact) 200.dp else (maxWidth * 9f / 16f).coerceAtLeast(200.dp)))
+    }
+}
+
+@Composable
+internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = null) {
+    val attachment = remember(text) { parseMushafPostAttachment(text, BASE) } ?: return
+    val context = LocalContext.current
+    Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (onRead != null) TextButton(onClick = { onRead(attachment.pages) }) {
+            SiteIcon("book-open", size = 18.dp)
+            Text("قراءة الصفحات ${attachment.pages.first}–${attachment.pages.last}", color = GoldLight, fontSize = 12.sp)
+        }
+        TextButton(onClick = {
+            try { context.startActivity(Intent(Intent.ACTION_VIEW,Uri.parse(attachment.pdfUrl))) }
+            catch (_: ActivityNotFoundException) {
+                android.widget.Toast.makeText(context,"لا يوجد تطبيق لفتح الملف",android.widget.Toast.LENGTH_SHORT).show()
+            }
+        }) { Text("ملف الصفحات كاملًا", color = GoldLight, fontSize = 12.sp) }
+    }
 }
 
 /** Single row, 39dp-high search shared across page headers. */
@@ -817,6 +859,9 @@ private class AttaYoutubeFullscreenChrome(
     var draft by remember { mutableStateOf("") }
     var pickedUri by remember { mutableStateOf<Uri?>(null) }
     var pickedMime by remember { mutableStateOf("") }
+    var mushafPostDraft by remember { mutableStateOf<MushafPostDraft?>(null) }
+    var quranPage by remember { mutableIntStateOf(1) }
+    var quranReadingRange by remember { mutableStateOf<IntRange?>(null) }
     var posts by remember { mutableStateOf(emptyList<JSONObject>()) }
     var stories by remember { mutableStateOf(emptyList<JSONObject>()) }
     var storyText by remember { mutableStateOf("") }
@@ -860,16 +905,21 @@ private class AttaYoutubeFullscreenChrome(
     var youtubePlayRequested by remember { mutableStateOf(false) }
     var youtubeSelectedThumbnail by remember { mutableStateOf("") }
     var youtubeCategory by remember { mutableStateOf("قرآن") }
-    // Screen-on while the user's selected YouTube player is visible.
-    // Does NOT attempt background playback: the official YouTube embed owns playback.
-    DisposableEffect(tab, youtubePlayRequested) {
+    val compactYoutubeLayout = LocalConfiguration.current.screenHeightDp < 480
+    val youtubeDisplayHeight = if (compactYoutubeLayout) 200.dp else
+        (((LocalConfiguration.current.screenWidthDp-16).dp)*9f/16f).coerceAtLeast(200.dp)
+    // One visible player survives navigation; closing it or logging out releases it.
+    DisposableEffect(youtubePlayRequested, token) {
         val window = (ctx as? ComponentActivity)?.window
-        if (tab == "يوتيوب" && youtubePlayRequested)
+        if (token.isNotBlank() && youtubePlayRequested)
             window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         onDispose {
-            if (tab == "يوتيوب" && youtubePlayRequested)
+            if (token.isNotBlank() && youtubePlayRequested)
                 window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         }
+    }
+    LaunchedEffect(activeCall?.callId, incomingCall?.callId) {
+        if (activeCall != null || incomingCall != null) youtubePlayRequested = false
     }
     val youtubeListState = rememberLazyListState()
     var profileBio by remember { mutableStateOf("") }
@@ -883,8 +933,11 @@ private class AttaYoutubeFullscreenChrome(
     // An Activity-scoped job is not cancelled just because login or a tab leaves composition.
     val scope = (ctx as ComponentActivity).lifecycleScope
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
-        pickedUri = uri
-        pickedMime = uri?.let { ctx.contentResolver.getType(it) } ?: ""
+        if (uri != null) {
+            mushafPostDraft?.discard(); mushafPostDraft = null
+            pickedUri = uri
+            pickedMime = ctx.contentResolver.getType(uri) ?: ""
+        }
     }
     fun task(block: suspend () -> Unit) {
         scope.launch {
@@ -923,6 +976,8 @@ private class AttaYoutubeFullscreenChrome(
         confirmAccountUser = ""; deleteAccountConfirmation = ""; accountDeleteProgress = ""
         profile = JSONObject(); publicProfile = null; displayName = ""; myUsername = ""; myAvatar = ""
         googleIdToken = ""; googleEmail = ""; ownerResetPlan = null; ownerResetConfirmation = ""
+        mushafPostDraft?.discard(); mushafPostDraft = null; pickedUri = null; draft = ""
+        youtubePlayRequested = false; youtubeId = ""
         visited.clear(); tab = "الرئيسية"; token = ""; authMode = "login"
         prefs.edit().clear().apply()
     }
@@ -1966,7 +2021,8 @@ private class AttaYoutubeFullscreenChrome(
                             )
                         } // Home uses the search icon in the single-line header; no second search bar.
                     }
-                    if (tab != "الرئيسية" && tab != "الرسائل" && tab != "القرآن") {
+                    if (tab != "الرئيسية" && tab != "الرسائل" && tab != "القرآن" &&
+                        !(compactYoutubeLayout && tab == "يوتيوب" && youtubePlayRequested)) {
                         Row(Modifier.fillMaxWidth().height(47.dp)
                             .padding(horizontal = 12.dp, vertical = 3.dp),
                             verticalAlignment = Alignment.CenterVertically,
@@ -2000,7 +2056,19 @@ private class AttaYoutubeFullscreenChrome(
                         }
                     }
                     when (tab) {
-                        "القرآن" -> QuranReaderScreen(Modifier.weight(1f), onExit = { if (visited.isNotEmpty()) tab = visited.removeAt(visited.lastIndex) else tab = "الرئيسية" })
+                        "القرآن" -> QuranReaderScreen(Modifier.weight(1f),
+                            onExit = { if (visited.isNotEmpty()) tab = visited.removeAt(visited.lastIndex) else tab = "الرئيسية" },
+                            initialPage = quranPage, readingRange = quranReadingRange,
+                            onPageChange = { quranPage = it }, onReadAll = { quranReadingRange = null },
+                            onStartAudio = { youtubePlayRequested = false },
+                            onSharePost = { shared ->
+                                val previousTitle = mushafPostDraft?.selection?.title
+                                mushafPostDraft?.discard()
+                                mushafPostDraft = shared; pickedUri = Uri.fromFile(shared.preview); pickedMime = "image/png"
+                                draft = if (draft.isBlank() || draft == previousTitle) shared.selection.title
+                                    else draft.trim()+"\n\n"+shared.selection.title
+                                navigate("الرئيسية")
+                            })
                         "الأحاديث", "الأذكار" -> KnowledgeScreen(tab, knowledgeSearch, Modifier.weight(1f))
                         "الرياضة" -> FootballScreen(Modifier.weight(1f))
                         "الرئيسية", "استكشاف", "المحفوظات" -> LazyColumn(Modifier.weight(1f).padding(horizontal = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -2035,6 +2103,14 @@ private class AttaYoutubeFullscreenChrome(
                                             placeholder = { Text("بم تفكر؟", fontSize = 14.sp) },
                                             minLines = 2, shape = RoundedCornerShape(12.dp))
                                         pickedUri?.let { Text("مرفق: ${it.lastPathSegment ?: "ملف"}", color = GoldLight, fontSize = 11.sp) }
+                                        mushafPostDraft?.let { shared ->
+                                            AsyncImage(Uri.fromFile(shared.preview), "معاينة صفحة المصحف",
+                                                Modifier.fillMaxWidth().height(230.dp), contentScale = ContentScale.Fit)
+                                            Text("${shared.selection.title} • ${shared.selection.pageCount} صفحة • ملف كامل للقراءة", color = GoldLight, fontSize = 11.sp)
+                                            TextButton(onClick = { shared.discard(); mushafPostDraft = null; pickedUri = null }, enabled = !busy) {
+                                                Text("إزالة المرفق", color = Muted)
+                                            }
+                                        }
                                         Spacer(Modifier.height(8.dp))
                                         Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                                             horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -2053,6 +2129,9 @@ private class AttaYoutubeFullscreenChrome(
                                             GoldButton("نشر", !busy && (draft.isNotBlank() || pickedUri != null)) {
                                                 task {
                                                     var image = ""; var video = ""
+                                                    var postText = draft
+                                                    val sharedMushaf = mushafPostDraft
+                                                    if (sharedMushaf != null) require(postText.length <= 4500) { "اكتب وصفًا أقصر من 4500 حرف" }
                                                     pickedUri?.let { uri ->
                                                         val bytes = withContext(Dispatchers.IO) { ctx.contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: byteArrayOf() }
                                                         require(bytes.size <= 50 * 1024 * 1024) { "الحد الأقصى 50 ميجابايت" }
@@ -2060,7 +2139,15 @@ private class AttaYoutubeFullscreenChrome(
                                                         val url = withContext(Dispatchers.IO) { upload(token, uri, mime, uri.lastPathSegment ?: "upload", bytes) }
                                                         if (mime.startsWith("video/")) video = url else image = url
                                                     }
-                                                    post("/api/posts", JSONObject().put("text", draft).put("image", image).put("video", video))
+                                                    if (sharedMushaf != null) {
+                                                        val pdfPath = withContext(Dispatchers.IO) {
+                                                            upload(token,Uri.fromFile(sharedMushaf.document),"application/pdf",
+                                                                "mushaf-${sharedMushaf.selection.firstPage}-${sharedMushaf.selection.lastPage}.pdf",sharedMushaf.document.readBytes())
+                                                        }
+                                                        postText += "\n\n"+mushafAttachmentLink(BASE,pdfPath,sharedMushaf.selection)
+                                                    }
+                                                    post("/api/posts", JSONObject().put("text", postText).put("image", image).put("video", video))
+                                                    sharedMushaf?.discard(); mushafPostDraft = null
                                                     draft = ""; pickedUri = null; load("الرئيسية")
                                                 }
                                             }
@@ -2137,6 +2224,9 @@ private class AttaYoutubeFullscreenChrome(
                                         }
                                     }
                                     if (p.optString("text").isNotBlank()) Text(p.optString("text"), color = White, modifier = Modifier.padding(vertical = 10.dp))
+                                    MushafPostActions(p.optString("text")) { pages ->
+                                        quranReadingRange = pages; quranPage = pages.first; navigate("القرآن")
+                                    }
                                     val image = media(p.optString("image")); val video = media(p.optString("video"))
                                     if (image.isNotBlank()) ExpandableProfileMedia(image, "صورة المنشور",
                                         Modifier.fillMaxWidth().padding(vertical = 6.dp)
@@ -2173,7 +2263,12 @@ private class AttaYoutubeFullscreenChrome(
                                             )
                                         }
                                     }
-                                    p.optJSONObject("sharedPost")?.let { shared -> Text("مشاركة: ${shared.optString("text")}", color = GoldLight) }
+                                    p.optJSONObject("sharedPost")?.let { shared ->
+                                        Text("مشاركة: ${shared.optString("text")}", color = GoldLight)
+                                        MushafPostActions(shared.optString("text")) { pages ->
+                                            quranReadingRange = pages; quranPage = pages.first; navigate("القرآن")
+                                        }
+                                    }
                                     HorizontalDivider(color = Border.copy(alpha = .5f), modifier = Modifier.padding(vertical = 7.dp))
                                     Row(Modifier.fillMaxWidth(),
                                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -2578,8 +2673,8 @@ private class AttaYoutubeFullscreenChrome(
                             verticalArrangement = Arrangement.spacedBy(7.dp)) {
                             if (youtubeId.isNotBlank()) item(key = "selected_youtube_video") {
                                 if (youtubePlayRequested) {
-                                    // Do not change YouTubePlayer's working v1.0.57 site WebView.
-                                    YouTubePlayer(youtubeId)
+                                    // Space for the single persistent host above this list.
+                                    Spacer(Modifier.fillMaxWidth().height(youtubeDisplayHeight+28.dp))
                                 } else {
                                     Box(Modifier.fillMaxWidth().aspectRatio(16f / 9f)
                                         .clip(RoundedCornerShape(12.dp))
@@ -2750,13 +2845,16 @@ private class AttaYoutubeFullscreenChrome(
                                 CardBox {
                                     Text(profile.name(), color = GoldLight, fontWeight = FontWeight.Bold)
                                     if (post.optString("text").isNotBlank()) Text(post.optString("text"), color = White)
+                                    MushafPostActions(post.optString("text")) { pages ->
+                                        quranReadingRange = pages; quranPage = pages.first; navigate("القرآن")
+                                    }
                                     if (post.optString("image").isNotBlank()) ExpandableProfileMedia(post.optString("image"), "صورة منشوري", Modifier.fillMaxWidth().heightIn(max = 320.dp), ContentScale.Fit)
                                     if (post.optString("video").isNotBlank()) Text("منشور فيديو", color = GoldLight)
                                 }
                             }
                         }
                     }
-                    if (tab != "القرآن" && (tab != "الرسائل" || chatWith.isBlank())) PremiumBottomNav(tab, ::navigate)
+                    if (tab != "الرسائل" || chatWith.isBlank()) PremiumBottomNav(tab, ::navigate)
                 }
                 if (token.isNotBlank()) {
                     if (busy) LinearProgressIndicator(modifier = Modifier.fillMaxWidth(), color = Gold)
@@ -2780,6 +2878,29 @@ private class AttaYoutubeFullscreenChrome(
                         onVoiceCall = { openCall(profilePeer, "audio") },
                         onVideoCall = { openCall(profilePeer, "video") }
                     )
+                }
+            }
+            // Keep the existing site WebView at one stable composition location.
+            // Only its bounds change between the YouTube page and a visible mini-player.
+            if (token.isNotBlank() && youtubePlayRequested && youtubeId.isNotBlank()) {
+                val expandedYoutube = tab == "يوتيوب" && profilePeer.isBlank()
+                val hostModifier = if (expandedYoutube) Modifier.align(Alignment.TopCenter)
+                    .fillMaxWidth().windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top+WindowInsetsSides.Horizontal))
+                    .padding(top = if (compactYoutubeLayout) 0.dp else 47.dp, start = 8.dp, end = 8.dp)
+                else Modifier.align(AbsoluteAlignment.BottomLeft)
+                    .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom+WindowInsetsSides.Horizontal))
+                    .absolutePadding(left = 8.dp, bottom = 86.dp).width(240.dp)
+                Column(hostModifier.clip(RoundedCornerShape(10.dp)).background(Black)
+                    .border(.7.dp,Border,RoundedCornerShape(10.dp))) {
+                    Row(Modifier.fillMaxWidth().height(28.dp).padding(horizontal = 5.dp),
+                        verticalAlignment = Alignment.CenterVertically) {
+                        Text("يوتيوب", color = GoldLight, fontSize = 10.sp,
+                            modifier = Modifier.weight(1f).clickable { navigate("يوتيوب") })
+                        IconButton(onClick = { youtubePlayRequested = false }, modifier = Modifier.size(28.dp)) {
+                            SiteIcon("x", size = 16.dp)
+                        }
+                    }
+                    YouTubePlayer(youtubeId)
                 }
             }
             activeCall?.let { session ->

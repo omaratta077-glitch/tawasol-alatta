@@ -22,6 +22,6 @@ jobs:
         run: |
           echo "sdk.dir=$ANDROID_HOME" > android-native/local.properties
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" 'platforms;android-35' 'build-tools;35.0.0' >/dev/null
-      - name: Compile release Kotlin and assemble debug APK
+      - name: Test sharing ranges, compile release Kotlin and assemble debug APK
         working-directory: android-native
-        run: gradle --no-daemon --console=plain :app:compileReleaseKotlin :app:assembleDebug
+        run: gradle --no-daemon --console=plain :app:testDebugUnitTest :app:compileReleaseKotlin :app:assembleDebug

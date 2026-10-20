@@ -256,8 +256,8 @@ internal fun NativeCallScreen(
             AndroidView(factory = { remoteRenderer }, modifier = Modifier.fillMaxSize())
             Box(
                 Modifier.align(Alignment.TopEnd)
-                    .padding(top = if (minimized) 2.dp else 93.dp, end = 13.dp)
-                    .size(width = if (minimized) 1.dp else 116.dp, height = if (minimized) 1.dp else 158.dp)
+                    .padding(top = if (minimized) 2.dp else 40.dp, end = 13.dp)
+                    .size(width = if (minimized) 1.dp else 96.dp, height = if (minimized) 1.dp else 128.dp)
                     .clip(RoundedCornerShape(13.dp))
                     .background(CallPanel)
                     .border(2.dp, CallGold.copy(alpha = .85f), RoundedCornerShape(13.dp))
