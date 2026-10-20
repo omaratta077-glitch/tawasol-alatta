@@ -1,6 +1,32 @@
 
 (()=>{
 const $=id=>document.getElementById(id);
+const youtubePostMarker=/^\[\[alatta-youtube:([A-Za-z0-9_-]{11})\]\][ \t]*$/m;
+function youtubePostInfo(text){
+  const raw=String(text||'');
+  const match=raw.match(youtubePostMarker);
+  return {id:match?match[1]:'',text:raw.replace(youtubePostMarker,'').replace(/\n{3,}/g,'\n\n').trim()};
+}
+function youtubePostFrame(post){
+  const id=youtubePostInfo(post.text).id;
+  if(!id)return '';
+  return `<div class="atta-youtube-post-media" data-youtube-post="${esc(post.id)}">
+    <button class="atta-youtube-post-play" data-youtube-post-play="${esc(post.id)}" data-youtube-id="${id}" type="button" aria-label="تشغيل الفيديو داخل المنشور">
+      <img loading="lazy" decoding="async" alt="معاينة الفيديو" src="https://i.ytimg.com/vi/${id}/hqdefault.jpg">
+      <span aria-hidden="true">▶</span>
+    </button>
+  </div>`;
+}
+document.addEventListener('click',event=>{
+  const button=event.target.closest?.('[data-youtube-post-play]');
+  if(!button)return;
+  const id=button.dataset.youtubeId;
+  if(!/^[A-Za-z0-9_-]{11}$/.test(id)||!window.AttaYouTubeEmbed)return;
+  document.querySelectorAll('.atta-youtube-post-media iframe').forEach(frame=>frame.remove());
+  const media=button.closest('.atta-youtube-post-media');
+  media.replaceChildren(window.AttaYouTubeEmbed.create(id,'فيديو المنشور'));
+});
+
 
 let token="",me=null,ws=null,reconnectTimer=null,syncTimer=null,lastConversationSignature="";
 let callSignalPollTimer=null,callSignalPollBusy=false;
@@ -2505,10 +2531,12 @@ async function loadProfilePosts(username){
           <img src="${avatar}" alt="">
           <span><strong>${esc(a.fullName||a.displayName||a.username)}</strong><small>@${esc(a.username)} • ${timeAgoAr(post.createdAt)}</small></span>
         </button>
-        ${post.text?`<div class="profile-post-text">${esc(post.text)}</div>`:""}
+        ${youtubePostInfo(post.text).text?`<div class="profile-post-text">${esc(youtubePostInfo(post.text).text)}</div>`:""}
+        ${youtubePostFrame(post)}
         ${post.image?`<img class="profile-post-image" data-open-post-media="${esc(post.id)}" data-media-kind="image" loading="lazy" decoding="async" src="${esc(post.image)}" alt="صورة المنشور">`:""}
         ${post.video?`<button class="post-video-preview" data-open-post-media="${esc(post.id)}" data-media-kind="video" aria-label="فتح الفيديو">${uiIcon("play")}</button>`:""}
-        ${post.sharedPost?`<div class="shared-post-box"><div class="shared-post-head">@${esc(post.sharedPost.authorInfo?.username||post.sharedPost.author)}</div>${post.sharedPost.text?`<div>${esc(post.sharedPost.text)}</div>`:""}${post.sharedPost.image?`<img loading="lazy" decoding="async" src="${post.sharedPost.image}" class="shared-post-image" alt="">`:""}</div>`:""}
+        ${post.sharedPost?`<div class="shared-post-box"><div class="shared-post-head">@${esc(post.sharedPost.authorInfo?.username||post.sharedPost.author)}</div>${youtubePostInfo(post.sharedPost.text).text?`<div>${esc(youtubePostInfo(post.sharedPost.text).text)}</div>`:""}
+          ${youtubePostFrame(post.sharedPost)}${post.sharedPost.image?`<img loading="lazy" decoding="async" src="${post.sharedPost.image}" class="shared-post-image" alt="">`:""}</div>`:""}
         <div class="profile-post-footer"><div class="profile-post-stats"><button data-post-people="${esc(post.id)}" aria-label="عرض أصحاب التفاعلات">♡ ${reactionCount}</button><span>💬 ${commentCount}</span></div><button class="profile-post-open" data-profile-post-open="${esc(post.id)}">عرض المنشور</button></div>
       </article>`;
     }).join("");
@@ -2675,13 +2703,15 @@ async function loadPosts(){
           </button>
           <button class="post-menu-btn" type="button" aria-label="المزيد">${iconDots()}</button>
         </div>
-        ${post.text?`<div class="post-text reference-post-text">${esc(post.text)}</div>`:""}
+        ${youtubePostInfo(post.text).text?`<div class="post-text reference-post-text">${esc(youtubePostInfo(post.text).text)}</div>`:""}
+        ${youtubePostFrame(post)}
         ${post.image?`<img class="post-image reference-post-image" data-open-post-media="${esc(post.id)}" data-media-kind="image" loading="lazy" decoding="async" src="${esc(post.image)}" alt="صورة المنشور">`:""}
         ${post.video?`<button class="post-video-preview" data-open-post-media="${esc(post.id)}" data-media-kind="video" aria-label="فتح الفيديو">${uiIcon("play")}</button>`:""}
         ${post.sharedPost?`
         <div class="shared-post-box">
           <div class="shared-post-head">@${esc(post.sharedPost.authorInfo?.username||post.sharedPost.author)}</div>
-          ${post.sharedPost.text?`<div>${esc(post.sharedPost.text)}</div>`:""}
+          ${youtubePostInfo(post.sharedPost.text).text?`<div>${esc(youtubePostInfo(post.sharedPost.text).text)}</div>`:""}
+          ${youtubePostFrame(post.sharedPost)}
           ${post.sharedPost.image?`<img loading="lazy" decoding="async" src="${post.sharedPost.image}" class="shared-post-image" alt="">`:""}
         </div>`:""}
         <div class="reference-post-footer">

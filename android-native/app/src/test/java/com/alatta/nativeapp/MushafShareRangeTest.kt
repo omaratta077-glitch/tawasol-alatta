@@ -49,6 +49,15 @@ class MushafShareRangeTest {
         }
     }
 
+    @Test fun feedHidesOnlyVerifiedMushafUrlAndPreservesArabicText() {
+        val link = mushafAttachmentLink(origin, "/media/file/123-abc.pdf", MushafShareSelection(5, 5, "صفحة"))
+        assertEquals("ورد من القرآن الكريم • صفحات 5–5",
+            visibleMushafPostText("ورد من القرآن الكريم • صفحات 5–5\n\n$link", origin))
+        assertEquals("نص عادي", visibleMushafPostText("نص عادي", origin))
+        val external = "https://example.com/file.pdf"
+        assertEquals("رابط $external", visibleMushafPostText("رابط $external", origin))
+    }
+
     @Test fun invalidUploadPathCannotCreateAnAttachmentLink() {
         assertThrows(IllegalArgumentException::class.java) {
             mushafAttachmentLink(origin,"https://evil.example/file.pdf",mushafPartSelection(1))

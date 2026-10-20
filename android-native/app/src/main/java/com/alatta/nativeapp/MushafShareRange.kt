@@ -36,6 +36,16 @@ internal fun parseMushafPostAttachment(text: String, siteOrigin: String): Mushaf
     return null
 }
 
+/** Hide only the verified mushaf PDF attachment URL in feed text; links remain in stored post data. */
+internal fun visibleMushafPostText(text: String, siteOrigin: String): String {
+    val attachment = parseMushafPostAttachment(text, siteOrigin) ?: return text
+    val marker = Regex("https://[^\\s]+#mushaf=([0-9]{1,3})-([0-9]{1,3})(?=\\s|$)")
+    return marker.replace(text) { candidate ->
+        val validated = parseMushafPostAttachment(candidate.value, siteOrigin)
+        if (validated == attachment && candidate.value.substringBefore('#') == attachment.pdfUrl) "" else candidate.value
+    }.replace(Regex("\\n{3,}"), "\n\n").trim()
+}
+
 internal fun mushafAttachmentLink(siteOrigin: String, uploadedPath: String, selection: MushafShareSelection): String {
     val link = siteOrigin.trimEnd('/') + uploadedPath + "#mushaf=${selection.firstPage}-${selection.lastPage}"
     require(parseMushafPostAttachment(link, siteOrigin) != null) { "رابط ملف المصحف غير صالح" }

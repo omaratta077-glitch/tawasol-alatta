@@ -4746,3 +4746,11 @@ body.post-media-open{overflow:hidden!important}
 .post-interactions-compose input{flex:1;min-width:0;min-height:44px;border:1px solid #6b5429;border-radius:10px;background:#090d0f;color:#fff;font:inherit;padding:8px}
 .post-interactions-compose button{border:0;background:none;color:#e6b94e;font:inherit;min-width:52px;cursor:pointer}
 .profile-post-stats button{border:0;background:none;color:inherit;font:inherit;cursor:pointer;min-height:44px}
+
+
+/* YouTube post preview reuses the official shared iframe factory; one frame opens on tap. */
+.atta-youtube-post-media{position:relative;width:100%;aspect-ratio:16/9;background:#000;border-radius:12px;overflow:hidden;margin:8px 0}
+.atta-youtube-post-play{position:relative;display:block;width:100%;height:100%;border:0;padding:0;background:#000;cursor:pointer}
+.atta-youtube-post-play img{display:block;width:100%;height:100%;object-fit:contain}
+.atta-youtube-post-play span{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);display:grid;place-items:center;width:56px;height:56px;border-radius:50%;border:1px solid #e6b94e;background:#090d0fe0;color:#f6d776;font-size:29px}
+.atta-youtube-post-media iframe{display:block;width:100%;height:100%;border:0}
