@@ -2452,8 +2452,13 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                                         .put("text", message))
                                                 },
                                                 onShare = { id ->
-                                                    post("/api/post-share", JSONObject().put("postId", id)
+                                                    val created = post("/api/post-share", JSONObject().put("postId", id)
                                                         .put("text", ""))
+                                                    val sharedId = created.optJSONObject("post")?.optString("id").orEmpty()
+                                                    showFullscreenVideo = false
+                                                    if (tab != "الرئيسية") navigate("الرئيسية")
+                                                    load("الرئيسية")
+                                                    if (sharedId.isNotBlank()) focusSharedPostId = sharedId
                                                 },
                                                 onOpenProfile = { user ->
                                                     showFullscreenVideo = false
