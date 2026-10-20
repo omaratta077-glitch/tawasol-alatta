@@ -2215,7 +2215,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                             }) { Text("إزالة فيديو يوتيوب", color = Muted) }
                                         }
                                         mushafPostDraft?.let { shared ->
-                                            MushafPostGallery(shared.selection.pages, Modifier.fillMaxWidth())
+                                            MushafPostGallery(shared.selection.pages, Uri.fromFile(shared.preview), Modifier.fillMaxWidth())
                                             Text("${shared.selection.title} • ${shared.selection.pageCount} صفحة • ملف كامل للقراءة", color = GoldLight, fontSize = 11.sp)
                                             TextButton(onClick = { shared.discard(); mushafPostDraft = null; pickedUri = null }, enabled = !busy) {
                                                 Text("إزالة المرفق", color = Muted)
@@ -2354,7 +2354,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                     }
                                     val image = media(p.optString("image")); val video = media(p.optString("video"))
                                     val mushafPages = parseMushafPostAttachment(p.optString("text"), BASE)?.pages
-                                    if (mushafPages != null) MushafPostGallery(mushafPages)
+                                    if (mushafPages != null) MushafPostGallery(mushafPages, image.takeIf { it.isNotBlank() })
                                     if (image.isNotBlank() && mushafPages == null) ExpandableProfileMedia(image, "صورة المنشور",
                                         Modifier.fillMaxWidth().padding(vertical = 6.dp)
                                             .aspectRatio(1.15f).clip(RoundedCornerShape(11.dp))
@@ -2397,7 +2397,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                             quranReadingRange = pages; quranPage = pages.first; navigate("القرآن")
                                         }
                                         parseMushafPostAttachment(shared.optString("text"), BASE)?.let { attachment ->
-                                            MushafPostGallery(attachment.pages)
+                                            MushafPostGallery(attachment.pages, media(shared.optString("image")).takeIf { it.isNotBlank() })
                                         }
                                         youtubePostId(shared.optString("text"))?.let { videoId ->
                                             YoutubePostMedia(videoId, activeYoutubePostId == postId,
@@ -2890,7 +2890,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                             SiteIcon("bell", size = 19.dp, tint = GoldLight)
                                         }
                                         Spacer(Modifier.width(10.dp))
-                                        Text(n.optString("from").ifBlank { "تواصل العطا" },
+                                        Text(n.optString("fromName").ifBlank { n.optString("from") }.ifBlank { "تواصل العطا" },
                                             color = if (unread) GoldLight else White,
                                             fontWeight = FontWeight.SemiBold,
                                             modifier = Modifier.weight(1f), maxLines = 1)
@@ -3122,7 +3122,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                             onStop = { activeYoutubePostId = "" })
                                     }
                                     val ownMushafPages = parseMushafPostAttachment(post.optString("text"), BASE)?.pages
-                                    if (ownMushafPages != null) MushafPostGallery(ownMushafPages)
+                                    if (ownMushafPages != null) MushafPostGallery(ownMushafPages, media(post.optString("image")).takeIf { it.isNotBlank() })
                                     if (post.optString("image").isNotBlank() && ownMushafPages == null)
                                         ExpandableProfileMedia(post.optString("image"), "صورة منشوري",
                                             Modifier.fillMaxWidth().heightIn(max = 320.dp), ContentScale.Fit)
