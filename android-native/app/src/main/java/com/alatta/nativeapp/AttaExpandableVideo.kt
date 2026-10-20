@@ -123,7 +123,9 @@ internal fun AttaPostMediaViewer(
         activity?.lifecycle?.addObserver(lifecycleListener)
         onDispose { activity?.lifecycle?.removeObserver(lifecycleListener); player?.removeListener(listener); player?.release() }
     }
-    var continuePlayback by remember { mutableStateOf(false) }
+    // Opening the sole full-screen Media3 viewer starts playback; vertical
+    // swipes switch tracks without creating a second video player.
+    var continuePlayback by remember(isVideo) { mutableStateOf(isVideo) }
     LaunchedEffect(id, url) {
         player?.apply {
             pause(); clearMediaItems(); setMediaItem(MediaItem.fromUri(url)); prepare()
@@ -176,7 +178,9 @@ internal fun AttaPostMediaViewer(
         Box(Modifier.fillMaxSize().background(Color.Black)) {
             if (player != null) {
                 AndroidView(factory = { ctx -> PlayerView(ctx).apply {
-                    this.player = player; useController = false; resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+                    this.player = player
+                    useController = false
+                    resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM
                 } }, update = { it.player = player }, modifier = Modifier.fillMaxSize())
                 var drag by remember(id) { mutableFloatStateOf(0f) }
                 Box(Modifier.fillMaxSize().clickable { controls = !controls }
@@ -186,20 +190,16 @@ internal fun AttaPostMediaViewer(
                         onDragEnd = { if (abs(drag) > 80.dp.toPx()) changeVideo(if (drag < 0) 1 else -1); drag = 0f },
                         onVerticalDrag = { change, amount -> change.consume(); drag += amount }
                     ) })
-                if (!playing) IconButton(onClick = {
-                    if (player.playWhenReady) player.pause() else { if (player.playbackState == Player.STATE_ENDED) player.seekTo(0); if (player.playerError != null) { failed = ""; player.prepare() }; player.play() }
-                    controls = true
-                }, modifier = Modifier.align(Alignment.Center).size(76.dp).background(Color(0x99000000), RoundedCornerShape(50))) {
-                    if (buffering) CircularProgressIndicator(color = Color(0xFFE6B94E), modifier = Modifier.size(34.dp))
-                    else SiteIcon(if (playing) "pause" else "play", size = 38.dp, tint = Color.White)
-                }
+                // Use the SINGLE central play/pause button in the controls row below.
             } else AttaZoomableImage(url, "صورة المنشور", onTap = { controls = !controls })
-            // Playback controls belong over the middle of the VIDEO.
-            // Social actions stay beneath it, near the bottom edge.
+            // One playback-control row in the lower third, as in the approved mockup.
+            // The separate post-like/comment controls remain at the very bottom.
             if (player != null && controls) Column(
-                Modifier.align(Alignment.Center).fillMaxWidth()
-                    .background(Color(0x88000000))
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                Modifier.align(Alignment.BottomCenter).fillMaxWidth()
+                    .background(Brush.verticalGradient(listOf(Color.Transparent, Color(0xAA000000))))
+                    .navigationBarsPadding()
+                    .padding(horizontal = 16.dp, vertical = 12.dp)
+                    .padding(bottom = if (loadInteractions != null && sendComment != null) 74.dp else 38.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 if (failed.isNotBlank()) {
@@ -226,9 +226,18 @@ internal fun AttaPostMediaViewer(
                     IconButton(onClick = {
                         player.seekTo((player.currentPosition - 10000L).coerceAtLeast(0))
                     }) { SiteIcon("rotate-ccw", size = 23.dp, tint = Color.White) }
-                    IconButton(onClick = { if (playing) player.pause() else player.play() }) {
-                        SiteIcon(if (playing) "pause" else "play", size = 29.dp,
-                            tint = Color(0xFFE6B94E))
+                    IconButton(onClick = {
+                        if (playing) player.pause() else {
+                            if (player.playbackState == Player.STATE_ENDED) player.seekTo(0)
+                            if (player.playerError != null) { failed = ""; player.prepare() }
+                            player.play()
+                        }
+                    }, modifier = Modifier.size(60.dp)
+                        .border(1.dp, Color(0xFFE6B94E), RoundedCornerShape(50))) {
+                        if (buffering) CircularProgressIndicator(color = Color(0xFFE6B94E),
+                            modifier = Modifier.size(26.dp))
+                        else SiteIcon(if (playing) "pause" else "play", size = 30.dp,
+                            tint = Color.White)
                     }
                     IconButton(onClick = {
                         player.seekTo((player.currentPosition + 10000L)
