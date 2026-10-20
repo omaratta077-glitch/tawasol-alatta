@@ -3,6 +3,7 @@ package com.alatta.nativeapp
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -24,9 +25,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -38,6 +42,34 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import androidx.compose.ui.layout.ContentScale
 import org.json.JSONObject
+
+/** Moving white highlight, clipped to the existing icon/button size.
+ * No navigation size or item order changes.
+ */
+@Composable
+internal fun Modifier.attaMovingShine(): Modifier {
+    val transition = rememberInfiniteTransition(label = "white-shine")
+    val step by transition.animateFloat(
+        initialValue = -0.5f, targetValue = 1.5f,
+        animationSpec = infiniteRepeatable(tween(2900), repeatMode = RepeatMode.Restart),
+        label = "sheen-offset")
+    return this.drawWithContent {
+        drawContent()
+        val x = size.width * step
+        drawLine(
+            brush = Brush.horizontalGradient(
+                0f to Color.Transparent,
+                .45f to Color.White.copy(alpha = .0f),
+                .5f to Color.White.copy(alpha = .75f),
+                .55f to Color.White.copy(alpha = .0f),
+                1f to Color.Transparent,
+                startX = x - 17.dp.toPx(), endX = x + 17.dp.toPx()),
+            start = Offset(x - 8.dp.toPx(), 0f),
+            end = Offset(x + 8.dp.toPx(), size.height),
+            strokeWidth = 2.dp.toPx(), cap = StrokeCap.Round
+        )
+    }
+}
 
 // Android vectors are produced directly from cloudflare-site/public/icons.js.
 // This file does NOT use substitute text glyphs or platform-dependent emoji.
@@ -106,7 +138,7 @@ internal fun SiteIcon(name: String, modifier: Modifier = Modifier, tint: Color =
         else -> R.drawable.atta_ic_ellipsis
     }
     Icon(painter = painterResource(resId), contentDescription = name, tint = tint,
-        modifier = modifier.size(size).shadow(2.dp, CircleShape,
+        modifier = modifier.size(size).attaMovingShine().shadow(2.dp, CircleShape,
             ambientColor = PremiumGold.copy(alpha = .32f), spotColor = PremiumGold.copy(alpha = .2f)))
 }
 
@@ -132,7 +164,7 @@ internal fun PremiumHeader(
             horizontalArrangement = Arrangement.spacedBy(5.dp)
         ) {
             Image(painterResource(R.drawable.logo_premium), "شعار العطا",
-                Modifier.size(34.dp).shadow(8.dp, CircleShape,
+                Modifier.size(34.dp).attaMovingShine().shadow(8.dp, CircleShape,
                     ambientColor = PremiumGold.copy(alpha = .64f),
                     spotColor = PremiumGold.copy(alpha = .58f)).clip(CircleShape))
             Text("AL-ATTA", color = PremiumGoldLight, fontWeight = FontWeight.Bold,
@@ -228,7 +260,7 @@ internal fun PremiumBottomNav(current: String, go: (String) -> Unit) {
         destinations.forEach { (name, icon, label) ->
             val selected = current == name
             Column(
-                Modifier.width(66.dp).fillMaxHeight()
+                Modifier.width(66.dp).fillMaxHeight().attaMovingShine()
                     .background(
                         if (selected) PremiumGold.copy(alpha = .20f)
                         else Color(0xFF171A1D),
