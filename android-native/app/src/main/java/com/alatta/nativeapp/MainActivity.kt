@@ -525,7 +525,7 @@ private fun SignupLegalConsent(
 }
 
 @Composable private fun GoldButton(text: String, enabled: Boolean = true, onClick: () -> Unit) {
-    Button(onClick = onClick, enabled = enabled, colors = ButtonDefaults.buttonColors(containerColor = Gold, contentColor = Black), shape = RoundedCornerShape(12.dp), modifier = Modifier.shadow(7.dp, RoundedCornerShape(12.dp), ambientColor = Gold.copy(alpha = .35f), spotColor = Gold.copy(alpha = .30f)).heightIn(min = 42.dp)) {
+    Button(onClick = onClick, enabled = enabled, colors = ButtonDefaults.buttonColors(containerColor = Gold, contentColor = Black), shape = RoundedCornerShape(12.dp), modifier = Modifier.attaMovingShine().shadow(7.dp, RoundedCornerShape(12.dp), ambientColor = Gold.copy(alpha = .35f), spotColor = Gold.copy(alpha = .30f)).heightIn(min = 42.dp)) {
         Text(text, fontWeight = FontWeight.Bold, fontSize = 13.sp, maxLines = 1)
     }
 }
@@ -537,7 +537,7 @@ private fun SignupLegalConsent(
             disabledContainerColor = Gold, disabledContentColor = Black),
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 5.dp),
         shape = RoundedCornerShape(13.dp),
-        modifier = Modifier.shadow(5.dp, RoundedCornerShape(13.dp),
+        modifier = Modifier.attaMovingShine().shadow(5.dp, RoundedCornerShape(13.dp),
             ambientColor = Gold.copy(alpha = .32f), spotColor = Gold.copy(alpha = .30f))
             .heightIn(min = 40.dp)) {
         Text("نشر", fontWeight = FontWeight.Bold, fontSize = 14.sp, maxLines = 1)
