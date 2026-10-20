@@ -2025,6 +2025,7 @@ async function logoutCurrentAccount(){
     $("authMainFields").classList.remove("hidden");
     $("verificationFields").classList.add("hidden");
     $("registerFields").classList.add("hidden");
+  $("signupConsent").classList.add("hidden");
     $("confirmPasswordInput").classList.add("hidden");
 
     $("loginTab").disabled=false;
@@ -3546,6 +3547,7 @@ function exitVerificationStep(){
 
   $("authMainFields").classList.remove("hidden");
   $("registerFields").classList.remove("hidden");
+  $("signupConsent").classList.remove("hidden");
   $("confirmPasswordInput").classList.remove("hidden");
   $("verificationFields").classList.add("hidden");
   $("authBtn").textContent="إرسال كود التأكيد";
@@ -3633,6 +3635,8 @@ $("authBtn").onclick=async()=>{
     };
 
     if(authMode==="register"){
+      if(!$("policyAccepted").checked || !$("valuesPledgeAccepted").checked)throw new Error("يجب الموافقة على السياسات والتعهد بالقيم والمبادئ الإسلامية أولًا");
+      body.policyAccepted=true;body.valuesPledgeAccepted=true;
       const gender=$("genderInput").value;
       const hidden=$("hiddenAccountInput").value;
       if(!["male","female"].includes(gender))throw new Error("اختيار النوع (ذكر أو أنثى) إجباري");
@@ -4002,6 +4006,8 @@ function requestGoogleProfile(){
           <option value="">اختاري نعم أو لا</option><option value="true">نعم، إخفاء</option><option value="false">لا، إظهار</option>
         </select>
       </label>
+      <label style="font-size:13px"><input type="checkbox" name="policyAccepted" required> قرأت <a href="/privacy.html" target="_blank" rel="noopener" style="color:#e6b94e">سياسة الخصوصية</a> و<a href="/terms.html" target="_blank" rel="noopener" style="color:#e6b94e">شروط الاستخدام</a> وأوافق عليهما.</label>
+      <label style="font-size:13px"><input type="checkbox" name="valuesPledgeAccepted" required> أتعهد بالالتزام بالقيم والمبادئ الإسلامية والأخلاقية.</label>
       <button type="submit" style="border:0;background:#e6b94e;color:#070707;padding:13px;border-radius:13px;font-weight:800">تأكيد وإنشاء الحساب</button>
       <button type="button" data-cancel style="background:transparent;color:#d9c89a;border:1px solid #6b5429;padding:11px;border-radius:13px">إلغاء</button>
     </form>`;
@@ -4018,7 +4024,7 @@ function requestGoogleProfile(){
       if(form.elements.gender.value==="female" && !["true","false"].includes(form.elements.accountHidden.value)){
         alert("اختاري هل تريدين إخفاء الحساب أم لا");return;
       }
-      finish({fullName:form.elements.fullName.value.trim(),username:form.elements.username.value.trim().toLowerCase(),birthDate:form.elements.birthDate.value,city:form.elements.city.value.trim(),gender:form.elements.gender.value,accountHidden:form.elements.gender.value==="female" && form.elements.accountHidden.value==="true"});
+      finish({policyAccepted:true,valuesPledgeAccepted:true,fullName:form.elements.fullName.value.trim(),username:form.elements.username.value.trim().toLowerCase(),birthDate:form.elements.birthDate.value,city:form.elements.city.value.trim(),gender:form.elements.gender.value,accountHidden:form.elements.gender.value==="female" && form.elements.accountHidden.value==="true"});
     };
     document.body.appendChild(overlay);
     const born=form.elements.birthDate;
