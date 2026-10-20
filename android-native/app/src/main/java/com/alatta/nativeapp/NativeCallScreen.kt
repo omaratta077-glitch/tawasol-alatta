@@ -316,24 +316,35 @@ internal fun NativeCallScreen(
                             textAlign = TextAlign.Center, modifier = Modifier.padding(top = 6.dp))
                     }
                 } else {
-                    Column(Modifier.fillMaxWidth().padding(vertical = 8.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(peerDisplayName, fontSize = 18.sp, color = CallWhite, maxLines = 1)
-                        Text("مكالمة فيديو", fontSize = 15.sp, color = CallGold)
+                    // Video-call chrome: center only the identity; the native remote
+                    // video remains full-screen behind it. Keep diagnostic text hidden.
+                    Column(Modifier.fillMaxWidth().weight(1f),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center) {
+                        Text(peerDisplayName, fontSize = 20.sp, color = CallWhite,
+                            textAlign = TextAlign.Center, maxLines = 1)
+                        Text("مكالمة فيديو", fontSize = 16.sp, color = CallGold,
+                            fontWeight = FontWeight.Bold, textAlign = TextAlign.Center,
+                            modifier = Modifier.padding(top = 6.dp))
+                        if (connectedAt > 0L) {
+                            Text("%02d:%02d".format(elapsed / 60, elapsed % 60),
+                                color = CallWhite, textAlign = TextAlign.Center,
+                                modifier = Modifier.padding(top = 8.dp), fontSize = 15.sp)
+                        }
                     }
                 }
-                Text(callStatus, color = CallGold, textAlign = TextAlign.Center,
-                    fontSize = 15.sp, maxLines = 3,
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 17.dp, vertical = 8.dp)
-                        .background(Color(0xDD050709)))
-                if (connectedAt > 0L) Text("%02d:%02d".format(elapsed / 60, elapsed % 60),
-                    color = CallWhite, textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth(), fontSize = 15.sp)
-                if (videoCall && !remoteReady) Text(
-                    if (localReady) "كاميرتك تعمل — انتظار صورة الطرف الآخر" else "جارٍ تشغيل معاينة الكاميرا...",
-                    textAlign = TextAlign.Center, color = CallMuted, fontSize = 11.sp,
-                    modifier = Modifier.fillMaxWidth().background(Color(0xDD050709))
-                        .padding(bottom = 5.dp))
+                if (!videoCall) {
+                    Text(callStatus, color = CallGold, textAlign = TextAlign.Center,
+                        fontSize = 15.sp, maxLines = 3,
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 17.dp, vertical = 8.dp)
+                            .background(Color(0xDD050709)))
+                    if (connectedAt > 0L) {
+                        Text("%02d:%02d".format(elapsed / 60, elapsed % 60),
+                            color = CallWhite, textAlign = TextAlign.Center,
+                            modifier = Modifier.fillMaxWidth(), fontSize = 15.sp)
+                    }
+                }
+                if (videoCall) Spacer(Modifier.height(58.dp))
                 Row(Modifier.fillMaxWidth().height(106.dp).background(CallBackground)
                     .padding(horizontal = 8.dp), horizontalArrangement = Arrangement.SpaceEvenly,
                     verticalAlignment = Alignment.CenterVertically) {
