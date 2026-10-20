@@ -330,6 +330,11 @@ internal fun NativeCallScreen(
                             Text("%02d:%02d".format(elapsed / 60, elapsed % 60),
                                 color = CallWhite, textAlign = TextAlign.Center,
                                 modifier = Modifier.padding(top = 8.dp), fontSize = 15.sp)
+                        } else {
+                            // Keep signaling status visible until the remote peer answers.
+                            Text(callStatus, color = CallGold, textAlign = TextAlign.Center,
+                                maxLines = 2, fontSize = 15.sp,
+                                modifier = Modifier.padding(top = 10.dp, start = 16.dp, end = 16.dp))
                         }
                     }
                 }
