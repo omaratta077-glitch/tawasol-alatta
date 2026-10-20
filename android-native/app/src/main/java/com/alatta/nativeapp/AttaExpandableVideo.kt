@@ -189,7 +189,7 @@ internal fun AttaPostMediaViewer(
                         this.player = player
                         useController = false
                         resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-                    } }, update = { it.player = player }, modifier = Modifier.fillMaxSize())
+                    } }, update = { it.player = player }, modifier = Modifier.fillMaxSize().offset(y = (-12).dp))
                     var drag by remember(id) { mutableFloatStateOf(0f) }
                     Box(Modifier.fillMaxSize().clickable { controls = !controls }
                         .pointerInput(id) { detectVerticalDragGestures(
@@ -245,7 +245,7 @@ internal fun AttaPostMediaViewer(
                 if (player != null && controls) Column(
                     Modifier.align(Alignment.BottomCenter).fillMaxWidth()
                         .background(Brush.verticalGradient(listOf(Color.Transparent, Color(0xAA000000))))
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                        .padding(horizontal = 16.dp, top = 8.dp, bottom = 20.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     if (failed.isNotBlank()) {
