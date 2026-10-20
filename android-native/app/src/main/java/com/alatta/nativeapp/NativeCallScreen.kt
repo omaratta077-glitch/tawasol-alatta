@@ -295,22 +295,31 @@ internal fun NativeCallScreen(
             }
         } else {
             Column(Modifier.fillMaxSize()) {
-                Row(Modifier.fillMaxWidth().height(70.dp).background(CallBackground.copy(alpha = .92f))
-                    .padding(horizontal = 15.dp), verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween) {
-                    Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.End) {
-                        Text(if (videoCall) "مكالمة فيديو" else "مكالمة صوتية",
-                            fontSize = 19.sp, fontWeight = FontWeight.Bold, color = CallGold,
-                            textAlign = TextAlign.End, modifier = Modifier.fillMaxWidth())
-                        Text(peerDisplayName, fontSize = 13.sp, color = CallWhite, maxLines = 1,
-                            textAlign = TextAlign.End, modifier = Modifier.fillMaxWidth())
+                Row(Modifier.fillMaxWidth().height(56.dp).padding(horizontal = 12.dp),
+                    horizontalArrangement = Arrangement.Start,
+                    verticalAlignment = Alignment.CenterVertically) {
+                    TextButton(onClick = onMinimize) {
+                        SiteIcon("chevron-left", tint = CallGold, size = 23.dp)
                     }
-                    TextButton(onClick = onMinimize) { SiteIcon("chevron-left", tint = CallGold, size = 23.dp) }
                 }
                 Spacer(Modifier.weight(1f))
                 if (!videoCall) {
-                    Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
+                    Column(Modifier.fillMaxWidth().weight(1f),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center) {
                         SiteIcon("user", tint = CallGold, size = 96.dp)
+                        Spacer(Modifier.height(14.dp))
+                        Text(peerDisplayName, fontSize = 20.sp, color = CallWhite,
+                            textAlign = TextAlign.Center, maxLines = 1)
+                        Text("مكالمة صوتية", fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold, color = CallGold,
+                            textAlign = TextAlign.Center, modifier = Modifier.padding(top = 6.dp))
+                    }
+                } else {
+                    Column(Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(peerDisplayName, fontSize = 18.sp, color = CallWhite, maxLines = 1)
+                        Text("مكالمة فيديو", fontSize = 15.sp, color = CallGold)
                     }
                 }
                 Text(callStatus, color = CallGold, textAlign = TextAlign.Center,
