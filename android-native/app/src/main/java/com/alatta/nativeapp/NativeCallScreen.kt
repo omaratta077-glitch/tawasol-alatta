@@ -355,8 +355,10 @@ internal fun NativeCallScreen(
                 // Bottom third, rather than overlapping Android's navigation bar.
                 Row(Modifier.fillMaxWidth().height(92.dp)
                     .padding(horizontal = 12.dp),
-                    horizontalArrangement = Arrangement.SpaceEvenly,
+                    horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically) {
+                    // RTL row: first item is at the far right in audio and video calls.
+                    CallControl("phone", "إنهاء", danger = true) { endCall() }
                     CallControl(if (muted) "mic-off" else "mic", "الميكروفون", active = muted) {
                         muted = engine.toggleMute()
                     }
@@ -365,7 +367,6 @@ internal fun NativeCallScreen(
                             cameraOff = engine.toggleCamera()
                         }
                     }
-                    CallControl("phone", "إنهاء", danger = true) { endCall() }
                     CallControl("volume", "السماعة", active = speakerOn) {
                         speakerOn = engine.toggleSpeaker()
                     }
