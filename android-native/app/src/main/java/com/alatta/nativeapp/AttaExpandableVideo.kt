@@ -21,6 +21,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
@@ -168,6 +169,7 @@ internal fun AttaPostMediaViewer(
         DisposableEffect(window) {
             window?.let {
                 WindowCompat.setDecorFitsSystemWindows(it, false)
+                it.setLayout(WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.MATCH_PARENT)
                 WindowCompat.getInsetsController(it, view).apply {
                     systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
                     hide(WindowInsetsCompat.Type.systemBars())
@@ -177,118 +179,122 @@ internal fun AttaPostMediaViewer(
             onDispose { window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) }
         }
         BackHandler { if (sheet != null) sheet = null else onDismiss() }
-        Box(Modifier.fillMaxSize().background(Color.Black)) {
-            if (player != null) {
-                AndroidView(factory = { ctx -> PlayerView(ctx).apply {
-                    this.player = player
-                    useController = false
-                    resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM
-                } }, update = { it.player = player }, modifier = Modifier.fillMaxSize())
-                var drag by remember(id) { mutableFloatStateOf(0f) }
-                Box(Modifier.fillMaxSize().clickable { controls = !controls }
-                    .pointerInput(id) { detectVerticalDragGestures(
-                        onDragStart = { drag = 0f },
-                        onDragCancel = { drag = 0f },
-                        onDragEnd = { if (abs(drag) > 80.dp.toPx()) changeVideo(if (drag < 0) 1 else -1); drag = 0f },
-                        onVerticalDrag = { change, amount -> change.consume(); drag += amount }
-                    ) })
-                // Use the SINGLE central play/pause button in the controls row below.
-            } else AttaZoomableImage(url, "صورة المنشور", onTap = { controls = !controls })
-            // The approved two circular social actions at the top-right.
-            // They are displayed only when connected to real post APIs.
-            if (player != null && (sendReaction != null || onShare != null)) {
-                Column(Modifier.align(Alignment.TopEnd)
-                    .statusBarsPadding().padding(top = 16.dp, end = 14.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally) {
-                    if (sendReaction != null && loadInteractions != null) {
-                        Box(Modifier.size(44.dp).clip(RoundedCornerShape(50))
-                            .background(Color(0xAA080808))
-                            .border(1.dp, Color(0xFFE6B94E), RoundedCornerShape(50))
-                            .clickable { react("love") }, contentAlignment = Alignment.Center) {
-                            SiteIcon(if (selected == "love") "heart-filled" else "heart",
-                                size = 24.dp, tint = Color(0xFFE6B94E))
+        // Give the video exactly the space left above the measured social footer.
+        // Safe insets protect both from transient system bars and display cutouts.
+        Column(Modifier.fillMaxSize().background(Color.Black).safeDrawingPadding()) {
+            Box(Modifier.weight(1f).fillMaxWidth().clipToBounds()) {
+                if (player != null) {
+                    AndroidView(factory = { ctx -> PlayerView(ctx).apply {
+                        this.player = player
+                        useController = false
+                        resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+                    } }, update = { it.player = player }, modifier = Modifier.fillMaxSize())
+                    var drag by remember(id) { mutableFloatStateOf(0f) }
+                    Box(Modifier.fillMaxSize().clickable { controls = !controls }
+                        .pointerInput(id) { detectVerticalDragGestures(
+                            onDragStart = { drag = 0f },
+                            onDragCancel = { drag = 0f },
+                            onDragEnd = { if (abs(drag) > 80.dp.toPx()) changeVideo(if (drag < 0) 1 else -1); drag = 0f },
+                            onVerticalDrag = { change, amount -> change.consume(); drag += amount }
+                        ) })
+                    // Use the SINGLE central play/pause button in the controls row below.
+                } else AttaZoomableImage(url, "صورة المنشور", onTap = { controls = !controls })
+                // The approved two circular social actions at the top-right.
+                // They are displayed only when connected to real post APIs.
+                if (player != null && (sendReaction != null || onShare != null)) {
+                    Column(Modifier.align(Alignment.TopEnd)
+                        .padding(top = 12.dp, end = 14.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally) {
+                        if (sendReaction != null && loadInteractions != null) {
+                            Box(Modifier.size(44.dp).clip(RoundedCornerShape(50))
+                                .background(Color(0xAA080808))
+                                .border(1.dp, Color(0xFFE6B94E), RoundedCornerShape(50))
+                                .clickable { react("love") }, contentAlignment = Alignment.Center) {
+                                SiteIcon(if (selected == "love") "heart-filled" else "heart",
+                                    size = 24.dp, tint = Color(0xFFE6B94E))
+                            }
                         }
-                    }
-                    if (onShare != null) {
-                        Box(Modifier.size(44.dp).clip(RoundedCornerShape(50))
-                            .background(Color(0xAA080808))
-                            .border(1.dp, Color(0xFFE6B94E), RoundedCornerShape(50))
-                            .clickable {
-                                scope.launch {
-                                    try { onShare(id) }
-                                    catch (cancelled: CancellationException) { throw cancelled }
-                                    catch (e: Exception) {
-                                        failed = e.message ?: "تعذر مشاركة المنشور"; controls = true
+                        if (onShare != null) {
+                            Box(Modifier.size(44.dp).clip(RoundedCornerShape(50))
+                                .background(Color(0xAA080808))
+                                .border(1.dp, Color(0xFFE6B94E), RoundedCornerShape(50))
+                                .clickable {
+                                    scope.launch {
+                                        try { onShare(id) }
+                                        catch (cancelled: CancellationException) { throw cancelled }
+                                        catch (e: Exception) {
+                                            failed = e.message ?: "تعذر مشاركة المنشور"; controls = true
+                                        }
                                     }
-                                }
-                            }, contentAlignment = Alignment.Center) {
-                            SiteIcon("send", size = 24.dp, tint = Color.White)
+                                }, contentAlignment = Alignment.Center) {
+                                SiteIcon("send", size = 24.dp, tint = Color.White)
+                            }
                         }
                     }
                 }
-            }
-            // One playback-control row in the lower third, as in the approved mockup.
-            // The separate post-like/comment controls remain at the very bottom.
-            if (player != null && controls) Column(
-                Modifier.align(Alignment.BottomCenter).fillMaxWidth()
-                    .background(Brush.verticalGradient(listOf(Color.Transparent, Color(0xAA000000))))
-                    .navigationBarsPadding()
-                    .padding(horizontal = 16.dp, vertical = 12.dp)
-                    .padding(bottom = if (loadInteractions != null && sendComment != null) 74.dp else 38.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                if (failed.isNotBlank()) {
-                    Text(failed, color = Color(0xFFFFB5B5), fontSize = 13.sp)
-                    if (player.playerError != null) TextButton(onClick = {
-                        failed = ""; player.prepare(); player.play()
-                    }) { Text("إعادة المحاولة", color = Color(0xFFE6B94E)) }
-                }
-                if (duration > 0) {
-                    Slider(value = progress, onValueChange = {
-                        progress = it; player.seekTo((duration * it).toLong())
-                    }, modifier = Modifier.fillMaxWidth().height(28.dp),
-                        colors = SliderDefaults.colors(thumbColor = Color.White,
-                            activeTrackColor = Color(0xFFE6B94E)))
-                    val currentSeconds = player.currentPosition.coerceAtLeast(0) / 1000
-                    val totalSeconds = duration / 1000
-                    Text("%02d:%02d / %02d:%02d".format(currentSeconds / 60,
-                        currentSeconds % 60, totalSeconds / 60, totalSeconds % 60),
-                        color = Color.White, fontSize = 12.sp)
-                }
-                Row(Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceEvenly,
-                    verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = {
-                        changeVideo(-1)
-                    }) { SiteIcon("skip-back", size = 23.dp, tint = Color.White) }
-                    IconButton(onClick = {
-                        if (playing) player.pause() else {
-                            if (player.playbackState == Player.STATE_ENDED) player.seekTo(0)
-                            if (player.playerError != null) { failed = ""; player.prepare() }
-                            player.play()
-                        }
-                    }, modifier = Modifier.size(60.dp)
-                        .border(1.dp, Color(0xFFE6B94E), RoundedCornerShape(50))) {
-                        if (buffering) CircularProgressIndicator(color = Color(0xFFE6B94E),
-                            modifier = Modifier.size(26.dp))
-                        else SiteIcon(if (playing) "pause" else "play", size = 30.dp,
-                            tint = Color.White)
+                // Playback controls overlay the bounded video area; the social footer
+                // below has its own measured height and is not part of this auto-hide.
+                if (player != null && controls) Column(
+                    Modifier.align(Alignment.BottomCenter).fillMaxWidth()
+                        .background(Brush.verticalGradient(listOf(Color.Transparent, Color(0xAA000000))))
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    if (failed.isNotBlank()) {
+                        Text(failed, color = Color(0xFFFFB5B5), fontSize = 13.sp)
+                        if (player.playerError != null) TextButton(onClick = {
+                            failed = ""; player.prepare(); player.play()
+                        }) { Text("إعادة المحاولة", color = Color(0xFFE6B94E)) }
                     }
-                    IconButton(onClick = {
-                        changeVideo(1)
-                    }) { SiteIcon("skip-forward", size = 23.dp, tint = Color.White) }
+                    if (duration > 0) {
+                        Slider(value = progress, onValueChange = {
+                            progress = it; player.seekTo((duration * it).toLong())
+                        }, modifier = Modifier.fillMaxWidth().height(28.dp),
+                            colors = SliderDefaults.colors(thumbColor = Color.White,
+                                activeTrackColor = Color(0xFFE6B94E)))
+                        val currentSeconds = player.currentPosition.coerceAtLeast(0) / 1000
+                        val totalSeconds = duration / 1000
+                        Text("%02d:%02d / %02d:%02d".format(currentSeconds / 60,
+                            currentSeconds % 60, totalSeconds / 60, totalSeconds % 60),
+                            color = Color.White, fontSize = 12.sp)
+                    }
+                    Row(Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceEvenly,
+                        verticalAlignment = Alignment.CenterVertically) {
+                        IconButton(onClick = {
+                            changeVideo(-1)
+                        }) { SiteIcon("skip-back", size = 23.dp, tint = Color.White) }
+                        IconButton(onClick = {
+                            if (playing) player.pause() else {
+                                if (player.playbackState == Player.STATE_ENDED) player.seekTo(0)
+                                if (player.playerError != null) { failed = ""; player.prepare() }
+                                player.play()
+                            }
+                        }, modifier = Modifier.size(52.dp)
+                            .border(1.dp, Color(0xFFE6B94E), RoundedCornerShape(50))) {
+                            if (buffering) CircularProgressIndicator(color = Color(0xFFE6B94E),
+                                modifier = Modifier.size(26.dp))
+                            else SiteIcon(if (playing) "pause" else "play", size = 30.dp,
+                                tint = Color.White)
+                        }
+                        IconButton(onClick = {
+                            changeVideo(1)
+                        }) { SiteIcon("skip-forward", size = 23.dp, tint = Color.White) }
+                    }
                 }
             }
-            if (controls && loadInteractions != null && sendComment != null) Column(
-                Modifier.align(Alignment.BottomCenter).fillMaxWidth()
-                    .background(Brush.verticalGradient(listOf(Color.Transparent, Color(0xD9000000))))
-                    .navigationBarsPadding().padding(horizontal = 16.dp, vertical = 8.dp)
-            ) {
-                if (loadInteractions != null && sendComment != null) Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(18.dp)) {
-                    PremiumReactionAction(reactions, selected == "like", selected,
-                        onLike = { react("like") }, onReact = react, onShowPeople = { sheet = "reactions" })
+            // Keep real post actions visible, outside the video and system bars,
+            // even after playback controls hide. No fixed bottom offset is needed.
+            if (loadInteractions != null && sendComment != null) {
+                Row(Modifier.fillMaxWidth().background(Color(0xFF090D0F))
+                    .heightIn(min = 56.dp).padding(horizontal = 16.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(24.dp)) {
+                    if (sendReaction != null) {
+                        PremiumReactionAction(reactions, selected == "like", selected,
+                            onLike = { react("like") }, onReact = react, onShowPeople = { sheet = "reactions" })
+                    }
                     PremiumPostAction("message-circle", comments.toString(), Color.White) { sheet = "comments" }
                 }
             }
