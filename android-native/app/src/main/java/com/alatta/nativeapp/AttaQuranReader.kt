@@ -49,7 +49,8 @@ import kotlinx.coroutines.withContext
 internal fun QuranReaderScreen(modifier: Modifier = Modifier, onExit: () -> Unit,
     initialPage: Int = 1, readingRange: IntRange? = null,
     onPageChange: (Int) -> Unit = {}, onReadAll: () -> Unit = {},
-    onSharePost: (MushafPostDraft) -> Unit = {}, onStartAudio: () -> Unit = {}) {
+    onSharePost: (MushafPostDraft) -> Unit = {}, onStartAudio: () -> Unit = {},
+    allowOnlineFeatures: Boolean = true) {
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences("atta_native_mushaf", Context.MODE_PRIVATE) }
     var page by remember { mutableIntStateOf(initialPage.coerceIn(1,604)) }
@@ -116,7 +117,8 @@ internal fun QuranReaderScreen(modifier: Modifier = Modifier, onExit: () -> Unit
     val bookmark = prefs.getInt("bookmark", -1)
     // Boundaries use the actual numbered verses in the offline index, never page estimates.
     val allAyahs = ayahDatabase
-    val startAudio: (Int, Int) -> Unit = { start, end ->
+    val startAudio: (Int, Int) -> Unit = startAudio@{ start, end ->
+        if (!allowOnlineFeatures) { playbackError = "التلاوة المتصلة متاحة بعد الموافقة على سياسة الخصوصية"; return@startAudio }
         onStartAudio()
         rangeStart = start
         rangeEnd = end
@@ -136,7 +138,7 @@ internal fun QuranReaderScreen(modifier: Modifier = Modifier, onExit: () -> Unit
         pane = null
     }
     val prepareShare: (MushafShareSelection) -> Unit = { selection ->
-        if (!preparingShare) scope.launch {
+        if (!preparingShare && allowOnlineFeatures) scope.launch {
             preparingShare = true; error = null
             try {
                 val draft = withContext(Dispatchers.IO) { prepareMushafPost(context, selection) }
@@ -173,7 +175,7 @@ internal fun QuranReaderScreen(modifier: Modifier = Modifier, onExit: () -> Unit
                 modifier = Modifier.width(40.dp), contentPadding = PaddingValues(0.dp)) {
                 Text(if (bookmark == page) "◆" else "♧", color = gold, maxLines = 1)
             }
-            IconButton(onClick = { shareFrom = page.toString(); shareTo = page.toString(); sharePart = juz.toString(); pane = "share" },
+            IconButton(enabled = allowOnlineFeatures, onClick = { shareFrom = page.toString(); shareTo = page.toString(); sharePart = juz.toString(); pane = "share" },
                 modifier = Modifier.size(36.dp)) { SiteIcon("share", tint = gold, size = 19.dp) }
         }
         if (readingRange != null) Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp),
@@ -246,7 +248,7 @@ internal fun QuranReaderScreen(modifier: Modifier = Modifier, onExit: () -> Unit
                           Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                             Text("الجزء $n  •  صفحة ${juzStarts[n-1]}",
                                 Modifier.weight(1f).clickable { changePage(juzStarts[n-1]) }.padding(12.dp), color = Color(0xFF221B14))
-                            IconButton(onClick = { prepareShare(mushafPartSelection(n)) }, enabled = !preparingShare) {
+                            IconButton(onClick = { prepareShare(mushafPartSelection(n)) }, enabled = allowOnlineFeatures && !preparingShare) {
                                 SiteIcon("share", tint = gold, size = 20.dp)
                             }
                           }

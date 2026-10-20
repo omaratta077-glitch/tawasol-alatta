@@ -37,7 +37,8 @@ internal fun PublicUserProfile(
     onMessage: () -> Unit,
     onFriendAction: (String) -> Unit,
     onVoiceCall: () -> Unit,
-    onVideoCall: () -> Unit
+    onVideoCall: () -> Unit,
+    onReport: (String, String) -> Unit = { _, _ -> }
 ) {
     val user = profile?.optJSONObject("user") ?: JSONObject().put("username", username)
     val fullName = user.optString("fullName").ifBlank { user.optString("displayName").ifBlank { "مستخدم" } }
@@ -59,6 +60,7 @@ internal fun PublicUserProfile(
             }
             Text("الملف الشخصي", Modifier.weight(1f), color = Color.White, fontSize = 19.sp,
                 fontWeight = FontWeight.Bold)
+            TextButton(onClick = { onReport("user", username) }) { Text("إبلاغ", color = profileGold) }
         }
         if (isLoading) LinearProgressIndicator(Modifier.fillMaxWidth(), color = profileGold)
         LazyColumn(Modifier.fillMaxSize()) {
@@ -216,6 +218,7 @@ internal fun PublicUserProfile(
                     if (post.optString("text").isNotBlank()) Text(post.optString("text"), color = Color.White,
                         fontSize = 14.sp, modifier = Modifier.padding(bottom = 10.dp))
                     MushafPostActions(post.optString("text"))
+                    TextButton(onClick = { onReport("post", post.optString("id")) }) { Text("إبلاغ عن المنشور أو تعليقاته", color = profileGold) }
                     val photo = media(post.optString("image"))
                     val video = media(post.optString("video"))
                     if (photo.isNotBlank()) ExpandableProfileMedia(photo, "صورة المنشور", Modifier.fillMaxWidth()

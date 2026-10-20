@@ -778,10 +778,22 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
 }
 
 @Composable private fun NativeApp() {
+    AttaPrivacyGate { revoke -> NativeAppContent(revoke) }
+}
+
+@Composable private fun NativeAppContent(onPrivacyRevoked: () -> Unit) {
     var updateCheckRequest by remember { mutableIntStateOf(0) }
     AppUpdatePrompt(updateCheckRequest)
     val ctx = LocalContext.current
     val prefs = remember { ctx.getSharedPreferences("alatta_native", 0) }
+    val hasGoogleServices = remember { AttaPush.googleAvailable(ctx) }
+    var notificationsEnabled by remember { mutableStateOf(AttaPrivacy.notifications(ctx)) }
+    var legalDocument by remember { mutableStateOf<String?>(null) }
+    var deletionRequest by remember { mutableStateOf<JSONObject?>(null) }
+    var deletionRequests by remember { mutableStateOf(emptyList<JSONObject>()) }
+    var adminReports by remember { mutableStateOf(emptyList<JSONObject>()) }
+    var reportTarget by remember { mutableStateOf<Pair<String,String>?>(null) }
+    var reportReason by remember { mutableStateOf("") }
     var token by remember { mutableStateOf(prefs.getString("token", "") ?: "") }
     var username by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
@@ -972,6 +984,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
         posts = emptyList(); ownPosts = emptyList(); publicPosts = emptyList(); archivedPosts = emptyList()
         notifications = emptyList(); friends = emptyList(); publicFriends = emptyList(); requests = emptyList(); users = emptyList(); groups = emptyList()
         adminUsers = emptyList(); adminPosts = emptyList(); adminRole = ""
+        adminReports = emptyList(); deletionRequests = emptyList(); deletionRequest = null
         adminSummary = JSONObject(); adminSearch = ""; adminNextOffset = -1
         confirmAccountUser = ""; deleteAccountConfirmation = ""; accountDeleteProgress = ""
         profile = JSONObject(); publicProfile = null; displayName = ""; myUsername = ""; myAvatar = ""
@@ -983,6 +996,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
     }
     fun chooseGoogle(signup: Boolean) {
         if (busy) return
+        if (!hasGoogleServices) { error = "هذا الجهاز لا يدعم خدمات Google؛ استخدم التسجيل أو الدخول بالبريد الإلكتروني"; return }
         task {
             // The sign-in button must never be a silent, permanently disabled control.
             // Retry the public configuration at tap time (e.g. after temporary network loss).
@@ -1292,9 +1306,14 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                     adminUsers = accounts.arr("users")
                     adminNextOffset = if (accounts.isNull("nextOffset")) -1 else accounts.optInt("nextOffset", -1)
                     // During a paused deletion only owner status and account reads are available.
-                    if (adminSummary.isNull("deletion")) adminPosts = get("/api/admin/posts").arr("posts")
+                    if (adminSummary.isNull("deletion")) {
+                        adminPosts = get("/api/admin/posts").arr("posts")
+                        adminReports = get("/api/admin/reports").arr("reports")
+                        deletionRequests = get("/api/admin/deletion-requests").arr("requests")
+                    }
                 }
             }
+            "الخصوصية" -> deletionRequest = get("/api/account-deletion-request").optJSONObject("request")
             "أرشيفي" -> archivedPosts = get("/api/post-archive-list").arr("posts")
             "يوتيوب" -> {
                 val recommendation = when (youtubeCategory) {
@@ -1381,16 +1400,21 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
 
     val notificationPermission = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
-    ) { /* A denied permission means no heads-up notification; foreground calls remain. */ }
-    LaunchedEffect(token, myUsername) {
-        if (token.isNotBlank() && myUsername.isNotBlank()) {
+    ) { granted -> if (granted) AttaPush.register(ctx.applicationContext, token, myUsername) }
+    LaunchedEffect(token, myUsername, notificationsEnabled) {
+        if (token.isNotBlank() && myUsername.isNotBlank() && notificationsEnabled) {
             if (android.os.Build.VERSION.SDK_INT >= 33 &&
                 ContextCompat.checkSelfPermission(ctx, Manifest.permission.POST_NOTIFICATIONS)
                     != PackageManager.PERMISSION_GRANTED) {
                 notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
-            }
-            AttaPush.register(ctx.applicationContext, token, myUsername)
+            } else AttaPush.register(ctx.applicationContext, token, myUsername)
         }
+    }
+    LaunchedEffect(token) {
+        if (token.isNotBlank()) try {
+            post("/api/legal-consent", JSONObject().put("version", AttaPrivacy.VERSION).put("accepted", true))
+        } catch (cancelled: CancellationException) { throw cancelled }
+        catch (_: Exception) { /* The local choice still applies when the server is temporarily unavailable. */ }
     }
 
     // Foreground fallback: poll only small call invitations every three seconds.
@@ -1561,6 +1585,21 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
         },
         dismissButton = { TextButton(onClick = { confirmLogout = false }) { Text("إلغاء", color = White) } }
     )
+    legalDocument?.let { LegalDocument(it) { legalDocument = null } }
+    reportTarget?.let { target -> AlertDialog(
+        onDismissRequest = { if (!busy) reportTarget = null }, containerColor = Panel,
+        title = { Text("الإبلاغ عن محتوى أو حساب", color = GoldLight) },
+        text = { Column {
+            Text("راجع سبب البلاغ. ستطّلع عليه الإدارة لاتخاذ الإجراء المناسب. لا تضع كلمات مرور أو بيانات خاصة.", color = White)
+            OutlinedTextField(reportReason, { reportReason = it.take(500) }, label = { Text("سبب الإبلاغ") }, minLines = 3)
+        } },
+        confirmButton = { TextButton(enabled = !busy && reportReason.trim().length >= 3, onClick = { task {
+            val result = post("/api/report", JSONObject().put("targetType", target.first).put("targetId", target.second).put("reason", reportReason.trim()))
+            reportTarget = null; reportReason = ""
+            featureMessage = if (result.optBoolean("alreadyReported")) "البلاغ موجود بالفعل وقيد المراجعة" else "تم إرسال البلاغ إلى الإدارة"
+        } }) { Text("إرسال البلاغ", color = GoldLight) } },
+        dismissButton = { TextButton(onClick = { reportTarget = null }) { Text("إلغاء") } }
+    ) }
     if (changePasswordDialog) AlertDialog(
         onDismissRequest = { changePasswordDialog = false; currentPassword = ""; nextPassword = ""; nextPasswordAgain = "" },
         title = { Text("تغيير كلمة السر", color = GoldLight) },
@@ -1838,22 +1877,26 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                     applySession(result, username.trim())
                                 }
                             }
+                            if (hasGoogleServices) {
                             Text("أو اختر حساب Google من داخل التطبيق", color = GoldLight,
                                 fontSize = 12.sp, textAlign = TextAlign.Center)
                             PremiumGoogleButton(enabled = !busy, label = "الدخول بحساب Google") {
                                 chooseGoogle(false)
                             }
                             if (!googleEnabled) Text("يتطلب خدمات Google Play وتطابق OAuth مع توقيع التطبيق. اضغط لإعادة التحقق.", color = Muted, fontSize = 11.sp)
+                            } else Text("هذا الهاتف يستخدم تسجيل الدخول بالبريد أو اسم المستخدم وكلمة المرور.", color = Muted, fontSize = 12.sp)
                             TextButton(onClick = { authMode = "forgot" }) {
                                 Text("هل نسيت كلمة السر؟", color = GoldLight, fontWeight = FontWeight.Bold)
                             }
                             PremiumAuthOutlineButton("إنشاء حساب جديد") { authMode = "register"; error = "" }
                         } else if (authMode == "register") {
                             Text("إنشاء حساب جديد", color = GoldLight, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                            if (hasGoogleServices) {
                             PremiumGoogleButton(enabled = !busy, label = "إنشاء حساب عن طريق جوجل") {
                                 chooseGoogle(true)
                             }
                             if (!googleEnabled) Text("اضغط Google للتحقق من الاتصال والإعداد. لو تعذر الاختيار ستظهر رسالة بالسبب.", color = Muted, fontSize = 11.sp)
+                            }
                             Text("أو أنشئ حسابًا بالبريد الإلكتروني", color = GoldLight, fontSize = 13.sp)
                             PremiumAuthTextField(regName, { regName = it }, "الاسم الكامل")
                             PremiumAuthTextField(regUsername, { regUsername = it.lowercase().filter { c -> c.isLetterOrDigit() && c.code < 128 || c == '_' }.take(24) }, "اختر اسم مستخدم فريد (مطلوب)")
@@ -2206,6 +2249,9 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                                     })
                                                 }
                                                 if (!isMyPost) {
+                                                    DropdownMenuItem(text = { Text("الإبلاغ عن المنشور أو تعليقاته", color = GoldLight) }, onClick = {
+                                                        postMenuExpanded = false; reportReason = ""; reportTarget = "post" to postId
+                                                    })
                                                     DropdownMenuItem(text = { Text("حظر صاحب المنشور", color = White) }, onClick = {
                                                         postMenuExpanded = false
                                                         task { post("/api/personal-block", JSONObject().put("username", p.optString("author")).put("action", "block")); load(tab) }
@@ -2344,6 +2390,30 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                 }
                             }
                         }
+                        "الخصوصية" -> AccountPrivacyScreen(myUsername, busy, notificationsEnabled,
+                            when (AttaPush.provider(ctx)) { "hms" -> "Huawei Push Kit"; "fcm" -> "Firebase Cloud Messaging"; else -> "لا توجد خدمة إشعارات مدعومة؛ يبقى التحديث داخل التطبيق عند فتحه" },
+                            deletionRequest,
+                            onNotifications = { enabled ->
+                                notificationsEnabled = enabled; AttaPrivacy.setNotifications(ctx, enabled)
+                                if (!enabled) AttaPush.unregister(ctx.applicationContext, token)
+                            },
+                            onRequestDeletion = { confirmation, reason -> task {
+                                deletionRequest = post("/api/account-deletion-request", JSONObject().put("confirmation", confirmation).put("reason", reason)).optJSONObject("request")
+                                featureMessage = "تم تسجيل طلب حذف الحساب. يمكنك متابعة حالته أو إلغاؤه من هذه الصفحة."
+                            } },
+                            onCancelDeletion = { task {
+                                post("/api/account-deletion-request", JSONObject().put("action", "cancel"))
+                                load("الخصوصية")
+                            } }, onRefresh = { task { load("الخصوصية") } },
+                            onWithdraw = {
+                                val oldSession = token
+                                AttaPush.unregister(ctx.applicationContext, oldSession)
+                                scope.launch { withContext(Dispatchers.IO) {
+                                    runCatching { api("/api/legal-consent", JSONObject().put("token", oldSession).put("version", AttaPrivacy.VERSION).put("accepted", false)) }
+                                    runCatching { api("/api/logout", JSONObject().put("token", oldSession)) }
+                                } }
+                                clearLocalSession(); onPrivacyRevoked()
+                            }, modifier = Modifier.weight(1f))
                         "القائمة" -> LazyColumn(
                             Modifier.weight(1f).padding(horizontal = 12.dp),
                             verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -2380,7 +2450,9 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                     HorizontalDivider(color = Border.copy(alpha = .5f))
                                     PremiumMenuEntry("check", "فحص إشعارات الخلفية") { task {
                                         AttaPush.register(ctx.applicationContext, token, myUsername)
-                                        val status = get("/api/push/status")
+                                        val provider = AttaPush.provider(ctx)
+                                        val providerName = when (provider) { "hms" -> "Huawei Push Kit"; "fcm" -> "Firebase"; else -> "خدمة غير متاحة على هذا الهاتف" }
+                                        val status = get("/api/push/status?provider=$provider")
                                         val serverOk = status.optBoolean("serverConfigured") && status.optBoolean("projectMatches")
                                         val saved = status.optInt("registeredDevices", 0)
                                         val registration = prefs.getLong("push_registered_at", 0L)
@@ -2391,26 +2463,29 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                         val channelOk = androidx.core.app.NotificationManagerCompat.from(ctx).areNotificationsEnabled()
                                         val callReport = status.optJSONObject("lastCallPush")
                                         val callResult = if (callReport == null) "لا يوجد اختبار مكالمة مسجّل بعد"
-                                            else "آخر محاولة مكالمة: ${callReport.optInt("accepted", 0)} مقبولة من Firebase / " +
+                                            else "آخر محاولة مكالمة: ${callReport.optInt("accepted", 0)} مقبولة من مزودي الإشعارات / " +
                                                 "${callReport.optInt("attempted", 0)} محاولة" +
                                                 (callReport.optString("error").takeIf { it.isNotBlank() }?.let { " — $it" } ?: "")
-                                        featureMessage = "Firebase بالتطبيق: ${if (AttaPush.configured()) "جاهز" else "غير مفعّل"}\n" +
+                                        featureMessage = "$providerName بالتطبيق: ${if (AttaPush.ready(ctx)) "جاهز" else "غير مفعّل — يحتاج ربط حساب المطور"}\n" +
                                             "خادم Cloudflare: ${if (serverOk) "جاهز" else "يحتاج ضبط/نشر"}\n" +
                                             "الأجهزة المسجلة: $saved\n" +
                                             "تسجيل هذا الهاتف: ${if (registeredHere) "مؤكد محليًا" else "لم يتأكد بعد"}\n" +
                                             "إذن التنبيهات: ${if (permissionOk && channelOk) "مسموح" else "ممنوع"}\n" +
                                             "$callResult\n" +
-                                            "قبول Firebase لا يعني ضمان العرض على شاشة القفل."
+                                            "قبول مزود الإشعارات لا يعني ضمان العرض على شاشة القفل."
                                     } }
                                     HorizontalDivider(color = Border.copy(alpha = .5f))
                                     PremiumMenuEntry("bell", "إرسال إشعار تجريبي لجهازي") { task {
-                                        val result = post("/api/push/test", JSONObject())
-                                        featureMessage = "Firebase قبل إرسال ${result.optInt("acceptedByFirebase", 0)} إشعار إلى الجهاز. راقب شريط الإشعارات؛ قبول Firebase لا يضمن عرضه إذا كان الهاتف يقيّد الخلفية."
+                                        val result = post("/api/push/test", JSONObject().put("provider", AttaPush.provider(ctx)))
+                                        featureMessage = "قبل مزود الإشعارات إرسال ${result.optInt("acceptedByProvider", result.optInt("acceptedByFirebase", 0))} إشعار إلى الجهاز. راقب شريط الإشعارات؛ قد يقيّد الهاتف العمل في الخلفية."
                                     } }
                                     HorizontalDivider(color = Border.copy(alpha = .5f))
                                     PremiumMenuEntry("check", "فحص تحديث التطبيق") { updateCheckRequest++ }
                                     HorizontalDivider(color = Border.copy(alpha = .5f))
                                     PremiumMenuEntry("lock", "تغيير كلمة السر") { changePasswordDialog = true }
+                                    HorizontalDivider(color = Border.copy(alpha = .5f))
+                                    PremiumMenuEntry("shield", "الخصوصية وطلب حذف الحساب") { navigate("الخصوصية") }
+                                    LegalLinks { legalDocument = it }
                                 }
                             }
                             item {
@@ -2515,6 +2590,39 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                         adminUsers = (adminUsers + accounts.arr("users")).distinctBy { it.optString("username") }
                                         adminNextOffset = if (accounts.isNull("nextOffset")) -1 else accounts.optInt("nextOffset", -1)
                                     } }
+                                }
+                                item { SectionTitle("طلبات حذف الحساب") }
+                                if (deletionRequests.isEmpty()) item { Text("لا توجد طلبات حذف معلّقة", color = Muted) }
+                                items(deletionRequests, key = { "deletion:" + it.optString("id") }) { request ->
+                                    val target = request.optString("username")
+                                    CardBox {
+                                        Text("طلب حذف @$target", color = GoldLight)
+                                        Text(request.optString("reason").ifBlank { "بدون سبب إضافي" }, color = White)
+                                        TextButton(onClick = { openPublicProfile(target) }) { Text("مراجعة الحساب", color = GoldLight) }
+                                        if (target != adminSummary.optString("owner") && target != myUsername) TextButton(onClick = {
+                                            confirmAccountAction = "delete_user"; confirmAccountUser = target
+                                            deleteAccountConfirmation = ""; accountDeleteProgress = ""
+                                        }) { Text("مراجعة وتنفيذ الحذف", color = Color(0xFFFF8B8B)) }
+                                        else Text("حساب المدير الرئيسي: يلزم نقل الملكية قبل حذفه.", color = Muted)
+                                    }
+                                }
+                                item { SectionTitle("بلاغات المحتوى") }
+                                if (adminReports.none { !it.optBoolean("resolved") }) item { Text("لا توجد بلاغات معلّقة", color = Muted) }
+                                items(adminReports.filter { !it.optBoolean("resolved") }, key = { "report:" + it.optString("id") }) { report ->
+                                    CardBox {
+                                        Text("${report.optString("targetType")} • ${report.optString("targetId")}", color = GoldLight)
+                                        Text(report.optString("reason"), color = White)
+                                        Text("مقدّم البلاغ: @${report.optString("reporter")}", color = Muted)
+                                        val author = report.optString("targetUsername")
+                                        if (author.isNotBlank()) TextButton(onClick = { openPublicProfile(author) }) { Text("مراجعة حساب الناشر", color = GoldLight) }
+                                        if (report.optString("targetType") == "post") TextButton(onClick = { confirmPostDelete = report.optString("targetId") }) {
+                                            Text("حذف المنشور المخالف", color = Color(0xFFFF8B8B))
+                                        }
+                                        TextButton(enabled = !busy, onClick = { task {
+                                            post("/api/admin/action", JSONObject().put("action", "resolve_report").put("reportId", report.optString("id")))
+                                            load("الإدارة")
+                                        } }) { Text("تمت مراجعة البلاغ", color = GoldLight) }
+                                    }
                                 }
                                 item { SectionTitle("إدارة المنشورات") }
                                 items(adminPosts) { p ->
@@ -2876,7 +2984,8 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                         onOpenFriend = { friend -> openPublicProfile(friend) },
                         onFriendAction = { action -> updateFriend(profilePeer, action) },
                         onVoiceCall = { openCall(profilePeer, "audio") },
-                        onVideoCall = { openCall(profilePeer, "video") }
+                        onVideoCall = { openCall(profilePeer, "video") },
+                        onReport = { kind, id -> reportReason = ""; reportTarget = kind to id }
                     )
                 }
             }

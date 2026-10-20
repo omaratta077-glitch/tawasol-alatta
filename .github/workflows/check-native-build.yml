@@ -3,6 +3,10 @@ on:
   pull_request:
     paths:
       - 'android-native/**'
+      - 'cloudflare-site/public/privacy.html'
+      - 'cloudflare-site/public/terms.html'
+      - 'cloudflare-site/public/data-rights.html'
+      - 'scripts/check_store_apk.py'
       - '.github/workflows/check-native-build.yml'
 permissions:
   contents: read
@@ -25,3 +29,10 @@ jobs:
       - name: Test sharing ranges, compile release Kotlin and assemble debug APK
         working-directory: android-native
         run: gradle --no-daemon --console=plain :app:testDebugUnitTest :app:compileReleaseKotlin :app:assembleDebug
+      - name: Verify direct distribution APK
+        run: python3 scripts/check_store_apk.py android-native/app/build/outputs/apk/debug/app-debug.apk --channel direct
+      - name: Compile and test AppGallery distribution
+        working-directory: android-native
+        run: gradle --no-daemon --console=plain -Palatta.distribution=appgallery :app:testDebugUnitTest :app:compileReleaseKotlin :app:assembleDebug
+      - name: Verify AppGallery APK has no external APK installer permission
+        run: python3 scripts/check_store_apk.py android-native/app/build/outputs/apk/debug/app-debug.apk --channel appgallery
