@@ -2006,7 +2006,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                             if (unregisteredEmailOffer.isNotBlank()) {
                                 Text("هذا البريد غير مسجّل في تواصل العطا. هل تريد إنشاء حساب جديد؟",
                                     color = GoldLight, fontSize = 13.sp)
-                                PremiumAuthGoldButton("إنشاء حساب بهذا البريد") {
+                                PremiumAuthGoldButton("إنشاء حساب بهذا البريد", !busy) {
                                     regEmail = unregisteredEmailOffer
                                     unregisteredEmailOffer = ""
                                     error = ""
