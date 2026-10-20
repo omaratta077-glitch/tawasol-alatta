@@ -1,9 +1,9 @@
 package com.alatta.nativeapp
 
+import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color as AndroidColor
 import android.graphics.RectF
-import android.view.View
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -20,7 +20,9 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.foundation.Image
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import coil.compose.AsyncImage
@@ -102,28 +104,42 @@ internal fun MushafPostGallery(
 @Composable
 private fun MushafGalleryPage(page: Int, modifier: Modifier = Modifier) {
     val context = LocalContext.current
-    var drawing by remember(page) { mutableStateOf<SVG?>(null) }
-    LaunchedEffect(page) {
+    val width = (LocalConfiguration.current.screenWidthDp * context.resources.displayMetrics.density)
+        .toInt().coerceIn(480, 1100)
+    var bitmap by remember(page, width) { mutableStateOf<Bitmap?>(null) }
+    var failure by remember(page) { mutableStateOf(false) }
+    DisposableEffect(page, width) {
+        onDispose { bitmap?.recycle() }
+    }
+    LaunchedEffect(page, width) {
+        bitmap = null
+        failure = false
         try {
-            drawing = withContext(Dispatchers.IO) { loadMushafDrawing(context, page) }
+            val prepared = withContext(Dispatchers.IO) {
+                val drawing = loadMushafDrawing(context, page)
+                val bounds = drawing.documentViewBox
+                    ?: RectF(0f, 0f, drawing.documentWidth, drawing.documentHeight)
+                require(bounds.width() > 0 && bounds.height() > 0)
+                val height = (width * bounds.height() / bounds.width()).toInt().coerceIn(600, 2200)
+                Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888).also { image ->
+                    val canvas = Canvas(image)
+                    canvas.drawColor(AndroidColor.rgb(253, 247, 230))
+                    renderMushafDrawing(canvas, drawing,
+                        RectF(8f, 8f, width - 8f, height - 8f))
+                }
+            }
+            bitmap = prepared
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (_: Exception) {
-            drawing = null
+            failure = true
         }
     }
-    AndroidView(factory = { ctx -> MushafGalleryPageView(ctx) },
-        update = { it.drawing = drawing; it.invalidate() },
-        modifier = modifier.background(Color(0xFFFDF7E6)))
-}
-
-private class MushafGalleryPageView(context: android.content.Context) : View(context) {
-    var drawing: SVG? = null
-    override fun onDraw(canvas: Canvas) {
-        canvas.drawColor(AndroidColor.rgb(253, 247, 230))
-        drawing?.let {
-            renderMushafDrawing(canvas, it, RectF(8f, 8f,
-                width.toFloat() - 8f, height.toFloat() - 8f))
+    Box(modifier.background(Color(0xFFFDF7E6)), contentAlignment = Alignment.Center) {
+        bitmap?.let { image ->
+            Image(image.asImageBitmap(), "صفحة $page من المصحف", Modifier.fillMaxSize(),
+                contentScale = ContentScale.Fit)
         }
+        if (failure) Text("تعذّر تحميل صفحة $page", color = Color(0xFF844424))
     }
 }
