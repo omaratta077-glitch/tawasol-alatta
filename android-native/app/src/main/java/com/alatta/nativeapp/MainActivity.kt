@@ -476,6 +476,34 @@ class MainActivity : ComponentActivity() {
     fun clearNotificationNavigation() { requestedNotificationTab = null }
 }
 
+@Composable
+private fun SignupLegalConsent(
+    privacyAccepted: Boolean, onPrivacyAccepted: (Boolean) -> Unit,
+    termsAccepted: Boolean, onTermsAccepted: (Boolean) -> Unit,
+    openDocument: (String) -> Unit
+) {
+    Column(Modifier.fillMaxWidth()
+        .border(1.dp, Gold.copy(alpha = .65f), RoundedCornerShape(13.dp))
+        .background(Panel, RoundedCornerShape(13.dp))
+        .padding(9.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text("اقرأ السياسات قبل إنشاء الحساب", color = GoldLight,
+            fontSize = 14.sp, fontWeight = FontWeight.Bold)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            TextButton(onClick = { openDocument("privacy.html") }, modifier = Modifier.weight(1f)) {
+                Text("قراءة سياسة الخصوصية", color = GoldLight, fontSize = 12.sp)
+            }
+            Checkbox(checked = privacyAccepted, onCheckedChange = onPrivacyAccepted)
+        }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            TextButton(onClick = { openDocument("terms.html") }, modifier = Modifier.weight(1f)) {
+                Text("قراءة شروط الاستخدام", color = GoldLight, fontSize = 12.sp)
+            }
+            Checkbox(checked = termsAccepted, onCheckedChange = onTermsAccepted)
+        }
+        Text("حدد المربعين بعد القراءة للموافقة والمتابعة.", color = Muted, fontSize = 11.sp)
+    }
+}
+
 @Composable private fun AttaSignupPrivacyChoice(
     gender: String, onGender: (String) -> Unit,
     hideChoice: Boolean?, onHideChoice: (Boolean?) -> Unit
@@ -868,6 +896,10 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
     var googlePasswordConfirm by remember { mutableStateOf("") }
     var googleGender by remember { mutableStateOf("") }
     var googleHideChoice by remember { mutableStateOf<Boolean?>(null) }
+    var regPoliciesAccepted by remember { mutableStateOf(false) }
+    var regTermsAccepted by remember { mutableStateOf(false) }
+    var googlePoliciesAccepted by remember { mutableStateOf(false) }
+    var googleTermsAccepted by remember { mutableStateOf(false) }
     var nativeUsernameSignup by remember { mutableStateOf(false) }
     var birthDateSignup by remember { mutableStateOf(false) }
     var changePasswordDialog by remember { mutableStateOf(false) }
@@ -1979,8 +2011,10 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                             PremiumAuthTextField(regCity, { regCity = it }, "المدينة (اختياري)")
                             PremiumAuthTextField(regPass, { regPass = it }, "كلمة المرور", password = true)
                             PremiumAuthTextField(regConfirm, { regConfirm = it }, "تأكيد كلمة المرور", password = true)
+                            SignupLegalConsent(regPoliciesAccepted, { regPoliciesAccepted = it },
+                                regTermsAccepted, { regTermsAccepted = it }, { legalDocument = it })
                             if (!birthDateSignup) Text("إنشاء حساب بتاريخ الميلاد يحتاج نشر تحديث Cloudflare v1.0.14 أولًا.", color = Color(0xFFFFC78E), fontSize = 12.sp)
-                            PremiumAuthGoldButton("إرسال كود التأكيد", !busy && birthDateSignup && regName.trim().length >= 3 && regUsername.matches(Regex("[a-z0-9_]{3,24}")) && attaAgeFromBirthDate(regBirthDate) != null && regEmail.isNotBlank() && regGender in listOf("male", "female") && (regGender != "female" || regHideChoice != null) && regPass.length >= 6 && regPass == regConfirm) {
+                            PremiumAuthGoldButton("إرسال كود التأكيد", !busy && regPoliciesAccepted && regTermsAccepted && birthDateSignup && regName.trim().length >= 3 && regUsername.matches(Regex("[a-z0-9_]{3,24}")) && attaAgeFromBirthDate(regBirthDate) != null && regEmail.isNotBlank() && regGender in listOf("male", "female") && (regGender != "female" || regHideChoice != null) && regPass.length >= 6 && regPass == regConfirm) {
                                 task {
                                     val body = JSONObject()
                                         .put("fullName", regName.trim()).put("username", regUsername.trim())
@@ -1989,6 +2023,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                         .put("accountHidden", regGender == "female" && regHideChoice == true)
                                         .put("country", regCountry.trim()).put("city", regCity.trim()).put("password", regPass)
                                         .put("confirmPassword", regConfirm)
+                                        .put("legalAccepted", true).put("legalVersion", AttaPrivacy.VERSION)
                                     val result = withContext(Dispatchers.IO) { api("/api/register-request", body) }
                                     verificationId = result.getString("verificationId")
                                     verificationDelivery = result.optString("delivery", regEmail)
@@ -2033,10 +2068,13 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                             AttaBirthDatePicker(googleBirthDate, { googleBirthDate = it })
                             PremiumAuthTextField(googleCity, { googleCity = it.take(80) }, "المدينة (اختياري)")
                             AttaSignupPrivacyChoice(googleGender, { googleGender = it }, googleHideChoice, { googleHideChoice = it })
+                            SignupLegalConsent(googlePoliciesAccepted, { googlePoliciesAccepted = it },
+                                googleTermsAccepted, { googleTermsAccepted = it }, { legalDocument = it })
                             if (!nativeUsernameSignup || !birthDateSignup) Text(
                                 "خادم Cloudflare الحالي لا يعلن دعمه لإكمال تسجيل Google. يجب نشر تحديث الخادم أولًا؛ لن نُنشئ اسم مستخدم تلقائيًا.",
                                 color = Color(0xFFFFC78E), fontSize = 12.sp)
-                            PremiumAuthGoldButton("تأكيد إنشاء الحساب", !busy && googleIdToken.isNotBlank()) {
+                            PremiumAuthGoldButton("تأكيد إنشاء الحساب", !busy && googleIdToken.isNotBlank() &&
+                                googlePoliciesAccepted && googleTermsAccepted) {
                                 when {
                                     !nativeUsernameSignup || !birthDateSignup ->
                                         error = "إعداد Cloudflare قديم: يجب نشر تحديث إنشاء حساب Google وتاريخ الميلاد أولًا. لن نرسل كود بريد مع Google."
@@ -2061,6 +2099,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                             .put("accountHidden", googleGender == "female" && googleHideChoice == true)
                                             .put("password", googlePassword)
                                             .put("confirmPassword", googlePasswordConfirm)
+                                            .put("legalAccepted", true).put("legalVersion", AttaPrivacy.VERSION)
                                         val result = withContext(Dispatchers.IO) { api("/api/google-login", data) }
                                         val actualUsername = result.optJSONObject("user")?.optString("username").orEmpty()
                                         require(actualUsername == googleUsername.trim()) {
