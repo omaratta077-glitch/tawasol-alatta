@@ -2119,6 +2119,47 @@ private class AttaYoutubeFullscreenChrome(
                             }
                             item {
                                 CardBox {
+                                    SectionTitle("الخصوصية والدعم")
+                                    Text("اعرف حقوقك وطريقة طلب حذف الحساب. الطلب لا يحذف بياناتك تلقائيًا.", color = Muted, fontSize = 12.sp)
+                                    PremiumMenuEntry("lock", "سياسة الخصوصية") {
+                                        try {
+                                            ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("$BASE/privacy.html")))
+                                        } catch (_: Exception) {
+                                            featureMessage = "تعذر فتح سياسة الخصوصية. يمكنك زيارة $BASE/privacy.html"
+                                        }
+                                    }
+                                    HorizontalDivider(color = Border.copy(alpha = .5f))
+                                    PremiumMenuEntry("bookmark", "شروط الاستخدام") {
+                                        try {
+                                            ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("$BASE/terms.html")))
+                                        } catch (_: Exception) {
+                                            featureMessage = "تعذر فتح شروط الاستخدام. يمكنك زيارة $BASE/terms.html"
+                                        }
+                                    }
+                                    HorizontalDivider(color = Border.copy(alpha = .5f))
+                                    PremiumMenuEntry("user", "حقوق المستخدم وحذف الحساب") {
+                                        try {
+                                            ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("$BASE/data-rights.html")))
+                                        } catch (_: Exception) {
+                                            featureMessage = "تعذر فتح صفحة حقوق المستخدم. يمكنك زيارة $BASE/data-rights.html"
+                                        }
+                                    }
+                                    HorizontalDivider(color = Border.copy(alpha = .5f))
+                                    PremiumMenuEntry("mail", "طلب حذف حسابي عبر الدعم") {
+                                        val request = Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:omaratta077@gmail.com")).apply {
+                                            putExtra(Intent.EXTRA_SUBJECT, "طلب حذف حساب - تواصل العطا")
+                                            putExtra(Intent.EXTRA_TEXT, "اسم المستخدم: $myUsername\nأطلب حذف حسابي والبيانات المرتبطة به. أرجو توضيح خطوات التحقق من ملكية الحساب.")
+                                        }
+                                        try {
+                                            ctx.startActivity(request)
+                                        } catch (_: Exception) {
+                                            featureMessage = "لم يتوفر تطبيق بريد لإرسال طلب الحذف. راسل الدعم يدويًا: omaratta077@gmail.com، دون إرسال كلمة المرور."
+                                        }
+                                    }
+                                }
+                            }
+                            item {
+                                CardBox {
                                     PremiumMenuEntry("log-out", "تسجيل الخروج", danger = true) {
                                         confirmLogout = true
                                     }
