@@ -76,7 +76,9 @@ check('Change password succeeds',(await post('/api/change-password',{token:login
 check('Changing password revokes prior session',await room.session(login.data.token)===null);
 check('Login with new password works',(await post('/api/login',{username:'alice',password:'newpassword567'})).status===200);
 check('Reject invalid username at registration',(await post('/api/register-request',{fullName:'Bad User',username:'alice:bob',email:'invalid@test.example',password:'goodpassword',confirmPassword:'goodpassword',birthDate:'2000-01-01'})).status===400);
-const google=await post('/api/google-login',{credential:'fake.test.token',username:'googleuser',fullName:'Google User',birthDate:'2000-01-01',gender:'male',accountHidden:false,password:'mygoodpassword',confirmPassword:'mygoodpassword'});
+const missingLegal=await post('/api/google-login',{credential:'fake.test.token',username:'googleuser',fullName:'Google User',birthDate:'2000-01-01',gender:'male',accountHidden:false,password:'mygoodpassword',confirmPassword:'mygoodpassword'});
+check('Google signup rejects missing privacy consent',missingLegal.status===400);
+const google=await post('/api/google-login',{credential:'fake.test.token',username:'googleuser',fullName:'Google User',birthDate:'2000-01-01',gender:'male',accountHidden:false,password:'mygoodpassword',confirmPassword:'mygoodpassword',legalAccepted:true,legalVersion:'2026-10-20'});
 check('Google validates boolean email_verified and creates account',google.status===200 && google.data.user.username==='googleuser');
 check('Google signup password also works',(await post('/api/login',{username:'googleuser',password:'mygoodpassword'})).status===200);
 globalThis.fetch=realFetch;
