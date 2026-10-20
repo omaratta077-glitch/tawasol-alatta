@@ -12,8 +12,8 @@ android {
         applicationId = "com.alatta.nativeapp"
         minSdk = 26
         targetSdk = 35
-        versionCode = 207
-        versionName = "1.0.107"
+        versionCode = 208
+        versionName = "1.0.108"
     }
 
     // Firebase's public Android configuration is supplied by GitHub Actions vars.

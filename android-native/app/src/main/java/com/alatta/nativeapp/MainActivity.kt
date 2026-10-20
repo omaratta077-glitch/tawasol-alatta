@@ -2159,8 +2159,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                             }) { Text("إزالة فيديو يوتيوب", color = Muted) }
                                         }
                                         mushafPostDraft?.let { shared ->
-                                            AsyncImage(Uri.fromFile(shared.preview), "معاينة صفحة المصحف",
-                                                Modifier.fillMaxWidth().height(230.dp), contentScale = ContentScale.Fit)
+                                            MushafPostGallery(shared.selection.pages, Modifier.fillMaxWidth())
                                             Text("${shared.selection.title} • ${shared.selection.pageCount} صفحة • ملف كامل للقراءة", color = GoldLight, fontSize = 11.sp)
                                             TextButton(onClick = { shared.discard(); mushafPostDraft = null; pickedUri = null }, enabled = !busy) {
                                                 Text("إزالة المرفق", color = Muted)
@@ -2295,7 +2294,9 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                             onStop = { activeYoutubePostId = "" })
                                     }
                                     val image = media(p.optString("image")); val video = media(p.optString("video"))
-                                    if (image.isNotBlank()) ExpandableProfileMedia(image, "صورة المنشور",
+                                    val mushafPages = parseMushafPostAttachment(p.optString("text"), BASE)?.pages
+                                    if (mushafPages != null) MushafPostGallery(mushafPages)
+                                    if (image.isNotBlank() && mushafPages == null) ExpandableProfileMedia(image, "صورة المنشور",
                                         Modifier.fillMaxWidth().padding(vertical = 6.dp)
                                             .aspectRatio(1.15f).clip(RoundedCornerShape(11.dp))
                                             .border(.6.dp, Border.copy(alpha = .75f), RoundedCornerShape(11.dp)),
@@ -2335,6 +2336,9 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                         if (visibleSharedText.isNotBlank()) Text("مشاركة: $visibleSharedText", color = GoldLight)
                                         MushafPostActions(shared.optString("text")) { pages ->
                                             quranReadingRange = pages; quranPage = pages.first; navigate("القرآن")
+                                        }
+                                        parseMushafPostAttachment(shared.optString("text"), BASE)?.let { attachment ->
+                                            MushafPostGallery(attachment.pages)
                                         }
                                         youtubePostId(shared.optString("text"))?.let { videoId ->
                                             YoutubePostMedia(videoId, activeYoutubePostId == postId,
@@ -2943,7 +2947,11 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                             onPlay = { youtubePlayRequested = false; activeYoutubePostId = ownId },
                                             onStop = { activeYoutubePostId = "" })
                                     }
-                                    if (post.optString("image").isNotBlank()) ExpandableProfileMedia(post.optString("image"), "صورة منشوري", Modifier.fillMaxWidth().heightIn(max = 320.dp), ContentScale.Fit)
+                                    val ownMushafPages = parseMushafPostAttachment(post.optString("text"), BASE)?.pages
+                                    if (ownMushafPages != null) MushafPostGallery(ownMushafPages)
+                                    if (post.optString("image").isNotBlank() && ownMushafPages == null)
+                                        ExpandableProfileMedia(post.optString("image"), "صورة منشوري",
+                                            Modifier.fillMaxWidth().heightIn(max = 320.dp), ContentScale.Fit)
                                     if (post.optString("video").isNotBlank()) Text("منشور فيديو", color = GoldLight)
                                 }
                             }
