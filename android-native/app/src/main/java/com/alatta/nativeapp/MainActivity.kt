@@ -51,6 +51,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.window.DialogWindowProvider
+import androidx.core.view.WindowCompat
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.draw.shadow
 import androidx.compose.animation.core.*
@@ -61,6 +63,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -168,9 +171,20 @@ private fun AttaRightAlignedComments(
         catch (e: Exception) { failure = e.message ?: "تعذر تحميل التعليقات" }
         finally { loading = false }
     }
-    Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+    Dialog(onDismissRequest = onClose, properties = DialogProperties(
+        usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
+        val dialogView = LocalView.current
+        val dialogWindow = (dialogView.parent as? DialogWindowProvider)?.window
+        DisposableEffect(dialogWindow) {
+            dialogWindow?.let {
+                WindowCompat.setDecorFitsSystemWindows(it, false)
+                it.setLayout(WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.MATCH_PARENT)
+                it.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
+            }
+            onDispose { }
+        }
         CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
-            Column(Modifier.fillMaxSize().background(Black)) {
+            Column(Modifier.fillMaxSize().background(Black).safeDrawingPadding().imePadding()) {
                 Row(Modifier.fillMaxWidth().height(56.dp)
                     .border(.5.dp, Border).padding(horizontal = 12.dp),
                     verticalAlignment = Alignment.CenterVertically) {
@@ -197,7 +211,8 @@ private fun AttaRightAlignedComments(
                 if (replyTo.isNotBlank()) Row(Modifier.fillMaxWidth()
                     .padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text("رد على ${replyName}", color = GoldLight, fontSize = 12.sp,
-                        modifier = Modifier.weight(1f))
+                        modifier = Modifier.weight(1f), maxLines = 2,
+                        overflow = TextOverflow.Ellipsis)
                     TextButton(onClick = { replyTo = ""; replyName = "" }) {
                         Text("إلغاء", color = Muted)
                     }
@@ -208,6 +223,10 @@ private fun AttaRightAlignedComments(
                     OutlinedTextField(value = content, onValueChange = { content = it },
                         placeholder = { Text("اكتب تعليقًا...", color = Muted) },
                         modifier = Modifier.weight(1f), maxLines = 4,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = White, unfocusedTextColor = White,
+                            cursorColor = Gold, focusedBorderColor = Gold,
+                            unfocusedBorderColor = Border),
                         shape = RoundedCornerShape(22.dp))
                     Spacer(Modifier.width(8.dp))
                     TextButton(onClick = {
@@ -223,7 +242,8 @@ private fun AttaRightAlignedComments(
                             catch (e: Exception) { failure = e.message ?: "تعذر إرسال التعليق" }
                             finally { sending = false }
                         }
-                    }, enabled = content.isNotBlank() && !sending) {
+                    }, enabled = content.isNotBlank() && !sending,
+                        modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp)) {
                         SiteIcon("send", size = 26.dp, tint = Gold)
                     }
                 }
