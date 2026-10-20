@@ -129,20 +129,27 @@ internal fun PremiumHeader(
             Text("AL-ATTA", color = PremiumGoldLight, fontWeight = FontWeight.Bold,
                 fontSize = 12.sp, maxLines = 1, softWrap = false)
         }
-        // YouTube is available in the bottom bar; do not duplicate it in the header.
-        PremiumTopItem("search", "استكشاف", current, onNavigate)
-        PremiumTopItem("message-circle", "الرسائل", current, onNavigate)
-        PremiumTopItem("users", "الأصدقاء", current, onNavigate)
-        Box(Modifier.size(38.dp), contentAlignment = Alignment.Center) {
-            PremiumTopItem("bell", "الإشعارات", current, onNavigate)
-            if (unreadNotifications > 0) {
-                // Tiny unread counter anchored to the LOWER edge of the bell.
-                Box(Modifier.align(Alignment.BottomStart).offset(x = (-1).dp, y = 2.dp)
-                    .sizeIn(minWidth = 15.dp, minHeight = 15.dp)
-                    .background(PremiumGold, CircleShape)
-                    .padding(horizontal = 3.dp), contentAlignment = Alignment.Center) {
-                    Text(unreadNotifications.coerceAtMost(99).toString(),
-                        fontSize = 9.sp, lineHeight = 10.sp, color = PremiumBackground, fontWeight = FontWeight.Bold)
+        // Keep the four navigation buttons grouped tightly on the LEFT in RTL.
+        // Preserve 38dp tap targets; reduce only the gap between the buttons.
+        Spacer(Modifier.weight(1f))
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(3.dp)
+        ) {
+            PremiumTopItem("search", "استكشاف", current, onNavigate)
+            PremiumTopItem("message-circle", "الرسائل", current, onNavigate)
+            PremiumTopItem("users", "الأصدقاء", current, onNavigate)
+            Box(Modifier.size(38.dp), contentAlignment = Alignment.Center) {
+                PremiumTopItem("bell", "الإشعارات", current, onNavigate)
+                if (unreadNotifications > 0) {
+                    Box(Modifier.align(Alignment.BottomStart).offset(x = (-1).dp, y = 2.dp)
+                        .sizeIn(minWidth = 15.dp, minHeight = 15.dp)
+                        .background(PremiumGold, CircleShape)
+                        .padding(horizontal = 3.dp), contentAlignment = Alignment.Center) {
+                        Text(unreadNotifications.coerceAtMost(99).toString(),
+                            fontSize = 9.sp, lineHeight = 10.sp, color = PremiumBackground,
+                            fontWeight = FontWeight.Bold)
+                    }
                 }
             }
         }
