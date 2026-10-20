@@ -2223,7 +2223,8 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                             }
                                         }
                                     }
-                                    if (p.optString("text").isNotBlank()) Text(p.optString("text"), color = White, modifier = Modifier.padding(vertical = 10.dp))
+                                    val visiblePostText = visibleMushafPostText(p.optString("text"), BASE)
+                                    if (visiblePostText.isNotBlank()) Text(visiblePostText, color = White, modifier = Modifier.padding(vertical = 10.dp))
                                     MushafPostActions(p.optString("text")) { pages ->
                                         quranReadingRange = pages; quranPage = pages.first; navigate("القرآن")
                                     }
@@ -2264,7 +2265,8 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                         }
                                     }
                                     p.optJSONObject("sharedPost")?.let { shared ->
-                                        Text("مشاركة: ${shared.optString("text")}", color = GoldLight)
+                                        val visibleSharedText = visibleMushafPostText(shared.optString("text"), BASE)
+                                        if (visibleSharedText.isNotBlank()) Text("مشاركة: $visibleSharedText", color = GoldLight)
                                         MushafPostActions(shared.optString("text")) { pages ->
                                             quranReadingRange = pages; quranPage = pages.first; navigate("القرآن")
                                         }
