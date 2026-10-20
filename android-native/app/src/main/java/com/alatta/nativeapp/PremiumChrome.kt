@@ -192,14 +192,18 @@ internal fun PremiumBottomNav(current: String, go: (String) -> Unit) {
     // One horizontally scrolling navigation bar; it replaces the old fixed five-item bar.
     // Same Lucide-style vector icons as the approved interactive prototype.
     val destinations = listOf(
+        // The approved first row is RTL: Home, Messages, gold Add, Friends, Profile.
+        // Remaining screens stay reachable by horizontal swiping, not removed.
         Triple("الرئيسية", "home", "الرئيسية"),
         Triple("الرسائل", "message-circle", "الرسائل"),
+        Triple("إضافة", "plus", "إضافة"),
+        Triple("الأصدقاء", "users", "الأصدقاء"),
+        Triple("الملف", "user-round", "الملف"),
         Triple("القرآن", "book-open", "القرآن"),
         Triple("الأحاديث", "book-text", "الأحاديث"),
         Triple("الأذكار", "hand-heart", "الأذكار"),
         Triple("الرياضة", "trophy", "الرياضة"),
         Triple("يوتيوب", "play-circle", "يوتيوب"),
-        Triple("الملف", "user-round", "الملف"),
         Triple("القائمة", "ellipsis", "المزيد")
     )
     val scroll = rememberScrollState()
@@ -213,17 +217,32 @@ internal fun PremiumBottomNav(current: String, go: (String) -> Unit) {
         horizontalArrangement = Arrangement.spacedBy(5.dp)
     ) {
         destinations.forEach { (name, icon, label) ->
-            val selected = current == name
+            val addAction = name == "إضافة"
+            val selected = current == name && !addAction
             Column(
                 Modifier.width(72.dp).fillMaxHeight()
-                    .background(if (selected) PremiumGold.copy(alpha = .20f) else Color(0xFF171A1D), RoundedCornerShape(13.dp))
-                    .clickable { go(name) },
+                    .background(
+                        if (selected) PremiumGold.copy(alpha = .20f)
+                        else if (addAction) PremiumGold.copy(alpha = .10f)
+                        else Color(0xFF171A1D),
+                        RoundedCornerShape(13.dp)
+                    )
+                    .clickable { go(if (addAction) "الرئيسية" else name) },
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center
             ) {
-                SiteIcon(icon, tint = if (selected) PremiumGoldLight else PremiumMuted, size = 23.dp)
+                if (addAction) {
+                    Box(Modifier.size(36.dp)
+                        .border(1.5.dp, PremiumGold, CircleShape)
+                        .background(PremiumGold.copy(alpha = .18f), CircleShape),
+                        contentAlignment = Alignment.Center) {
+                        SiteIcon("plus", tint = PremiumGoldLight, size = 25.dp)
+                    }
+                } else {
+                    SiteIcon(icon, tint = if (selected) PremiumGoldLight else PremiumMuted, size = 23.dp)
+                }
                 Spacer(Modifier.height(4.dp))
-                Text(label, color = if (selected) PremiumGoldLight else PremiumMuted,
+                Text(label, color = if (selected || addAction) PremiumGoldLight else PremiumMuted,
                     fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 if (selected) Box(Modifier.padding(top = 3.dp).width(20.dp).height(2.dp)
                     .background(PremiumGold, CircleShape))
