@@ -348,20 +348,24 @@ private fun PostInteractionsSheet(
     var failure by remember(postId, tab) { mutableStateOf<String?>(null) }
     var content by remember(postId) { mutableStateOf("") }
     var sending by remember { mutableStateOf(false) }
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     LaunchedEffect(postId, tab) {
         try { payload = loadInteractions(postId, tab, 0) }
         catch (cancelled: CancellationException) { throw cancelled }
         catch (_: Exception) { failure = "تعذّر تحميل البيانات" }
     }
-    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = Color(0xFF12161A)) {
-        Column(Modifier.fillMaxWidth().padding(16.dp)) {
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState,
+        containerColor = Color(0xFF12161A)) {
+        // Measure the scrolling list after reserving the header and composer;
+        // the keyboard shrinks the list instead of pushing Send off-screen.
+        Column(Modifier.fillMaxWidth().fillMaxHeight(.85f).imePadding().padding(16.dp)) {
             Text(if (tab == "comments") "التعليقات" else "التفاعلات", color = Color(0xFFE6B94E))
             failure?.let { Text(it, color = Color(0xFFFFB5B5)) }
             val records = payload?.optJSONArray("items")
                 ?: payload?.optJSONArray(if (tab == "comments") "comments" else "reactions")
                 ?: payload?.optJSONArray("users")
             if (records == null && failure == null) CircularProgressIndicator(color = Color(0xFFE6B94E))
-            if (records != null) LazyColumn(Modifier.fillMaxWidth().heightIn(max = 320.dp)) {
+            if (records != null) LazyColumn(Modifier.weight(1f).fillMaxWidth()) {
                 items(records.length()) { position ->
                     val item = records.optJSONObject(position)
                     if (item != null) {
@@ -376,11 +380,16 @@ private fun PostInteractionsSheet(
                         }
                     }
                 }
-            }
-            if (tab == "comments") {
+            } else Spacer(Modifier.weight(1f))
+            if (tab == "comments") Row(Modifier.fillMaxWidth().padding(top = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(value = content, onValueChange = { content = it },
                     label = { Text("اكتب تعليقًا", color = Color.LightGray) },
-                    modifier = Modifier.fillMaxWidth(), singleLine = false)
+                    modifier = Modifier.weight(1f), maxLines = 4,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = Color.White, unfocusedTextColor = Color.White,
+                        cursorColor = PremiumGold, focusedBorderColor = PremiumGold))
                 TextButton(onClick = {
                     if (content.isNotBlank() && !sending) scope.launch {
                         sending = true
@@ -393,7 +402,8 @@ private fun PostInteractionsSheet(
                         catch (_: Exception) { failure = "تعذّر إرسال التعليق" }
                         finally { sending = false }
                     }
-                }, enabled = content.isNotBlank() && !sending) {
+                }, enabled = content.isNotBlank() && !sending,
+                    modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp)) {
                     Text("إرسال", color = Color(0xFFE6B94E))
                 }
             }
