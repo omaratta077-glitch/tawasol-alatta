@@ -165,6 +165,7 @@ internal fun NativeCallScreen(
     val videoCall = session.type == "video"
     var callStatus by remember(session.callId) { mutableStateOf("جارٍ بدء المكالمة...") }
     var peerDisplayName by remember(session.peer) { mutableStateOf("جهة الاتصال") }
+    var peerAvatar by remember(session.peer) { mutableStateOf("") }
     LaunchedEffect(session.peer, token) {
         try {
             val result = withContext(Dispatchers.IO) {
@@ -182,6 +183,7 @@ internal fun NativeCallScreen(
                 .map { user.optString(it).trim() }
                 .firstOrNull { it.isNotBlank() && it != "null" }
             if (!name.isNullOrBlank()) peerDisplayName = name
+            peerAvatar = user.optString("avatar")
         } catch (_: Exception) { /* Keep the friendly fallback, never reveal an internal username. */ }
     }
     var localReady by remember(session.callId) { mutableStateOf(false) }
@@ -313,7 +315,12 @@ internal fun NativeCallScreen(
                             .border(2.dp, CallGold, CircleShape)
                             .background(Color(0xFF15120D), CircleShape),
                             contentAlignment = Alignment.Center) {
-                            SiteIcon("user", tint = CallGold, size = 80.dp)
+                            if (peerAvatar.isNotBlank()) {
+                                ProfileMediaImage(peerAvatar, peerDisplayName,
+                                    Modifier.fillMaxSize().clip(CircleShape))
+                            } else {
+                                SiteIcon("user", tint = CallGold, size = 80.dp)
+                            }
                         }
                         Spacer(Modifier.height(18.dp))
                     }
