@@ -224,7 +224,7 @@ internal fun AttaPostMediaViewer(
                     horizontalArrangement = Arrangement.SpaceEvenly,
                     verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = {
-                        player.seekTo((player.currentPosition - 10000L).coerceAtLeast(0))
+                        changeVideo(-1)
                     }) { SiteIcon("skip-back", size = 23.dp, tint = Color.White) }
                     IconButton(onClick = {
                         if (playing) player.pause() else {
@@ -240,8 +240,7 @@ internal fun AttaPostMediaViewer(
                             tint = Color.White)
                     }
                     IconButton(onClick = {
-                        player.seekTo((player.currentPosition + 10000L)
-                            .coerceAtMost(duration.coerceAtLeast(0)))
+                        changeVideo(1)
                     }) { SiteIcon("skip-forward", size = 23.dp, tint = Color.White) }
                 }
             }
