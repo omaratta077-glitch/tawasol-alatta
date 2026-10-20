@@ -586,6 +586,9 @@ private class AttaYoutubeFullscreenChrome(
     var username by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var authMode by remember { mutableStateOf("login") }
+    var policyAccepted by remember { mutableStateOf(false) }
+    var valuesPledgeAccepted by remember { mutableStateOf(false) }
+    var showSignupPolicy by remember { mutableStateOf(false) }
     var regName by remember { mutableStateOf("") }
     var regUsername by remember { mutableStateOf("") }
     var regBirthDate by remember { mutableStateOf("") }
@@ -1614,6 +1617,28 @@ private class AttaYoutubeFullscreenChrome(
                         Text("AL-ATTA", color = GoldLight, fontSize = 18.sp,
                             fontWeight = FontWeight.SemiBold, letterSpacing = 4.sp)
                         Spacer(Modifier.height(8.dp))
+                        if (showSignupPolicy && authMode == "register") {
+                            AlertDialog(
+                                onDismissRequest = { showSignupPolicy = false; authMode = "login" },
+                                title = { Text("السياسات والتعهد", color = GoldLight) },
+                                text = {
+                                    Column(Modifier.verticalScroll(rememberScrollState())) {
+                                        Text("قبل إنشاء الحساب، اقرأ سياسة الخصوصية وشروط الاستخدام ووافق عليهما، وتعهد بالالتزام بالقيم والمبادئ الإسلامية.", color = White)
+                                        TextButton(onClick = { try { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("$BASE/privacy.html"))) } catch (_: Exception) { error = "تعذر فتح سياسة الخصوصية" } }) { Text("قراءة سياسة الخصوصية", color = GoldLight) }
+                                        TextButton(onClick = { try { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("$BASE/terms.html"))) } catch (_: Exception) { error = "تعذر فتح شروط الاستخدام" } }) { Text("قراءة شروط الاستخدام", color = GoldLight) }
+                                        Row(verticalAlignment = Alignment.CenterVertically) { Checkbox(policyAccepted, { policyAccepted = it }); Text("أوافق على السياسات والخصوصية", color = White) }
+                                        Row(verticalAlignment = Alignment.CenterVertically) { Checkbox(valuesPledgeAccepted, { valuesPledgeAccepted = it }); Text("أتعهد بالالتزام بالقيم والمبادئ الإسلامية", color = White) }
+                                    }
+                                },
+                                confirmButton = {
+                                    TextButton(enabled = policyAccepted && valuesPledgeAccepted, onClick = { showSignupPolicy = false }) {
+                                        Text("متابعة إنشاء الحساب", color = GoldLight)
+                                    }
+                                },
+                                dismissButton = { TextButton(onClick = { showSignupPolicy = false; authMode = "login" }) { Text("إلغاء", color = Muted) } },
+                                containerColor = Panel
+                            )
+                        }
                         if (authMode == "login") {
                             PremiumAuthTextField(username, { username = it }, "الهاتف أو البريد أو اسم المستخدم")
                             PremiumAuthTextField(password, { password = it }, "كلمة السر", password = true)
@@ -1634,10 +1659,14 @@ private class AttaYoutubeFullscreenChrome(
                             TextButton(onClick = { authMode = "forgot" }) {
                                 Text("هل نسيت كلمة السر؟", color = GoldLight, fontWeight = FontWeight.Bold)
                             }
-                            PremiumAuthOutlineButton("إنشاء حساب جديد") { authMode = "register"; error = "" }
+                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                TextButton(onClick = { try { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("$BASE/privacy.html"))) } catch (_: Exception) { error = "تعذر فتح سياسة الخصوصية" } }) { Text("سياسة الخصوصية", color = GoldLight, fontSize = 12.sp) }
+                                TextButton(onClick = { try { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("$BASE/terms.html"))) } catch (_: Exception) { error = "تعذر فتح الشروط" } }) { Text("شروط الاستخدام", color = GoldLight, fontSize = 12.sp) }
+                            }
+                            PremiumAuthOutlineButton("إنشاء حساب جديد") { authMode = "register"; showSignupPolicy = true; policyAccepted = false; valuesPledgeAccepted = false; error = "" }
                         } else if (authMode == "register") {
                             Text("إنشاء حساب جديد", color = GoldLight, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                            PremiumGoogleButton(enabled = !busy, label = "إنشاء حساب عن طريق جوجل") {
+                            PremiumGoogleButton(enabled = !busy && policyAccepted && valuesPledgeAccepted, label = "إنشاء حساب عن طريق جوجل") {
                                 chooseGoogle(true)
                             }
                             if (!googleEnabled) Text("اضغط Google للتحقق من الاتصال والإعداد. لو تعذر الاختيار ستظهر رسالة بالسبب.", color = Muted, fontSize = 11.sp)
@@ -1653,7 +1682,20 @@ private class AttaYoutubeFullscreenChrome(
                             PremiumAuthTextField(regPass, { regPass = it }, "كلمة المرور", password = true)
                             PremiumAuthTextField(regConfirm, { regConfirm = it }, "تأكيد كلمة المرور", password = true)
                             if (!birthDateSignup) Text("إنشاء حساب بتاريخ الميلاد يحتاج نشر تحديث Cloudflare v1.0.14 أولًا.", color = Color(0xFFFFC78E), fontSize = 12.sp)
-                            PremiumAuthGoldButton("إرسال كود التأكيد", !busy && birthDateSignup && regName.trim().length >= 3 && regUsername.matches(Regex("[a-z0-9_]{3,24}")) && attaAgeFromBirthDate(regBirthDate) != null && regEmail.isNotBlank() && regGender in listOf("male", "female") && (regGender != "female" || regHideChoice != null) && regPass.length >= 6 && regPass == regConfirm) {
+                            Text("قبل إنشاء الحساب يلزم الموافقة على السياسات والتعهد بالقيم.", color = GoldLight, fontSize = 13.sp)
+                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                                Checkbox(checked = policyAccepted, onCheckedChange = { policyAccepted = it })
+                                Text("أوافق على سياسة الخصوصية وشروط الاستخدام", color = White, fontSize = 12.sp)
+                            }
+                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                                Checkbox(checked = valuesPledgeAccepted, onCheckedChange = { valuesPledgeAccepted = it })
+                                Text("أتعهد بالالتزام بالقيم والمبادئ الإسلامية والأخلاقية", color = White, fontSize = 12.sp)
+                            }
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                TextButton(onClick = { try { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("$BASE/privacy.html"))) } catch (_: Exception) { error = "تعذر فتح سياسة الخصوصية" } }) { Text("الخصوصية", color = GoldLight) }
+                                TextButton(onClick = { try { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("$BASE/terms.html"))) } catch (_: Exception) { error = "تعذر فتح الشروط" } }) { Text("الشروط", color = GoldLight) }
+                            }
+                            PremiumAuthGoldButton("إرسال كود التأكيد", !busy && policyAccepted && valuesPledgeAccepted && birthDateSignup && regName.trim().length >= 3 && regUsername.matches(Regex("[a-z0-9_]{3,24}")) && attaAgeFromBirthDate(regBirthDate) != null && regEmail.isNotBlank() && regGender in listOf("male", "female") && (regGender != "female" || regHideChoice != null) && regPass.length >= 6 && regPass == regConfirm) {
                                 task {
                                     val body = JSONObject()
                                         .put("fullName", regName.trim()).put("username", regUsername.trim())
@@ -1662,6 +1704,7 @@ private class AttaYoutubeFullscreenChrome(
                                         .put("accountHidden", regGender == "female" && regHideChoice == true)
                                         .put("country", regCountry.trim()).put("city", regCity.trim()).put("password", regPass)
                                         .put("confirmPassword", regConfirm)
+                                        .put("policyAccepted", policyAccepted).put("valuesPledgeAccepted", valuesPledgeAccepted)
                                     val result = withContext(Dispatchers.IO) { api("/api/register-request", body) }
                                     verificationId = result.getString("verificationId")
                                     verificationDelivery = result.optString("delivery", regEmail)
@@ -1709,7 +1752,20 @@ private class AttaYoutubeFullscreenChrome(
                             if (!nativeUsernameSignup || !birthDateSignup) Text(
                                 "خادم Cloudflare الحالي لا يعلن دعمه لإكمال تسجيل Google. يجب نشر تحديث الخادم أولًا؛ لن نُنشئ اسم مستخدم تلقائيًا.",
                                 color = Color(0xFFFFC78E), fontSize = 12.sp)
-                            PremiumAuthGoldButton("تأكيد إنشاء الحساب", !busy && googleIdToken.isNotBlank()) {
+                            Text("قبل إنشاء الحساب يلزم الموافقة على السياسات والتعهد بالقيم.", color = GoldLight, fontSize = 13.sp)
+                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                                Checkbox(checked = policyAccepted, onCheckedChange = { policyAccepted = it })
+                                Text("أوافق على سياسة الخصوصية وشروط الاستخدام", color = White, fontSize = 12.sp)
+                            }
+                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                                Checkbox(checked = valuesPledgeAccepted, onCheckedChange = { valuesPledgeAccepted = it })
+                                Text("أتعهد بالالتزام بالقيم والمبادئ الإسلامية والأخلاقية", color = White, fontSize = 12.sp)
+                            }
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                TextButton(onClick = { try { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("$BASE/privacy.html"))) } catch (_: Exception) { error = "تعذر فتح سياسة الخصوصية" } }) { Text("الخصوصية", color = GoldLight) }
+                                TextButton(onClick = { try { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("$BASE/terms.html"))) } catch (_: Exception) { error = "تعذر فتح الشروط" } }) { Text("الشروط", color = GoldLight) }
+                            }
+                            PremiumAuthGoldButton("تأكيد إنشاء الحساب", !busy && googleIdToken.isNotBlank() && policyAccepted && valuesPledgeAccepted) {
                                 when {
                                     !nativeUsernameSignup || !birthDateSignup ->
                                         error = "إعداد Cloudflare قديم: يجب نشر تحديث إنشاء حساب Google وتاريخ الميلاد أولًا. لن نرسل كود بريد مع Google."
@@ -1734,6 +1790,7 @@ private class AttaYoutubeFullscreenChrome(
                                             .put("accountHidden", googleGender == "female" && googleHideChoice == true)
                                             .put("password", googlePassword)
                                             .put("confirmPassword", googlePasswordConfirm)
+                                            .put("policyAccepted", policyAccepted).put("valuesPledgeAccepted", valuesPledgeAccepted)
                                         val result = withContext(Dispatchers.IO) { api("/api/google-login", data) }
                                         val actualUsername = result.optJSONObject("user")?.optString("username").orEmpty()
                                         require(actualUsername == googleUsername.trim()) {
