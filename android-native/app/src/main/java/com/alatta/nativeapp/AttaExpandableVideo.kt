@@ -194,38 +194,53 @@ internal fun AttaPostMediaViewer(
                     else SiteIcon(if (playing) "pause" else "play", size = 38.dp, tint = Color.White)
                 }
             } else AttaZoomableImage(url, "صورة المنشور", onTap = { controls = !controls })
-            if (controls) Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth()
-                .background(Brush.verticalGradient(listOf(Color.Transparent, Color(0xD9000000))))
-                .navigationBarsPadding().padding(horizontal = 16.dp, vertical = 8.dp)) {
+            // Playback controls belong over the middle of the VIDEO.
+            // Social actions stay beneath it, near the bottom edge.
+            if (player != null && controls) Column(
+                Modifier.align(Alignment.Center).fillMaxWidth()
+                    .background(Color(0x88000000))
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
                 if (failed.isNotBlank()) {
                     Text(failed, color = Color(0xFFFFB5B5), fontSize = 13.sp)
-                    if (player?.playerError != null) TextButton(onClick = { failed = ""; player.prepare(); player.play() }) { Text("إعادة المحاولة", color = Color(0xFFE6B94E)) }
+                    if (player.playerError != null) TextButton(onClick = {
+                        failed = ""; player.prepare(); player.play()
+                    }) { Text("إعادة المحاولة", color = Color(0xFFE6B94E)) }
                 }
-                if (player != null) {
-                    if (duration > 0) {
-                        Slider(value = progress, onValueChange = { progress = it; player.seekTo((duration * it).toLong()) },
-                            modifier = Modifier.fillMaxWidth().height(28.dp),
-                            colors = SliderDefaults.colors(thumbColor = Color.White, activeTrackColor = Color(0xFFE6B94E)))
-                        val currentSeconds = player.currentPosition.coerceAtLeast(0) / 1000
-                        val totalSeconds = duration / 1000
-                        Text("%02d:%02d / %02d:%02d".format(currentSeconds / 60, currentSeconds % 60,
-                            totalSeconds / 60, totalSeconds % 60), color = Color.White,
-                            fontSize = 12.sp, modifier = Modifier.align(Alignment.End))
-                    }
-                    Row(Modifier.fillMaxWidth().padding(bottom = 6.dp),
-                        horizontalArrangement = Arrangement.SpaceEvenly,
-                        verticalAlignment = Alignment.CenterVertically) {
-                        IconButton(onClick = { player.seekTo((player.currentPosition - 10000L).coerceAtLeast(0)) }) {
-                            SiteIcon("rotate-ccw", size = 23.dp, tint = Color.White)
-                        }
-                        IconButton(onClick = { if (playing) player.pause() else player.play() }) {
-                            SiteIcon(if (playing) "pause" else "play", size = 29.dp, tint = Color(0xFFE6B94E))
-                        }
-                        IconButton(onClick = { player.seekTo((player.currentPosition + 10000L).coerceAtMost(duration.coerceAtLeast(0))) }) {
-                            SiteIcon("rotate-cw", size = 23.dp, tint = Color.White)
-                        }
-                    }
+                if (duration > 0) {
+                    Slider(value = progress, onValueChange = {
+                        progress = it; player.seekTo((duration * it).toLong())
+                    }, modifier = Modifier.fillMaxWidth().height(28.dp),
+                        colors = SliderDefaults.colors(thumbColor = Color.White,
+                            activeTrackColor = Color(0xFFE6B94E)))
+                    val currentSeconds = player.currentPosition.coerceAtLeast(0) / 1000
+                    val totalSeconds = duration / 1000
+                    Text("%02d:%02d / %02d:%02d".format(currentSeconds / 60,
+                        currentSeconds % 60, totalSeconds / 60, totalSeconds % 60),
+                        color = Color.White, fontSize = 12.sp)
                 }
+                Row(Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceEvenly,
+                    verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = {
+                        player.seekTo((player.currentPosition - 10000L).coerceAtLeast(0))
+                    }) { SiteIcon("rotate-ccw", size = 23.dp, tint = Color.White) }
+                    IconButton(onClick = { if (playing) player.pause() else player.play() }) {
+                        SiteIcon(if (playing) "pause" else "play", size = 29.dp,
+                            tint = Color(0xFFE6B94E))
+                    }
+                    IconButton(onClick = {
+                        player.seekTo((player.currentPosition + 10000L)
+                            .coerceAtMost(duration.coerceAtLeast(0)))
+                    }) { SiteIcon("rotate-cw", size = 23.dp, tint = Color.White) }
+                }
+            }
+            if (controls && loadInteractions != null && sendComment != null) Column(
+                Modifier.align(Alignment.BottomCenter).fillMaxWidth()
+                    .background(Brush.verticalGradient(listOf(Color.Transparent, Color(0xD9000000))))
+                    .navigationBarsPadding().padding(horizontal = 16.dp, vertical = 8.dp)
+            ) {
                 if (loadInteractions != null && sendComment != null) Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(18.dp)) {
                     PremiumReactionAction(reactions, selected == "like", selected,
