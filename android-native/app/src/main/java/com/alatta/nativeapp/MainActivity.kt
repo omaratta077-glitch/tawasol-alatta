@@ -2058,6 +2058,7 @@ private class AttaYoutubeFullscreenChrome(
                                 val postId = p.optString("id")
                                 var comment by remember(postId) { mutableStateOf("") }
                                 var showComments by remember(postId) { mutableStateOf(false) }
+                                var showFullscreenVideo by remember(postId) { mutableStateOf(false) }
                                 val remoteLiked = p.optBoolean("likedByMe")
                                 val remoteReaction = p.optString("myReaction")
                                 val serverReaction = if (remoteReaction.isNotBlank()) remoteReaction
@@ -2122,7 +2123,36 @@ private class AttaYoutubeFullscreenChrome(
                                             .aspectRatio(1.15f).clip(RoundedCornerShape(11.dp))
                                             .border(.6.dp, Border.copy(alpha = .75f), RoundedCornerShape(11.dp)),
                                         contentScale = ContentScale.Crop)
-                                    if (video.isNotBlank()) NativeVideo(video)
+                                    if (video.isNotBlank()) {
+                                        // Open the sole existing Media3 viewer with the full feed
+                                        // playlist, so vertical swipes go to the next post video.
+                                        AttaExpandableVideo(video, onOpen = { showFullscreenVideo = true })
+                                        if (showFullscreenVideo) {
+                                            AttaPostMediaViewer(
+                                                posts = posts, startId = postId, kind = "video",
+                                                onDismiss = { showFullscreenVideo = false },
+                                                loadInteractions = { id, kind, offset ->
+                                                    get("/api/post-interactions?postId=${enc(id)}&kind=${enc(kind)}&offset=$offset")
+                                                },
+                                                sendReaction = { id, reaction, remove ->
+                                                    post("/api/post-react", JSONObject().put("postId", id)
+                                                        .put("reaction", reaction).put("remove", remove))
+                                                },
+                                                sendComment = { id, message ->
+                                                    post("/api/post-comment", JSONObject().put("postId", id)
+                                                        .put("text", message))
+                                                },
+                                                onShare = { id ->
+                                                    post("/api/post-share", JSONObject().put("postId", id)
+                                                        .put("text", ""))
+                                                },
+                                                onOpenProfile = { user ->
+                                                    showFullscreenVideo = false
+                                                    openPublicProfile(user)
+                                                }
+                                            )
+                                        }
+                                    }
                                     p.optJSONObject("sharedPost")?.let { shared -> Text("مشاركة: ${shared.optString("text")}", color = GoldLight) }
                                     HorizontalDivider(color = Border.copy(alpha = .5f), modifier = Modifier.padding(vertical = 7.dp))
                                     Row(Modifier.fillMaxWidth(),
