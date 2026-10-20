@@ -88,6 +88,146 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
 
+/**
+ * A single, genuinely RTL comment dialog used by the native feed.
+ * Both Arabic and English names are on the RIGHT; English letters retain
+ * their normal order. Replies use the server's existing /api/comment-reply.
+ */
+@Composable
+private fun AttaRightAlignedComments(
+    postId: String,
+    onClose: () -> Unit,
+    fetchComments: suspend () -> JSONObject,
+    sendComment: suspend (String) -> Unit,
+    sendReply: suspend (String, String) -> Unit,
+    onProfile: (String) -> Unit
+) {
+    val scope = rememberCoroutineScope()
+    var comments by remember(postId) { mutableStateOf(emptyList<JSONObject>()) }
+    var content by remember(postId) { mutableStateOf("") }
+    var replyTo by remember(postId) { mutableStateOf("") }
+    var replyName by remember(postId) { mutableStateOf("") }
+    var loading by remember(postId) { mutableStateOf(true) }
+    var sending by remember(postId) { mutableStateOf(false) }
+    var failure by remember(postId) { mutableStateOf("") }
+    suspend fun refresh() {
+        val result = fetchComments()
+        comments = result.arr("comments")
+    }
+    LaunchedEffect(postId) {
+        try { refresh() }
+        catch (cancelled: CancellationException) { throw cancelled }
+        catch (e: Exception) { failure = e.message ?: "تعذر تحميل التعليقات" }
+        finally { loading = false }
+    }
+    Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
+            Column(Modifier.fillMaxSize().background(Black)) {
+                Row(Modifier.fillMaxWidth().height(56.dp)
+                    .border(.5.dp, Border).padding(horizontal = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically) {
+                    Text("التعليقات", color = White, fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f),
+                        textAlign = TextAlign.Center)
+                    Text("${comments.size}", color = GoldLight, fontSize = 14.sp)
+                    TextButton(onClick = onClose) { SiteIcon("x", size = 22.dp) }
+                }
+                if (loading) LinearProgressIndicator(Modifier.fillMaxWidth(), color = Gold)
+                if (failure.isNotBlank()) Text(failure, color = Color(0xFFFF9999),
+                    modifier = Modifier.padding(12.dp))
+                LazyColumn(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 10.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    items(comments, key = { it.optString("id").ifBlank { it.hashCode().toString() } }) { comment ->
+                        @Composable fun CommentEntry(entry: JSONObject, nested: Boolean) {
+                            val person = entry.optJSONObject("authorInfo") ?: JSONObject()
+                            val name = person.optString("fullName")
+                                .ifBlank { person.optString("displayName") }
+                                .ifBlank { entry.optString("author") }
+                            val author = entry.optString("author")
+                                .ifBlank { person.optString("username") }
+                            Row(Modifier.fillMaxWidth()
+                                .padding(start = if (nested) 28.dp else 0.dp),
+                                horizontalArrangement = Arrangement.Start,
+                                verticalAlignment = Alignment.Top) {
+                                Box(Modifier.size(if (nested) 33.dp else 40.dp)
+                                    .border(1.dp, Gold, CircleShape).clip(CircleShape)
+                                    .clickable { if (author.isNotBlank()) onProfile(author) },
+                                    contentAlignment = Alignment.Center) {
+                                    val avatar = person.optString("avatar")
+                                    if (avatar.isNotBlank()) ProfileMediaImage(avatar, name, Modifier.fillMaxSize())
+                                    else SiteIcon("user", size = 23.dp)
+                                }
+                                Spacer(Modifier.width(8.dp))
+                                Column(Modifier.weight(1f), horizontalAlignment = Alignment.End) {
+                                    Column(Modifier.fillMaxWidth()
+                                        .background(Panel, RoundedCornerShape(14.dp))
+                                        .border(.6.dp, Border.copy(alpha = .65f), RoundedCornerShape(14.dp))
+                                        .padding(horizontal = 11.dp, vertical = 9.dp),
+                                        horizontalAlignment = Alignment.End) {
+                                        Text(name, color = GoldLight, fontSize = 14.sp,
+                                            fontWeight = FontWeight.SemiBold, textAlign = TextAlign.End,
+                                            modifier = Modifier.fillMaxWidth().clickable {
+                                                if (author.isNotBlank()) onProfile(author)
+                                            })
+                                        Text(entry.optString("text"), color = White,
+                                            textAlign = TextAlign.End, fontSize = 14.sp,
+                                            modifier = Modifier.fillMaxWidth().padding(top = 3.dp))
+                                    }
+                                    TextButton(onClick = {
+                                        replyTo = if (nested) "" else entry.optString("id")
+                                        replyName = name
+                                    }, enabled = !nested && entry.optString("id").isNotBlank(),
+                                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp)) {
+                                        Text(if (nested) "رد" else "رد على التعليق",
+                                            color = Muted, fontSize = 12.sp)
+                                    }
+                                }
+                            }
+                        }
+                        CommentEntry(comment, false)
+                        comment.arr("replies").forEach { reply ->
+                            CommentEntry(reply, true)
+                        }
+                    }
+                }
+                if (replyTo.isNotBlank()) Row(Modifier.fillMaxWidth()
+                    .padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text("رد على ${replyName}", color = GoldLight, fontSize = 12.sp,
+                        modifier = Modifier.weight(1f))
+                    TextButton(onClick = { replyTo = ""; replyName = "" }) {
+                        Text("إلغاء", color = Muted)
+                    }
+                }
+                Row(Modifier.fillMaxWidth().background(Panel)
+                    .padding(horizontal = 10.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically) {
+                    OutlinedTextField(value = content, onValueChange = { content = it },
+                        placeholder = { Text("اكتب تعليقًا...", color = Muted) },
+                        modifier = Modifier.weight(1f), maxLines = 4,
+                        shape = RoundedCornerShape(22.dp))
+                    Spacer(Modifier.width(8.dp))
+                    TextButton(onClick = {
+                        val message = content.trim()
+                        if (message.isNotBlank() && !sending) scope.launch {
+                            sending = true; failure = ""
+                            try {
+                                if (replyTo.isNotBlank()) sendReply(replyTo, message)
+                                else sendComment(message)
+                                content = ""; replyTo = ""; replyName = ""
+                                refresh()
+                            } catch (cancelled: CancellationException) { throw cancelled }
+                            catch (e: Exception) { failure = e.message ?: "تعذر إرسال التعليق" }
+                            finally { sending = false }
+                        }
+                    }, enabled = content.isNotBlank() && !sending) {
+                        SiteIcon("send", size = 26.dp, tint = Gold)
+                    }
+                }
+            }
+        }
+    }
+}
+
 private const val BASE = "https://tawasol-alatta.omaratta077-4fd.workers.dev"
 // Colors transcribed from the FINAL :root block in cloudflare-site/public/style.css.
 // Intentionally independent of the web CSS: styling changes require an Android update.
@@ -2036,13 +2176,21 @@ private class AttaYoutubeFullscreenChrome(
                                         }
                                     }
                                     if (showComments) {
-                                        p.arr("comments").takeLast(15).forEach { c ->
-                                            val person = c.optJSONObject("authorInfo") ?: JSONObject()
-                                            val label = person.optString("fullName").ifBlank { person.optString("displayName") }.ifBlank { c.optString("fullName") }.ifBlank { c.optString("displayName") }.ifBlank { c.optString("author") }
-                                            Text("$label: ${c.optString("text")}", color = White, modifier = Modifier.padding(4.dp))
-                                        }
-                                        OutlinedTextField(comment, { comment = it }, label = { Text("اكتب تعليقًا") }, modifier = Modifier.fillMaxWidth())
-                                        GoldButton("إرسال التعليق", !busy && comment.isNotBlank()) { task { post("/api/post-comment", JSONObject().put("postId", postId).put("text", comment)); comment = ""; load(tab) } }
+                                        AttaRightAlignedComments(
+                                            postId = postId,
+                                            onClose = { showComments = false },
+                                            fetchComments = { get("/api/post-interactions?postId=${enc(postId)}&kind=comments&limit=50") },
+                                            sendComment = { message ->
+                                                post("/api/post-comment", JSONObject().put("postId", postId).put("text", message))
+                                                load(tab)
+                                            },
+                                            sendReply = { commentId, message ->
+                                                post("/api/comment-reply", JSONObject().put("postId", postId)
+                                                    .put("commentId", commentId).put("text", message))
+                                                load(tab)
+                                            },
+                                            onProfile = { user -> showComments = false; openPublicProfile(user) }
+                                        )
                                     }
                                 }
                             }
