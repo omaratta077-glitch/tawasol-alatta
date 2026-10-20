@@ -498,14 +498,12 @@ private class AttaYoutubeFullscreenChrome(
             loadUrl("$BASE/")
         }
     }
+    // An iframe loading is not proof of playback, but a 20-second timeout
+    // is not a player error either. Stop the loading spinner quietly and let
+    // the site's existing embedded player display its own controls.
     LaunchedEffect(webView, safeId) {
         kotlinx.coroutines.delay(20000)
-        if (!playbackConfirmed && error.isBlank()) {
-            loading = false
-            error = if (frameLoaded)
-                "ظهر إطار YouTube، لكن لم يتم تأكيد تشغيل الفيديو داخل Android WebView."
-            else "الموقع لم يُكمل فتح مشغّل YouTube داخل Android WebView."
-        }
+        if (!playbackConfirmed) loading = false
     }
     DisposableEffect(webView, chrome) {
         onDispose {
@@ -522,11 +520,7 @@ private class AttaYoutubeFullscreenChrome(
                 webView
             }, modifier = Modifier.fillMaxSize())
             if (loading) CircularProgressIndicator(color = Gold, modifier = Modifier.size(30.dp))
-            // Keep failure details inside the 16:9 area; no toolbar under the player.
-            if (error.isNotBlank()) Text(error, color = GoldLight, fontSize = 11.sp,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.align(Alignment.BottomCenter)
-                    .fillMaxWidth().background(Color.Black.copy(alpha = .88f)).padding(8.dp))
+            // Never cover the real YouTube picture with a WebView diagnostic caption.
         }
     }
     // v1.0.57 playback path intentionally unchanged: the HTTPS site still
