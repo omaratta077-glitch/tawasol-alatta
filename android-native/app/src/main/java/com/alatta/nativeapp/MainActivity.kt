@@ -2849,13 +2849,66 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                 )
                             }
                         }
-                        "الإشعارات" -> LazyColumn(Modifier.weight(1f).padding(8.dp)) {
-                            item { SectionTitle("الإشعارات") }
-                            items(notifications) { n -> CardBox {
-                                Text("${n.optString("from")} • ${n.optString("type")}", color = GoldLight)
-                                Text(n.optString("text"))
-                            } }
-                            item { GoldButton("تعليم الكل كمقروء") { task { post("/api/notifications/read", JSONObject()); load(tab) } } }
+                        "الإشعارات" -> LazyColumn(Modifier.weight(1f)
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            item {
+                                Row(Modifier.fillMaxWidth().padding(vertical = 6.dp),
+                                    verticalAlignment = Alignment.CenterVertically) {
+                                    Text("الإشعارات", color = GoldLight, fontSize = 23.sp,
+                                        fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                                    val unread = notifications.count { !it.optBoolean("read", false) }
+                                    if (unread > 0) Text("$unread جديد", color = GoldLight,
+                                        modifier = Modifier.background(Panel, RoundedCornerShape(12.dp))
+                                            .padding(horizontal = 10.dp, vertical = 5.dp),
+                                        fontSize = 12.sp)
+                                }
+                            }
+                            if (notifications.isEmpty()) item {
+                                CardBox {
+                                    Row(Modifier.fillMaxWidth().padding(vertical = 22.dp),
+                                        verticalAlignment = Alignment.CenterVertically) {
+                                        SiteIcon("bell", size = 29.dp, tint = GoldLight)
+                                        Spacer(Modifier.width(12.dp))
+                                        Text("لا توجد إشعارات حتى الآن", color = Muted, fontSize = 15.sp)
+                                    }
+                                }
+                            }
+                            items(notifications, key = { it.optString("id").ifBlank { it.hashCode().toString() } }) { n ->
+                                val unread = !n.optBoolean("read", false)
+                                Column(Modifier.fillMaxWidth()
+                                    .background(if (unread) Color(0xFF171A19) else Panel,
+                                        RoundedCornerShape(16.dp))
+                                    .border(if (unread) 1.dp else .5.dp,
+                                        if (unread) Gold.copy(alpha = .78f) else Border.copy(alpha = .5f),
+                                        RoundedCornerShape(16.dp))
+                                    .padding(horizontal = 14.dp, vertical = 12.dp)) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Box(Modifier.size(37.dp).clip(CircleShape)
+                                            .background(Gold.copy(alpha = .14f)),
+                                            contentAlignment = Alignment.Center) {
+                                            SiteIcon("bell", size = 19.dp, tint = GoldLight)
+                                        }
+                                        Spacer(Modifier.width(10.dp))
+                                        Text(n.optString("from").ifBlank { "تواصل العطا" },
+                                            color = if (unread) GoldLight else White,
+                                            fontWeight = FontWeight.SemiBold,
+                                            modifier = Modifier.weight(1f), maxLines = 1)
+                                        if (unread) Box(Modifier.size(8.dp)
+                                            .background(Gold, CircleShape))
+                                    }
+                                    val message = n.optString("text").ifBlank {
+                                        n.optString("type").ifBlank { "لديك إشعار جديد" }
+                                    }
+                                    Text(message, color = White, fontSize = 14.sp,
+                                        modifier = Modifier.padding(start = 47.dp, top = 6.dp))
+                                }
+                            }
+                            if (notifications.any { !it.optBoolean("read", false) }) item {
+                                GoldButton("تحديد الكل كمقروء") {
+                                    task { post("/api/notifications/read", JSONObject()); load(tab) }
+                                }
+                            }
                         }
                         "المجموعات" -> LazyColumn(Modifier.weight(1f).padding(8.dp)) {
                             item { SectionTitle("المجموعات")
