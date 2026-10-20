@@ -4754,3 +4754,18 @@ body.post-media-open{overflow:hidden!important}
 .atta-youtube-post-play img{display:block;width:100%;height:100%;object-fit:contain}
 .atta-youtube-post-play span{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);display:grid;place-items:center;width:56px;height:56px;border-radius:50%;border:1px solid #e6b94e;background:#090d0fe0;color:#f6d776;font-size:29px}
 .atta-youtube-post-media iframe{display:block;width:100%;height:100%;border:0}
+
+
+/* AL-ATTA gold sheen: lightweight static highlights, no costly endless motion. */
+.atta-login-logo,.reference-header-brand img,.atta-login-brand img{filter:drop-shadow(0 0 7px rgba(230,185,78,.48))}
+button.attа-shine,.atta-login-button,.atta-create-button,.atta-official-apk-download,.premium-header button,.bottom-nav button,.post-actions button{
+  transition:filter .18s ease,box-shadow .18s ease,transform .18s ease;
+  filter:drop-shadow(0 0 2px rgba(230,185,78,.19));
+}
+.atta-login-button,.atta-create-button{box-shadow:0 2px 14px rgba(230,185,78,.26),inset 0 1px rgba(255,242,191,.42)}
+.atta-login-button:active,.atta-create-button:active,.premium-header button:active,.bottom-nav button:active{transform:scale(.97)}
+.atta-signup-legal{border:1px solid rgba(230,185,78,.62);border-radius:13px;padding:12px;background:#111518;color:#f6d776;display:grid;gap:8px;direction:rtl;margin:10px 0}
+.atta-signup-legal label{display:flex;align-items:center;gap:8px;font-size:13px;color:#f0ede4}
+.atta-signup-legal a{color:#f6d776;text-decoration:underline;text-underline-offset:3px}
+.atta-signup-legal input{accent-color:#e6b94e;width:17px;height:17px}
+@media(prefers-reduced-motion:reduce){.atta-login-button,.atta-create-button,.premium-header button,.bottom-nav button{transition:none}}
