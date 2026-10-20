@@ -245,7 +245,7 @@ internal fun AttaPostMediaViewer(
                 if (player != null && controls) Column(
                     Modifier.align(Alignment.BottomCenter).fillMaxWidth()
                         .background(Brush.verticalGradient(listOf(Color.Transparent, Color(0xAA000000))))
-                        .padding(horizontal = 16.dp, top = 8.dp, bottom = 20.dp),
+                        .padding(start = 16.dp, top = 8.dp, end = 16.dp, bottom = 20.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     if (failed.isNotBlank()) {
