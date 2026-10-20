@@ -37,19 +37,24 @@ internal object AttaPrivacy {
 
 /** No account, network task or third-party SDK is mounted until this choice. */
 @Composable
-internal fun AttaPrivacyGate(content: @Composable (() -> Unit) -> Unit) {
+internal fun AttaPrivacyGate(content: @Composable ((() -> Unit), (() -> Unit)) -> Unit) {
     val context = LocalContext.current
     var accepted by remember { mutableStateOf(AttaPrivacy.accepted(context)) }
+    var authenticated by remember { mutableStateOf(!context.getSharedPreferences("alatta_native", Context.MODE_PRIVATE)
+        .getString("token", "").isNullOrBlank()) }
     var offlineReader by remember { mutableStateOf(false) }
     var document by remember { mutableStateOf<String?>(null) }
     var agreedPrivacy by remember { mutableStateOf(false) }
     var agreedTerms by remember { mutableStateOf(false) }
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
         MaterialTheme(colorScheme = darkColorScheme(primary = PremiumGold, background = PremiumBackground)) {
-            if (accepted) content {
+            if (accepted || !authenticated) content({
                 AttaPrivacy.revoke(context); accepted = false
                 agreedPrivacy = false; agreedTerms = false
-            } else if (offlineReader) {
+            }, {
+                authenticated = true
+                accepted = AttaPrivacy.accepted(context)
+            }) else if (offlineReader) {
                 QuranReaderScreen(onExit = { offlineReader = false }, allowOnlineFeatures = false)
             } else Column(Modifier.fillMaxSize().background(PremiumBackground).safeDrawingPadding()
                 .verticalScroll(rememberScrollState()).padding(24.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
