@@ -2241,6 +2241,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                                 }
                                             }
                                         }
+                                        }
                                         pickedUri?.let { Text("مرفق: ${it.lastPathSegment ?: "ملف"}", color = GoldLight, fontSize = 11.sp) }
                                         youtubePostDraftId.takeIf { it.isNotBlank() }?.let { videoId ->
                                             Text("فيديو يوتيوب مرفق", color = GoldLight, fontSize = 12.sp)
