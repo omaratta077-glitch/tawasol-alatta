@@ -2198,10 +2198,49 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
 
                                         }
                                         Spacer(Modifier.height(8.dp))
-                                        OutlinedTextField(draft, { draft = it },
-                                            modifier = Modifier.fillMaxWidth().heightIn(min = 74.dp),
-                                            placeholder = { Text("بم تفكر؟", fontSize = 14.sp) },
-                                            minLines = 2, shape = RoundedCornerShape(12.dp))
+                                        // An inset publish action in the composer; keep the existing
+                                        // upload/publish callback unchanged.
+                                        Box(Modifier.fillMaxWidth()) {
+                                            OutlinedTextField(draft, { draft = it },
+                                                modifier = Modifier.fillMaxWidth().heightIn(min = 114.dp),
+                                                placeholder = { Text("بم تفكر؟", fontSize = 14.sp) },
+                                                minLines = 3, shape = RoundedCornerShape(14.dp))
+                                            Box(Modifier.align(Alignment.BottomStart).padding(9.dp)
+                                                .graphicsLayer { scaleX = .78f; scaleY = .78f }) {
+                                                GoldButton("نشر", !busy && (draft.isNotBlank() || pickedUri != null ||
+                                                    youtubePostDraftId.isNotBlank() || mushafPostDraft != null)) {
+                                                task {
+                                                    var image = ""; var video = ""
+                                                    var postText = draft
+                                                    val sharedMushaf = mushafPostDraft
+                                                    val sharedYoutube = youtubePostDraftId
+                                                    require(sharedYoutube.isBlank() || (sharedMushaf == null && pickedUri == null)) {
+                                                        "أزل المرفق الآخر قبل نشر فيديو يوتيوب"
+                                                    }
+                                                    if (sharedMushaf != null) require(postText.length <= 4500) { "اكتب وصفًا أقصر من 4500 حرف" }
+                                                    if (sharedYoutube.isNotBlank()) postText = attachYoutubeToPost(postText, sharedYoutube)
+                                                    pickedUri?.let { uri ->
+                                                        val bytes = withContext(Dispatchers.IO) { ctx.contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: byteArrayOf() }
+                                                        require(bytes.size <= 50 * 1024 * 1024) { "الحد الأقصى 50 ميجابايت" }
+                                                        val mime = pickedMime.ifBlank { "image/jpeg" }
+                                                        val url = withContext(Dispatchers.IO) { upload(token, uri, mime, uri.lastPathSegment ?: "upload", bytes) }
+                                                        if (mime.startsWith("video/")) video = url else image = url
+                                                    }
+                                                    if (sharedMushaf != null) {
+                                                        val pdfPath = withContext(Dispatchers.IO) {
+                                                            upload(token,Uri.fromFile(sharedMushaf.document),"application/pdf",
+                                                                "mushaf-${sharedMushaf.selection.firstPage}-${sharedMushaf.selection.lastPage}.pdf",sharedMushaf.document.readBytes())
+                                                        }
+                                                        postText += "\n\n"+mushafAttachmentLink(BASE,pdfPath,sharedMushaf.selection)
+                                                    }
+                                                    post("/api/posts", JSONObject().put("text", postText).put("image", image).put("video", video))
+                                                    sharedMushaf?.discard(); mushafPostDraft = null
+                                                    youtubePostDraftId = ""; youtubePostDraftTitle = ""
+                                                    draft = ""; pickedUri = null; load("الرئيسية")
+
+                                                }
+                                            }
+                                        }
                                         pickedUri?.let { Text("مرفق: ${it.lastPathSegment ?: "ملف"}", color = GoldLight, fontSize = 11.sp) }
                                         youtubePostDraftId.takeIf { it.isNotBlank() }?.let { videoId ->
                                             Text("فيديو يوتيوب مرفق", color = GoldLight, fontSize = 12.sp)
@@ -2231,41 +2270,6 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                             }
                                             PremiumOutlineAction("smile", "مشاركة مشاعر") {
                                                 featureMessage = "مشاركة المشاعر كمنشور خاص لم تُفعّل بعد."
-                                            }
-                                        }
-                                        Spacer(Modifier.height(10.dp))
-                                        // Keep publish below the draft and media choices, never in the profile header.
-                                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                                            GoldButton("نشر", !busy && (draft.isNotBlank() || pickedUri != null || youtubePostDraftId.isNotBlank())) {
-                                                task {
-                                                    var image = ""; var video = ""
-                                                    var postText = draft
-                                                    val sharedMushaf = mushafPostDraft
-                                                    val sharedYoutube = youtubePostDraftId
-                                                    require(sharedYoutube.isBlank() || (sharedMushaf == null && pickedUri == null)) {
-                                                        "أزل المرفق الآخر قبل نشر فيديو يوتيوب"
-                                                    }
-                                                    if (sharedMushaf != null) require(postText.length <= 4500) { "اكتب وصفًا أقصر من 4500 حرف" }
-                                                    if (sharedYoutube.isNotBlank()) postText = attachYoutubeToPost(postText, sharedYoutube)
-                                                    pickedUri?.let { uri ->
-                                                        val bytes = withContext(Dispatchers.IO) { ctx.contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: byteArrayOf() }
-                                                        require(bytes.size <= 50 * 1024 * 1024) { "الحد الأقصى 50 ميجابايت" }
-                                                        val mime = pickedMime.ifBlank { "image/jpeg" }
-                                                        val url = withContext(Dispatchers.IO) { upload(token, uri, mime, uri.lastPathSegment ?: "upload", bytes) }
-                                                        if (mime.startsWith("video/")) video = url else image = url
-                                                    }
-                                                    if (sharedMushaf != null) {
-                                                        val pdfPath = withContext(Dispatchers.IO) {
-                                                            upload(token,Uri.fromFile(sharedMushaf.document),"application/pdf",
-                                                                "mushaf-${sharedMushaf.selection.firstPage}-${sharedMushaf.selection.lastPage}.pdf",sharedMushaf.document.readBytes())
-                                                        }
-                                                        postText += "\n\n"+mushafAttachmentLink(BASE,pdfPath,sharedMushaf.selection)
-                                                    }
-                                                    post("/api/posts", JSONObject().put("text", postText).put("image", image).put("video", video))
-                                                    sharedMushaf?.discard(); mushafPostDraft = null
-                                                    youtubePostDraftId = ""; youtubePostDraftTitle = ""
-                                                    draft = ""; pickedUri = null; load("الرئيسية")
-                                                }
                                             }
                                         }
                                     }
