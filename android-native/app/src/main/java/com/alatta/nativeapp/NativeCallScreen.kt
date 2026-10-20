@@ -294,76 +294,73 @@ internal fun NativeCallScreen(
                 }
             }
         } else {
+            // Audio-call identity and live status are centered in one balanced
+            // area. Video keeps decoded remote frames behind a compact overlay.
             Column(Modifier.fillMaxSize()) {
-                Row(Modifier.fillMaxWidth().height(56.dp).padding(horizontal = 12.dp),
-                    horizontalArrangement = Arrangement.Start,
+                Row(Modifier.fillMaxWidth().height(46.dp).padding(horizontal = 12.dp),
                     verticalAlignment = Alignment.CenterVertically) {
                     TextButton(onClick = onMinimize) {
                         SiteIcon("chevron-left", tint = CallGold, size = 23.dp)
                     }
                 }
-                Spacer(Modifier.weight(1f))
-                if (!videoCall) {
-                    Column(Modifier.fillMaxWidth().weight(1f),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center) {
-                        SiteIcon("user", tint = CallGold, size = 96.dp)
-                        Spacer(Modifier.height(14.dp))
-                        Text(peerDisplayName, fontSize = 20.sp, color = CallWhite,
-                            textAlign = TextAlign.Center, maxLines = 1)
-                        Text("مكالمة صوتية", fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold, color = CallGold,
-                            textAlign = TextAlign.Center, modifier = Modifier.padding(top = 6.dp))
-                    }
-                } else {
-                    // Video-call chrome: center only the identity; the native remote
-                    // video remains full-screen behind it. Keep diagnostic text hidden.
-                    Column(Modifier.fillMaxWidth().weight(1f),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center) {
-                        Text(peerDisplayName, fontSize = 20.sp, color = CallWhite,
-                            textAlign = TextAlign.Center, maxLines = 1)
-                        Text("مكالمة فيديو", fontSize = 16.sp, color = CallGold,
-                            fontWeight = FontWeight.Bold, textAlign = TextAlign.Center,
-                            modifier = Modifier.padding(top = 6.dp))
-                        if (connectedAt > 0L) {
-                            Text("%02d:%02d".format(elapsed / 60, elapsed % 60),
-                                color = CallWhite, textAlign = TextAlign.Center,
-                                modifier = Modifier.padding(top = 8.dp), fontSize = 15.sp)
-                        } else {
-                            // Keep signaling status visible until the remote peer answers.
-                            Text(callStatus, color = CallGold, textAlign = TextAlign.Center,
-                                maxLines = 2, fontSize = 15.sp,
-                                modifier = Modifier.padding(top = 10.dp, start = 16.dp, end = 16.dp))
+                Column(
+                    Modifier.fillMaxWidth().weight(1f).padding(horizontal = 18.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    if (!videoCall || !remoteReady) {
+                        Box(Modifier.size(126.dp)
+                            .border(2.dp, CallGold, CircleShape)
+                            .background(Color(0xFF15120D), CircleShape),
+                            contentAlignment = Alignment.Center) {
+                            SiteIcon("user", tint = CallGold, size = 80.dp)
                         }
+                        Spacer(Modifier.height(18.dp))
                     }
-                }
-                if (!videoCall) {
-                    Text(callStatus, color = CallGold, textAlign = TextAlign.Center,
-                        fontSize = 15.sp, maxLines = 3,
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 17.dp, vertical = 8.dp)
-                            .background(Color(0xDD050709)))
-                    if (connectedAt > 0L) {
-                        Text("%02d:%02d".format(elapsed / 60, elapsed % 60),
-                            color = CallWhite, textAlign = TextAlign.Center,
-                            modifier = Modifier.fillMaxWidth(), fontSize = 15.sp)
+                    Text(peerDisplayName, fontSize = 24.sp,
+                        fontWeight = FontWeight.Bold, color = CallWhite,
+                        textAlign = TextAlign.Center, maxLines = 1)
+                    Spacer(Modifier.height(6.dp))
+                    Text(if (videoCall) "مكالمة فيديو" else "مكالمة صوتية",
+                        color = CallMuted, fontSize = 16.sp, textAlign = TextAlign.Center)
+                    Spacer(Modifier.height(30.dp))
+                    // Decorative, non-interactive audio wave; does not replace WebRTC.
+                    if (!videoCall) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(5.dp),
+                            verticalAlignment = Alignment.CenterVertically) {
+                            listOf(6, 12, 18, 12, 25, 43, 22, 12, 7).forEach { height ->
+                                Box(Modifier.width(4.dp).height(height.dp)
+                                    .background(CallGold, CircleShape))
+                            }
+                        }
+                        Spacer(Modifier.height(30.dp))
                     }
+                    Text(
+                        if (connectedAt > 0L) "%02d:%02d".format(elapsed / 60, elapsed % 60)
+                        else callStatus,
+                        color = if (connectedAt > 0L) CallWhite else CallGold,
+                        fontSize = 17.sp, textAlign = TextAlign.Center, maxLines = 2
+                    )
                 }
-                if (videoCall) Spacer(Modifier.height(58.dp))
-                Row(Modifier.fillMaxWidth().height(106.dp).background(CallBackground)
-                    .padding(horizontal = 8.dp), horizontalArrangement = Arrangement.SpaceEvenly,
+                // Bottom third, rather than overlapping Android's navigation bar.
+                Row(Modifier.fillMaxWidth().height(92.dp)
+                    .padding(horizontal = 12.dp),
+                    horizontalArrangement = Arrangement.SpaceEvenly,
                     verticalAlignment = Alignment.CenterVertically) {
                     CallControl(if (muted) "mic-off" else "mic", "الميكروفون", active = muted) {
                         muted = engine.toggleMute()
                     }
-                    if (videoCall) CallControl(if (cameraOff) "camera-off" else "video", "الكاميرا", active = cameraOff) {
-                        cameraOff = engine.toggleCamera()
+                    if (videoCall) {
+                        CallControl(if (cameraOff) "camera-off" else "video", "الكاميرا", active = cameraOff) {
+                            cameraOff = engine.toggleCamera()
+                        }
                     }
+                    CallControl("phone-off", "إنهاء", danger = true) { endCall() }
                     CallControl("volume", "السماعة", active = speakerOn) {
                         speakerOn = engine.toggleSpeaker()
                     }
-                    CallControl("phone-off", "إنهاء", danger = true) { endCall() }
                 }
+                Spacer(Modifier.height(44.dp))
             }
         }
     }
