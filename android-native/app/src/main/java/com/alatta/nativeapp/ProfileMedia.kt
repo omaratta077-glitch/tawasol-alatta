@@ -124,29 +124,7 @@ internal fun ExpandableProfileMedia(
                                 shift = if (zoom <= 1f) Offset.Zero else shift + pan
                             }
                         }, ContentScale.Fit)
-                Row(Modifier.fillMaxWidth().align(Alignment.TopCenter)
-                        .background(Color(0xDA0C1013)).padding(top = 30.dp, start = 12.dp, end = 12.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically) {
-                    TextButton(onClick = { fullscreen = false }) {
-                        Text("✕ إغلاق", color = Color(0xFFE6B94E))
-                    }
-                    Text(description, color = Color.White)
-                }
-                Row(Modifier.align(Alignment.BottomCenter).fillMaxWidth()
-                        .background(Color(0xDA0C1013)).padding(bottom = 27.dp),
-                    horizontalArrangement = Arrangement.SpaceEvenly,
-                    verticalAlignment = Alignment.CenterVertically) {
-                    TextButton(onClick = { zoom = (zoom / 1.35f).coerceAtLeast(1f); if (zoom == 1f) shift = Offset.Zero }) {
-                        Text("− تصغير", color = Color(0xFFE6B94E))
-                    }
-                    TextButton(onClick = { zoom = 1f; shift = Offset.Zero }) {
-                        Text("الملاءمة", color = Color.White)
-                    }
-                    TextButton(onClick = { zoom = (zoom * 1.35f).coerceAtMost(5f) }) {
-                        Text("+ تكبير", color = Color(0xFFE6B94E))
-                    }
-                }
+
             }
         }
     }
