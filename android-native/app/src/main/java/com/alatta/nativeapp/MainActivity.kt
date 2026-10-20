@@ -715,6 +715,29 @@ private class AttaYoutubeFullscreenChrome(
     }
 }
 
+/** A YouTube video is displayed inline with the official, already-existing site-based player. */
+@Composable
+private fun YoutubePostMedia(videoId: String, playing: Boolean, onPlay: () -> Unit, onStop: () -> Unit) {
+    if (playing) {
+        Column(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text("فيديو يوتيوب", color = GoldLight, fontSize = 12.sp, modifier = Modifier.weight(1f))
+                TextButton(onClick = onStop) { Text("إغلاق الفيديو", color = GoldLight) }
+            }
+            YouTubePlayer(videoId)
+        }
+    } else {
+        Box(Modifier.fillMaxWidth().aspectRatio(16f / 9f).padding(vertical = 6.dp)
+            .clip(RoundedCornerShape(12.dp)).background(Color.Black)
+            .clickable(onClick = onPlay), contentAlignment = Alignment.Center) {
+            AsyncImage("https://i.ytimg.com/vi/$videoId/hqdefault.jpg", "معاينة فيديو يوتيوب",
+                Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+            Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = .35f)))
+            SiteIcon("play-circle", size = 60.dp, tint = GoldLight)
+        }
+    }
+}
+
 @Composable
 internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = null) {
     val attachment = remember(text) { parseMushafPostAttachment(text, BASE) } ?: return
@@ -860,6 +883,9 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
     var pickedUri by remember { mutableStateOf<Uri?>(null) }
     var pickedMime by remember { mutableStateOf("") }
     var mushafPostDraft by remember { mutableStateOf<MushafPostDraft?>(null) }
+    var youtubePostDraftId by remember { mutableStateOf("") }
+    var youtubePostDraftTitle by remember { mutableStateOf("") }
+    var activeYoutubePostId by remember { mutableStateOf("") }
     var quranPage by remember { mutableIntStateOf(1) }
     var quranReadingRange by remember { mutableStateOf<IntRange?>(null) }
     var posts by remember { mutableStateOf(emptyList<JSONObject>()) }
@@ -919,9 +945,14 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
         }
     }
     LaunchedEffect(activeCall?.callId, incomingCall?.callId) {
-        if (activeCall != null || incomingCall != null) youtubePlayRequested = false
+        if (activeCall != null || incomingCall != null) {
+            youtubePlayRequested = false
+            activeYoutubePostId = ""
+        }
     }
     val youtubeListState = rememberLazyListState()
+    val homeFeedListState = rememberLazyListState()
+    val otherFeedListState = rememberLazyListState()
     var profileBio by remember { mutableStateOf("") }
     var profileCountry by remember { mutableStateOf("") }
     var profileCity by remember { mutableStateOf("") }
@@ -977,6 +1008,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
         profile = JSONObject(); publicProfile = null; displayName = ""; myUsername = ""; myAvatar = ""
         googleIdToken = ""; googleEmail = ""; ownerResetPlan = null; ownerResetConfirmation = ""
         mushafPostDraft?.discard(); mushafPostDraft = null; pickedUri = null; draft = ""
+        youtubePostDraftId = ""; youtubePostDraftTitle = ""; activeYoutubePostId = ""
         youtubePlayRequested = false; youtubeId = ""
         visited.clear(); tab = "الرئيسية"; token = ""; authMode = "login"
         prefs.edit().clear().apply()
@@ -1489,6 +1521,12 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
     }
     fun refresh() = task { load(tab) }
     fun navigate(destination: String) {
+        if (destination == "الرئيسية" && token.isNotBlank()) {
+            // Refresh on EVERY Home tap, including taps on the already selected tab.
+            scope.launch { homeFeedListState.animateScrollToItem(0) }
+            if (tab == destination) task { load("الرئيسية") }
+        }
+        if (destination != "الرئيسية") activeYoutubePostId = ""
         if (tab != destination) { visited.add(tab); tab = destination }
     }
     fun openChat(peer: String) {
@@ -2071,7 +2109,10 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                             })
                         "الأحاديث", "الأذكار" -> KnowledgeScreen(tab, knowledgeSearch, Modifier.weight(1f))
                         "الرياضة" -> FootballScreen(Modifier.weight(1f))
-                        "الرئيسية", "استكشاف", "المحفوظات" -> LazyColumn(Modifier.weight(1f).padding(horizontal = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        "الرئيسية", "استكشاف", "المحفوظات" -> LazyColumn(
+                            Modifier.weight(1f).padding(horizontal = 8.dp),
+                            state = if (tab == "الرئيسية") homeFeedListState else otherFeedListState,
+                            verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             if (tab == "استكشاف") {
                                 item { SectionTitle("الأشخاص") }
                                 if (users.isEmpty()) item { Text("لا يوجد أشخاص مطابقون للبحث", color = Muted, modifier = Modifier.padding(12.dp)) }
