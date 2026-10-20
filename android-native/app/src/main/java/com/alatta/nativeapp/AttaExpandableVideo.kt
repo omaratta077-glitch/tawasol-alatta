@@ -225,7 +225,7 @@ internal fun AttaPostMediaViewer(
                     verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = {
                         player.seekTo((player.currentPosition - 10000L).coerceAtLeast(0))
-                    }) { SiteIcon("rotate-ccw", size = 23.dp, tint = Color.White) }
+                    }) { SiteIcon("skip-back", size = 23.dp, tint = Color.White) }
                     IconButton(onClick = {
                         if (playing) player.pause() else {
                             if (player.playbackState == Player.STATE_ENDED) player.seekTo(0)
@@ -242,7 +242,7 @@ internal fun AttaPostMediaViewer(
                     IconButton(onClick = {
                         player.seekTo((player.currentPosition + 10000L)
                             .coerceAtMost(duration.coerceAtLeast(0)))
-                    }) { SiteIcon("rotate-cw", size = 23.dp, tint = Color.White) }
+                    }) { SiteIcon("skip-forward", size = 23.dp, tint = Color.White) }
                 }
             }
             if (controls && loadInteractions != null && sendComment != null) Column(
