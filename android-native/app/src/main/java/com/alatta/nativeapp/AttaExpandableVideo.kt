@@ -79,6 +79,7 @@ internal fun AttaPostMediaViewer(
     loadInteractions: PostInteractionsLoader? = null,
     sendReaction: PostReactionSender? = null,
     sendComment: PostCommentSender? = null,
+    onShare: (suspend (String) -> Unit)? = null,
     onStats: (String, JSONObject) -> Unit = { _, _ -> },
     onOpenProfile: (String) -> Unit = {}
 ) {
@@ -192,6 +193,40 @@ internal fun AttaPostMediaViewer(
                     ) })
                 // Use the SINGLE central play/pause button in the controls row below.
             } else AttaZoomableImage(url, "صورة المنشور", onTap = { controls = !controls })
+            // The approved two circular social actions at the top-right.
+            // They are displayed only when connected to real post APIs.
+            if (player != null && (sendReaction != null || onShare != null)) {
+                Column(Modifier.align(Alignment.TopEnd)
+                    .statusBarsPadding().padding(top = 16.dp, end = 14.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally) {
+                    if (sendReaction != null && loadInteractions != null) {
+                        Box(Modifier.size(44.dp).clip(RoundedCornerShape(50))
+                            .background(Color(0xAA080808))
+                            .border(1.dp, Color(0xFFE6B94E), RoundedCornerShape(50))
+                            .clickable { react("love") }, contentAlignment = Alignment.Center) {
+                            SiteIcon(if (selected == "love") "heart-filled" else "heart",
+                                size = 24.dp, tint = Color(0xFFE6B94E))
+                        }
+                    }
+                    if (onShare != null) {
+                        Box(Modifier.size(44.dp).clip(RoundedCornerShape(50))
+                            .background(Color(0xAA080808))
+                            .border(1.dp, Color(0xFFE6B94E), RoundedCornerShape(50))
+                            .clickable {
+                                scope.launch {
+                                    try { onShare(id) }
+                                    catch (cancelled: CancellationException) { throw cancelled }
+                                    catch (e: Exception) {
+                                        failed = e.message ?: "تعذر مشاركة المنشور"; controls = true
+                                    }
+                                }
+                            }, contentAlignment = Alignment.Center) {
+                            SiteIcon("send", size = 24.dp, tint = Color.White)
+                        }
+                    }
+                }
+            }
             // One playback-control row in the lower third, as in the approved mockup.
             // The separate post-like/comment controls remain at the very bottom.
             if (player != null && controls) Column(
