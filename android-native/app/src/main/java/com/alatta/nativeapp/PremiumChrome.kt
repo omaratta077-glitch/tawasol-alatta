@@ -97,6 +97,9 @@ internal fun SiteIcon(name: String, modifier: Modifier = Modifier, tint: Color =
         "lock" -> R.drawable.atta_ic_lock
         "youtube" -> R.drawable.atta_ic_youtube
         "play" -> R.drawable.atta_ic_play
+        "pause" -> R.drawable.atta_ic_pause
+        "skip-back" -> R.drawable.atta_ic_skip_back
+        "skip-forward" -> R.drawable.atta_ic_skip_forward
         "arrow-left" -> R.drawable.atta_ic_arrow_left
         "check" -> R.drawable.atta_ic_check
         else -> R.drawable.atta_ic_ellipsis
