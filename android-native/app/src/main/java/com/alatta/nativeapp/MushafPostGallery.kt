@@ -5,51 +5,116 @@ import android.graphics.Color as AndroidColor
 import android.graphics.RectF
 import android.view.View
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.pager.VerticalPager
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import coil.compose.AsyncImage
 import com.caverock.androidsvg.SVG
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-/** Show every selected page from the existing offline mushaf, not only the post cover. */
+/**
+ * The feed shows ONE fixed first-page cover, like a video thumbnail.
+ * Tapping opens a separate fullscreen vertical page viewer. No nested feed
+ * scrolling; ten shared pages never block scrolling to the next post.
+ * The existing uploaded preview and local offline SVG renderer are reused.
+ */
 @Composable
-internal fun MushafPostGallery(pages: IntRange, modifier: Modifier = Modifier) {
+internal fun MushafPostGallery(
+    pages: IntRange,
+    coverModel: Any? = null,
+    modifier: Modifier = Modifier
+) {
     if (pages.first !in 1..604 || pages.last !in pages.first..604) return
-    val context = LocalContext.current
-    // Pages share the same edge: no labels, margins, borders or gaps between them.
-    LazyColumn(modifier.heightIn(max = 510.dp), verticalArrangement = Arrangement.spacedBy(0.dp)) {
-        items(pages.toList(), key = { it }) { page ->
-            var drawing by remember(page) { mutableStateOf<SVG?>(null) }
-            LaunchedEffect(page) {
-                drawing = withContext(Dispatchers.IO) {
-                    runCatching { loadMushafDrawing(context, page) }.getOrNull()
+    var showing by remember(pages.first, pages.last) { mutableStateOf(false) }
+
+    Box(modifier.fillMaxWidth().height(360.dp)
+        .background(Color(0xFFFDF7E6), RoundedCornerShape(12.dp))
+        .clickable { showing = true }, contentAlignment = Alignment.Center) {
+        if (coverModel != null) {
+            AsyncImage(model = coverModel, contentDescription = "الصفحة الأولى من المصحف",
+                modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
+        } else {
+            MushafGalleryPage(pages.first, Modifier.fillMaxSize())
+        }
+        Text(
+            "اضغط لعرض الصفحات  •  ${pages.first}–${pages.last}",
+            color = Color(0xFFF6D776), fontSize = 12.sp,
+            modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth()
+                .background(Color(0xDD080B0D))
+                .padding(horizontal = 10.dp, vertical = 9.dp)
+        )
+    }
+
+    if (showing) {
+        Dialog(onDismissRequest = { showing = false },
+            properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
+            val count = pages.last - pages.first + 1
+            val pager = rememberPagerState(pageCount = { count })
+            Column(Modifier.fillMaxSize().background(Color.Black).safeDrawingPadding()) {
+                Row(Modifier.fillMaxWidth().height(52.dp).padding(horizontal = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically) {
+                    Text("صفحة ${pages.first + pager.currentPage} من ${pages.last}",
+                        color = Color(0xFFF6D776), modifier = Modifier.weight(1f), fontSize = 16.sp)
+                    TextButton(onClick = { showing = false }) {
+                        Text("إغلاق ✕", color = Color(0xFFF6D776), fontSize = 15.sp)
+                    }
                 }
+                VerticalPager(state = pager, modifier = Modifier.weight(1f).fillMaxWidth(),
+                    beyondViewportPageCount = 1) { position ->
+                    // Exactly one page per vertical swipe; the page stays within
+                    // its viewport and does not insert gaps between pages.
+                    Box(Modifier.fillMaxSize().background(Color(0xFFFDF7E6)),
+                        contentAlignment = Alignment.Center) {
+                        if (position == 0 && coverModel != null) {
+                            AsyncImage(model = coverModel, contentDescription = "صفحة ${pages.first}",
+                                modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
+                        } else {
+                            MushafGalleryPage(pages.first + position, Modifier.fillMaxSize())
+                        }
+                    }
+                }
+                Text(if (pager.currentPage < count - 1) "اسحب لأعلى للصفحة التالية" else "نهاية الصفحات المشتركة",
+                    color = Color(0xFFF6D776), fontSize = 12.sp,
+                    modifier = Modifier.align(Alignment.CenterHorizontally).padding(vertical = 10.dp))
             }
-            // Match the bundled SVG's actual viewBox instead of forcing an incorrect
-            // canvas height that leaves a large empty cream block above some pages.
-            val aspectRatio = remember(drawing) {
-                drawing?.let { svg ->
-                    val bounds = svg.documentViewBox
-                        ?: RectF(0f, 0f, svg.documentWidth, svg.documentHeight)
-                    (bounds.width() / bounds.height().coerceAtLeast(1f))
-                        .takeIf { it.isFinite() && it > 0f }
-                } ?: 0.72f
-            }
-            AndroidView(factory = { ctx -> MushafGalleryPageView(ctx) },
-                update = { it.drawing = drawing; it.invalidate() },
-                modifier = Modifier.fillMaxWidth().aspectRatio(aspectRatio)
-                    .background(Color(0xFFFDF7E6)))
         }
     }
+}
+
+/** Reuse the original SVG-based mushaf renderer, without new image assets. */
+@Composable
+private fun MushafGalleryPage(page: Int, modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    var drawing by remember(page) { mutableStateOf<SVG?>(null) }
+    LaunchedEffect(page) {
+        try {
+            drawing = withContext(Dispatchers.IO) { loadMushafDrawing(context, page) }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            drawing = null
+        }
+    }
+    AndroidView(factory = { ctx -> MushafGalleryPageView(ctx) },
+        update = { it.drawing = drawing; it.invalidate() },
+        modifier = modifier.background(Color(0xFFFDF7E6)))
 }
 
 private class MushafGalleryPageView(context: android.content.Context) : View(context) {
@@ -57,8 +122,8 @@ private class MushafGalleryPageView(context: android.content.Context) : View(con
     override fun onDraw(canvas: Canvas) {
         canvas.drawColor(AndroidColor.rgb(253, 247, 230))
         drawing?.let {
-            renderMushafDrawing(canvas, it, RectF(10f, 10f,
-                width.toFloat() - 10f, height.toFloat() - 10f))
+            renderMushafDrawing(canvas, it, RectF(8f, 8f,
+                width.toFloat() - 8f, height.toFloat() - 8f))
         }
     }
 }
