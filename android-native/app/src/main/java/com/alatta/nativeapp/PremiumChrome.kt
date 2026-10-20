@@ -199,7 +199,6 @@ internal fun PremiumBottomNav(current: String, go: (String) -> Unit) {
         // Remaining screens stay reachable by horizontal swiping, not removed.
         Triple("الرئيسية", "home", "الرئيسية"),
         Triple("الرسائل", "message-circle", "الرسائل"),
-        Triple("الأصدقاء", "users", "الأصدقاء"),
         Triple("الملف", "user-round", "الملف"),
         Triple("القرآن", "book-open", "القرآن"),
         Triple("الأحاديث", "book-text", "الأحاديث"),
@@ -369,7 +368,7 @@ internal fun attaCommentBottomClearance(): Dp {
             ?.getInsetsIgnoringVisibility(androidx.core.view.WindowInsetsCompat.Type.navigationBars())?.bottom
     } ?: safeBottom
     val missing = if (WindowInsets.ime.getBottom(density) > 0) 0 else (physicalBottom - safeBottom).coerceAtLeast(0)
-    return with(density) { missing.toDp() } + 12.dp
+    return with(density) { missing.toDp() } + 20.dp
 }
 
 

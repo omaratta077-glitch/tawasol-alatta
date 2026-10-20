@@ -25,6 +25,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -290,9 +292,10 @@ internal fun NativeCallScreen(
                     Text(if (connectedAt > 0) "مكالمة جارية — عودة" else callStatus,
                         color = CallGold, fontSize = 10.sp, maxLines = 2)
                 }
-                Box(Modifier.size(37.dp).clip(CircleShape).background(Color(0xFFE83838))
+                Box(Modifier.size(42.dp).shadow(6.dp, CircleShape).clip(CircleShape)
+                    .background(Color(0xFFDC2736)).border(1.dp, CallGold, CircleShape)
                     .clickable { endCall() }, contentAlignment = Alignment.Center) {
-                    SiteIcon("phone-off", tint = CallWhite, size = 20.dp)
+                    SiteIcon("phone", modifier = Modifier.rotate(135f), tint = CallWhite, size = 23.dp)
                 }
             }
         } else {
@@ -311,7 +314,7 @@ internal fun NativeCallScreen(
                     verticalArrangement = Arrangement.Center
                 ) {
                     if (!videoCall || !remoteReady) {
-                        Box(Modifier.size(126.dp)
+                        Box(Modifier.size(126.dp).offset(y = if (videoCall && !remoteReady) 12.dp else 0.dp)
                             .border(2.dp, CallGold, CircleShape)
                             .background(Color(0xFF15120D), CircleShape),
                             contentAlignment = Alignment.Center) {
@@ -362,7 +365,7 @@ internal fun NativeCallScreen(
                             cameraOff = engine.toggleCamera()
                         }
                     }
-                    CallControl("phone-off", "إنهاء", danger = true) { endCall() }
+                    CallControl("phone", "إنهاء", danger = true) { endCall() }
                     CallControl("volume", "السماعة", active = speakerOn) {
                         speakerOn = engine.toggleSpeaker()
                     }
@@ -383,13 +386,13 @@ private fun CallControl(
 ) {
     Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Box(
-            Modifier.size(59.dp).clip(CircleShape)
-                .background(if (danger) Color(0xFFE83838) else if (active) Color(0xFF665029) else CallPanel)
-                .border(BorderStroke(1.dp, if (danger) Color(0xFFFF6666) else CallGold.copy(alpha = .3f)), CircleShape)
+            Modifier.size(if (danger) 64.dp else 59.dp).shadow(if (danger) 6.dp else 0.dp, CircleShape).clip(CircleShape)
+                .background(if (danger) Color(0xFFDC2736) else if (active) Color(0xFF665029) else CallPanel)
+                .border(BorderStroke(1.dp, if (danger) CallGold.copy(alpha = .92f) else CallGold.copy(alpha = .3f)), CircleShape)
                 .clickable(onClick = onClick),
             contentAlignment = Alignment.Center
         ) {
-            SiteIcon(icon, tint = CallWhite, size = 27.dp)
+            SiteIcon(icon, modifier = if (danger) Modifier.rotate(135f) else Modifier, tint = CallWhite, size = if (danger) 30.dp else 27.dp)
         }
         Text(label, color = CallWhite, fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }

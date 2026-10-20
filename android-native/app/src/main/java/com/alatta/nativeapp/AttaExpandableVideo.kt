@@ -7,6 +7,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.ui.geometry.Offset
@@ -14,6 +15,8 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -26,6 +29,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
@@ -189,7 +193,8 @@ internal fun AttaPostMediaViewer(
                         this.player = player
                         useController = false
                         resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-                    } }, update = { it.player = player }, modifier = Modifier.fillMaxSize())
+                    } }, update = { it.player = player }, modifier = Modifier.fillMaxSize(.96f)
+                        .align(Alignment.Center).offset(y = (-10).dp))
                     var drag by remember(id) { mutableFloatStateOf(0f) }
                     Box(Modifier.fillMaxSize().clickable { controls = !controls }
                         .pointerInput(id) { detectVerticalDragGestures(
@@ -245,7 +250,7 @@ internal fun AttaPostMediaViewer(
                 if (player != null && controls) Column(
                     Modifier.align(Alignment.BottomCenter).fillMaxWidth()
                         .background(Brush.verticalGradient(listOf(Color.Transparent, Color(0xAA000000))))
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                        .padding(start = 16.dp, top = 6.dp, end = 16.dp, bottom = 14.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     if (failed.isNotBlank()) {
@@ -255,11 +260,41 @@ internal fun AttaPostMediaViewer(
                         }) { Text("إعادة المحاولة", color = Color(0xFFE6B94E)) }
                     }
                     if (duration > 0) {
-                        Slider(value = progress, onValueChange = {
-                            progress = it; player.seekTo((duration * it).toLong())
-                        }, modifier = Modifier.fillMaxWidth().height(28.dp),
-                            colors = SliderDefaults.colors(thumbColor = Color.White,
-                                activeTrackColor = Color(0xFFE6B94E)))
+                        // One slim seek line. Keep a comfortable 24dp invisible touch target,
+                        // but draw only a 3dp track and a small gold thumb.
+                        Canvas(Modifier.fillMaxWidth().height(24.dp)
+                            .pointerInput(player, duration) {
+                                detectTapGestures { position ->
+                                    val fraction = (position.x / size.width.coerceAtLeast(1)).coerceIn(0f, 1f)
+                                    progress = fraction
+                                    player.seekTo((duration * fraction).toLong())
+                                }
+                            }
+                            .pointerInput(player, duration) {
+                                detectDragGestures(
+                                    onDragStart = { position ->
+                                        val fraction = (position.x / size.width.coerceAtLeast(1)).coerceIn(0f, 1f)
+                                        progress = fraction
+                                        player.seekTo((duration * fraction).toLong())
+                                    },
+                                    onDrag = { change, _ ->
+                                        val fraction = (change.position.x / size.width.coerceAtLeast(1)).coerceIn(0f, 1f)
+                                        progress = fraction
+                                        player.seekTo((duration * fraction).toLong())
+                                        change.consume()
+                                    }
+                                )
+                            }
+                        ) {
+                            val y = size.height / 2f
+                            val filled = size.width * progress.coerceIn(0f, 1f)
+                            drawLine(Color(0xFF60636A), Offset(0f, y), Offset(size.width, y),
+                                strokeWidth = 3.dp.toPx(), cap = StrokeCap.Round)
+                            if (filled > 0f) drawLine(Color(0xFFE6B94E), Offset(0f, y),
+                                Offset(filled, y), strokeWidth = 3.dp.toPx(), cap = StrokeCap.Round)
+                            drawCircle(Color(0xFFF6D776), radius = 4.dp.toPx(),
+                                center = Offset(filled, y))
+                        }
                         val currentSeconds = player.currentPosition.coerceAtLeast(0) / 1000
                         val totalSeconds = duration / 1000
                         Text("%02d:%02d / %02d:%02d".format(currentSeconds / 60,
@@ -272,23 +307,23 @@ internal fun AttaPostMediaViewer(
                         verticalAlignment = Alignment.CenterVertically) {
                         IconButton(onClick = {
                             changeVideo(-1)
-                        }) { SiteIcon("skip-back", size = 23.dp, tint = Color.White) }
+                        }) { SiteIcon("skip-back", size = 20.dp, tint = Color.White) }
                         IconButton(onClick = {
                             if (playing) player.pause() else {
                                 if (player.playbackState == Player.STATE_ENDED) player.seekTo(0)
                                 if (player.playerError != null) { failed = ""; player.prepare() }
                                 player.play()
                             }
-                        }, modifier = Modifier.size(52.dp)
+                        }, modifier = Modifier.size(48.dp)
                             .border(1.dp, Color(0xFFE6B94E), RoundedCornerShape(50))) {
                             if (buffering) CircularProgressIndicator(color = Color(0xFFE6B94E),
-                                modifier = Modifier.size(26.dp))
-                            else SiteIcon(if (playing) "pause" else "play", size = 30.dp,
+                                modifier = Modifier.size(23.dp))
+                            else SiteIcon(if (playing) "pause" else "play", size = 26.dp,
                                 tint = Color.White)
                         }
                         IconButton(onClick = {
                             changeVideo(1)
-                        }) { SiteIcon("skip-forward", size = 23.dp, tint = Color.White) }
+                        }) { SiteIcon("skip-forward", size = 20.dp, tint = Color.White) }
                     }
                 }
             }

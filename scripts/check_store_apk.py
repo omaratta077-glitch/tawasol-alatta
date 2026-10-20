@@ -2,6 +2,7 @@
 import argparse
 from pathlib import Path
 import re
+import json
 import shutil
 import subprocess
 import zipfile
@@ -28,4 +29,13 @@ with zipfile.ZipFile(args.apk) as apk:
     for name in ("privacy.html", "terms.html", "data-rights.html"):
         assert apk.read("assets/legal/" + name) == (root / "cloudflare-site/public" / name).read_bytes(), "Legal text differs from the published source: " + name
     assert "2026-10-20" in apk.read("assets/legal/privacy.html").decode(), "Missing current privacy version"
+    if "assets/agconnect-services.json" in apk.namelist():
+        def check_public(value):
+            if isinstance(value, dict):
+                for key, item in value.items():
+                    assert not any(word in re.sub(r"[^a-z]", "", key.lower()) for word in ("secret", "privatekey", "accesstoken", "password")), "Server credential found in client config"
+                    check_public(item)
+            elif isinstance(value, list):
+                for item in value: check_public(item)
+        check_public(json.loads(apk.read("assets/agconnect-services.json")))
 print(f"PASS: actual {args.channel} APK permissions, channel and offline legal documents")

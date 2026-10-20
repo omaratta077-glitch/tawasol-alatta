@@ -222,7 +222,8 @@ internal fun QuranReaderScreen(modifier: Modifier = Modifier, onExit: () -> Unit
                 }
                 Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                     verticalAlignment = Alignment.CenterVertically) {
-                    listOf("index" to "الفهرس", "parts" to "الأجزاء", "marks" to "المرجعيات", "notes" to "الملاحظات", "share" to "مشاركة").forEach { (id, name) ->
+                    listOf("index" to "الفهرس", "parts" to "الأجزاء", "marks" to "المرجعيات", "notes" to "الملاحظات", "share" to "مشاركة")
+                        .filter { allowOnlineFeatures || it.first != "share" }.forEach { (id, name) ->
                         TextButton(onClick = { pane = id }, modifier = Modifier.padding(end = 3.dp)) {
                             Text(name, maxLines = 1, softWrap = false,
                                 color = if (pane == id) gold else Color(0xFF55483A))
