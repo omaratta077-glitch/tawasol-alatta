@@ -178,24 +178,24 @@ private fun AttaRightAlignedComments(
         finally { loading = false }
     }
     Dialog(onDismissRequest = onClose, properties = DialogProperties(
-        usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
+        usePlatformDefaultWidth = false, decorFitsSystemWindows = true)) {
         val dialogView = LocalView.current
         val dialogWindow = (dialogView.parent as? DialogWindowProvider)?.window
         val keyboard = LocalSoftwareKeyboardController.current
-        val bottomClearance = attaCommentBottomClearance()
-        // A single tap on the comment icon opens the composer and phone keyboard.
+        // Allow the dialog window to resize above the keyboard. Previously,
+        // decorFitsSystemWindows=false + fullscreen forced the composer offscreen.
+        DisposableEffect(dialogWindow) {
+            dialogWindow?.let {
+                WindowCompat.setDecorFitsSystemWindows(it, true)
+                it.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
+                it.setLayout(WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.MATCH_PARENT)
+            }
+            onDispose { }
+        }
         LaunchedEffect(postId) {
             delay(230)
             commentFocusRequester.requestFocus()
             keyboard?.show()
-        }
-        DisposableEffect(dialogWindow) {
-            dialogWindow?.let {
-                WindowCompat.setDecorFitsSystemWindows(it, false)
-                it.setLayout(WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.MATCH_PARENT)
-                it.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
-            }
-            onDispose { }
         }
         CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
             Column(Modifier.fillMaxSize().background(Black).safeDrawingPadding().imePadding()) {
@@ -233,8 +233,10 @@ private fun AttaRightAlignedComments(
                         Text("إلغاء", color = Muted)
                     }
                 }
+                // Composer remains directly above the IME; insets are already
+                // handled by the dialog container, no extra bottom clearance.
                 Row(Modifier.fillMaxWidth().background(Panel)
-                    .padding(horizontal = 10.dp, vertical = 8.dp).padding(bottom = bottomClearance),
+                    .padding(horizontal = 10.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically) {
                     OutlinedTextField(value = content, onValueChange = { content = it },
                         placeholder = { Text("اكتب تعليقًا...", color = Muted) },
@@ -499,6 +501,21 @@ class MainActivity : ComponentActivity() {
         Text(text, fontWeight = FontWeight.Bold, fontSize = 13.sp, maxLines = 1)
     }
 }
+/** Keep the composer publish action bright gold, but disabled when empty. */
+@Composable private fun GoldPublishButton(enabled: Boolean, onClick: () -> Unit) {
+    Button(onClick = onClick, enabled = enabled,
+        colors = ButtonDefaults.buttonColors(
+            containerColor = Gold, contentColor = Black,
+            disabledContainerColor = Gold, disabledContentColor = Black),
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 5.dp),
+        shape = RoundedCornerShape(13.dp),
+        modifier = Modifier.shadow(5.dp, RoundedCornerShape(13.dp),
+            ambientColor = Gold.copy(alpha = .32f), spotColor = Gold.copy(alpha = .30f))
+            .heightIn(min = 40.dp)) {
+        Text("نشر", fontWeight = FontWeight.Bold, fontSize = 14.sp, maxLines = 1)
+    }
+}
+
 @Composable private fun SectionTitle(text: String) {
     Text(text, color = GoldLight, fontSize = 20.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 7.dp))
 }
@@ -2205,9 +2222,8 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                                 modifier = Modifier.fillMaxWidth().heightIn(min = 114.dp),
                                                 placeholder = { Text("بم تفكر؟", fontSize = 14.sp) },
                                                 minLines = 3, shape = RoundedCornerShape(14.dp))
-                                            Box(Modifier.align(Alignment.BottomStart).padding(9.dp)
-                                                .graphicsLayer { scaleX = .78f; scaleY = .78f }) {
-                                                GoldButton("نشر", !busy && (draft.isNotBlank() || pickedUri != null ||
+                                            Box(Modifier.align(Alignment.BottomStart).padding(10.dp)) {
+                                                GoldPublishButton(!busy && (draft.isNotBlank() || pickedUri != null ||
                                                     youtubePostDraftId.isNotBlank() || mushafPostDraft != null)) {
                                                 task {
                                                     var image = ""; var video = ""
