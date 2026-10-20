@@ -3009,15 +3009,16 @@ async function loadNotifications(){
     const list=d.notifications||[];
 
     $("notificationsList").innerHTML=list.length?list.map(n=>{
+      const sender=esc(n.fromName||n.from||"تواصل العطا");
       const labels={
-        like:`أعجب @${esc(n.from)} بمنشورك`,
-        reaction:`تفاعل @${esc(n.from)} مع منشورك`,
-        follow:`بدأ @${esc(n.from)} بمتابعتك`,
-        "friend-request":`أرسل @${esc(n.from)} لك طلب صداقة`,
-        "friend-accepted":`قبل @${esc(n.from)} طلب الصداقة`,
-        share:`شارك @${esc(n.from)} منشورك`
+        like:`أعجب ${sender} بمنشورك`,
+        reaction:`تفاعل ${sender} مع منشورك`,
+        follow:`بدأ ${sender} بمتابعتك`,
+        "friend-request":`أرسل ${sender} لك طلب صداقة`,
+        "friend-accepted":`قبل ${sender} طلب الصداقة`,
+        share:`شارك ${sender} منشورك`
       };
-      const label=labels[n.type]||`علّق @${esc(n.from)} على منشورك${n.text?`: ${esc(n.text)}`:""}`;
+      const label=labels[n.type]||`علّق ${sender} على منشورك${n.text?`: ${esc(n.text)}`:""}`;
       const hint=n.postId?"اضغط لعرض المنشور":(n.type==="friend-request"?"اضغط لعرض طلبات الصداقة":(["friend-accepted","follow"].includes(n.type)?"اضغط لعرض الحساب":""));
       return `<button type="button" class="notification-card smart-notification-card ${n.read?"read":""}" data-notification-id="${esc(n.id||"")}" data-notification-post="${esc(n.postId||"")}" data-notification-type="${esc(n.type||"")}" data-notification-from="${esc(n.from||"")}">
         <span class="notification-main-text">${label}</span>
