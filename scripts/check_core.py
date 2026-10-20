@@ -58,7 +58,7 @@ check("Foreground ring state declared in AttaPush",
       "AttaPush.foregroundRingCallId == callId" in ring_screen)
 
 check("Native Google bridge removed", not (ROOT/(android+"GoogleWebBridge.kt")).exists())
-check("Official version 1.0.107", 'versionCode = 207' in gradle and 'versionName = "1.0.107"' in gradle)
+check("Official version 1.0.108", 'versionCode = 208' in gradle and 'versionName = "1.0.108"' in gradle)
 check("Four additional screens and scrollable navigation", all(x in main for x in ['QuranReaderScreen(', 'KnowledgeScreen(tab', 'FootballScreen(']) and all(x in read(android+"PremiumChrome.kt") for x in ['"القرآن"', '"الأحاديث"', '"الأذكار"', '"الرياضة"', '.horizontalScroll(scroll)']) and (ROOT/(android+"AlattaKnowledgeScreens.kt")).is_file())
 check("Quran-first categories and click-to-play preview", all(x in main for x in [
     'var youtubeCategory by remember { mutableStateOf("قرآن") }',
@@ -74,7 +74,7 @@ check("Quran-first categories and click-to-play preview", all(x in main for x in
 check("Background FCM integration declared", all((ROOT/(android+x)).is_file() for x in ['AttaPush.kt']) and 'FIREBASE_SERVICE_ACCOUNT_JSON' in worker and '/api/push/register' in worker and 'ALATTA_FCM_APP_ID' in workflow)
 check("Notification Intent.data does not shadow Firebase payload", 'this.data = Uri.parse("alatta://notification/${Uri.encode(eventId)}")' in read(android+"AttaPush.kt"))
 check("Social, chat and call FCM routing", 'scheduleUserPush' in worker and
-      'deliverUserPush' in worker and 'notifyActivity(this, d)' in read(android+'AttaPush.kt') and
+      'deliverUserPush' in worker and 'AttaPush.receive(this, message.data)' in read(android+'AttaPush.kt') and 'notifyActivity(context, d)' in read(android+'AttaPush.kt') and
       'ACTION_OPEN_NOTIFICATION' in main)
 check("Site/Android keep screen on without changing player", 'FLAG_KEEP_SCREEN_ON' in main and
       'youtube-screen-awake.js' in read('cloudflare-site/public/index.html') and

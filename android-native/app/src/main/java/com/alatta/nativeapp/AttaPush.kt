@@ -47,19 +47,7 @@ class AttaApplication : Application() {
             override fun onActivityDestroyed(activity: Activity) {}
         })
         AttaPush.createChannel(this)
-        if (AttaPush.configured()) {
-            try {
-                val options = FirebaseOptions.Builder()
-                    .setApplicationId(BuildConfig.PUSH_APP_ID)
-                    .setGcmSenderId(BuildConfig.PUSH_SENDER_ID)
-                    .setProjectId(BuildConfig.PUSH_PROJECT_ID)
-                    .setApiKey(BuildConfig.PUSH_API_KEY)
-                    .build()
-                if (FirebaseApp.getApps(this).isEmpty()) FirebaseApp.initializeApp(this, options)
-            } catch (error: Exception) {
-                android.util.Log.e("AttaPush", "Firebase initialization failed", error)
-            }
-        }
+        if (AttaPrivacy.accepted(this)) AttaPush.initialize(this)
     }
 }
 
@@ -102,6 +90,30 @@ internal object AttaPush {
     fun configured() = BuildConfig.PUSH_APP_ID.isNotBlank() &&
         BuildConfig.PUSH_SENDER_ID.isNotBlank() && BuildConfig.PUSH_PROJECT_ID.isNotBlank() &&
         BuildConfig.PUSH_API_KEY.isNotBlank()
+
+    fun googleAvailable(context: Context): Boolean = runCatching {
+        com.google.android.gms.common.GoogleApiAvailability.getInstance()
+            .isGooglePlayServicesAvailable(context) == com.google.android.gms.common.ConnectionResult.SUCCESS
+    }.getOrDefault(false)
+
+    fun huaweiAvailable(context: Context): Boolean = runCatching {
+        com.huawei.hms.api.HuaweiApiAvailability.getInstance().isHuaweiMobileServicesAvailable(context) == 0
+    }.getOrDefault(false)
+    fun provider(context: Context) = choosePushProvider(BuildConfig.IS_APPGALLERY && BuildConfig.HMS_CONFIGURED, googleAvailable(context), huaweiAvailable(context))
+    fun ready(context: Context) = when (provider(context)) { "fcm" -> configured(); "hms" -> BuildConfig.HMS_CONFIGURED; else -> false }
+    fun canNotify(context: Context) = AttaPrivacy.accepted(context) && AttaPrivacy.notifications(context) &&
+        (Build.VERSION.SDK_INT < 33 || ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED)
+
+    fun initialize(context: Context) {
+        if (!canNotify(context) || provider(context) != "fcm" || !configured()) return
+        try {
+            val options = FirebaseOptions.Builder().setApplicationId(BuildConfig.PUSH_APP_ID)
+                .setGcmSenderId(BuildConfig.PUSH_SENDER_ID).setProjectId(BuildConfig.PUSH_PROJECT_ID)
+                .setApiKey(BuildConfig.PUSH_API_KEY).build()
+            if (FirebaseApp.getApps(context).isEmpty()) FirebaseApp.initializeApp(context, options)
+            FirebaseMessaging.getInstance().isAutoInitEnabled = true
+        } catch (error: Exception) { android.util.Log.w("AttaPush", "Push initialization unavailable", error) }
+    }
 
     fun createChannel(context: Context) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
@@ -149,29 +161,67 @@ internal object AttaPush {
     }
 
     fun register(context: Context, session: String, user: String) {
-        if (!configured() || session.isBlank() || user.isBlank()) return
+        if (!canNotify(context) || session.isBlank() || user.isBlank()) return
+        val provider = provider(context)
+        if (provider == "hms") { AttaHuaweiPush.register(context, session, user); return }
+        if (provider != "fcm") return
+        if (!configured()) return
+        initialize(context)
         try {
             FirebaseMessaging.getInstance().token.addOnSuccessListener { deviceToken ->
-                prefs(context).edit().putString("push_device_token", deviceToken).apply()
-                io.execute {
-                    runCatching {
-                        post(context, "/api/push/register", JSONObject()
-                            .put("token", session).put("deviceToken", deviceToken))
-                        prefs(context).edit().putLong("push_registered_at", System.currentTimeMillis())
-                            .putString("push_registered_user", user.lowercase()).apply()
-                    }.onFailure { android.util.Log.w("AttaPush", "Registration failed", it) }
-                }
+                registerDevice(context, session, user, deviceToken, "fcm")
             }.addOnFailureListener { android.util.Log.w("AttaPush", "FCM token unavailable", it) }
         } catch (error: Exception) { android.util.Log.w("AttaPush", "FCM unavailable", error) }
     }
 
+    fun registerDevice(context: Context, session: String, user: String, deviceToken: String, provider: String) {
+        if (!canNotify(context) || session.isBlank() || prefs(context).getString("token", "") != session || AttaPush.provider(context) != provider) return
+        val oldDevice = prefs(context).getString("push_device_token", "").orEmpty()
+        val oldProvider = prefs(context).getString("push_provider", "fcm").orEmpty()
+        prefs(context).edit().putString("push_device_token", deviceToken).putString("push_provider", provider).apply()
+                io.execute {
+                    runCatching {
+                        if (!canNotify(context) || prefs(context).getString("token", "") != session) return@execute
+                        if (oldDevice.isNotBlank() && (oldDevice != deviceToken || oldProvider != provider)) {
+                            post(context, "/api/push/unregister", JSONObject().put("token", session)
+                                .put("deviceToken", oldDevice).put("provider", oldProvider))
+                        }
+                        post(context, "/api/push/register", JSONObject()
+                            .put("token", session).put("deviceToken", deviceToken).put("provider", provider))
+                        prefs(context).edit().putLong("push_registered_at", System.currentTimeMillis())
+                            .putString("push_registered_user", user.lowercase()).apply()
+                    }.onFailure { android.util.Log.w("AttaPush", "Registration failed", it) }
+                }
+    }
+
     fun unregister(context: Context, session: String) {
         val device = prefs(context).getString("push_device_token", "").orEmpty()
+        val provider = prefs(context).getString("push_provider", "fcm").orEmpty()
+        runCatching { if (googleAvailable(context) && FirebaseApp.getApps(context).isNotEmpty()) {
+            FirebaseMessaging.getInstance().isAutoInitEnabled = false
+            FirebaseMessaging.getInstance().deleteToken()
+        } }
+        if (provider == "hms") AttaHuaweiPush.stop(context)
+        (context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager).cancelAll()
+        prefs(context).edit().remove("push_device_token").remove("push_registered_at").remove("push_registered_user").apply()
         if (session.isBlank() || device.isBlank()) return
         io.execute {
             runCatching { post(context, "/api/push/unregister", JSONObject()
-                .put("token", session).put("deviceToken", device)) }
+                .put("token", session).put("deviceToken", device).put("provider", provider)) }
         }
+    }
+
+    fun receive(context: Context, d: Map<String, String>) {
+        if (!canNotify(context)) return
+        val type = d["type"] ?: return
+        if (type !in setOf("call-request", "hangup", "call-reject")) { notifyActivity(context, d); return }
+        val id = d["callId"] ?: return
+        if (type == "hangup" || type == "call-reject") { dismiss(context, id); return }
+        val from = (d["sender"] ?: d["from"]).orEmpty().trim().lowercase()
+        val to = d["to"].orEmpty().trim().lowercase()
+        val created = d["createdAt"]?.toLongOrNull() ?: return
+        if (from.isBlank() || to.isBlank() || id.length !in 8..128) return
+        incoming(context, PushCall(from, to, id, if (d["callType"] == "video") "video" else "audio", created, ACTION_VIEW))
     }
 
     fun dismiss(context: Context, callId: String) {
@@ -332,31 +382,14 @@ class AttaCallRejectReceiver : BroadcastReceiver() {
 class AttaFirebaseMessagingService : FirebaseMessagingService() {
     override fun onNewToken(deviceToken: String) {
         super.onNewToken(deviceToken)
+        if (!AttaPush.canNotify(this)) return
         val values = getSharedPreferences("alatta_native", 0)
-        values.edit().putString("push_device_token", deviceToken).apply()
-        AttaPush.register(applicationContext, values.getString("token", "").orEmpty(),
-            values.getString("username", "").orEmpty())
+        AttaPush.registerDevice(applicationContext, values.getString("token", "").orEmpty(),
+            values.getString("username", "").orEmpty(), deviceToken, "fcm")
     }
 
     override fun onMessageReceived(message: RemoteMessage) {
         super.onMessageReceived(message)
-        val d = message.data
-        val type = d["type"] ?: return
-        if (type !in setOf("call-request", "hangup", "call-reject")) {
-            AttaPush.notifyActivity(this, d)
-            return
-        }
-        val id = d["callId"] ?: return
-        if (type == "hangup" || type == "call-reject") {
-            AttaPush.dismiss(this, id)
-            return
-        }
-        if (type != "call-request") return
-        val from = (d["sender"] ?: d["from"]).orEmpty().trim().lowercase()
-        val to = d["to"].orEmpty().trim().lowercase()
-        val created = d["createdAt"]?.toLongOrNull() ?: return
-        if (from.isBlank() || to.isBlank() || id.length !in 8..128) return
-        AttaPush.incoming(this, PushCall(from, to, id,
-            if (d["callType"] == "video") "video" else "audio", created, AttaPush.ACTION_VIEW))
+        AttaPush.receive(this, message.data)
     }
 }

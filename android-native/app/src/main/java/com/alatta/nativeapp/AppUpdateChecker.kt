@@ -202,6 +202,17 @@ private fun openInstaller(context: Context, update: AvailableAppUpdate): Boolean
 @Composable
 internal fun AppUpdatePrompt(manualCheckRequest: Int = 0) {
     val context = LocalContext.current
+    if (BuildConfig.IS_APPGALLERY) {
+        LaunchedEffect(manualCheckRequest) {
+            if (manualCheckRequest > 0) try {
+                context.startActivity(Intent(Intent.ACTION_VIEW,
+                    Uri.parse("appmarket://details?id=" + context.packageName)).setPackage("com.huawei.appmarket"))
+            } catch (_: android.content.ActivityNotFoundException) {
+                android.widget.Toast.makeText(context, "افتح Huawei AppGallery للتحقق من تحديث تواصل العطا", android.widget.Toast.LENGTH_LONG).show()
+            }
+        }
+        return
+    }
     val prefs = remember { context.getSharedPreferences(UPDATE_PREFS, Context.MODE_PRIVATE) }
     var update by remember { mutableStateOf<AvailableAppUpdate?>(null) }
     var stage by remember { mutableStateOf(UpdateStage.OFFER) }

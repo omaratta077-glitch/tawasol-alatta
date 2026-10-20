@@ -39,3 +39,5 @@ jobs:
           node scripts/test_quran_reader.mjs
           node scripts/test_call_history.mjs
           node scripts/test_social_push.mjs
+          node scripts/test_appgallery_privacy.mjs
+          python3 scripts/test_huawei_config.py

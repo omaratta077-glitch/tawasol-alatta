@@ -526,7 +526,7 @@ export class SignalingRoom extends DurableObject {
         const posts=new Set(job.postIds),stories=new Set(job.storyIds);
         const resetRateKey=`reset-rate:${await hashPassword(job.email)}`;
         const remove=async key=>this.ctx.storage.delete(key);
-        const ownPrefixes=["account-state","friends","friendIncoming","friendOutgoing","blocked","following","followers","notifications","saved","calls","callSignals","fcmTokens","lastSeen","lastCallPushResult","pushTestLast"];
+        const ownPrefixes=["account-state","friends","friendIncoming","friendOutgoing","blocked","following","followers","notifications","saved","calls","callSignals","fcmTokens","hmsTokens","legal-consent","deletion-request","report-rate","lastSeen","lastCallPushResult","pushTestLast"];
         for(const [key,value] of page){
           if(key==="admin-delete:job")continue;
           if(key.startsWith("admin-delete-media:")){await remove(key);continue;}
@@ -534,7 +534,7 @@ export class SignalingRoom extends DurableObject {
             key===`verify-email-rate:${job.email}` || key===resetRateKey ||
             key.startsWith("login-fail:") && [target,job.email,job.phone].filter(Boolean).includes(key.slice(11)) ||
             key.startsWith("session:") && value?.username===target ||
-            key.startsWith("google-account:") && value===target || key.startsWith("fcmOwner:") && value===target ||
+            key.startsWith("google-account:") && value===target || ["fcmOwner:","hmsOwner:"].some(p=>key.startsWith(p)) && value===target ||
             key.startsWith("pending-registration:") && (value?.registration?.username===target || value?.registration?.email===job.email) ||
             key.startsWith("reset:") && value?.username===target ||
             key.startsWith("messages:") && key.slice(9).split(":").includes(target)){
@@ -1298,15 +1298,18 @@ export class SignalingRoom extends DurableObject {
       if(!s)return j({ok:false,error:"الجلسة منتهية"},401);
       const deviceToken=String(body.deviceToken||"").trim();
       if(!/^[A-Za-z0-9:._-]{40,4096}$/.test(deviceToken))return j({ok:false,error:"رمز الجهاز غير صالح"},400);
+      const provider=String(body.provider||'fcm');
+      if(!['fcm','hms'].includes(provider))return j({ok:false,error:"مزود الإشعارات غير صالح"},400);
+      const prefix=provider==='hms'?'hms':'fcm';
       const registering=url.pathname.endsWith('/register');
-      const ownerKey='fcmOwner:'+deviceToken;
+      const ownerKey=prefix+'Owner:'+deviceToken;
       const previousOwner=String(await this.ctx.storage.get(ownerKey)||'');
-      const key='fcmTokens:'+s.username;
+      const key=prefix+'Tokens:'+s.username;
       const prior=await this.ctx.storage.get(key)||[];
       if(registering){
         // One physical push token must not keep alerts from a previous login.
         if(previousOwner && previousOwner!==s.username){
-          const oldKey='fcmTokens:'+previousOwner;
+          const oldKey=prefix+'Tokens:'+previousOwner;
           const oldTokens=await this.ctx.storage.get(oldKey)||[];
           await this.ctx.storage.put(oldKey,oldTokens.filter(t=>t!==deviceToken));
         }
@@ -1323,10 +1326,12 @@ export class SignalingRoom extends DurableObject {
     if(url.pathname==="/api/push/status" && request.method==="GET"){
       const session=await this.session(url.searchParams.get("token")||"");
       if(!session)return j({ok:false,error:"الجلسة منتهية"},401);
-      const registered=await this.ctx.storage.get('fcmTokens:'+session.username)||[];
+      const provider=url.searchParams.get('provider')==='hms'?'hms':'fcm';
+      const registered=await this.ctx.storage.get(provider+'Tokens:'+session.username)||[];
       let projectMatches=false;
-      const configured=!!this.env.FIREBASE_SERVICE_ACCOUNT_JSON;
-      if(configured){
+      const configured=provider==='hms'?!!(this.env.HUAWEI_PUSH_APP_ID && this.env.HUAWEI_PUSH_APP_SECRET):!!this.env.FIREBASE_SERVICE_ACCOUNT_JSON;
+      if(configured && provider==='hms')projectMatches=true;
+      else if(configured){
         try{
           const service=JSON.parse(this.env.FIREBASE_SERVICE_ACCOUNT_JSON);
           projectMatches=!!service.private_key && !!service.client_email && !!service.project_id &&
@@ -1334,7 +1339,7 @@ export class SignalingRoom extends DurableObject {
         }catch(_){/* Never return credentials or private keys. */}
       }
       const lastCallPush=await this.ctx.storage.get('lastCallPushResult:'+session.username)||null;
-      return j({ok:true,serverConfigured:configured,projectMatches,
+      return j({ok:true,provider,serverConfigured:configured,projectMatches,
         registeredDevices:registered.length,lastCallPush});
     }
 
@@ -1342,19 +1347,20 @@ export class SignalingRoom extends DurableObject {
     if(url.pathname==="/api/push/test" && request.method==="POST"){
       const session=await this.session(String(body.token||""));
       if(!session)return j({ok:false,error:"الجلسة منتهية"},401);
-      const tokens=await this.ctx.storage.get('fcmTokens:'+session.username)||[];
+      const provider=body.provider==='hms'?'hms':'fcm';
+      const tokens=await this.ctx.storage.get(provider+'Tokens:'+session.username)||[];
       const latest=Number(await this.ctx.storage.get('pushTestLast:'+session.username)||0);
       if(Date.now()-latest<60000)return j({ok:false,error:"انتظر دقيقة قبل إعادة الاختبار"},429);
-      if(!this.env.FIREBASE_SERVICE_ACCOUNT_JSON || !tokens.length)
+      if(!(provider==='hms'?this.env.HUAWEI_PUSH_APP_ID && this.env.HUAWEI_PUSH_APP_SECRET:this.env.FIREBASE_SERVICE_ACCOUNT_JSON) || !tokens.length)
         return j({ok:false,error:"الإشعارات غير جاهزة على الخادم أو الجهاز غير مسجّل"},409);
       await this.ctx.storage.put('pushTestLast:'+session.username,Date.now());
-      const result=await this.sendFcmToUser(session.username,{
+      const result=await (provider==='hms'?this.sendHmsToUser.bind(this):this.sendFcmToUser.bind(this))(session.username,{
         type:'push-test',to:session.username,from:'',eventId:crypto.randomUUID(),createdAt:String(Date.now())
       },'60s');
       // This confirms FCM accepted the request, not that the phone displayed it.
-      if(!result.accepted)return j({ok:false,error:'تعذر إرسال الإشعار التجريبي إلى Firebase ('+(result.error||'NO_ACCEPTED_DEVICE')+')',
+      if(!result.accepted)return j({ok:false,error:'تعذر إرسال الإشعار التجريبي ('+(result.error||'NO_ACCEPTED_DEVICE')+')',
         diagnostic:result.error||'NO_ACCEPTED_DEVICE'},502);
-      return j({ok:true,acceptedByFirebase:result.accepted,attempted:result.attempted});
+      return j({ok:true,provider,acceptedByProvider:result.accepted,acceptedByFirebase:provider==='fcm'?result.accepted:0,attempted:result.attempted});
     }
 
     if(url.pathname==="/api/call-signal" && request.method==="POST"){
@@ -2169,23 +2175,77 @@ export class SignalingRoom extends DurableObject {
       return j({ok:true,blocked:!exists});
     }
 
+    if(url.pathname==="/api/legal-consent" && request.method==="POST"){
+      const s=await this.session(String(body.token||""));
+      if(!s)return j({ok:false,error:"الجلسة منتهية"},401);
+      if(body.version!=="2026-10-20" || typeof body.accepted!=="boolean")return j({ok:false,error:"إصدار الموافقة غير صحيح"},400);
+      const key=`legal-consent:${s.username}`,old=await this.ctx.storage.get(key);
+      if(old?.version!==body.version || old?.accepted!==body.accepted)
+        await this.ctx.storage.put(key,{version:body.version,accepted:body.accepted,updatedAt:Date.now()});
+      return j({ok:true});
+    }
+
+    if(url.pathname==="/api/account-deletion-request"){
+      const s=await this.session(String(request.method==="GET"?url.searchParams.get("token")||"":body.token||""));
+      if(!s)return j({ok:false,error:"الجلسة منتهية"},401);
+      const key=`deletion-request:${s.username}`;
+      if(request.method==="GET")return j({ok:true,request:await this.ctx.storage.get(key)||null});
+      if(request.method!=="POST")return j({ok:false,error:"طريقة غير مسموحة"},405);
+      if(body.username && body.username!==s.username)return j({ok:false,error:"يمكن طلب حذف حسابك فقط"},403);
+      if(body.action==="cancel"){
+        const previous=await this.ctx.storage.get(key);
+        if(previous?.status==="pending")await this.ctx.storage.put(key,{...previous,status:"cancelled",updatedAt:Date.now()});
+        return j({ok:true,cancelled:true});
+      }
+      if(body.confirmation!==s.username)return j({ok:false,error:"اكتب اسم المستخدم لتأكيد طلب الحذف"},400);
+      const previous=await this.ctx.storage.get(key);
+      const record=previous?.status==="pending"?previous:{id:crypto.randomUUID(),username:s.username,
+        status:"pending",requestedAt:Date.now(),reason:String(body.reason||"").trim().slice(0,500)};
+      await this.ctx.storage.put(key,record);
+      return j({ok:true,request:record,deleted:false});
+    }
+
+    if(url.pathname==="/api/admin/deletion-requests" && request.method==="GET"){
+      const auth=await this.requireAdmin(url.searchParams.get("token")||"");if(auth.error)return auth.error;
+      const records=await this.allRecords("deletion-request:");
+      return j({ok:true,requests:records.filter(r=>r.status==="pending").sort((a,b)=>a.requestedAt-b.requestedAt)});
+    }
+
     if(url.pathname==="/api/report" && request.method==="POST"){
       const s=await this.session(String(body.token||""));
       if(!s)return j({ok:false,error:"الجلسة منتهية"},401);
-
+      const targetType=String(body.targetType||"post"),targetId=String(body.targetId||"").trim(),reason=String(body.reason||"").trim();
+      if(!['post','user'].includes(targetType) || !targetId || reason.length<3 || reason.length>500)
+        return j({ok:false,error:"حدد المحتوى وسبب البلاغ من 3 إلى 500 حرف"},400);
+      let targetUsername=targetId;
+      if(targetType==='post'){
+        const target=await this.ctx.storage.get(`post:${targetId}`);
+        if(!target || target.archived || !await this.canSeeContent(s.username,target.author))return j({ok:false,error:"المحتوى غير متاح"},404);
+        targetUsername=target.author;
+      }else if(!await this.canViewProfile(s.username,targetId))return j({ok:false,error:"الحساب غير متاح"},404);
+      if(targetUsername===s.username)return j({ok:false,error:"لا يمكنك الإبلاغ عن نفسك"},400);
+      const reports=await this.ctx.storage.get("reports")||[];
+      if(reports.some(r=>!r.resolved && r.reporter===s.username && r.targetType===targetType && r.targetId===targetId))
+        return j({ok:true,alreadyReported:true});
+      const rateKey=`report-rate:${s.username}`,rate=await this.ctx.storage.get(rateKey)||{start:Date.now(),count:0};
+      if(Date.now()-rate.start>=600000){rate.start=Date.now();rate.count=0;}
+      if(rate.count>=5)return j({ok:false,error:"انتظر قليلًا قبل إرسال بلاغ آخر"},429);
       const report={
         id:crypto.randomUUID(),
         reporter:s.username,
-        targetType:String(body.targetType||"post"),
-        targetId:String(body.targetId||""),
-        reason:String(body.reason||"").slice(0,500),
+        targetType,targetId,targetUsername,reason,
         createdAt:Date.now()
       };
 
-      const reports=await this.ctx.storage.get("reports")||[];
       reports.push(report);
-      await this.ctx.storage.put("reports",reports.slice(-1000));
-      return j({ok:true});
+      while(encoder.encode(JSON.stringify(reports)).length>100000){
+        const resolved=reports.findIndex(r=>r.resolved);
+        if(resolved<0)return j({ok:false,error:"البلاغات الحالية قيد المعالجة؛ تواصل مع الدعم"},503);
+        reports.splice(resolved,1);
+      }
+      await this.ctx.storage.put("reports",reports);
+      await this.ctx.storage.put(rateKey,{...rate,count:rate.count+1});
+      return j({ok:true,id:report.id});
     }
 
 
@@ -2266,7 +2326,7 @@ export class SignalingRoom extends DurableObject {
           }
         }
         await this.ctx.storage.deleteAll();
-        this.recentPush?.clear();this.fcmToken=null;this.fcmExpires=0;
+        this.recentPush?.clear();this.fcmToken=null;this.fcmExpires=0;this.hmsToken=null;this.hmsExpires=0;
         this.resetClosing=false;
         return j({ok:true,done:true,users:0,posts:0,durableObjectKeys:0,mediaObjects:0,keptAccounts:[],deletedMedia:plan.deletedMedia,loggedOut:true});
       }catch{
@@ -2798,9 +2858,52 @@ export class SignalingRoom extends DurableObject {
     }
   }
 
+  async hmsAccessToken(){
+    if(!this.env.HUAWEI_PUSH_APP_ID || !this.env.HUAWEI_PUSH_APP_SECRET)return null;
+    if(this.hmsToken && this.hmsExpires>Date.now()+60000)return this.hmsToken;
+    const response=await fetch('https://oauth-login.cloud.huawei.com/oauth2/v3/token',{
+      method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},
+      body:new URLSearchParams({grant_type:'client_credentials',client_id:String(this.env.HUAWEI_PUSH_APP_ID),client_secret:String(this.env.HUAWEI_PUSH_APP_SECRET)})});
+    if(!response.ok)throw Error('HMS_AUTH_HTTP_'+response.status);
+    const result=await response.json();
+    if(!result.access_token)throw Error('HMS_AUTH_UNAVAILABLE');
+    this.hmsToken=result.access_token;this.hmsExpires=Date.now()+Math.min(Number(result.expires_in)||3000,3300)*1000;
+    return this.hmsToken;
+  }
+
+  async sendHmsToUser(to,data,ttl){
+    if(!this.env.HUAWEI_PUSH_APP_ID || !this.env.HUAWEI_PUSH_APP_SECRET)return {accepted:0,attempted:0,error:'HMS_NOT_CONFIGURED'};
+    let accepted=0,attempted=0,lastError='';
+    try{
+      const tokens=await this.ctx.storage.get('hmsTokens:'+to)||[];
+      if(!tokens.length)return {accepted,attempted,error:'NO_REGISTERED_DEVICES'};
+      const access=await this.hmsAccessToken(),survivors=[];
+      for(const deviceToken of tokens.slice(-5)){
+        attempted++;
+        try{
+          const response=await fetch('https://push-api.cloud.huawei.com/v1/'+encodeURIComponent(this.env.HUAWEI_PUSH_APP_ID)+'/messages:send',{
+            method:'POST',headers:{Authorization:'Bearer '+access,'Content-Type':'application/json'},
+            body:JSON.stringify({validate_only:false,message:{token:[deviceToken],data:JSON.stringify(data),android:{urgency:'HIGH',ttl}}})});
+          const result=await response.json().catch(()=>({}));
+          if(response.ok && String(result.code)==='80000000'){accepted++;survivors.push(deviceToken);}
+          else {lastError='HMS_REJECTED_'+String(result.code||response.status).replace(/[^A-Z0-9_]/gi,'').slice(0,32);
+            if(String(result.code)!=='80300007')survivors.push(deviceToken);}
+        }catch{survivors.push(deviceToken);lastError='HMS_NETWORK_ERROR';}
+      }
+      if(survivors.length!==tokens.length)await this.ctx.storage.put('hmsTokens:'+to,survivors);
+      return {accepted,attempted,...(lastError?{error:lastError}:{})};
+    }catch{return {accepted,attempted,error:'HMS_SERVER_ERROR'};}
+  }
+
+  async sendDevicePush(to,data,ttl){
+    const results=await Promise.all([this.sendFcmToUser(to,data,ttl),this.sendHmsToUser(to,data,ttl)]);
+    const accepted=results.reduce((sum,r)=>sum+r.accepted,0),attempted=results.reduce((sum,r)=>sum+r.attempted,0);
+    return {accepted,attempted,...(!accepted?{error:results.map(r=>r.error).filter(Boolean).join(';')}:{} )};
+  }
+
   async deliverCallPush(to,event){
     if(!['call-request','hangup','call-reject'].includes(event.type))return;
-    const result=await this.sendFcmToUser(to,{
+    const result=await this.sendDevicePush(to,{
       type:String(event.type),from:String(event.from),to:String(to),
       callId:String(event.callId),callType:event.callType==='video'?'video':'audio',
       createdAt:String(event.createdAt||Date.now())
@@ -2825,7 +2928,7 @@ export class SignalingRoom extends DurableObject {
   }
 
   async deliverUserPush(to,event){
-    await this.sendFcmToUser(to,{
+    await this.sendDevicePush(to,{
       type:String(event.type),to:String(to),from:String(event.from||''),
       eventId:String(event.eventId),createdAt:String(event.createdAt||Date.now())
     },'86400s');

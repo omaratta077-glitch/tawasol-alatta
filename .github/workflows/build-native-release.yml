@@ -134,6 +134,14 @@ jobs:
           node scripts/test_quran_reader.mjs
           node scripts/test_call_history.mjs
           node scripts/test_social_push.mjs
+          node scripts/test_appgallery_privacy.mjs
+          python3 scripts/test_huawei_config.py
+
+      - name: Prepare optional Huawei client configuration
+        env:
+          ALATTA_HMS_AGCONNECT_JSON: ${{ secrets.ALATTA_HMS_AGCONNECT_JSON }}
+          ALATTA_HMS_APP_ID: ${{ vars.ALATTA_HMS_APP_ID }}
+        run: python3 scripts/prepare_huawei_config.py
 
       - name: Report Firebase push setup status
         shell: bash
@@ -228,6 +236,7 @@ jobs:
           APK=android-native/app/build/outputs/apk/release/app-release.apk
           test -s "$APK"
           python3 scripts/check_mushaf_apk.py "$APK"
+          python3 scripts/check_store_apk.py "$APK" --channel direct
           APKSIGNER="$ANDROID_HOME/build-tools/35.0.0/apksigner"
           "$APKSIGNER" verify --verbose "$APK"
           ACTUAL_SHA1="$("$APKSIGNER" verify --print-certs "$APK" | sed -n 's/.*certificate SHA-1 digest:[[:space:]]*//p' | head -n 1 | tr -d ':[:space:]' | tr '[:lower:]' '[:upper:]')"
@@ -239,7 +248,31 @@ jobs:
           cp "$APK" "release-output/tawasol-alatta-v${RELEASE_VERSION}.apk"
           # The stable filename is for /releases/latest/download/ on the website.
           cp "$APK" release-output/tawasol-alatta-latest.apk
-          (cd release-output && sha256sum "tawasol-alatta-v${RELEASE_VERSION}.apk" tawasol-alatta-latest.apk > SHA256SUMS.txt)
+          "$APKSIGNER" verify --print-certs "$APK" | sed -n 's/.*certificate SHA-256 digest:[[:space:]]*//p' | head -n 1 > release-output/signing-certificate-SHA256.txt
+
+      - name: Build and verify the signed AppGallery distribution
+        working-directory: android-native
+        shell: bash
+        env:
+          ALATTA_KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          ALATTA_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          ALATTA_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          ALATTA_FCM_APP_ID: ${{ vars.ALATTA_FCM_APP_ID }}
+          ALATTA_FCM_SENDER_ID: ${{ vars.ALATTA_FCM_SENDER_ID }}
+          ALATTA_FCM_PROJECT_ID: ${{ vars.ALATTA_FCM_PROJECT_ID }}
+          ALATTA_FCM_API_KEY: ${{ vars.ALATTA_FCM_API_KEY }}
+        run: |
+          set -euo pipefail
+          gradle --no-daemon --console=plain -Palatta.distribution=appgallery assembleRelease
+          APK=app/build/outputs/apk/release/app-release.apk
+          python3 ../scripts/check_mushaf_apk.py "$APK"
+          python3 ../scripts/check_store_apk.py "$APK" --channel appgallery
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose "$APK"
+          ACTUAL_SHA1="$("$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --print-certs "$APK" | sed -n 's/.*certificate SHA-1 digest:[[:space:]]*//p' | head -n 1 | tr -d ':[:space:]' | tr '[:lower:]' '[:upper:]')"
+          test "$ACTUAL_SHA1" = '62E90655FDAF3788706105CF4D998592CBBD8275'
+          cp "$APK" "../release-output/tawasol-alatta-v${RELEASE_VERSION}-appgallery.apk"
+          cd ../release-output
+          sha256sum "tawasol-alatta-v${RELEASE_VERSION}.apk" tawasol-alatta-latest.apk "tawasol-alatta-v${RELEASE_VERSION}-appgallery.apk" > SHA256SUMS.txt
 
       - name: Upload official signed APK
         uses: actions/upload-artifact@v4
@@ -257,9 +290,11 @@ jobs:
           set -euo pipefail
           TAG="v${RELEASE_VERSION}"
           APK="release-output/tawasol-alatta-v${RELEASE_VERSION}.apk"
+          HUAWEI_APK="release-output/tawasol-alatta-v${RELEASE_VERSION}-appgallery.apk"
           test -s "$APK"
           test -s release-output/tawasol-alatta-latest.apk
           test -s release-output/SHA256SUMS.txt
+          test -s "$HUAWEI_APK"
           if gh release view "$TAG" >/dev/null 2>&1; then
             echo "::notice::Release $TAG already exists; not overwriting a published version."
             exit 0
@@ -268,7 +303,7 @@ jobs:
             echo "::error::Tag $TAG already exists without a release. Do not overwrite a tagged version."
             exit 1
           fi
-          gh release create "$TAG" "$APK" release-output/tawasol-alatta-latest.apk release-output/SHA256SUMS.txt \
+          gh release create "$TAG" "$APK" "$HUAWEI_APK" release-output/tawasol-alatta-latest.apk release-output/SHA256SUMS.txt release-output/signing-certificate-SHA256.txt \
             --target "$GITHUB_SHA" \
             --title "تواصل العطا $TAG" \
             --notes "الإصدار الرسمي لتطبيق تواصل العطا Android، موقّع بمفتاح الإصدار الرسمي. يحفظ إمكانية التحديث من داخل التطبيق؛ ويتطلب التثبيت موافقة المستخدم عبر نظام أندرويد. احتفظ بنفس مفتاح التوقيع لكل الإصدارات القادمة."

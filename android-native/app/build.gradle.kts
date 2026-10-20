@@ -4,6 +4,12 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
+val appGalleryBuild = providers.gradleProperty("alatta.distribution").orNull == "appgallery"
+val syncLegalAssets by tasks.registering(Copy::class) {
+    from(rootProject.file("../cloudflare-site/public")) { include("privacy.html", "terms.html", "data-rights.html") }
+    into(layout.buildDirectory.dir("generated/legalAssets/legal"))
+}
+
 android {
     namespace = "com.alatta.nativeapp"
     compileSdk = 35
@@ -12,8 +18,14 @@ android {
         applicationId = "com.alatta.nativeapp"
         minSdk = 26
         targetSdk = 35
-        versionCode = 207
-        versionName = "1.0.107"
+        versionCode = 208
+        versionName = "1.0.108"
+        buildConfigField("boolean", "IS_APPGALLERY", appGalleryBuild.toString())
+        val hmsId = (System.getenv("ALATTA_HMS_APP_ID") ?: "").trim().takeIf { it.matches(Regex("[0-9]{1,20}")) } ?: ""
+        buildConfigField("String", "HMS_APP_ID", "\"$hmsId\"")
+        buildConfigField("boolean", "HMS_CONFIGURED", (hmsId.isNotBlank() && file("src/main/assets/agconnect-services.json").isFile).toString())
+        manifestPlaceholders["hmsAppId"] = "appid=$hmsId"
+        manifestPlaceholders["distributionChannel"] = if (appGalleryBuild) "appgallery" else "direct"
     }
 
     // Firebase's public Android configuration is supplied by GitHub Actions vars.
@@ -52,6 +64,11 @@ android {
             signingConfig = signingConfigs.getByName("officialRelease")
         }
     }
+    sourceSets.getByName("main").assets.srcDir(layout.buildDirectory.dir("generated/legalAssets"))
+    if (appGalleryBuild) {
+        sourceSets.getByName("release").manifest.srcFile("src/appgallery/AndroidManifest.xml")
+        sourceSets.getByName("debug").manifest.srcFile("src/appgallery/AndroidManifest.xml")
+    }
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -59,6 +76,7 @@ android {
     }
     kotlinOptions { jvmTarget = "17" }
 }
+tasks.named("preBuild").configure { dependsOn(syncLegalAssets) }
 
 
 
@@ -81,6 +99,8 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("com.google.firebase:firebase-messaging:24.1.2")
+    implementation("com.google.android.gms:play-services-base:18.5.0")
+    implementation("com.huawei.hms:push:6.13.0.300")
     // Native C++ WebRTC camera/audio/renderers; no call HTML page.
     implementation("io.github.webrtc-sdk:android:137.7151.03")
 }
