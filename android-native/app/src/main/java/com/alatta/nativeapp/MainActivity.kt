@@ -2144,6 +2144,17 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                             placeholder = { Text("بم تفكر؟", fontSize = 14.sp) },
                                             minLines = 2, shape = RoundedCornerShape(12.dp))
                                         pickedUri?.let { Text("مرفق: ${it.lastPathSegment ?: "ملف"}", color = GoldLight, fontSize = 11.sp) }
+                                        youtubePostDraftId.takeIf { it.isNotBlank() }?.let { videoId ->
+                                            Text("فيديو يوتيوب مرفق", color = GoldLight, fontSize = 12.sp)
+                                            AsyncImage("https://i.ytimg.com/vi/$videoId/hqdefault.jpg",
+                                                "معاينة فيديو يوتيوب", Modifier.fillMaxWidth().aspectRatio(16f / 9f),
+                                                contentScale = ContentScale.Fit)
+                                            if (youtubePostDraftTitle.isNotBlank())
+                                                Text(youtubePostDraftTitle, color = White, fontSize = 12.sp)
+                                            TextButton(onClick = {
+                                                youtubePostDraftId = ""; youtubePostDraftTitle = ""
+                                            }) { Text("إزالة فيديو يوتيوب", color = Muted) }
+                                        }
                                         mushafPostDraft?.let { shared ->
                                             AsyncImage(Uri.fromFile(shared.preview), "معاينة صفحة المصحف",
                                                 Modifier.fillMaxWidth().height(230.dp), contentScale = ContentScale.Fit)
@@ -2167,12 +2178,17 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                         Spacer(Modifier.height(10.dp))
                                         // Keep publish below the draft and media choices, never in the profile header.
                                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                                            GoldButton("نشر", !busy && (draft.isNotBlank() || pickedUri != null)) {
+                                            GoldButton("نشر", !busy && (draft.isNotBlank() || pickedUri != null || youtubePostDraftId.isNotBlank())) {
                                                 task {
                                                     var image = ""; var video = ""
                                                     var postText = draft
                                                     val sharedMushaf = mushafPostDraft
+                                                    val sharedYoutube = youtubePostDraftId
+                                                    require(sharedYoutube.isBlank() || (sharedMushaf == null && pickedUri == null)) {
+                                                        "أزل المرفق الآخر قبل نشر فيديو يوتيوب"
+                                                    }
                                                     if (sharedMushaf != null) require(postText.length <= 4500) { "اكتب وصفًا أقصر من 4500 حرف" }
+                                                    if (sharedYoutube.isNotBlank()) postText = attachYoutubeToPost(postText, sharedYoutube)
                                                     pickedUri?.let { uri ->
                                                         val bytes = withContext(Dispatchers.IO) { ctx.contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: byteArrayOf() }
                                                         require(bytes.size <= 50 * 1024 * 1024) { "الحد الأقصى 50 ميجابايت" }
@@ -2189,6 +2205,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                                     }
                                                     post("/api/posts", JSONObject().put("text", postText).put("image", image).put("video", video))
                                                     sharedMushaf?.discard(); mushafPostDraft = null
+                                                    youtubePostDraftId = ""; youtubePostDraftTitle = ""
                                                     draft = ""; pickedUri = null; load("الرئيسية")
                                                 }
                                             }
@@ -2264,10 +2281,15 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                             }
                                         }
                                     }
-                                    val visiblePostText = visibleMushafPostText(p.optString("text"), BASE)
+                                    val visiblePostText = visibleYoutubePostText(visibleMushafPostText(p.optString("text"), BASE))
                                     if (visiblePostText.isNotBlank()) Text(visiblePostText, color = White, modifier = Modifier.padding(vertical = 10.dp))
                                     MushafPostActions(p.optString("text")) { pages ->
                                         quranReadingRange = pages; quranPage = pages.first; navigate("القرآن")
+                                    }
+                                    youtubePostId(p.optString("text"))?.let { videoId ->
+                                        YoutubePostMedia(videoId, activeYoutubePostId == postId,
+                                            onPlay = { youtubePlayRequested = false; activeYoutubePostId = postId },
+                                            onStop = { activeYoutubePostId = "" })
                                     }
                                     val image = media(p.optString("image")); val video = media(p.optString("video"))
                                     if (image.isNotBlank()) ExpandableProfileMedia(image, "صورة المنشور",
@@ -2306,10 +2328,15 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                         }
                                     }
                                     p.optJSONObject("sharedPost")?.let { shared ->
-                                        val visibleSharedText = visibleMushafPostText(shared.optString("text"), BASE)
+                                        val visibleSharedText = visibleYoutubePostText(visibleMushafPostText(shared.optString("text"), BASE))
                                         if (visibleSharedText.isNotBlank()) Text("مشاركة: $visibleSharedText", color = GoldLight)
                                         MushafPostActions(shared.optString("text")) { pages ->
                                             quranReadingRange = pages; quranPage = pages.first; navigate("القرآن")
+                                        }
+                                        youtubePostId(shared.optString("text"))?.let { videoId ->
+                                            YoutubePostMedia(videoId, activeYoutubePostId == postId,
+                                                onPlay = { youtubePlayRequested = false; activeYoutubePostId = postId },
+                                                onStop = { activeYoutubePostId = "" })
                                         }
                                     }
                                     HorizontalDivider(color = Border.copy(alpha = .5f), modifier = Modifier.padding(vertical = 7.dp))
@@ -2775,6 +2802,19 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                 Text(v.optString("title"), color = GoldLight, fontWeight = FontWeight.Bold,
                                     modifier = Modifier.clickable(onClick = pickVideo))
                                 Text(v.optString("channel"), color = Color.LightGray, fontSize = 12.sp)
+                                if (id.matches(Regex("[A-Za-z0-9_-]{11}"))) {
+                                    TextButton(onClick = {
+                                        youtubePlayRequested = false
+                                        activeYoutubePostId = ""
+                                        youtubePostDraftId = id
+                                        youtubePostDraftTitle = v.optString("title").take(160)
+                                        navigate("الرئيسية")
+                                    }) {
+                                        SiteIcon("repeat", size = 19.dp)
+                                        Spacer(Modifier.width(6.dp))
+                                        Text("مشاركة كمنشور في الرئيسية", color = GoldLight)
+                                    }
+                                }
                             } }
                         }
                         "الملف" -> LazyColumn(Modifier.weight(1f).padding(8.dp),
@@ -2887,9 +2927,16 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                             items(ownPosts, key = { "own_" + it.optString("id", it.hashCode().toString()) }) { post ->
                                 CardBox {
                                     Text(profile.name(), color = GoldLight, fontWeight = FontWeight.Bold)
-                                    if (post.optString("text").isNotBlank()) Text(post.optString("text"), color = White)
+                                    val ownText = visibleYoutubePostText(visibleMushafPostText(post.optString("text"), BASE))
+                                    if (ownText.isNotBlank()) Text(ownText, color = White)
                                     MushafPostActions(post.optString("text")) { pages ->
                                         quranReadingRange = pages; quranPage = pages.first; navigate("القرآن")
+                                    }
+                                    youtubePostId(post.optString("text"))?.let { videoId ->
+                                        val ownId = "own_" + post.optString("id")
+                                        YoutubePostMedia(videoId, activeYoutubePostId == ownId,
+                                            onPlay = { youtubePlayRequested = false; activeYoutubePostId = ownId },
+                                            onStop = { activeYoutubePostId = "" })
                                     }
                                     if (post.optString("image").isNotBlank()) ExpandableProfileMedia(post.optString("image"), "صورة منشوري", Modifier.fillMaxWidth().heightIn(max = 320.dp), ContentScale.Fit)
                                     if (post.optString("video").isNotBlank()) Text("منشور فيديو", color = GoldLight)
