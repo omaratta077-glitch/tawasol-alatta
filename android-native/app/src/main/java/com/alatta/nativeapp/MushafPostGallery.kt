@@ -4,11 +4,10 @@ import android.graphics.Canvas
 import android.graphics.Color as AndroidColor
 import android.graphics.RectF
 import android.view.View
-import androidx.compose.foundation.border
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -26,7 +25,8 @@ import kotlinx.coroutines.withContext
 internal fun MushafPostGallery(pages: IntRange, modifier: Modifier = Modifier) {
     if (pages.first !in 1..604 || pages.last !in pages.first..604) return
     val context = LocalContext.current
-    LazyColumn(modifier.heightIn(max = 510.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    // Pages share the same edge: no labels, margins, borders or gaps between them.
+    LazyColumn(modifier.heightIn(max = 510.dp), verticalArrangement = Arrangement.spacedBy(0.dp)) {
         items(pages.toList(), key = { it }) { page ->
             var drawing by remember(page) { mutableStateOf<SVG?>(null) }
             LaunchedEffect(page) {
@@ -34,14 +34,20 @@ internal fun MushafPostGallery(pages: IntRange, modifier: Modifier = Modifier) {
                     runCatching { loadMushafDrawing(context, page) }.getOrNull()
                 }
             }
-            Column(Modifier.fillMaxWidth()) {
-                Text("صفحة $page", color = Color(0xFFF6D776), fontSize = 12.sp,
-                    modifier = Modifier.padding(bottom = 5.dp))
-                AndroidView(factory = { ctx -> MushafGalleryPageView(ctx) },
-                    update = { it.drawing = drawing; it.invalidate() },
-                    modifier = Modifier.fillMaxWidth().aspectRatio(.72f)
-                        .border(1.dp, Color(0xFFB8944E), RoundedCornerShape(10.dp)))
+            // Match the bundled SVG's actual viewBox instead of forcing an incorrect
+            // canvas height that leaves a large empty cream block above some pages.
+            val aspectRatio = remember(drawing) {
+                drawing?.let { svg ->
+                    val bounds = svg.documentViewBox
+                        ?: RectF(0f, 0f, svg.documentWidth, svg.documentHeight)
+                    (bounds.width() / bounds.height().coerceAtLeast(1f))
+                        .takeIf { it.isFinite() && it > 0f }
+                } ?: 0.72f
             }
+            AndroidView(factory = { ctx -> MushafGalleryPageView(ctx) },
+                update = { it.drawing = drawing; it.invalidate() },
+                modifier = Modifier.fillMaxWidth().aspectRatio(aspectRatio)
+                    .background(Color(0xFFFDF7E6)))
         }
     }
 }
