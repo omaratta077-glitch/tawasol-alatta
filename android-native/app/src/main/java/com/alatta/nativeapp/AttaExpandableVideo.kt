@@ -193,8 +193,7 @@ internal fun AttaPostMediaViewer(
                         this.player = player
                         useController = false
                         resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-                    } }, update = { it.player = player }, modifier = Modifier.fillMaxSize(.96f)
-                        .align(Alignment.Center).offset(y = (-10).dp))
+                    } }, update = { it.player = player }, modifier = Modifier.fillMaxSize().offset(y = (-12).dp))
                     var drag by remember(id) { mutableFloatStateOf(0f) }
                     Box(Modifier.fillMaxSize().clickable { controls = !controls }
                         .pointerInput(id) { detectVerticalDragGestures(
@@ -249,6 +248,7 @@ internal fun AttaPostMediaViewer(
                 // Playback controls auto-hide; the vertical social rail remains visible.
                 if (player != null && controls) Column(
                     Modifier.align(Alignment.BottomCenter).fillMaxWidth()
+                        .padding(bottom = 72.dp) // Lift playback controls without resizing video.
                         .background(Brush.verticalGradient(listOf(Color.Transparent, Color(0xAA000000))))
                         .padding(start = 16.dp, top = 6.dp, end = 16.dp, bottom = 14.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
