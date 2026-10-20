@@ -88,6 +88,54 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
 
+                        @Composable
+private fun AttaCommentEntry(entry: JSONObject, nested: Boolean,
+    onProfile: (String) -> Unit, onReply: (String, String) -> Unit) {
+                            val person = entry.optJSONObject("authorInfo") ?: JSONObject()
+                            val name = person.optString("fullName")
+                                .ifBlank { person.optString("displayName") }
+                                .ifBlank { entry.optString("author") }
+                            val author = entry.optString("author")
+                                .ifBlank { person.optString("username") }
+                            Row(Modifier.fillMaxWidth()
+                                .padding(start = if (nested) 28.dp else 0.dp),
+                                horizontalArrangement = Arrangement.Start,
+                                verticalAlignment = Alignment.Top) {
+                                Box(Modifier.size(if (nested) 33.dp else 40.dp)
+                                    .border(1.dp, Gold, CircleShape).clip(CircleShape)
+                                    .clickable { if (author.isNotBlank()) onProfile(author) },
+                                    contentAlignment = Alignment.Center) {
+                                    val avatar = person.optString("avatar")
+                                    if (avatar.isNotBlank()) ProfileMediaImage(avatar, name, Modifier.fillMaxSize())
+                                    else SiteIcon("user", size = 23.dp)
+                                }
+                                Spacer(Modifier.width(8.dp))
+                                Column(Modifier.weight(1f), horizontalAlignment = Alignment.End) {
+                                    Column(Modifier.fillMaxWidth()
+                                        .background(Panel, RoundedCornerShape(14.dp))
+                                        .border(.6.dp, Border.copy(alpha = .65f), RoundedCornerShape(14.dp))
+                                        .padding(horizontal = 11.dp, vertical = 9.dp),
+                                        horizontalAlignment = Alignment.End) {
+                                        Text(name, color = GoldLight, fontSize = 14.sp,
+                                            fontWeight = FontWeight.SemiBold, textAlign = TextAlign.End,
+                                            modifier = Modifier.fillMaxWidth().clickable {
+                                                if (author.isNotBlank()) onProfile(author)
+                                            })
+                                        Text(entry.optString("text"), color = White,
+                                            textAlign = TextAlign.End, fontSize = 14.sp,
+                                            modifier = Modifier.fillMaxWidth().padding(top = 3.dp))
+                                    }
+                                    TextButton(onClick = {
+                                        if (!nested) onReply(entry.optString("id"), name)
+                                    }, enabled = !nested && entry.optString("id").isNotBlank(),
+                                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp)) {
+                                        Text(if (nested) "رد" else "رد على التعليق",
+                                            color = Muted, fontSize = 12.sp)
+                                    }
+                                }
+                            }
+                        }
+
 /**
  * A single, genuinely RTL comment dialog used by the native feed.
  * Both Arabic and English names are on the RIGHT; English letters retain
@@ -138,55 +186,11 @@ private fun AttaRightAlignedComments(
                 LazyColumn(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 10.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     items(comments, key = { it.optString("id").ifBlank { it.hashCode().toString() } }) { comment ->
-                        @Composable fun CommentEntry(entry: JSONObject, nested: Boolean) {
-                            val person = entry.optJSONObject("authorInfo") ?: JSONObject()
-                            val name = person.optString("fullName")
-                                .ifBlank { person.optString("displayName") }
-                                .ifBlank { entry.optString("author") }
-                            val author = entry.optString("author")
-                                .ifBlank { person.optString("username") }
-                            Row(Modifier.fillMaxWidth()
-                                .padding(start = if (nested) 28.dp else 0.dp),
-                                horizontalArrangement = Arrangement.Start,
-                                verticalAlignment = Alignment.Top) {
-                                Box(Modifier.size(if (nested) 33.dp else 40.dp)
-                                    .border(1.dp, Gold, CircleShape).clip(CircleShape)
-                                    .clickable { if (author.isNotBlank()) onProfile(author) },
-                                    contentAlignment = Alignment.Center) {
-                                    val avatar = person.optString("avatar")
-                                    if (avatar.isNotBlank()) ProfileMediaImage(avatar, name, Modifier.fillMaxSize())
-                                    else SiteIcon("user", size = 23.dp)
-                                }
-                                Spacer(Modifier.width(8.dp))
-                                Column(Modifier.weight(1f), horizontalAlignment = Alignment.End) {
-                                    Column(Modifier.fillMaxWidth()
-                                        .background(Panel, RoundedCornerShape(14.dp))
-                                        .border(.6.dp, Border.copy(alpha = .65f), RoundedCornerShape(14.dp))
-                                        .padding(horizontal = 11.dp, vertical = 9.dp),
-                                        horizontalAlignment = Alignment.End) {
-                                        Text(name, color = GoldLight, fontSize = 14.sp,
-                                            fontWeight = FontWeight.SemiBold, textAlign = TextAlign.End,
-                                            modifier = Modifier.fillMaxWidth().clickable {
-                                                if (author.isNotBlank()) onProfile(author)
-                                            })
-                                        Text(entry.optString("text"), color = White,
-                                            textAlign = TextAlign.End, fontSize = 14.sp,
-                                            modifier = Modifier.fillMaxWidth().padding(top = 3.dp))
-                                    }
-                                    TextButton(onClick = {
-                                        replyTo = if (nested) "" else entry.optString("id")
-                                        replyName = name
-                                    }, enabled = !nested && entry.optString("id").isNotBlank(),
-                                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp)) {
-                                        Text(if (nested) "رد" else "رد على التعليق",
-                                            color = Muted, fontSize = 12.sp)
-                                    }
-                                }
-                            }
+                        AttaCommentEntry(comment, false, onProfile) { id, name ->
+                            replyTo = id; replyName = name
                         }
-                        CommentEntry(comment, false)
                         comment.arr("replies").forEach { reply ->
-                            CommentEntry(reply, true)
+                            AttaCommentEntry(reply, true, onProfile) { _, _ -> }
                         }
                     }
                 }
