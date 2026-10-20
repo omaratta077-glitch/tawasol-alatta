@@ -886,6 +886,8 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
     var youtubePostDraftId by remember { mutableStateOf("") }
     var youtubePostDraftTitle by remember { mutableStateOf("") }
     var activeYoutubePostId by remember { mutableStateOf("") }
+    // Reload Home without launching scrolling work from an off-screen navigation item.
+    var homeRefreshRequest by remember { mutableIntStateOf(0) }
     var quranPage by remember { mutableIntStateOf(1) }
     var quranReadingRange by remember { mutableStateOf<IntRange?>(null) }
     var posts by remember { mutableStateOf(emptyList<JSONObject>()) }
@@ -1521,10 +1523,11 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
     }
     fun refresh() = task { load(tab) }
     fun navigate(destination: String) {
-        if (destination == "الرئيسية" && token.isNotBlank()) {
-            // Refresh on EVERY Home tap, including taps on the already selected tab.
-            scope.launch { homeFeedListState.animateScrollToItem(0) }
-            if (tab == destination) task { load("الرئيسية") }
+        if (destination == "الرئيسية" && tab == "الرئيسية" && token.isNotBlank()) {
+            // Same-tab tap: LaunchedEffect reloads the feed in the existing screen.
+            // Never call animateScrollToItem on a detached/off-screen LazyListState.
+            homeRefreshRequest++
+            return
         }
         if (destination != "الرئيسية") activeYoutubePostId = ""
         if (tab != destination) { visited.add(tab); tab = destination }
@@ -1790,7 +1793,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
             catch (_: Exception) { /* UI can still use the account initial. */ }
         } else { myAvatar = ""; adminRole = "" }
     }
-    LaunchedEffect(token, tab) {
+    LaunchedEffect(token, tab, homeRefreshRequest) {
         if (token.isNotBlank()) {
             try { load(tab) }
             catch (cancelled: CancellationException) { throw cancelled }
@@ -2808,6 +2811,8 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                         activeYoutubePostId = ""
                                         youtubePostDraftId = id
                                         youtubePostDraftTitle = v.optString("title").take(160)
+                                        // Selecting a video prepares the existing Home composer.
+                                        // The Home feed loads via its composable effect after navigation.
                                         navigate("الرئيسية")
                                     }) {
                                         SiteIcon("repeat", size = 19.dp)
