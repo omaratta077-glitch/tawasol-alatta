@@ -56,7 +56,6 @@ internal fun SiteIcon(name: String, modifier: Modifier = Modifier, tint: Color =
         "trophy" -> R.drawable.atta_ic_trophy
         "play-circle" -> R.drawable.atta_ic_play_circle
         "user-round" -> R.drawable.atta_ic_user_round
-        "home" -> R.drawable.atta_ic_home
         "search" -> R.drawable.atta_ic_search
         "bell" -> R.drawable.atta_ic_bell
         "message-circle" -> R.drawable.atta_ic_message_circle
@@ -195,9 +194,8 @@ internal fun PremiumBottomNav(current: String, go: (String) -> Unit) {
     // One horizontally scrolling navigation bar; it replaces the old fixed five-item bar.
     // Same Lucide-style vector icons as the approved interactive prototype.
     val destinations = listOf(
-        // The approved first row is RTL: Home, Messages, gold Add, Friends, Profile.
+        // The header logo returns home; keep the existing gold Add action.
         // Remaining screens stay reachable by horizontal swiping, not removed.
-        Triple("الرئيسية", "home", "الرئيسية"),
         Triple("الرسائل", "message-circle", "الرسائل"),
         Triple("إضافة", "plus", "إضافة"),
         Triple("الأصدقاء", "users", "الأصدقاء"),
