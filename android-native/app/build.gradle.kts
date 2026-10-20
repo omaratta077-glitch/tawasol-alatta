@@ -18,8 +18,8 @@ android {
         applicationId = "com.alatta.nativeapp"
         minSdk = 26
         targetSdk = 35
-        versionCode = 208
-        versionName = "1.0.108"
+        versionCode = 209
+        versionName = "1.0.109"
         buildConfigField("boolean", "IS_APPGALLERY", appGalleryBuild.toString())
         val hmsId = (System.getenv("ALATTA_HMS_APP_ID") ?: "").trim().takeIf { it.matches(Regex("[0-9]{1,20}")) } ?: ""
         buildConfigField("String", "HMS_APP_ID", "\"$hmsId\"")
