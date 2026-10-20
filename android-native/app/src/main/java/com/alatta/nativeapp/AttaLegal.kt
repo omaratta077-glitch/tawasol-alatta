@@ -39,21 +39,22 @@ internal object AttaPrivacy {
 @Composable
 internal fun AttaPrivacyGate(content: @Composable ((() -> Unit), (() -> Unit)) -> Unit) {
     val context = LocalContext.current
-    var accepted by remember { mutableStateOf(AttaPrivacy.accepted(context)) }
-    var authenticated by remember { mutableStateOf(!context.getSharedPreferences("alatta_native", Context.MODE_PRIVATE)
-        .getString("token", "").isNullOrBlank()) }
+    // Consent is collected as part of creating a new account. Do not interrupt
+    // sign-in with a second legal notice. Keep the explicit withdrawal flow.
+    var showWithdrawalGate by remember { mutableStateOf(false) }
     var offlineReader by remember { mutableStateOf(false) }
     var document by remember { mutableStateOf<String?>(null) }
     var agreedPrivacy by remember { mutableStateOf(false) }
     var agreedTerms by remember { mutableStateOf(false) }
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
         MaterialTheme(colorScheme = darkColorScheme(primary = PremiumGold, background = PremiumBackground)) {
-            if (accepted || !authenticated) content({
-                AttaPrivacy.revoke(context); accepted = false
+            if (!showWithdrawalGate) content({
+                AttaPrivacy.revoke(context)
+                showWithdrawalGate = true
                 agreedPrivacy = false; agreedTerms = false
             }, {
-                authenticated = true
-                accepted = AttaPrivacy.accepted(context)
+                // Sign-in is not consent collection; new users agree in signup.
+                showWithdrawalGate = false
             }) else if (offlineReader) {
                 QuranReaderScreen(onExit = { offlineReader = false }, allowOnlineFeatures = false)
             } else Column(Modifier.fillMaxSize().background(PremiumBackground).safeDrawingPadding()
@@ -64,7 +65,7 @@ internal fun AttaPrivacyGate(content: @Composable ((() -> Unit), (() -> Unit)) -
                 LegalLinks { document = it }
                 Row { Checkbox(agreedPrivacy, { agreedPrivacy = it }); Text("قرأت سياسة الخصوصية وأوافق على معالجة البيانات اللازمة للخدمات التي أختارها.", Modifier.padding(top = 10.dp), color = Color.White) }
                 Row { Checkbox(agreedTerms, { agreedTerms = it }); Text("قرأت شروط الاستخدام وألتزم بحقوق الآخرين وقواعد نشر المحتوى.", Modifier.padding(top = 10.dp), color = Color.White) }
-                Button(onClick = { AttaPrivacy.accept(context); accepted = true }, enabled = agreedPrivacy && agreedTerms,
+                Button(onClick = { AttaPrivacy.accept(context); showWithdrawalGate = false }, enabled = agreedPrivacy && agreedTerms,
                     modifier = Modifier.fillMaxWidth()) { Text("الموافقة والمتابعة") }
                 OutlinedButton(onClick = { offlineReader = true }, modifier = Modifier.fillMaxWidth()) { Text("المصحف بدون حساب أو اتصال") }
                 TextButton(onClick = { (context as? Activity)?.finish() }) { Text("عدم الموافقة والخروج") }
