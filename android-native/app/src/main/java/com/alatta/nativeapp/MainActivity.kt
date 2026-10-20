@@ -1869,20 +1869,7 @@ private class AttaYoutubeFullscreenChrome(
                                             Text(displayName.ifBlank { myUsername }, color = White,
                                                 fontWeight = FontWeight.Bold, fontSize = 14.sp,
                                                 modifier = Modifier.weight(1f).clickable { navigate("الملف") }, maxLines = 1)
-                                            GoldButton("نشر", !busy && (draft.isNotBlank() || pickedUri != null)) {
-                                                task {
-                                                    var image = ""; var video = ""
-                                                    pickedUri?.let { uri ->
-                                                        val bytes = withContext(Dispatchers.IO) { ctx.contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: byteArrayOf() }
-                                                        require(bytes.size <= 50 * 1024 * 1024) { "الحد الأقصى 50 ميجابايت" }
-                                                        val mime = pickedMime.ifBlank { "image/jpeg" }
-                                                        val url = withContext(Dispatchers.IO) { upload(token, uri, mime, uri.lastPathSegment ?: "upload", bytes) }
-                                                        if (mime.startsWith("video/")) video = url else image = url
-                                                    }
-                                                    post("/api/posts", JSONObject().put("text", draft).put("image", image).put("video", video))
-                                                    draft = ""; pickedUri = null; load("الرئيسية")
-                                                }
-                                            }
+
                                         }
                                         Spacer(Modifier.height(8.dp))
                                         OutlinedTextField(draft, { draft = it },
@@ -1900,6 +1887,24 @@ private class AttaYoutubeFullscreenChrome(
                                             }
                                             PremiumOutlineAction("smile", "مشاركة مشاعر") {
                                                 featureMessage = "مشاركة المشاعر كمنشور خاص لم تُفعّل بعد."
+                                            }
+                                        }
+                                        Spacer(Modifier.height(10.dp))
+                                        // Keep publish below the draft and media choices, never in the profile header.
+                                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                                            GoldButton("نشر", !busy && (draft.isNotBlank() || pickedUri != null)) {
+                                                task {
+                                                    var image = ""; var video = ""
+                                                    pickedUri?.let { uri ->
+                                                        val bytes = withContext(Dispatchers.IO) { ctx.contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: byteArrayOf() }
+                                                        require(bytes.size <= 50 * 1024 * 1024) { "الحد الأقصى 50 ميجابايت" }
+                                                        val mime = pickedMime.ifBlank { "image/jpeg" }
+                                                        val url = withContext(Dispatchers.IO) { upload(token, uri, mime, uri.lastPathSegment ?: "upload", bytes) }
+                                                        if (mime.startsWith("video/")) video = url else image = url
+                                                    }
+                                                    post("/api/posts", JSONObject().put("text", draft).put("image", image).put("video", video))
+                                                    draft = ""; pickedUri = null; load("الرئيسية")
+                                                }
                                             }
                                         }
                                     }
