@@ -13,8 +13,8 @@ internal object FootballRepository {
         name = "أون سبورت ON Sport",
         category = "قنوات رياضية",
         provider = "ON Sport • يوتيوب الرسمي",
-        sourceUrl = "https://www.youtube.com/@ONSporteg",
-        streamUrl = "https://www.youtube.com/@ONSporteg/live",
+        sourceUrl = "https://www.youtube.com/@onsporteg",
+        streamUrl = "https://www.youtube.com/@onsporteg/live",
         format = "external",
         enabled = true
     )
@@ -22,7 +22,7 @@ internal object FootballRepository {
     internal fun withOfficialChannels(catalog: FootballCatalog): FootballCatalog {
         val alreadyPresent = catalog.channels.any {
             it.id == onSportOfficial.id ||
-                it.sourceUrl.contains("youtube.com/@ONSporteg", ignoreCase = true) ||
+                it.sourceUrl.contains("youtube.com/@onsporteg", ignoreCase = true) ||
                 (it.name.contains("أون سبورت") && it.provider.contains("ON Sport", ignoreCase = true))
         }
         return if (alreadyPresent) catalog
