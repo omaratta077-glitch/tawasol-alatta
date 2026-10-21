@@ -882,6 +882,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
     AttaPrivacyGate { revoke, onSignedIn -> NativeAppContent(revoke, onSignedIn) }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable private fun NativeAppContent(onPrivacyRevoked: () -> Unit, onSignedIn: () -> Unit) {
     var updateCheckRequest by remember { mutableIntStateOf(0) }
     AppUpdatePrompt(updateCheckRequest)
