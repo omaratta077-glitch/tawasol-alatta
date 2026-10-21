@@ -24,8 +24,8 @@ android {
         applicationId = "com.alatta.nativeapp"
         minSdk = 26
         targetSdk = 35
-        versionCode = 231
-        versionName = "1.0.131"
+        versionCode = 232
+        versionName = "1.0.132"
         // Ship phone ABIs only; exclude emulator x86 binaries from the APK.
         ndk { abiFilters += setOf("arm64-v8a", "armeabi-v7a") }
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
@@ -88,6 +88,9 @@ android {
     testOptions.unitTests.isIncludeAndroidResources = true
 }
 tasks.named("preBuild").configure { dependsOn(syncLegalAssets, slimMushafAssets) }
+// Gradle 8 must see explicit dependencies for generated asset inputs.
+tasks.matching { it.name.startsWith("merge") && it.name.endsWith("Assets") }
+    .configureEach { dependsOn(syncLegalAssets, slimMushafAssets) }
 
 
 
