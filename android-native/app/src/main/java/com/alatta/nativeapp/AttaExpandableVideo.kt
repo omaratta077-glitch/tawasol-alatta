@@ -2,12 +2,16 @@ package com.alatta.nativeapp
 
 import android.content.Context
 import android.content.ContextWrapper
+import android.media.MediaMetadataRetriever
+import android.graphics.Bitmap
+import android.util.LruCache
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.ui.geometry.Offset
@@ -29,6 +33,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
@@ -52,6 +57,8 @@ import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.launch
 import org.json.JSONObject
 import kotlin.math.abs
@@ -62,15 +69,46 @@ private fun Context.mediaActivity(): ComponentActivity? = when (this) {
     else -> null
 }
 
-/** A feed preview does not create a player for every off-screen post. */
+/** Cache only small feed preview frames; never instantiate a second video player. */
+private val attaVideoPreviewCache = LruCache<String, Bitmap>(12)
+
 @Composable
 internal fun AttaExpandableVideo(url: String, onOpen: (() -> Unit)? = null) {
     var expanded by remember(url) { mutableStateOf(false) }
+    val preview by produceState<Bitmap?>(initialValue = attaVideoPreviewCache.get(url), key1 = url) {
+        if (value == null) {
+            value = withContext(Dispatchers.IO) {
+                runCatching {
+                    val retriever = MediaMetadataRetriever()
+                    try {
+                        retriever.setDataSource(url, HashMap<String, String>())
+                        val frame = retriever.getFrameAtTime(0, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
+                        frame?.let {
+                            // Keep preview bitmaps small enough for long feeds.
+                            val w = it.width.coerceAtLeast(1)
+                            val h = it.height.coerceAtLeast(1)
+                            val result = if (w > 720) Bitmap.createScaledBitmap(it, 720, (h * 720f / w).toInt().coerceAtLeast(1), true) else it
+                            if (result !== it) it.recycle()
+                            attaVideoPreviewCache.put(url, result)
+                            result
+                        }
+                    } finally {
+                        retriever.release()
+                    }
+                }.getOrNull()
+            }
+        }
+    }
     Box(Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(RoundedCornerShape(12.dp))
         .background(Color.Black).clickable { if (onOpen != null) onOpen() else expanded = true },
         contentAlignment = Alignment.Center) {
-        Surface(color = Color(0xDD161B20), shape = RoundedCornerShape(50)) {
-            SiteIcon("play", size = 42.dp, tint = Color.White, modifier = Modifier.padding(15.dp))
+        preview?.let { image ->
+            Image(image.asImageBitmap(), contentDescription = "معاينة الفيديو",
+                modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+        }
+        Surface(color = Color(0xBB101418), shape = RoundedCornerShape(50),
+            border = androidx.compose.foundation.BorderStroke(2.dp, Color(0xFFE6B94E))) {
+            SiteIcon("play", size = 35.dp, tint = Color(0xFFE6B94E), modifier = Modifier.padding(13.dp))
         }
     }
     if (expanded) AttaPostMediaViewer(
