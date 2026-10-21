@@ -41,7 +41,8 @@ private fun HadithPanel(content: @Composable ColumnScope.() -> Unit) {
 }
 
 @Composable
-internal fun HadithLibraryScreen(query: String, modifier: Modifier = Modifier, onClearQuery: () -> Unit) {
+internal fun HadithLibraryScreen(query: String, modifier: Modifier = Modifier,
+    onClearQuery: () -> Unit, onSharePost: (String) -> Unit) {
     val context = LocalContext.current
     val preferences = remember { context.getSharedPreferences("alatta_hadith", Context.MODE_PRIVATE) }
     var books by remember { mutableStateOf(emptyList<HadithBook>()) }
@@ -187,6 +188,11 @@ internal fun HadithLibraryScreen(query: String, modifier: Modifier = Modifier, o
                                 lineHeight = (fontSize * 1.8f).sp, textAlign = TextAlign.Start, modifier = Modifier.fillMaxWidth()) }
                             Text(sourceBook.edition, color = PremiumMuted, fontSize = 11.sp)
                             val sharedText = "${entry.body}\n\n${sourceBook.title} • الحديث ${entry.number}\n${sourceBook.edition}"
+                            OutlinedButton(onClick = { onSharePost(sharedText) },
+                                modifier = Modifier.fillMaxWidth(),
+                                border = BorderStroke(1.dp, PremiumGold)) {
+                                Text("مشاركة كمنشور في تواصل العطا", color = PremiumGoldLight, fontSize = 14.sp)
+                            }
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                                 TextButton(onClick = {
                                     (context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager).setPrimaryClip(ClipData.newPlainText("حديث", sharedText))

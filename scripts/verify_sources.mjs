@@ -8,6 +8,15 @@ assert.equal((native.match(/YouTubePlayer\(youtubeId\)/g)||[]).length,1,'screen 
 assert.ok(!native.includes('AlattaFixedYouTubePlayer') && !native.includes('attaYouTubeHtml'),'no duplicate native player');
 assert.ok(native.includes('loadUrl("$BASE/")') && native.includes('atta-site-youtube-bridge.js') && !native.includes('document.body.replaceChildren(host)'),'Android drives the actual site player without replacing the website document');
 assert.ok(!native.includes('raw.contains("username", ignoreCase = true)'),'no blanket mapping of login failures to username-taken');
+const hadithScreen=fs.readFileSync('android-native/app/src/main/java/com/alatta/nativeapp/HadithLibraryScreen.kt','utf8');
+const knowledge=fs.readFileSync('android-native/app/src/main/java/com/alatta/nativeapp/AlattaKnowledgeScreens.kt','utf8');
+assert.ok(hadithScreen.includes('onSharePost(sharedText)') &&
+    hadithScreen.includes('مشاركة كمنشور في تواصل العطا'),
+    'Each Hadith opens native post composer with the entire text and reference');
+assert.ok(knowledge.includes('onShareHadithPost') &&
+    native.includes('composeHadithPost(draft, hadith)') &&
+    native.includes('openHomeComposer()'),
+    'Hadith share uses the existing Home post flow, without a separate publisher');
 const hadith=fs.readFileSync('android-native/app/src/main/java/com/alatta/nativeapp/HadithLibrary.kt','utf8');
 assert.ok(hadith.includes('verifiedCopy(target, expectedBytes, hash)'), 'Hadith copy verified by actual SHA-256');
 assert.ok(!hadith.includes('PRAGMA quick_check", null') && !hadith.includes('require(db.version == 1)'),

@@ -2373,7 +2373,17 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                     else draft.trim()+"\n\n"+shared.selection.title
                                 openHomeComposer()
                             })
-                        "الأحاديث", "الأذكار" -> KnowledgeScreen(tab, knowledgeSearch, Modifier.weight(1f), onClearQuery = { knowledgeSearch = "" })
+                        "الأحاديث", "الأذكار" -> KnowledgeScreen(tab, knowledgeSearch, Modifier.weight(1f),
+                            onClearQuery = { knowledgeSearch = "" },
+                            onShareHadithPost = { hadith ->
+                                val composed = composeHadithPost(draft, hadith)
+                                if (composed == null) {
+                                    featureMessage = "الحديث مع نص المنشور يتجاوز 5000 حرف. لا يمكن اختصار الحديث دون تنبيه؛ احذف نصًا من المسودة أولًا."
+                                } else {
+                                    draft = composed
+                                    openHomeComposer()
+                                }
+                            })
                         "الرياضة" -> FootballScreen(footballSearch, Modifier.weight(1f), isAdmin = adminRole == "super_admin",
                             onManage = { navigate("الإدارة") }, onBeforePlayback = { youtubePlayRequested = false },
                             onYoutube = { id -> youtubeId = id; youtubePlayRequested = true })
