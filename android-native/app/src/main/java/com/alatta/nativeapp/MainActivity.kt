@@ -270,7 +270,8 @@ private fun AttaRightAlignedComments(
     }
 }
 
-private const val BASE = "https://tawasol-alatta.omaratta077-4fd.workers.dev"
+internal const val ATTA_API_BASE = "https://tawasol-alatta.omaratta077-4fd.workers.dev"
+private const val BASE = ATTA_API_BASE
 // Colors transcribed from the FINAL :root block in cloudflare-site/public/style.css.
 // Intentionally independent of the web CSS: styling changes require an Android update.
 private val Gold = Color(0xFFE6B94E)
@@ -304,7 +305,7 @@ private fun JSONObject.arr(name: String): List<JSONObject> {
     return (0 until a.length()).mapNotNull { a.optJSONObject(it) }
 }
 private fun JSONObject.name(): String = optString("fullName").ifBlank { optString("displayName").ifBlank { "مستخدم" } }
-private fun api(path: String, payload: JSONObject? = null): JSONObject {
+internal fun attaApi(path: String, payload: JSONObject? = null): JSONObject {
     val conn = (URL(BASE + path).openConnection() as HttpURLConnection).apply {
         requestMethod = if (payload == null) "GET" else "POST"
         connectTimeout = 20000; readTimeout = 30000
@@ -336,6 +337,7 @@ private fun api(path: String, payload: JSONObject? = null): JSONObject {
         obj
     } finally { conn.disconnect() }
 }
+private fun api(path: String, payload: JSONObject? = null) = attaApi(path, payload)
 private fun upload(token: String, uri: Uri, mime: String, filename: String, bytes: ByteArray): String {
     val kind = when {
         mime.startsWith("video/") -> "video"
@@ -2334,26 +2336,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                                         val url = withContext(Dispatchers.IO) { upload(token, uri, mime, uri.lastPathSegment ?: "upload", bytes) }
                                                         if (mime.startsWith("video/")) {
                                                             video = url
-                                                            val coverBytes = withContext(Dispatchers.IO) {
-                                                                runCatching {
-                                                                    val retriever = android.media.MediaMetadataRetriever()
-                                                                    try {
-                                                                        retriever.setDataSource(ctx, uri)
-                                                                        val frame = retriever.getFrameAtTime(0,
-                                                                            android.media.MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
-                                                                        frame?.let { bmp ->
-                                                                            val output = java.io.ByteArrayOutputStream()
-                                                                            val scaled = if (bmp.width > 720) android.graphics.Bitmap.createScaledBitmap(
-                                                                                bmp, 720, (bmp.height * 720f / bmp.width).toInt().coerceAtLeast(1), true
-                                                                            ) else bmp
-                                                                            scaled.compress(android.graphics.Bitmap.CompressFormat.JPEG, 80, output)
-                                                                            if (scaled !== bmp) scaled.recycle()
-                                                                            bmp.recycle()
-                                                                            output.toByteArray()
-                                                                        }
-                                                                    } finally { retriever.release() }
-                                                                }.getOrNull()
-                                                            }
+                                                            val coverBytes = runCatching { VideoPostPreview.uploadCover(ctx, uri) }.getOrNull()
                                                             if (coverBytes != null) {
                                                                 image = withContext(Dispatchers.IO) {
                                                                     upload(token, uri, "image/jpeg", "video-cover.jpg", coverBytes)
@@ -2755,6 +2738,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                         "الإدارة" -> LazyColumn(Modifier.weight(1f).padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                             item { SectionTitle("لوحة الإدارة • ${if (adminRole == "super_admin") "المدير الرئيسي" else "مشرف"}") }
                             if (adminRole == "super_admin") {
+                                item { CardBox { AdminAdhanVoicesPanel(token) } }
                                 item {
                                     CardBox {
                                         AdminStatisticsPanel(adminSummary)

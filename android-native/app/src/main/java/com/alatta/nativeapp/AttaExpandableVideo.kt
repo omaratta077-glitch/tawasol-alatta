@@ -2,9 +2,7 @@ package com.alatta.nativeapp
 
 import android.content.Context
 import android.content.ContextWrapper
-import android.media.MediaMetadataRetriever
 import android.graphics.Bitmap
-import android.util.LruCache
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
@@ -69,45 +67,40 @@ private fun Context.mediaActivity(): ComponentActivity? = when (this) {
     else -> null
 }
 
-/** Cache only small feed preview frames; never instantiate a second video player. */
-private val attaVideoPreviewCache = LruCache<String, Bitmap>(12)
-
 @Composable
 internal fun AttaExpandableVideo(url: String, posterUrl: String? = null, onOpen: (() -> Unit)? = null) {
+    val context = LocalContext.current
     var expanded by remember(url) { mutableStateOf(false) }
-    val preview by produceState<Bitmap?>(initialValue = attaVideoPreviewCache.get(url), key1 = url) {
-        if (value == null) {
-            value = withContext(Dispatchers.IO) {
-                runCatching {
-                    val retriever = MediaMetadataRetriever()
-                    try {
-                        retriever.setDataSource(url, HashMap<String, String>())
-                        val frame = retriever.getFrameAtTime(0, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
-                        frame?.let {
-                            // Keep preview bitmaps small enough for long feeds.
-                            val w = it.width.coerceAtLeast(1)
-                            val h = it.height.coerceAtLeast(1)
-                            val result = if (w > 720) Bitmap.createScaledBitmap(it, 720, (h * 720f / w).toInt().coerceAtLeast(1), true) else it
-                            if (result !== it) it.recycle()
-                            attaVideoPreviewCache.put(url, result)
-                            result
-                        }
-                    } finally {
-                        retriever.release()
-                    }
-                }.getOrNull()
-            }
+    var posterFailed by remember(url, posterUrl) { mutableStateOf(false) }
+    var retry by remember(url) { mutableIntStateOf(0) }
+    val needsFrame = posterUrl.isNullOrBlank() || posterFailed
+    var loading by remember(url) { mutableStateOf(false) }
+    val preview by produceState<Bitmap?>(initialValue = null, url, needsFrame, retry) {
+        if (needsFrame) {
+            loading = true
+            try { value = VideoPostPreview.remote(context, url) } finally { loading = false }
         }
     }
     Box(Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(RoundedCornerShape(12.dp))
         .background(Color.Black).clickable { if (onOpen != null) onOpen() else expanded = true },
         contentAlignment = Alignment.Center) {
-        if (!posterUrl.isNullOrBlank()) {
-            coil.compose.AsyncImage(model = posterUrl, contentDescription = "صورة معاينة الفيديو",
+        // Always retain the extracted image beneath an optional remote poster.
+        preview?.let { frame ->
+            Image(frame.asImageBitmap(), contentDescription = "معاينة الفيديو",
                 modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
-        } else preview?.let { image ->
-            Image(image.asImageBitmap(), contentDescription = "معاينة الفيديو",
-                modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+        }
+        if (!posterUrl.isNullOrBlank() && !posterFailed) {
+            coil.compose.AsyncImage(model = remember(posterUrl) { coil.request.ImageRequest.Builder(context).data(posterUrl).allowHardware(false).build() }, contentDescription = "صورة معاينة الفيديو",
+                modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop,
+                onError = { posterFailed = true }, onSuccess = { state ->
+                    // A v120 cover may be a successfully loaded black first frame.
+                    val bitmap = (state.result.drawable as? android.graphics.drawable.BitmapDrawable)?.bitmap
+                    if (bitmap != null && bitmap.config != Bitmap.Config.HARDWARE && VideoPostPreview.mostlyBlack(bitmap)) posterFailed = true
+                })
+        }
+        if (needsFrame && preview == null) TextButton(onClick = { retry++ },
+            modifier = Modifier.align(Alignment.BottomCenter)) {
+            Text(if (loading) "جارٍ تحميل صورة الفيديو…" else "إعادة تحميل صورة الفيديو", color = Color(0xFFE6B94E), fontSize = 11.sp)
         }
         Surface(color = Color(0xBB101418), shape = RoundedCornerShape(50),
             border = androidx.compose.foundation.BorderStroke(2.dp, Color(0xFFE6B94E))) {

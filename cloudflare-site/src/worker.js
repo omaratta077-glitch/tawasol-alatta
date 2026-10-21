@@ -41,6 +41,25 @@ function j(data,status=200){
   });
 }
 
+const MAX_ADHAN_BYTES=20*1024*1024;
+async function readAdhanAudio(request){
+  const reader=request.body.getReader(),chunks=[];let size=0;
+  try{
+    for(;;){const {done,value}=await reader.read();if(done)break;size+=value.byteLength;
+      if(size>MAX_ADHAN_BYTES){await reader.cancel();return null;}chunks.push(value);}
+  }finally{reader.releaseLock();}
+  if(!size)return null;
+  const bytes=new Uint8Array(size);let offset=0;
+  for(const chunk of chunks){bytes.set(chunk,offset);offset+=chunk.byteLength;}
+  return bytes;
+}
+function isAdhanAudio(bytes){
+  const text=(start,len)=>String.fromCharCode(...bytes.slice(start,start+len));
+  return text(0,3)==="ID3" || text(0,4)==="OggS" || text(0,4)==="fLaC" ||
+    (text(0,4)==="RIFF"&&text(8,4)==="WAVE") || text(4,4)==="ftyp" ||
+    (bytes[0]===255 && (bytes[1]&0xe0)===0xe0);
+}
+
 // Merge legacy likes with modern reactions; one person has one visible reaction.
 function postReactionMembers(post){
   const members=new Map();
@@ -627,23 +646,37 @@ export class SignalingRoom extends DurableObject {
       if(!this.env.MEDIA_BUCKET)return j({ok:false,error:"MEDIA_BUCKET_NOT_CONFIGURED"},503);
 
       const kind=String(url.searchParams.get("kind")||"file").toLowerCase();
-      const allowedKinds=new Set(["image","video","audio","file","avatar","cover","story"]);
+      const allowedKinds=new Set(["image","video","audio","file","avatar","cover","story","adhan"]);
       if(!allowedKinds.has(kind))return j({ok:false,error:"نوع الملف غير مدعوم"},400);
+      if(kind==="adhan"){
+        const auth=await this.requireAdmin(String(url.searchParams.get("token")||""));
+        if(auth.error)return auth.error;
+      }
       const contentType=String(request.headers.get("content-type")||"").split(";")[0].trim().toLowerCase();
       const accepted=contentType.startsWith("image/") || contentType.startsWith("video/") ||
         contentType.startsWith("audio/") || contentType==="application/pdf";
       if(!accepted)return j({ok:false,error:"صيغة الملف غير مدعومة"},415);
       if(kind==="video" && !contentType.startsWith("video/"))return j({ok:false,error:"اختر ملف فيديو"},415);
+      if(kind==="adhan" && !contentType.startsWith("audio/"))return j({ok:false,error:"اختر تسجيل أذان صوتي"},415);
       if(["image","avatar","cover"].includes(kind) && !contentType.startsWith("image/"))return j({ok:false,error:"اختر ملف صورة"},415);
-      const maxBytes=50*1024*1024;
+      const maxBytes=kind==="adhan"?MAX_ADHAN_BYTES:50*1024*1024;
       const declaredLength=Number(request.headers.get("content-length")||0);
-      if(declaredLength>maxBytes)return j({ok:false,error:"حجم الملف أكبر من 50 MB"},413);
+      if(declaredLength>maxBytes)return j({ok:false,error:kind==="adhan"?"الحد الأقصى للتسجيل 20 ميجابايت":"حجم الملف أكبر من 50 MB"},413);
       if(!request.body)return j({ok:false,error:"الملف فارغ"},400);
 
       const supplied=String(url.searchParams.get("name")||"media");
       const ext=(supplied.match(/\.([a-z0-9]{1,8})$/i)||[])[1]||"bin";
       const key=`${kind}/${Date.now()}-${crypto.randomUUID()}.${ext.toLowerCase()}`;
       try{
+        if(kind==="adhan"){
+          const bytes=await readAdhanAudio(request);
+          if(!bytes)return j({ok:false,error:"اختر تسجيلًا غير فارغ حتى 20 ميجابايت"},413);
+          if(!isAdhanAudio(bytes))return j({ok:false,error:"الملف ليس تسجيلًا صوتيًا مدعومًا"},415);
+          const digest=await crypto.subtle.digest("SHA-256",bytes);
+          const sha256=[...new Uint8Array(digest)].map(b=>b.toString(16).padStart(2,"0")).join("");
+          await this.env.MEDIA_BUCKET.put(key,bytes,{httpMetadata:{contentType},customMetadata:{owner:session.username,sha256}});
+          return j({ok:true,url:`/media/${key}`,size:bytes.length,sha256,contentType});
+        }
         // R2 stores the binary stream; no base64 conversion or Durable Object storage.
         const object=await this.env.MEDIA_BUCKET.put(key,request.body,{
           httpMetadata:{contentType},
@@ -663,6 +696,33 @@ export class SignalingRoom extends DurableObject {
     let body={};
     if(request.method!=="GET"){
       try{body=await request.json()}catch{}
+    }
+
+    if(url.pathname==="/api/adhan-voices" && request.method==="GET"){
+      const voices=(await this.allRecords("adhan-voice:")).sort((a,b)=>a.createdAt-b.createdAt)
+        .map(({id,name,mosque,url,size,sha256,source})=>({id,name,mosque,url,size,sha256,source}));
+      return j({ok:true,voices});
+    }
+    if(url.pathname==="/api/admin/adhan-voices" && request.method==="POST"){
+      const auth=await this.requireAdmin(body.token||"");if(auth.error)return auth.error;
+      const name=String(body.name||"").trim(),mosque=String(body.mosque||"").trim(),audio=String(body.url||"");
+      if(name.length<2 || name.length>80 || mosque.length>120 || !/^\/media\/adhan\/[a-zA-Z0-9.-]+$/.test(audio))return j({ok:false,error:"أدخل اسم المؤذن واختر تسجيلًا رفعته من الإدارة"},400);
+      const object=await this.env.MEDIA_BUCKET?.head(audio.slice(7));
+      if(!object || object.customMetadata?.owner!==auth.session.username || !/^[a-f0-9]{64}$/.test(object.customMetadata?.sha256||"") || !object.httpMetadata?.contentType?.startsWith("audio/") || object.size>MAX_ADHAN_BYTES)return j({ok:false,error:"التسجيل غير موجود أو لم ترفعه الإدارة"},400);
+      const voices=await this.allRecords("adhan-voice:");
+      if(voices.length>=50)return j({ok:false,error:"الحد الأقصى 50 تسجيلًا مضافًا؛ احذف تسجيلًا قديمًا أولًا"},409);
+      const id="admin-"+crypto.randomUUID();
+      const voice={id,name,mosque,url:audio,size:object.size,sha256:object.customMetadata.sha256,source:"إضافة إدارة التطبيق",createdAt:Date.now()};
+      await this.ctx.storage.put("adhan-voice:"+id,voice);
+      return j({ok:true,voice});
+    }
+    if(url.pathname==="/api/admin/adhan-voices/delete" && request.method==="POST"){
+      const auth=await this.requireAdmin(body.token||"");if(auth.error)return auth.error;
+      const id=String(body.id||"");
+      if(!/^admin-[a-f0-9-]{36}$/.test(id))return j({ok:false,error:"اختر تسجيلًا أضافته الإدارة"},400);
+      await this.ctx.storage.delete("adhan-voice:"+id);
+      // Existing offline selections continue to work; never remove a user's downloaded audio.
+      return j({ok:true});
     }
 
     if(url.pathname==="/api/turn-credentials" && request.method==="GET"){
@@ -3165,13 +3225,41 @@ export default {
       if(!key || key.includes("..") || key.includes("\\") || key.startsWith("/")){
         return new Response("Invalid media path",{status:400});
       }
-      const obj=await env.MEDIA_BUCKET.get(key);
-      if(!obj)return new Response("Not found",{status:404});
+      if(!["GET","HEAD"].includes(request.method))return new Response("Method not allowed",{status:405,headers:{allow:"GET, HEAD"}});
+      // Ordinary images/full downloads need only one R2 read; seeking needs metadata first.
+      const meta=request.method==="HEAD" || request.headers.has("range")
+        ?await env.MEDIA_BUCKET.head(key):await env.MEDIA_BUCKET.get(key);
+      if(!meta)return new Response("Not found",{status:404});
       const headers=new Headers();
-      obj.writeHttpMetadata(headers);
-      headers.set("etag",obj.httpEtag);
+      meta.writeHttpMetadata(headers);
+      headers.set("etag",meta.httpEtag);
+      headers.set("accept-ranges","bytes");
       headers.set("cache-control","public, max-age=31536000, immutable");
-      return new Response(obj.body,{headers});
+      headers.set("content-length",String(meta.size));
+      if(request.method==="HEAD")return new Response(null,{headers});
+      // Android's frame extractor seeks within MP4s. Returning the whole file for
+      // every Range request leaves older video posts with a black preview.
+      let range;
+      const raw=request.headers.get("range");
+      const ifRange=request.headers.get("if-range");
+      if(raw && (!ifRange || ifRange===meta.httpEtag)){
+        const m=/^bytes=(\d*)-(\d*)$/.exec(raw);
+        let start=0,end=meta.size-1;
+        if(m && (m[1] || m[2])){
+          if(!m[1])start=Math.max(0,meta.size-Number(m[2]));
+          else {start=Number(m[1]);if(m[2])end=Math.min(end,Number(m[2]));}
+        }
+        if(!m || (!m[1]&&!m[2]) || !Number.isSafeInteger(start) || !Number.isSafeInteger(end) || start<0 || start>=meta.size || end<start){
+          headers.set("content-range",`bytes */${meta.size}`);headers.set("content-length","0");
+          return new Response(null,{status:416,headers});
+        }
+        range={offset:start,length:end-start+1};
+        headers.set("content-range",`bytes ${start}-${end}/${meta.size}`);
+        headers.set("content-length",String(range.length));
+      }
+      const obj="body" in meta?meta:await env.MEDIA_BUCKET.get(key,range?{range}:undefined);
+      if(!obj)return new Response("Not found",{status:404});
+      return new Response(obj.body,{status:range?206:200,headers});
     }
 
     // YouTube Data API requests are server-side. Never expose YOUTUBE_API_KEY.

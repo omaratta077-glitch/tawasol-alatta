@@ -1,0 +1,44 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import {webcrypto} from 'node:crypto';
+globalThis.crypto ??= webcrypto;
+const source=fs.readFileSync(new URL('../cloudflare-site/src/worker.js',import.meta.url),'utf8').replace('import { DurableObject } from "cloudflare:workers";','class DurableObject {}');
+const {SignalingRoom}=await import('data:text/javascript;charset=utf-8,'+encodeURIComponent(source));
+const data=new Map(),objects=new Map();
+const storage={async get(k){return structuredClone(data.get(k))},async put(k,v){data.set(k,structuredClone(v))},async delete(k){return data.delete(k)},async list({prefix='',startAfter='',limit=1000}={}){return new Map([...data].filter(([k])=>k.startsWith(prefix)&&k>startAfter).sort(([a],[b])=>a.localeCompare(b)).slice(0,limit))}};
+const bucket={async put(key,bytes,options){const object={size:bytes.length,...options};objects.set(key,{...object,bytes});return object},async head(key){return objects.get(key)||null}};
+const env={SUPER_ADMIN_USERNAME:'owner',SUPER_ADMIN_EMAIL:'owner@example.test',MEDIA_BUCKET:bucket};
+const room=new SignalingRoom({storage,getWebSockets:()=>[],waitUntil:p=>p.catch(()=>{})},env);
+for(const username of ['owner','alice'])await storage.put('user:'+username,{username,email:username+'@example.test'});
+const owner=await room.createSession('owner'),alice=await room.createSession('alice');
+async function api(path,body,method='POST'){const r=await room.api(new Request('https://unit.test'+path,{method,...(method==='GET'?{}:{headers:{'content-type':'application/json'},body:JSON.stringify(body||{})})}));return{status:r.status,data:await r.json()}}
+async function upload(token,bytes,headers={}){const r=await room.api(new Request('https://unit.test/api/media-upload?kind=adhan&name=voice.ogg&token='+token,{method:'POST',headers:{'content-type':'audio/ogg',...headers},body:bytes}));return{status:r.status,data:await r.json()}}
+const audio=fs.readFileSync(new URL('../android-native/app/src/main/res/raw/atta_adhan.ogg',import.meta.url));
+assert.equal((await upload('',audio)).status,401);
+assert.equal((await upload(alice,audio)).status,403);
+assert.equal((await api('/api/admin/adhan-voices',{token:alice,name:'not allowed',url:'/media/adhan/test.ogg'})).status,403);
+assert.equal((await upload(owner,audio,{'content-type':'text/html'})).status,415);
+assert.equal((await upload(owner,Buffer.from('<html>not audio</html>'))).status,415);
+assert.equal((await upload(owner,audio,{'content-length':String(21*1024*1024)})).status,413);
+assert.equal((await upload(owner,new Uint8Array(20*1024*1024+1))).status,413,'untrusted/missing Content-Length cannot bypass the streamed limit');
+assert.equal(objects.size,0,'invalid audio is never persisted');
+const saved=await upload(owner,audio);assert.equal(saved.status,200);
+assert.equal(saved.data.size,audio.length);assert.match(saved.data.sha256,/^[a-f0-9]{64}$/);
+assert.equal(saved.data.sha256,Buffer.from(await crypto.subtle.digest('SHA-256',audio)).toString('hex'));
+assert.equal((await api('/api/admin/adhan-voices',{token:owner,name:'A',url:saved.data.url})).status,400);
+for(const url of ['https://evil.test/audio.mp3','/media/audio/regular.mp3','/media/adhan/../voice.mp3','/media/adhan/missing.ogg'])assert.equal((await api('/api/admin/adhan-voices',{token:owner,name:'مؤذن التجربة',url})).status,400);
+objects.set('adhan/forged.mp3',{size:400,httpMetadata:{contentType:'audio/mpeg'},customMetadata:{owner:'alice',sha256:'a'.repeat(64)}});
+assert.equal((await api('/api/admin/adhan-voices',{token:owner,name:'مؤذن التجربة',url:'/media/adhan/forged.mp3'})).status,400);
+const added=await api('/api/admin/adhan-voices',{token:owner,name:'مؤذن التجربة',mosque:'مسجد التجربة',url:saved.data.url});assert.equal(added.status,200);
+const list=await api('/api/adhan-voices',null,'GET');assert.equal(list.status,200);assert.equal(list.data.voices.length,1);
+assert.equal(list.data.voices[0].name,'مؤذن التجربة');assert.equal(list.data.voices[0].sha256,saved.data.sha256);assert.ok(!('token' in list.data.voices[0]));
+const restarted=new SignalingRoom({storage,getWebSockets:()=>[]},env);
+assert.equal((await (await restarted.api(new Request('https://unit.test/api/adhan-voices'))).json()).voices.length,1,'catalog survives a server restart');
+assert.equal((await api('/api/admin/adhan-voices/delete',{token:alice,id:added.data.voice.id})).status,403);
+assert.equal((await api('/api/admin/adhan-voices/delete',{token:owner,id:'islamhouse-008'})).status,400);
+assert.equal((await api('/api/admin/adhan-voices/delete',{token:owner,id:added.data.voice.id})).status,200);
+assert.equal((await api('/api/adhan-voices',null,'GET')).data.voices.length,0);assert.ok(objects.has(saved.data.url.slice(7)),'existing offline recording reference remains usable');
+const bundled=JSON.parse(fs.readFileSync(new URL('../android-native/app/src/main/assets/adhan-voices.json',import.meta.url))).voices;
+assert.equal(bundled.length,11);assert.equal(new Set(bundled.map(v=>v.id)).size,11);
+for(const v of bundled){assert.ok(v.name.length>=2&&v.size>0&&v.size<=20*1024*1024&&v.durationSeconds>10&&v.durationSeconds<600);assert.match(v.sha256,/^[a-f0-9]{64}$/);assert.ok(v.url.startsWith('https://d1.islamhouse.com/data/ar/ih_sounds/chain/Athan/'));assert.equal(v.sourceUrl,'https://islamhouse.com/ar/audios/808260/');}
+console.log('PASS Adhan catalog: 11 verified publisher records; owner-only upload/add/remove, streamed size limit, invalid/foreign audio rejection and restart persistence');

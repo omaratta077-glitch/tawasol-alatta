@@ -354,11 +354,14 @@ internal fun AzkarPrayerScreen(query: String, modifier: Modifier = Modifier) {
                 } }
                 item { PrayerCard {
                     Text("صوت الأذان", color = PremiumGoldLight, fontWeight = FontWeight.Bold)
-                    Text(if (settings.soundUri.isBlank()) "صوت الأذان المضمّن • متاح دون إنترنت" else "ملف صوتي اخترته من الهاتف", color = Color.White)
-                    PrayerAudioPicker(settings.soundUri, onPick = { save(settings.copy(soundUri = it)) }, onMessage = { message = it })
+                    Text(when { settings.soundUri.isNotBlank() -> "ملف صوتي اخترته من الهاتف"
+                        settings.voiceName.isNotBlank() -> "${settings.voiceName} • محفوظ دون إنترنت"
+                        else -> "صوت الأذان المضمّن • متاح دون إنترنت" }, color = Color.White)
+                    AdhanVoiceSelector(settings, onSelect = { voice -> save(settings.copy(soundUri = "", voiceId = voice.id, voiceName = voice.name, voiceSha256 = voice.sha256)) }, onMessage = { message = it })
+                    PrayerAudioPicker(settings.soundUri, onPick = { save(settings.copy(soundUri = it, voiceId = "", voiceName = "", voiceSha256 = "")) }, onMessage = { message = it })
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Button(onClick = { if (playing) context.stopService(Intent(context, AdhanPlaybackService::class.java)) else startAction("preview") }) { Text(if (playing) "إيقاف الصوت" else "تجربة الأذان") }
-                        TextButton(onClick = { save(settings.copy(soundUri = "")) }) { Text("الصوت الافتراضي", color = PremiumGoldLight) }
+                        TextButton(onClick = { save(settings.copy(soundUri = "", voiceId = "", voiceName = "", voiceSha256 = "")) }) { Text("الصوت الافتراضي", color = PremiumGoldLight) }
                     }
                 } }
                 item { PrayerCard {
@@ -390,7 +393,7 @@ internal fun AzkarPrayerScreen(query: String, modifier: Modifier = Modifier) {
         } }
     }, confirmButton = { TextButton(onClick = { chooseMethod = false }) { Text("رجوع") } })
     if (showCredits) AlertDialog(onDismissRequest = { showCredits = false }, title = { Text("مصادر الحساب والصوت") }, text = {
-        Text("المواقيت: مكتبة Adhan من Batoul Apps بترخيص MIT.\n\nالصوت المضمّن: Beautiful adhan — Adam-synagda، من Wikimedia Commons بترخيص CC0.\n\nالمدينة والإحداثيات والعدادات والصوت المختار تُحفظ على الجهاز، ولا تُرفع إلى خادم التطبيق.")
+        Text("المواقيت: مكتبة Adhan من Batoul Apps بترخيص MIT.\n\nالصوت المضمّن: Beautiful adhan — Adam-synagda، من Wikimedia Commons بترخيص CC0.\n\nتسجيلات المؤذنين بأسمائهم: روابط الاستماع والتنزيل من دار الإسلام، مع رابط المصدر لكل تسجيل. تسجيلات الإدارة تضاف من لوحة المدير. يتم تنزيل الصوت عند اختيارك وحفظه محليًا.\n\nالمدينة والإحداثيات والعدادات والصوت المختار تُحفظ على الجهاز، ولا تُرفع إلى خادم التطبيق.")
     }, confirmButton = { TextButton(onClick = { showCredits = false }) { Text("حسنًا") } })
 }
 

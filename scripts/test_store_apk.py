@@ -27,7 +27,7 @@ PERMISSIONS = "\n".join("uses-permission: name='android.permission." + name + "'
 
 
 class StoreApkTest(unittest.TestCase):
-    def check(self, path, data=RECORDING, duplicate=False, linked=None):
+    def check(self, path, data=RECORDING, duplicate=False, linked=None, catalog=None):
         with tempfile.TemporaryDirectory() as directory:
             apk_path = Path(directory) / "app.apk"
             with zipfile.ZipFile(apk_path, "w") as archive:
@@ -37,6 +37,7 @@ class StoreApkTest(unittest.TestCase):
                 for name in ("privacy.html", "terms.html", "data-rights.html"):
                     archive.writestr("assets/legal/" + name, (ROOT / "cloudflare-site/public" / name).read_bytes())
                 archive.writestr("assets/third-party-prayer-licenses.txt", (ROOT / "android-native/app/src/main/assets/third-party-prayer-licenses.txt").read_bytes())
+                archive.writestr("assets/adhan-voices.json", catalog if catalog is not None else (ROOT / "android-native/app/src/main/assets/adhan-voices.json").read_bytes())
 
             def aapt(command, **_):
                 if "permissions" in command:
@@ -70,6 +71,10 @@ class StoreApkTest(unittest.TestCase):
     def test_unreferenced_recording_is_rejected(self):
         with self.assertRaisesRegex(AssertionError, "Adhan resource does not reference"):
             self.check("res/uQ.ogg", linked="res/another.ogg")
+
+    def test_outdated_catalog_is_rejected(self):
+        with self.assertRaisesRegex(AssertionError, "Missing or outdated muezzin catalog"):
+            self.check("res/uQ.ogg", catalog=b'{"voices":[]}')
 
 
 if __name__ == "__main__":

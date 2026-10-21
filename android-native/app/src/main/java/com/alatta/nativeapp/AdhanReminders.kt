@@ -42,7 +42,9 @@ internal object PrayerStore {
             value.optBoolean("hanafi"),
             selected?.let { a -> (0 until a.length()).map { a.optString(it) }.filter { it in alarmPrayerIds }.toSet() } ?: alarmPrayerIds,
             alarmPrayerIds.associateWith { offsets?.optInt(it)?.coerceIn(-30, 30) ?: 0 },
-            value.optString("soundUri").takeIf { it.isEmpty() || Uri.parse(it).scheme == "content" }.orEmpty())
+            value.optString("soundUri").takeIf { it.isEmpty() || Uri.parse(it).scheme == "content" }.orEmpty(),
+            value.optString("voiceId").take(100), value.optString("voiceName").take(80),
+            value.optString("voiceSha256").takeIf { it.matches(Regex("[a-f0-9]{64}")) }.orEmpty())
     }.getOrElse { PrayerSettings() }
 
     fun save(context: Context, value: PrayerSettings) {
@@ -53,6 +55,7 @@ internal object PrayerStore {
             .put("enabled", value.enabled).put("method", value.method).put("hanafi", value.hanafi)
             .put("prayers", org.json.JSONArray(value.prayers.toList()))
             .put("offsets", JSONObject(value.offsets)).put("soundUri", value.soundUri)
+            .put("voiceId", value.voiceId).put("voiceName", value.voiceName).put("voiceSha256", value.voiceSha256)
         prefs(context).edit().putString("settings", json.toString()).apply()
     }
 }
@@ -200,7 +203,12 @@ class AdhanPlaybackService : Service() {
                 runCatching { sound.setDataSource(this, Uri.parse(settings.soundUri)) }.getOrElse {
                     sound.reset(); sound.setAudioAttributes(attributes); bundledSound()
                 }
-            } else bundledSound()
+            } else {
+                val recording = AdhanVoices.selectedFile(this, settings)
+                if (recording != null) runCatching { sound.setDataSource(recording.path) }.getOrElse {
+                    sound.reset(); sound.setAudioAttributes(attributes); bundledSound()
+                } else bundledSound()
+            }
             sound.setOnPreparedListener { prepared -> prepared.start(); playing.value = true }
             sound.prepareAsync()
             handler.postDelayed({ stopSelf() }, 10 * 60_000L)
