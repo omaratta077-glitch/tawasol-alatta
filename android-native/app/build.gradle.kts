@@ -24,6 +24,7 @@ android {
         applicationId = "com.alatta.nativeapp"
         minSdk = 26
         targetSdk = 35
+        // v1.0.134 release: audited media safety, inbox and Quran performance.
         versionCode = 234
         versionName = "1.0.134"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
