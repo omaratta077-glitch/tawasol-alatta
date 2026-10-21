@@ -9,6 +9,8 @@ on:
     paths:
       - 'android-native/**'
       - '.github/workflows/build-native-release.yml'
+      - 'scripts/check_store_apk.py'
+      - 'scripts/test_store_apk.py'
 
 permissions:
   contents: write
@@ -136,6 +138,7 @@ jobs:
           node scripts/test_social_push.mjs
           node scripts/test_appgallery_privacy.mjs
           python3 scripts/test_huawei_config.py
+          python3 scripts/test_store_apk.py
 
       - name: Prepare optional Huawei client configuration
         env:

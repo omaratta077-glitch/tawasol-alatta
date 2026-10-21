@@ -47,10 +47,16 @@ assert playback_service, "Missing local Adhan playback service"
 assert re.search(r'android:exported[^\n]*\b0x0\b', playback_service), "Adhan service must not be exported"
 assert re.search(r'android:foregroundServiceType[^\n]*\b0x2\b', playback_service), "Adhan service must declare mediaPlayback"
 with zipfile.ZipFile(args.apk) as apk:
-    audio = [name for name in apk.namelist() if name.endswith("/atta_adhan.ogg")]
+    # Release optimization shortens resource file paths. Check the original bytes
+    # and verify that raw/atta_adhan actually points to that entry, not its ZIP name.
+    audio = [info.filename for info in apk.infolist() if info.file_size == 1229032 and
+             hashlib.sha256(apk.read(info.filename)).hexdigest() == "35fe06b08fe80505c550c33fed8a783fa9901ddc81ac884958b4be048f5b2a79"]
     assert len(audio) == 1, "Missing or duplicated offline Adhan recording"
     recording = apk.read(audio[0])
     assert len(recording) == 1229032 and hashlib.sha256(recording).hexdigest() == "35fe06b08fe80505c550c33fed8a783fa9901ddc81ac884958b4be048f5b2a79", "Offline Adhan recording integrity failed"
+    resources = subprocess.check_output([aapt, "dump", "--values", "resources", str(args.apk)], text=True).splitlines()
+    references = [index for index, line in enumerate(resources) if "raw/atta_adhan" in line]
+    assert references and any(audio[0] in "\n".join(resources[index:index + 12]) for index in references), "Adhan resource does not reference the verified audio"
     assert b"Copyright (c) 2016 Batoul Apps" in apk.read("assets/third-party-prayer-licenses.txt"), "Missing prayer calculation license"
     for name in ("privacy.html", "terms.html", "data-rights.html"):
         assert apk.read("assets/legal/" + name) == (root / "cloudflare-site/public" / name).read_bytes(), "Legal text differs from the published source: " + name
@@ -64,4 +70,4 @@ with zipfile.ZipFile(args.apk) as apk:
             elif isinstance(value, list):
                 for item in value: check_public(item)
         check_public(json.loads(apk.read("assets/agconnect-services.json")))
-print(f"PASS: actual {args.channel} APK permissions, channel and offline legal documents")
+print(f"PASS: actual {args.channel} APK permissions, Adhan service/audio, channel and offline legal documents")
