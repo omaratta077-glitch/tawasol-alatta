@@ -155,8 +155,11 @@ internal fun QuranReaderScreen(modifier: Modifier = Modifier, onExit: () -> Unit
         }
     }
     LaunchedEffect(pane) {
-        if (pane == "index" && !downloading) savedPages = withContext(Dispatchers.IO) {
-            (1..604).filter { MushafPageStore.isDownloaded(context, it) }.toSet()
+        if (pane == "index" && !downloading) {
+            val found = withContext(Dispatchers.IO) {
+                (1..604).filter { MushafPageStore.isDownloaded(context, it) }.toSet()
+            }
+            savedPages = savedPages + found
         }
     }
     fun downloadMushaf() {
