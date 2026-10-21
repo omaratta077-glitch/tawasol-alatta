@@ -24,37 +24,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 
-private data class KnowledgeEntry(val title: String, val body: String, val source: String = "")
 private val gold = Color(0xFFF6D776)
-private val panel = Color(0xFF111518)
-private val hadithEntries = listOf(
-    KnowledgeEntry("النية", "إنما الأعمال بالنيات، وإنما لكل امرئ ما نوى.", "رواه البخاري ومسلم"),
-    KnowledgeEntry("حب الخير للآخرين", "لا يؤمن أحدكم حتى يحب لأخيه ما يحب لنفسه.", "رواه البخاري ومسلم"),
-    KnowledgeEntry("الكلمة الطيبة", "الكلمة الطيبة صدقة.", "رواه البخاري ومسلم"),
-    KnowledgeEntry("الرحمة", "من لا يَرحم لا يُرحم.", "رواه البخاري ومسلم")
-)
 
 @Composable
-internal fun KnowledgeScreen(section: String, query: String, modifier: Modifier = Modifier) {
-    if (section == "الأذكار") {
-        AzkarPrayerScreen(query, modifier)
-        return
-    }
-    val entries = hadithEntries
-    Column(modifier.fillMaxSize().background(Color(0xFF040506)).padding(horizontal = 12.dp)) {
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(bottom = 16.dp)) {
-            items(entries.filter { query.isBlank() || it.title.contains(query, true) || it.body.contains(query, true) }) { item ->
-                Column(Modifier.fillMaxWidth().border(1.dp, Color(0xFF6B5429), RoundedCornerShape(14.dp))
-                    .background(panel, RoundedCornerShape(14.dp)).padding(14.dp),
-                    verticalArrangement = Arrangement.spacedBy(9.dp)) {
-                    Text(item.title, color = gold, fontSize = 17.sp, fontWeight = FontWeight.Bold)
-                    Text(item.body, color = Color.White, fontSize = 19.sp, lineHeight = 33.sp,
-                        textAlign = TextAlign.Start)
-                    if (item.source.isNotEmpty()) Text(item.source, color = Color(0xFFC9D0D4), fontSize = 12.sp)
-                }
-            }
-        }
-    }
+internal fun KnowledgeScreen(section: String, query: String, modifier: Modifier = Modifier, onClearQuery: () -> Unit = {}) {
+    if (section == "الأذكار") AzkarPrayerScreen(query, modifier)
+    else HadithLibraryScreen(query, modifier, onClearQuery)
 }
 
 @Composable

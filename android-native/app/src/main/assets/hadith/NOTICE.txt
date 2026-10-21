@@ -1,0 +1,25 @@
+AL-ATTA Arabic Hadith Library
+
+The Arabic source texts are works of classical authors. Modern translations and commentary are not included.
+
+Sahih al-Bukhari, Sahih Muslim, Muwatta Malik:
+Islamware Arabic text, preserved by ceefour/hadith-islamware and processed by mhashim6/Open-Hadith-Data.
+Source snapshot: https://github.com/mhashim6/Open-Hadith-Data/tree/1515f6cba21efed20d8916bf55acef1dffa0d2d5
+Open-Hadith-Data is provided under Open Database License (ODbL) 1.0:
+https://opendatacommons.org/licenses/odbl/1-0/
+Individual contents: Database Contents License (DbCL) 1.0:
+https://opendatacommons.org/licenses/dbcl/1-0/
+The derived bundled database is also available under ODbL 1.0. Its compressed source parts,
+manifest, source hashes and reproducible build script are supplied in the AL-ATTA Git repository:
+https://github.com/omaratta077-glitch/tawasol-alatta
+Transformations: extract original Arabic hadith column, remove display-direction controls and HTML,
+add a normalized search index, group readings in ranges of up to 100, and compress the database.
+All source rows and their original source-edition numbering are retained.
+
+The Forty Hadith of Imam al-Nawawi (42):
+Original classical Arabic text from AhmedBaset/hadith-json, based on Sunnah.com:
+https://github.com/AhmedBaset/hadith-json/tree/ca32fd72aa16eeeb9a819c80bb65c9e78766532d
+Only the original Arabic text and numbering are used, without its modern translations or code.
+
+Different editions group and number narrations differently. The app explicitly displays the source
+edition; the reading-range index is for navigation and is not presented as the author's chapter titles.

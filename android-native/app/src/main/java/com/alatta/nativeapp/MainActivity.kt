@@ -2299,7 +2299,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                     else draft.trim()+"\n\n"+shared.selection.title
                                 openHomeComposer()
                             })
-                        "الأحاديث", "الأذكار" -> KnowledgeScreen(tab, knowledgeSearch, Modifier.weight(1f))
+                        "الأحاديث", "الأذكار" -> KnowledgeScreen(tab, knowledgeSearch, Modifier.weight(1f), onClearQuery = { knowledgeSearch = "" })
                         "الرياضة" -> FootballScreen(Modifier.weight(1f))
                         "الرئيسية", "استكشاف", "المحفوظات" -> LazyColumn(
                             Modifier.weight(1f).padding(horizontal = 8.dp),

@@ -59,6 +59,20 @@ with zipfile.ZipFile(args.apk) as apk:
     assert references and any(audio[0] in "\n".join(resources[index:index + 12]) for index in references), "Adhan resource does not reference the verified audio"
     assert b"Copyright (c) 2016 Batoul Apps" in apk.read("assets/third-party-prayer-licenses.txt"), "Missing prayer calculation license"
     assert apk.read("assets/adhan-voices.json") == (root / "android-native/app/src/main/assets/adhan-voices.json").read_bytes(), "Missing or outdated muezzin catalog"
+    hadith = root / "android-native/app/src/main/assets/hadith"
+    expected = json.loads((hadith / "manifest.json").read_text())
+    names = {"manifest.json", "NOTICE.txt"} | {part["file"] for part in expected["parts"]}
+    assert {"assets/hadith/" + name for name in names}.issubset(apk.namelist()), "Missing offline Hadith library asset"
+    for name in ("manifest.json", "NOTICE.txt"):
+        assert apk.read("assets/hadith/" + name) == (hadith / name).read_bytes(), "Outdated Hadith metadata: " + name
+    packed_digest = hashlib.sha256()
+    packed_size = 0
+    for part in expected["parts"]:
+        data = apk.read("assets/hadith/" + part["file"])
+        assert len(data) == part["bytes"] and hashlib.sha256(data).hexdigest() == part["sha256"], "Corrupt offline Hadith library part"
+        packed_digest.update(data)
+        packed_size += len(data)
+    assert packed_size == expected["packedBytes"] and packed_digest.hexdigest() == expected["packedSha256"], "Incomplete offline Hadith library"
     for name in ("privacy.html", "terms.html", "data-rights.html"):
         assert apk.read("assets/legal/" + name) == (root / "cloudflare-site/public" / name).read_bytes(), "Legal text differs from the published source: " + name
     assert "2026-10-20" in apk.read("assets/legal/privacy.html").decode(), "Missing current privacy version"
@@ -71,4 +85,4 @@ with zipfile.ZipFile(args.apk) as apk:
             elif isinstance(value, list):
                 for item in value: check_public(item)
         check_public(json.loads(apk.read("assets/agconnect-services.json")))
-print(f"PASS: actual {args.channel} APK permissions, Adhan service/audio, channel and offline legal documents")
+print(f"PASS: actual {args.channel} APK permissions, Adhan service/audio, offline Hadith library, channel and legal documents")

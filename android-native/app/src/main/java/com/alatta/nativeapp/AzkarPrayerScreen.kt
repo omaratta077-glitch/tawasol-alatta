@@ -17,6 +17,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -229,21 +230,22 @@ internal fun AzkarPrayerScreen(query: String, modifier: Modifier = Modifier) {
             LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(14.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 item {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("${entries.size} أذكار • التقدّم محفوظ لليوم", Modifier.weight(1f), color = PremiumMuted, fontSize = 12.sp)
+                        Text("${entries.size} ذكرًا ودعاءً • التقدّم محفوظ لليوم", Modifier.weight(1f), color = PremiumMuted, fontSize = 12.sp)
                         TextButton(onClick = { fontSize = (fontSize - 1).coerceAtLeast(18); local.edit().putInt("font_size", fontSize).apply() }) { Text("أ−", color = PremiumGold) }
                         TextButton(onClick = { fontSize = (fontSize + 1).coerceAtMost(32); local.edit().putInt("font_size", fontSize).apply() }) { Text("أ+", color = PremiumGold) }
                     }
                 }
-                items(entries, key = { it.id }) { entry ->
+                itemsIndexed(entries, key = { _, entry -> entry.id }) { index, entry ->
                     val key = "${group.id}:${entry.id}"
                     val count = counts[key] ?: local.getInt(key, 0).coerceIn(0, entry.target)
                     PrayerCard {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(entry.title, Modifier.weight(1f), color = PremiumGoldLight, fontWeight = FontWeight.Bold)
+                            Text("${index + 1} • ${entry.title}", Modifier.weight(1f), color = PremiumGoldLight, fontWeight = FontWeight.Bold)
                             if (count >= entry.target) SiteIcon("check", tint = prayerSoft, size = 22.dp)
                         }
                         Text(entry.text, color = Color.White, fontSize = fontSize.sp, lineHeight = (fontSize * 1.75).sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
                         Text(entry.source, color = PremiumMuted, fontSize = 12.sp)
+                        if (entry.note.isNotBlank()) Text(entry.note, color = prayerSoft, fontSize = 12.sp)
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                             TextButton(onClick = {
                                 val share = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, "${entry.text}\n${entry.source}")
