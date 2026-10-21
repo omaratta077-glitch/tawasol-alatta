@@ -963,7 +963,9 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
     var activeYoutubePostId by remember { mutableStateOf("") }
     // Reload Home without launching scrolling work from an off-screen navigation item.
     var homeRefreshRequest by remember { mutableIntStateOf(0) }
-    var focusSharedPostId by remember { mutableStateOf("") }
+    // Scroll requests are handled only while Home's LazyColumn is composed.
+    var homeFirstPostRequest by remember { mutableIntStateOf(0) }
+    var homeScrollTarget by remember { mutableIntStateOf(1) }
     var quranPage by remember { mutableIntStateOf(1) }
     var quranReadingRange by remember { mutableStateOf<IntRange?>(null) }
     var posts by remember { mutableStateOf(emptyList<JSONObject>()) }
@@ -1087,7 +1089,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
         confirmAccountUser = ""; deleteAccountConfirmation = ""; accountDeleteProgress = ""
         profile = JSONObject(); publicProfile = null; displayName = ""; myUsername = ""; myAvatar = ""
         googleIdToken = ""; googleEmail = ""; ownerResetPlan = null; ownerResetConfirmation = ""
-        mushafPostDraft?.discard(); mushafPostDraft = null; pickedUri = null; draft = ""; focusSharedPostId = ""
+        mushafPostDraft?.discard(); mushafPostDraft = null; pickedUri = null; draft = ""
         youtubePostDraftId = ""; youtubePostDraftTitle = ""; activeYoutubePostId = ""
         youtubePlayRequested = false; youtubeId = ""
         visited.clear(); tab = "الرئيسية"; token = ""; authMode = "login"
@@ -1612,14 +1614,25 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
     }
     fun refresh() = task { load(tab) }
     fun navigate(destination: String) {
-        if (destination == "الرئيسية" && tab == "الرئيسية" && token.isNotBlank()) {
-            // Same-tab tap: LaunchedEffect reloads the feed in the existing screen.
-            // Never call animateScrollToItem on a detached/off-screen LazyListState.
-            homeRefreshRequest++
-            return
+        if (destination == "الرئيسية" && token.isNotBlank()) {
+            // Home always lands on the FIRST feed post, even when already on Home.
+            // The scroll runs in LaunchedEffect after Home is actually composed.
+            homeScrollTarget = 1
+            homeFirstPostRequest++
+            if (tab == destination) {
+                homeRefreshRequest++
+                return
+            }
         }
         if (destination != "الرئيسية") activeYoutubePostId = ""
         if (tab != destination) { visited.add(tab); tab = destination }
+    }
+    fun openHomeComposer() {
+        // Choosing a Quran/YouTube attachment must leave the write box visible
+        // until Publish; explicit Home taps still jump to the first feed post.
+        navigate("الرئيسية")
+        homeScrollTarget = 0
+        homeFirstPostRequest++
     }
     fun openChat(peer: String) {
         val id = peer.trim().lowercase()
@@ -1897,15 +1910,14 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
             catch (_: Exception) { /* UI can still use the account initial. */ }
         } else { myAvatar = ""; adminRole = "" }
     }
-    // After re-sharing, bring that exact post into view, not only the feed top.
-    LaunchedEffect(focusSharedPostId, posts, tab) {
-        val id = focusSharedPostId
-        if (tab == "الرئيسية" && id.isNotBlank()) {
-            val position = posts.indexOfFirst { it.optString("id") == id }
-            if (position >= 0) {
-                homeFeedListState.scrollToItem(position + 1)
-                focusSharedPostId = ""
-            }
+    // Only scroll a composed Home list. The composer is row 0 and the first
+    // actual post is row 1. Avoid the old detached-list animateScroll crash.
+    LaunchedEffect(token, tab, homeFirstPostRequest) {
+        if (token.isNotBlank() && tab == "الرئيسية") {
+            withFrameNanos { }
+            homeFeedListState.scrollToItem(
+                if (homeScrollTarget == 0 || posts.isEmpty()) 0 else 1
+            )
         }
     }
     LaunchedEffect(token, tab, homeRefreshRequest) {
@@ -2253,7 +2265,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                 mushafPostDraft = shared; pickedUri = Uri.fromFile(shared.preview); pickedMime = "image/png"
                                 draft = if (draft.isBlank() || draft == previousTitle) shared.selection.title
                                     else draft.trim()+"\n\n"+shared.selection.title
-                                navigate("الرئيسية")
+                                openHomeComposer()
                             })
                         "الأحاديث", "الأذكار" -> KnowledgeScreen(tab, knowledgeSearch, Modifier.weight(1f))
                         "الرياضة" -> FootballScreen(Modifier.weight(1f))
@@ -2325,6 +2337,8 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                                     sharedMushaf?.discard(); mushafPostDraft = null
                                                     youtubePostDraftId = ""; youtubePostDraftTitle = ""
                                                     draft = ""; pickedUri = null; load("الرئيسية")
+                                                    homeScrollTarget = 1
+                                                    homeFirstPostRequest++
 
                                                 }
                                             }
@@ -2473,13 +2487,13 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                                         .put("text", message))
                                                 },
                                                 onShare = { id ->
-                                                    val created = post("/api/post-share", JSONObject().put("postId", id)
+                                                    post("/api/post-share", JSONObject().put("postId", id)
                                                         .put("text", ""))
-                                                    val sharedId = created.optJSONObject("post")?.optString("id").orEmpty()
                                                     showFullscreenVideo = false
                                                     if (tab != "الرئيسية") navigate("الرئيسية")
                                                     load("الرئيسية")
-                                                    if (sharedId.isNotBlank()) focusSharedPostId = sharedId
+                                                    homeScrollTarget = 1
+                                                    homeFirstPostRequest++
                                                 },
                                                 onOpenProfile = { user ->
                                                     showFullscreenVideo = false
@@ -2551,11 +2565,11 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                             // The site 'repeat' arrows are the ONE and ONLY share control.
                                             PremiumPostAction("repeat", p.optInt("shareCount").toString(), GoldLight) {
                                                 task {
-                                                    val created = post("/api/post-share", JSONObject().put("postId", postId).put("text", ""))
-                                                    val sharedId = created.optJSONObject("post")?.optString("id").orEmpty()
+                                                    post("/api/post-share", JSONObject().put("postId", postId).put("text", ""))
                                                     if (tab != "الرئيسية") navigate("الرئيسية")
                                                     load("الرئيسية")
-                                                    if (sharedId.isNotBlank()) focusSharedPostId = sharedId
+                                                    homeScrollTarget = 1
+                                                    homeFirstPostRequest++
                                                 }
                                             }
                                         }
@@ -3095,7 +3109,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                         youtubePostDraftTitle = v.optString("title").take(160)
                                         // Selecting a video prepares the existing Home composer.
                                         // The Home feed loads via its composable effect after navigation.
-                                        navigate("الرئيسية")
+                                        openHomeComposer()
                                     }) {
                                         SiteIcon("repeat", size = 19.dp)
                                         Spacer(Modifier.width(6.dp))
