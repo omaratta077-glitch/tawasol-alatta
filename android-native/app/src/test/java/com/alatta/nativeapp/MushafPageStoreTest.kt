@@ -85,4 +85,27 @@ class MushafPageStoreTest {
         MushafPageStore.openPage(context, 1, allowNetwork = false).use { assertTrue(it.bufferedReader().readText().contains("<svg")) }
         fails { MushafPageStore.ensureCached(context, 2, allowNetwork = false) { error("Offline mode must not connect") } }
     }
+
+    @Test fun cachedPageDoesNotWaitForAnUnrelatedNetworkDownload() {
+        MushafPageStore.ensureCached(context, 2) { Connection(it, pageBytes(2)) }
+        val started = java.util.concurrent.CountDownLatch(1)
+        val release = java.util.concurrent.CountDownLatch(1)
+        val pool = java.util.concurrent.Executors.newFixedThreadPool(2)
+        try {
+            val downloading = pool.submit<java.io.File> {
+                MushafPageStore.ensureCached(context, 3) {
+                    started.countDown()
+                    check(release.await(5, java.util.concurrent.TimeUnit.SECONDS))
+                    Connection(it, pageBytes(3))
+                }
+            }
+            assertTrue(started.await(5, java.util.concurrent.TimeUnit.SECONDS))
+            val cached = pool.submit<java.io.File> {
+                MushafPageStore.ensureCached(context, 2, allowNetwork = false) { error("Must stay offline") }
+            }
+            assertTrue(cached.get(1, java.util.concurrent.TimeUnit.SECONDS).isFile)
+            release.countDown()
+            assertTrue(downloading.get(5, java.util.concurrent.TimeUnit.SECONDS).isFile)
+        } finally { release.countDown(); pool.shutdownNow() }
+    }
 }

@@ -25,6 +25,9 @@ jobs:
           node scripts/test_adhan_voices.mjs
           node scripts/test_football_catalog.mjs
           node scripts/test_media_ranges.mjs
+          node scripts/test_audit_security.mjs
+          node scripts/test_inbox_summary.mjs
+          node scripts/test_post_interactions.mjs
           node scripts/test_privacy_admin_reset.mjs
           node scripts/test_full_reset.mjs
           node scripts/test_owner_change.mjs

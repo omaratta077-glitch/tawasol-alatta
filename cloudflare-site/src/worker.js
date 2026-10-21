@@ -97,8 +97,34 @@ async function passwordMatches(password, stored){
 function j(data,status=200){
   return new Response(JSON.stringify(data),{
     status,
-    headers:{"content-type":"application/json;charset=utf-8"}
+    headers:{"content-type":"application/json;charset=utf-8","cache-control":"no-store","x-content-type-options":"nosniff"}
   });
+}
+
+// Valid legacy post payloads fit below this bound; reject before JSON.parse,
+// including chunked requests with no trustworthy Content-Length.
+const MAX_API_JSON_BYTES=4*1024*1024;
+const RASTER_IMAGE_TYPES=new Set(["image/jpeg","image/png","image/webp","image/gif","image/avif","image/heic","image/heif","image/bmp","image/x-ms-bmp"]);
+async function readApiJson(request){
+  if(Number(request.headers.get("content-length"))>MAX_API_JSON_BYTES)return {error:j({ok:false,error:"حجم الطلب أكبر من المسموح"},413)};
+  if(!request.body)return {body:{}};
+  const reader=request.body.getReader(),chunks=[];let size=0;
+  try{
+    for(;;){
+      const {done,value}=await reader.read();if(done)break;
+      size+=value.byteLength;
+      if(size>MAX_API_JSON_BYTES){await reader.cancel();return {error:j({ok:false,error:"حجم الطلب أكبر من المسموح"},413)};}
+      chunks.push(value);
+    }
+  }finally{reader.releaseLock();}
+  if(!size)return {body:{}};
+  const bytes=new Uint8Array(size);let offset=0;
+  for(const chunk of chunks){bytes.set(chunk,offset);offset+=chunk.byteLength;}
+  try{
+    const body=JSON.parse(new TextDecoder("utf-8",{fatal:true}).decode(bytes));
+    if(!body || Array.isArray(body) || typeof body!=="object")throw Error();
+    return {body};
+  }catch{return {error:j({ok:false,error:"صيغة الطلب غير صالحة"},400)};}
 }
 
 const MAX_ADHAN_BYTES=20*1024*1024;
@@ -744,7 +770,7 @@ export class SignalingRoom extends DurableObject {
         if(auth.error)return auth.error;
       }
       const contentType=String(request.headers.get("content-type")||"").split(";")[0].trim().toLowerCase();
-      const accepted=contentType.startsWith("image/") || contentType.startsWith("video/") ||
+      const accepted=RASTER_IMAGE_TYPES.has(contentType) || contentType.startsWith("video/") ||
         contentType.startsWith("audio/") || contentType==="application/pdf";
       if(!accepted)return j({ok:false,error:"صيغة الملف غير مدعومة"},415);
       if(kind==="video" && !contentType.startsWith("video/"))return j({ok:false,error:"اختر ملف فيديو"},415);
@@ -788,7 +814,9 @@ export class SignalingRoom extends DurableObject {
 
     let body={};
     if(request.method!=="GET"){
-      try{body=await request.json()}catch{}
+      const parsed=await readApiJson(request);
+      if(parsed.error)return parsed.error;
+      body=parsed.body;
     }
 
     if(url.pathname==="/api/adhan-voices" && request.method==="GET"){
@@ -1206,6 +1234,9 @@ export class SignalingRoom extends DurableObject {
     if(url.pathname==="/api/login" && request.method==="POST"){
       const username=String(body.username||"").trim().toLowerCase();
       const password=String(body.password||"");
+      const rateKey=`login-fail:${username.slice(0,120)}`;
+      const attempt=await this.ctx.storage.get(rateKey)||{count:0,until:0};
+      if(attempt.until>Date.now() && attempt.count>=12)return j({ok:false,error:"محاولات كثيرة. حاول بعد 10 دقائق"},429);
       let u=await this.user(username);
       if(!u && (username.includes("@") || /^\+?[0-9]{8,15}$/.test(username))){
         const names=await this.ctx.storage.get("usernames")||[];
@@ -1217,9 +1248,6 @@ export class SignalingRoom extends DurableObject {
         }
       }
 
-      const rateKey=`login-fail:${username.slice(0,120)}`;
-      const attempt=await this.ctx.storage.get(rateKey)||{count:0,until:0};
-      if(attempt.until>Date.now() && attempt.count>=12)return j({ok:false,error:"محاولات كثيرة. حاول بعد 10 دقائق"},429);
       if(!u && username.includes("@")){
         return j({ok:false,error:"EMAIL_NOT_REGISTERED: هذا البريد غير مسجل. يمكنك إنشاء حساب جديد.",code:"EMAIL_NOT_REGISTERED"},404);
       }
@@ -2105,6 +2133,31 @@ export class SignalingRoom extends DurableObject {
         }catch{}
       }
       const response=j({ok:true,signals});response.headers.set("cache-control","no-store");return response;
+    }
+
+    // One network response for the inbox: never send 200 messages per peer.
+    // Apply the same mutual-friend / block policy as opening a conversation.
+    if(url.pathname==="/api/inbox" && request.method==="GET"){
+      const s=await this.session(url.searchParams.get("token")||"");
+      if(!s)return j({ok:false,error:"الجلسة منتهية"},401);
+      const raw=String(url.searchParams.get("peers")||"");
+      if(raw.length>4000)return j({ok:false,error:"قائمة المحادثات طويلة"},400);
+      const peers=[...new Set(raw.split(",").map(v=>v.trim().toLowerCase()).filter(Boolean))];
+      if(peers.length>50 || peers.some(v=>!/^[a-z0-9_.-]{1,64}$/.test(v)))return j({ok:false,error:"قائمة المحادثات غير صالحة"},400);
+      const summaries=[];
+      for(const peer of peers){
+        if(!await this.canCommunicate(s.username,peer))continue;
+        const user=await this.publicUser(peer);if(!user)continue;
+        const key=[s.username,peer].sort().join(":");
+        const messages=await this.ctx.storage.get(`messages:${key}`)||[];
+        // Expired call status is reflected in the preview without marking unseen
+        // messages delivered or writing the whole conversation on every refresh.
+        this.finishExpiredCallEvents(messages);
+        const last=messages.findLast(m=>m.mediaType!=="call-signal");
+        const lastMessage=last?{id:last.id,from:last.from,to:last.to,text:String(last.text||"").slice(0,160),mediaType:last.mediaType||"",callType:last.callType,callStatus:last.callStatus,ts:last.ts,deliveredAt:last.deliveredAt,readAt:last.readAt}:null;
+        summaries.push({user:{username:user.username,displayName:user.displayName,fullName:user.fullName,avatar:user.avatar,isOnline:user.isOnline,lastSeen:user.lastSeen},lastMessage});
+      }
+      return j({ok:true,summaries});
     }
 
     if(url.pathname==="/api/conversation" && request.method==="GET"){
@@ -3141,9 +3194,15 @@ export class SignalingRoom extends DurableObject {
   }
 
   async handleSocketMessage(ws,message){
+    // Native/chat text and SDP fit below the same API limit. Close oversized
+    // packets before decoding/parsing them, including binary WebSocket messages.
+    if((typeof message==="string"?message.length:message.byteLength)>MAX_API_JSON_BYTES){
+      try{ws.close(1009,"Message too large");}catch{}return;
+    }
     let msg;
     try{
       msg=JSON.parse(typeof message==="string"?message:new TextDecoder().decode(message));
+      if(!msg || Array.isArray(msg) || typeof msg!=="object")return;
     }catch{return}
 
     const attachment=this.meta(ws);
@@ -3325,6 +3384,14 @@ export default {
       if(!meta)return new Response("Not found",{status:404});
       const headers=new Headers();
       meta.writeHttpMetadata(headers);
+      headers.set("x-content-type-options","nosniff");
+      const type=String(headers.get("content-type")||"").split(";")[0].trim().toLowerCase();
+      if(!RASTER_IMAGE_TYPES.has(type) && !type.startsWith("video/") && !type.startsWith("audio/") && type!=="application/pdf"){
+        // Protect existing SVG/HTML/XML objects uploaded before the raster-only
+        // rule. A direct link must never execute script on the application's origin.
+        headers.set("content-security-policy","sandbox; default-src 'none'");
+        headers.set("content-disposition","attachment");
+      }
       headers.set("etag",meta.httpEtag);
       headers.set("accept-ranges","bytes");
       headers.set("cache-control","public, max-age=31536000, immutable");

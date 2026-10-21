@@ -7,7 +7,6 @@ import android.graphics.ImageDecoder
 import android.net.Uri
 import android.os.Build
 import android.util.Base64
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTransformGestures
@@ -32,15 +31,28 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import coil.compose.AsyncImage
+import coil.request.ImageRequest
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.security.MessageDigest
 import java.io.ByteArrayOutputStream
 import kotlin.math.max
 import kotlin.math.roundToInt
+
+/** Bound the base64 input before allocation. Bitmap sampling/caching belongs to Coil. */
+internal fun decodeInlineImageData(value: String): ByteArray? {
+    if (!value.startsWith("data:image/") || !value.contains(";base64,")) return null
+    val start = value.indexOf(";base64,") + 8
+    if (value.length - start !in 1..2_000_000) return null
+    return try { Base64.decode(value.substring(start), Base64.DEFAULT).takeIf { it.isNotEmpty() } }
+    catch (_: IllegalArgumentException) { null }
+}
 
 /**
  * Web accounts store avatar and cover as data:image/jpeg;base64,...; R2 images use
@@ -55,19 +67,24 @@ internal fun ProfileMediaImage(
 ) {
     val resolved = media(value)
     if (resolved.startsWith("data:image/")) {
-        val bitmap = remember(resolved) {
-            runCatching {
-                val payload = resolved.substringAfter("base64,", "")
-                if (payload.isBlank() || payload.length > 2_000_000) null
-                else {
-                    val bytes = Base64.decode(payload, Base64.DEFAULT)
-                    BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.asImageBitmap()
+        val context = androidx.compose.ui.platform.LocalContext.current.applicationContext
+        var inlineFailed by remember(resolved) { mutableStateOf(false) }
+        val request by produceState<ImageRequest?>(null, resolved) {
+            this.value = null
+            this.value = withContext(Dispatchers.IO) {
+                decodeInlineImageData(resolved)?.let { bytes ->
+                    // Coil sizes the decode to the actual view and shares its memory
+                    // cache across rows. No full-resolution bitmap decode on the UI thread.
+                    val key = MessageDigest.getInstance("SHA-256").digest(bytes)
+                        .joinToString("") { "%02x".format(it) }
+                    ImageRequest.Builder(context).data(bytes).memoryCacheKey("inline:$key").build()
                 }
-            }.getOrNull()
+            }
         }
-        if (bitmap != null) {
-            Image(bitmap = bitmap, contentDescription = description,
-                modifier = modifier, contentScale = contentScale)
+        if (request != null && !inlineFailed) {
+            AsyncImage(model = request, contentDescription = description,
+                modifier = modifier, contentScale = contentScale,
+                onError = { inlineFailed = true })
         } else {
             Box(modifier.background(Color(0xFF282119)), contentAlignment = Alignment.Center) {
                 Text("الصورة غير متاحة", color = Color(0xFFE6B94E), fontSize = 11.sp)

@@ -36,9 +36,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.caverock.androidsvg.SVG
-import org.json.JSONObject
 import java.util.Locale
-import java.util.concurrent.Executors
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
@@ -86,36 +84,19 @@ internal fun QuranReaderScreen(modifier: Modifier = Modifier, onExit: () -> Unit
     DisposableEffect(Unit) { onDispose { audio.stop() } }
     val cream = Color(0xFFFFF9E8)
     val gold = Color(0xFF75520F)
-    val index = remember {
-        runCatching { JSONObject(context.assets.open("mushaf/index.json").bufferedReader().use { it.readText() })
-            .getJSONArray("pages") }.getOrNull()
+    var indexData by remember { mutableStateOf<MushafIndex?>(null) }
+    LaunchedEffect(Unit) {
+        try { indexData = withContext(Dispatchers.IO) { MushafIndexStore.load(context) } }
+        catch (cancelled: CancellationException) { throw cancelled }
+        catch (failure: Exception) { error = "تعذر تحميل فهرس المصحف: ${failure.message}" }
     }
-    val ayahDatabase = remember {
-        runCatching { JSONObject(context.assets.open("mushaf/index.json").bufferedReader().use { it.readText() }).getJSONArray("ayahs") }.getOrNull()
-    }
-    val chapters = remember(index) {
-        buildList {
-            val seen = mutableSetOf<Int>()
-            if (index != null) for (p in 1..604) {
-                val hs = index.optJSONObject(p)?.optJSONArray("headers") ?: continue
-                for (i in 0 until hs.length()) {
-                    val h = hs.optJSONObject(i) ?: continue
-                    val n = h.optInt("number")
-                    if (n in 1..114 && seen.add(n)) add(Triple(n,h.optString("nameArabic"),p))
-                }
-            }
-        }.sortedBy { it.first }
-    }
+    val index = indexData?.pages
+    val ayahDatabase = indexData?.ayahs
+    val chapters = indexData?.chapters.orEmpty()
     val juzStarts = remember { MUSHAF_JUZ_STARTS }
     val juz = (juzStarts.indexOfLast { it <= page } + 1).coerceAtLeast(1)
     // Each hizb contains four quarters. Read their real start pages from the bundled index.
-    val hizbQuarterStarts = remember(index) {
-        runCatching {
-            val starts = JSONObject(context.assets.open("mushaf/index.json").bufferedReader().use { it.readText() })
-                .getJSONArray("quarterStart")
-            (1 until starts.length()).map { starts.getInt(it) }
-        }.getOrDefault(emptyList())
-    }
+    val hizbQuarterStarts = indexData?.quarterStarts.orEmpty()
     val hizb = if (hizbQuarterStarts.size == 240) {
         (((hizbQuarterStarts.count { it <= page } - 1).coerceAtLeast(0)) / 4 + 1).coerceIn(1, 60)
     } else ((juz - 1) * 2 + 1).coerceIn(1, 60)
@@ -458,12 +439,16 @@ private class MushafPageView(
     private val allowNetwork: Boolean,
     private val reportError: (String) -> Unit
 ) : View(context) {
-    private val executor = Executors.newSingleThreadExecutor()
+    companion object {
+        // Fast swipes cannot create an unbounded number of SVG parser threads.
+        private val executor = java.util.concurrent.ScheduledThreadPoolExecutor(2).apply {
+            removeOnCancelPolicy = true
+        }
+    }
+    private var task: java.util.concurrent.Future<*>? = null
+    @Volatile private var detached = false
     @Volatile private var svg: SVG? = null
-    private val markers = runCatching {
-        JSONObject(context.assets.open("mushaf/index.json").bufferedReader().use { it.readText() })
-            .getJSONArray("pages").getJSONObject(page).getJSONArray("markers")
-    }.getOrNull()
+    @Volatile private var markers: org.json.JSONArray? = null
     private var displayedViewport: RectF? = null
     private var pageCoordinates: RectF? = null
     private val detector = GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
@@ -497,14 +482,31 @@ private class MushafPageView(
     })
     init {
         setBackgroundColor(AndroidColor.rgb(253, 247, 230))
-        executor.execute {
-            val result = runCatching { loadMushafDrawing(context, page, allowNetwork) }
-            post {
-                if (result.isSuccess) { svg = result.getOrNull(); invalidate() }
-                else reportError("تعذّر تحميل صفحة $page: ${result.exceptionOrNull()?.message.orEmpty()}")
+        startLoading()
+    }
+    private fun startLoading() {
+        task = executor.submit {
+            val result = runCatching {
+                markers = MushafIndexStore.load(context).pages.getJSONObject(page).getJSONArray("markers")
+                loadMushafDrawing(context, page, allowNetwork)
             }
-            executor.shutdown()
+            post {
+                if (!detached) {
+                    if (result.isSuccess) { svg = result.getOrNull(); invalidate() }
+                    else reportError("تعذّر تحميل صفحة $page: ${result.exceptionOrNull()?.message.orEmpty()}")
+                }
+            }
         }
+    }
+    override fun onAttachedToWindow() {
+        super.onAttachedToWindow()
+        if (detached) { detached = false; startLoading() }
+    }
+    override fun onDetachedFromWindow() {
+        detached = true
+        task?.cancel(true)
+        svg = null
+        super.onDetachedFromWindow()
     }
     override fun onTouchEvent(event: MotionEvent): Boolean = detector.onTouchEvent(event) || super.onTouchEvent(event)
     override fun onDraw(canvas: Canvas) {
