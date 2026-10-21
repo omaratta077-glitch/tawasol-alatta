@@ -8,6 +8,13 @@ assert.equal((native.match(/YouTubePlayer\(youtubeId\)/g)||[]).length,1,'screen 
 assert.ok(!native.includes('AlattaFixedYouTubePlayer') && !native.includes('attaYouTubeHtml'),'no duplicate native player');
 assert.ok(native.includes('loadUrl("$BASE/")') && native.includes('atta-site-youtube-bridge.js') && !native.includes('document.body.replaceChildren(host)'),'Android drives the actual site player without replacing the website document');
 assert.ok(!native.includes('raw.contains("username", ignoreCase = true)'),'no blanket mapping of login failures to username-taken');
+const hadith=fs.readFileSync('android-native/app/src/main/java/com/alatta/nativeapp/HadithLibrary.kt','utf8');
+assert.ok(hadith.includes('verifiedCopy(target, expectedBytes, hash)'), 'Hadith copy verified by actual SHA-256');
+assert.ok(!hadith.includes('PRAGMA quick_check", null') && !hadith.includes('require(db.version == 1)'),
+  'avoid vendor-specific SQLite PRAGMA checks on app initialization');
+assert.ok(hadith.includes('SQLiteDatabase.OPEN_READONLY') &&
+  hadith.includes('"BOOKS_QUERY"') && hadith.includes('"SQLITE_OPEN"'),
+  'read-only offline DB with useful stage diagnostics');
 assert.ok(native.includes('error = loadingFailureMessage(e)'),'native errors shown without misleading remapping');
 const transport=fs.readFileSync('android-native/app/src/main/java/com/alatta/nativeapp/AttaHttp.kt','utf8');
 assert.ok(transport.includes('else -> failure.message') && !transport.includes('USERNAME_TAKEN'),'network recovery preserves real account error messages');

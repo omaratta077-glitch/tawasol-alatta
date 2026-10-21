@@ -28,5 +28,9 @@ class HadithLibraryAndroidTest {
         val found = HadithLibrary.page(context, "bukhari", 0, "إِنَّمَا الأَعْمَالُ بِالنِّيَّاتِ", 0)
         assertTrue(found.entries.any { it.number == 1 })
         assertEquals(7008, HadithLibrary.sections(context, "bukhari").sumOf { it.count })
+        // Same-size corrupted extracted copies must be detected using SHA-256,
+        // not treated as valid solely because the file length matches.
+        HadithLibrary.repair(context)
+        assertEquals(4, HadithLibrary.books(context).size)
     }
 }
