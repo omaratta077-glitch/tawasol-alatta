@@ -58,6 +58,7 @@ with zipfile.ZipFile(args.apk) as apk:
     references = [index for index, line in enumerate(resources) if "raw/atta_adhan" in line]
     assert references and any(audio[0] in "\n".join(resources[index:index + 12]) for index in references), "Adhan resource does not reference the verified audio"
     assert b"Copyright (c) 2016 Batoul Apps" in apk.read("assets/third-party-prayer-licenses.txt"), "Missing prayer calculation license"
+    assert apk.read("assets/adhan-voices.json") == (root / "android-native/app/src/main/assets/adhan-voices.json").read_bytes(), "Missing or outdated muezzin catalog"
     for name in ("privacy.html", "terms.html", "data-rights.html"):
         assert apk.read("assets/legal/" + name) == (root / "cloudflare-site/public" / name).read_bytes(), "Legal text differs from the published source: " + name
     assert "2026-10-20" in apk.read("assets/legal/privacy.html").decode(), "Missing current privacy version"

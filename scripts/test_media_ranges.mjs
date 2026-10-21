@@ -4,7 +4,7 @@ const source=fs.readFileSync(new URL('../cloudflare-site/src/worker.js',import.m
 const {default:worker}=await import('data:text/javascript;charset=utf-8,'+encodeURIComponent(source));
 const bytes=Uint8Array.from({length:1000},(_,i)=>i%256),calls=[];
 const meta={size:bytes.length,httpEtag:'"fixture"',writeHttpMetadata(h){h.set('content-type','video/mp4')}};
-const env={MEDIA_BUCKET:{async head(key){return key==='video/fixture.mp4'?meta:null},async get(key,options){calls.push(options);const r=options?.range;return{...meta,body:r?bytes.slice(r.offset,r.offset+r.length):bytes}}}};
+const env={MEDIA_BUCKET:{async head(key){return key==='video/fixture.mp4'?meta:null},async get(key,options){if(key!=='video/fixture.mp4')return null;calls.push(options);const r=options?.range;return{...meta,body:r?bytes.slice(r.offset,r.offset+r.length):bytes}}}};
 const fetch=(headers={},method='GET',path='video/fixture.mp4')=>worker.fetch(new Request('https://unit.test/media/'+path,{method,headers}),env,{});
 let r=await fetch();assert.equal(r.status,200);assert.equal(r.headers.get('content-length'),'1000');assert.equal(r.headers.get('accept-ranges'),'bytes');assert.deepEqual(new Uint8Array(await r.arrayBuffer()),bytes);
 for(const [range,start,end] of [['bytes=0-99',0,99],['bytes=900-',900,999],['bytes=-50',950,999],['bytes=-2000',0,999],['bytes=995-5000',995,999]]){

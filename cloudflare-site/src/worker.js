@@ -3226,7 +3226,9 @@ export default {
         return new Response("Invalid media path",{status:400});
       }
       if(!["GET","HEAD"].includes(request.method))return new Response("Method not allowed",{status:405,headers:{allow:"GET, HEAD"}});
-      const meta=await env.MEDIA_BUCKET.head(key);
+      // Ordinary images/full downloads need only one R2 read; seeking needs metadata first.
+      const meta=request.method==="HEAD" || request.headers.has("range")
+        ?await env.MEDIA_BUCKET.head(key):await env.MEDIA_BUCKET.get(key);
       if(!meta)return new Response("Not found",{status:404});
       const headers=new Headers();
       meta.writeHttpMetadata(headers);
@@ -3255,7 +3257,7 @@ export default {
         headers.set("content-range",`bytes ${start}-${end}/${meta.size}`);
         headers.set("content-length",String(range.length));
       }
-      const obj=await env.MEDIA_BUCKET.get(key,range?{range}:undefined);
+      const obj="body" in meta?meta:await env.MEDIA_BUCKET.get(key,range?{range}:undefined);
       if(!obj)return new Response("Not found",{status:404});
       return new Response(obj.body,{status:range?206:200,headers});
     }
