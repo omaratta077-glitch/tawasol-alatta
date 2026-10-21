@@ -166,7 +166,7 @@ internal fun FootballScreen(query: String, modifier: Modifier = Modifier,
                         Text(channel.name, color = PremiumGoldLight, fontWeight = FontWeight.Bold, fontSize = 16.sp)
                         Text(channel.category, color = PremiumMuted, fontSize = 12.sp)
                         Text(channel.provider, color = Color.White, fontSize = 12.sp)
-                        Text(if (channel.id == FootballRepository.onSportOfficial.id)
+                        Text(if (channel.id.startsWith("official-"))
                             "فتح بث القناة الرسمي على يوتيوب عند توفره"
                             else if (channel.format == "external") "المشاهدة لدى الناشر" else "مشاهدة القناة",
                             color = PremiumGoldLight, fontSize = 12.sp)

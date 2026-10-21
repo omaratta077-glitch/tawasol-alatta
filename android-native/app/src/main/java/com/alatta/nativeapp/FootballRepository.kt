@@ -19,14 +19,48 @@ internal object FootballRepository {
         enabled = true
     )
 
+    // Public viewing pages served by the rightsholders. They are not raw IPTV feeds.
+    // Open only at the publisher, which decides availability and regional access.
+    internal val officialBroadcasters = listOf(
+        onSportOfficial,
+        FootballChannel(
+            id = "official-alkass-online",
+            name = "الكأس أونلاين",
+            category = "قنوات رياضية",
+            provider = "قنوات الكأس الرسمية",
+            sourceUrl = "https://www.alkass.net/",
+            streamUrl = "https://www.alkass.net/index?ch=online",
+            format = "external",
+            enabled = true
+        ),
+        FootballChannel(
+            id = "official-dubai-sports-1",
+            name = "دبي الرياضية 1",
+            category = "قنوات رياضية",
+            provider = "دبي للإعلام",
+            sourceUrl = "https://www.dubaisports.ae/",
+            streamUrl = "https://www.dubaisports.ae/content/dubaisports/livestreaming/channel-1.html",
+            format = "external",
+            enabled = true
+        )
+    )
+
     internal fun withOfficialChannels(catalog: FootballCatalog): FootballCatalog {
-        val alreadyPresent = catalog.channels.any {
-            it.id == onSportOfficial.id ||
-                it.sourceUrl.contains("youtube.com/@onsporteg", ignoreCase = true) ||
-                (it.name.contains("أون سبورت") && it.provider.contains("ON Sport", ignoreCase = true))
+        val merged = catalog.channels.toMutableList()
+        for (official in officialBroadcasters) {
+            // Preserve admin-defined channels; never duplicate an already configured
+            // broadcaster when its link or display name is present.
+            val alreadyPresent = merged.any { existing ->
+                existing.id == official.id ||
+                    existing.streamUrl.equals(official.streamUrl, ignoreCase = true) ||
+                    existing.name.equals(official.name, ignoreCase = true) ||
+                    (official.id == onSportOfficial.id &&
+                        existing.sourceUrl.contains("youtube.com/@onsporteg", ignoreCase = true))
+            }
+            if (!alreadyPresent) merged.add(official)
         }
-        return if (alreadyPresent) catalog
-            else catalog.copy(channels = listOf(onSportOfficial) + catalog.channels)
+        return if (merged.size == catalog.channels.size) catalog
+            else catalog.copy(channels = merged)
     }
 
     private fun records(json: JSONObject, name: String): List<JSONObject> {
