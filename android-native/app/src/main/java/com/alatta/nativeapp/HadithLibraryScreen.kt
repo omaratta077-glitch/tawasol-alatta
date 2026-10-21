@@ -102,7 +102,7 @@ internal fun HadithLibraryScreen(query: String, modifier: Modifier = Modifier, o
                 is SecurityException -> "ACCESS"
                 else -> "INIT"
             }
-            diagnostic = "Hadith ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE}) • $kind • ${origin.javaClass.simpleName}"
+            diagnostic = "Hadith ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE}) • ${(failure as? HadithPreparationException)?.stage ?: kind} • ${origin.javaClass.simpleName}"
             error = (failure as? HadithPreparationException)?.message
                 ?: "تعذر فتح مكتبة الأحاديث ($kind). جرّب إعادة تجهيز المكتبة."
         } finally { loading = false }

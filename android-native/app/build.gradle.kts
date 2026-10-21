@@ -25,8 +25,8 @@ android {
         minSdk = 26
         targetSdk = 35
         // v1.0.134 release: audited media safety, inbox and Quran performance.
-        versionCode = 236
-        versionName = "1.0.136"
+        versionCode = 237
+        versionName = "1.0.137"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("boolean", "IS_APPGALLERY", appGalleryBuild.toString())
         val hmsId = (System.getenv("ALATTA_HMS_APP_ID") ?: "").trim().takeIf { it.matches(Regex("[0-9]{1,20}")) } ?: ""

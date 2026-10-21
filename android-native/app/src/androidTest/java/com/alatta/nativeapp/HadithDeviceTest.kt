@@ -29,6 +29,9 @@ class HadithDeviceTest {
             // Same user-facing repair path, without clearing account data.
             HadithLibrary.repair(context)
             assertEquals(14006, HadithLibrary.books(context).sumOf { it.count })
+            // A second read proves the installed database stays open without
+            // device-dependent SQLite quick_check/user_version PRAGMA calls.
+            assertEquals(4, HadithLibrary.books(context).size)
             // Exercise the same offline fallback used when a handset lacks FTS4.
             val fallback = HadithLibrary.page(context, "bukhari", 0, "إِنَّمَا الأَعْمَالُ بِالنِّيَّاتِ", 0, preferFullText = false)
             assertTrue(fallback.entries.any { it.number == 1 })

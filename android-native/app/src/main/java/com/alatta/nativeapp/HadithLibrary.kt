@@ -22,11 +22,31 @@ import java.util.zip.GZIPInputStream
 
 /** One bundled, verified SQLite database; no API requests and no full-book loads into the UI. */
 /** Safe, actionable UI error; the original cause is logged for diagnosis. */
-internal class HadithPreparationException(message: String, cause: Throwable? = null) : IOException(message, cause)
+internal class HadithPreparationException(
+    message: String, cause: Throwable? = null, val stage: String = "PREPARE"
+) : IOException(message, cause)
 
 internal object HadithLibrary {
     private val installLock = Mutex()
     @Volatile private var cached: SQLiteDatabase? = null
+
+    /** Never trust only a matching file length: an interrupted or stale copy may
+     * have the same length. Hash the full APK-derived file once per cold start.
+     * This avoids OEM-specific SQLite PRAGMA checks during installation.
+     */
+    private fun verifiedCopy(file: File, bytes: Long, sha256: String): Boolean {
+        if (!file.isFile || file.length() != bytes) return false
+        val digest = MessageDigest.getInstance("SHA-256")
+        file.inputStream().buffered().use { source ->
+            val buffer = ByteArray(64 * 1024)
+            while (true) {
+                val n = source.read(buffer)
+                if (n == -1) break
+                digest.update(buffer, 0, n)
+            }
+        }
+        return digest.digest().joinToString("") { "%02x".format(it) } == sha256
+    }
 
     /**
      * Only clear this library's own extracted SQLite files; never touch user
@@ -101,26 +121,27 @@ internal object HadithLibrary {
                 throw HadithPreparationException("فشل استخراج مكتبة الأحاديث من ملفات التطبيق. أعد المحاولة؛ وإذا استمر الخطأ أعد تثبيت الإصدار.", error)
             } finally { inputs.forEach { runCatching { it.close() } }; temporary.delete() }
         }
-        if (!target.isFile || target.length() != expectedBytes) { target.delete(); install() }
-        fun checked(): SQLiteDatabase {
-            val db = SQLiteDatabase.openDatabase(target.path, null, SQLiteDatabase.OPEN_READONLY or SQLiteDatabase.NO_LOCALIZED_COLLATORS)
-            try {
-                require(db.version == 1)
-                db.rawQuery("SELECT count(*) FROM hadiths", null).use { require(it.moveToFirst() && it.getInt(0) == manifest.getInt("total")) }
-                db.rawQuery("PRAGMA quick_check", null).use { require(it.moveToFirst() && it.getString(0) == "ok") }
-                return db
-            } catch (error: Exception) { db.close(); throw error }
-        }
-        val db = try { checked() } catch (first: Exception) {
-            Log.w("AlattaHadith", "Existing SQLite verification failed; reinstalling verified assets", first)
+        // Verify the exact bundled SQLite bytes, not Android/OEM PRAGMA output.
+        // The archive is separately checked during CI by PRAGMA integrity_check,
+        // user_version and all 14,006 source rows. Do not run quick_check on every
+        // Honor/Android cold start: some vendor SQLite builds throw
+        // IllegalArgumentException while evaluating PRAGMA, despite valid data.
+        if (!verifiedCopy(target, expectedBytes, hash)) {
             if (!target.delete() && target.exists()) {
-                throw HadithPreparationException("تعذر استبدال مكتبة الأحاديث المحلية. استخدم إعادة تجهيز المكتبة.", first)
+                throw HadithPreparationException("تعذر استبدال نسخة الأحاديث غير المكتملة.", stage = "FILE_REPLACE")
             }
-            try { install(); checked() }
-            catch (again: Exception) {
-                Log.e("AlattaHadith", "SQLite open still failed after reinstall", again)
-                throw HadithPreparationException("تعذر فتح قاعدة الأحاديث بعد إعادة استخراجها. استخدم نسخ التشخيص وأرسله للدعم.", again)
-            }
+            install()
+        }
+        val db = try {
+            // No localized collation override and no redundant PRAGMA queries.
+            // The first user-facing SELECT books is the actual usability check.
+            SQLiteDatabase.openDatabase(target.path, null, SQLiteDatabase.OPEN_READONLY)
+        } catch (error: Exception) {
+            Log.e("AlattaHadith", "Verified SQLite bytes rejected by Android SQLite", error)
+            throw HadithPreparationException(
+                "ملف الأحاديث سليم وبصمته مطابقة، لكن الهاتف رفض فتح SQLite. انسخ التشخيص للدعم.",
+                error, "SQLITE_OPEN"
+            )
         }
         cached = db
         directory.listFiles()?.filter { it.name.startsWith("library-") && it.name.endsWith(".db") && it != target }?.forEach { it.delete() }
@@ -129,8 +150,16 @@ internal object HadithLibrary {
 
     suspend fun books(context: Context): List<HadithBook> = withContext(Dispatchers.IO) {
         val db = open(context)
-        db.rawQuery("SELECT id,title,author,count,source,source_url,edition FROM books ORDER BY ordinal", null).use { cursor ->
-            buildList { while (cursor.moveToNext()) add(HadithBook(cursor.getString(0), cursor.getString(1), cursor.getString(2), cursor.getInt(3), cursor.getString(4), cursor.getString(5), cursor.getString(6))) }
+        try {
+            db.rawQuery("SELECT id,title,author,count,source,source_url,edition FROM books ORDER BY ordinal", null).use { cursor ->
+                buildList { while (cursor.moveToNext()) add(HadithBook(cursor.getString(0), cursor.getString(1), cursor.getString(2), cursor.getInt(3), cursor.getString(4), cursor.getString(5), cursor.getString(6))) }
+            }
+        } catch (error: Exception) {
+            Log.e("AlattaHadith", "SQLite opened but book listing failed", error)
+            throw HadithPreparationException(
+                "القاعدة سليمة، لكن تعذرت قراءة قائمة الكتب على هذا الهاتف. انسخ التشخيص للدعم.",
+                error, "BOOKS_QUERY"
+            )
         }
     }
 
