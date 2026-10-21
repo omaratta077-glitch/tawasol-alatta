@@ -327,13 +327,17 @@ internal fun NativeCallScreen(
                         }
                         Spacer(Modifier.height(18.dp))
                     }
-                    Text(peerDisplayName, fontSize = 24.sp,
-                        fontWeight = FontWeight.Bold, color = CallWhite,
-                        textAlign = TextAlign.Center, maxLines = 1)
-                    Spacer(Modifier.height(6.dp))
-                    Text(if (videoCall) "مكالمة فيديو" else "مكالمة صوتية",
-                        color = CallMuted, fontSize = 16.sp, textAlign = TextAlign.Center)
-                    Spacer(Modifier.height(30.dp))
+                    // During an established video call, leave the remote picture
+                    // unobstructed. Audio calls keep their existing identity UI.
+                    if (!videoCall || connectedAt == 0L) {
+                        Text(peerDisplayName, fontSize = 24.sp,
+                            fontWeight = FontWeight.Bold, color = CallWhite,
+                            textAlign = TextAlign.Center, maxLines = 1)
+                        Spacer(Modifier.height(6.dp))
+                        Text(if (videoCall) "مكالمة فيديو" else "مكالمة صوتية",
+                            color = CallMuted, fontSize = 16.sp, textAlign = TextAlign.Center)
+                        Spacer(Modifier.height(30.dp))
+                    }
                     // Decorative, non-interactive audio wave; does not replace WebRTC.
                     if (!videoCall) {
                         Row(horizontalArrangement = Arrangement.spacedBy(5.dp),
@@ -345,12 +349,14 @@ internal fun NativeCallScreen(
                         }
                         Spacer(Modifier.height(30.dp))
                     }
-                    Text(
-                        if (connectedAt > 0L) "%02d:%02d".format(elapsed / 60, elapsed % 60)
-                        else callStatus,
-                        color = if (connectedAt > 0L) CallWhite else CallGold,
-                        fontSize = 17.sp, textAlign = TextAlign.Center, maxLines = 2
-                    )
+                    if (!videoCall || connectedAt == 0L) {
+                        Text(
+                            if (connectedAt > 0L) "%02d:%02d".format(elapsed / 60, elapsed % 60)
+                            else callStatus,
+                            color = if (connectedAt > 0L) CallWhite else CallGold,
+                            fontSize = 17.sp, textAlign = TextAlign.Center, maxLines = 2
+                        )
+                    }
                 }
                 // Bottom third, rather than overlapping Android's navigation bar.
                 Row(Modifier.fillMaxWidth().height(92.dp)
