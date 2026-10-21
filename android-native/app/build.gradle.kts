@@ -75,6 +75,7 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
     kotlinOptions { jvmTarget = "17" }
+    testOptions.unitTests.isIncludeAndroidResources = true
 }
 tasks.named("preBuild").configure { dependsOn(syncLegalAssets) }
 
@@ -82,6 +83,7 @@ tasks.named("preBuild").configure { dependsOn(syncLegalAssets) }
 
 dependencies {
     testImplementation("junit:junit:4.13.2")
+    testImplementation("org.robolectric:robolectric:4.14.1")
     implementation("com.batoulapps.adhan:adhan:1.2.1")
     implementation(platform("androidx.compose:compose-bom:2024.12.01"))
     implementation("androidx.activity:activity-compose:1.9.3")
