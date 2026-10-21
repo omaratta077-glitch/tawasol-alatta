@@ -2,6 +2,9 @@ package com.alatta.nativeapp
 
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
+import android.database.sqlite.SQLiteException
+import android.util.Log
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
@@ -11,12 +14,16 @@ import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.io.File
 import java.io.InputStream
+import java.io.IOException
 import java.io.SequenceInputStream
 import java.security.MessageDigest
 import java.util.Collections
 import java.util.zip.GZIPInputStream
 
 /** One bundled, verified SQLite database; no API requests and no full-book loads into the UI. */
+/** Safe, actionable UI error; the original cause is logged for diagnosis. */
+internal class HadithPreparationException(message: String, cause: Throwable? = null) : IOException(message, cause)
+
 internal object HadithLibrary {
     private val installLock = Mutex()
     @Volatile private var cached: SQLiteDatabase? = null
@@ -30,10 +37,20 @@ internal object HadithLibrary {
         val hash = manifest.getString("dbSha256")
         require(expectedBytes in 1..128L * 1024 * 1024 && hash.matches(Regex("[a-f0-9]{64}")))
         val directory = File(app.noBackupFilesDir, "hadith").apply { mkdirs() }
+        if (!directory.isDirectory) throw HadithPreparationException("تعذر الوصول لمساحة تخزين مكتبة الأحاديث على الهاتف.")
         val target = File(directory, "library-${hash.take(16)}.db")
         suspend fun install() {
+            // The compressed assets stay in the APK; only the 37 MB SQLite file is extracted.
+            // File.usableSpace reads the same private volume used for extraction.
+            // A zero reading can also mean "unknown" (notably in JVM/Robolectric tests);
+            // in that case try writing and let the actual I/O error explain a full disk.
+            val availableBytes = directory.usableSpace
+            if (availableBytes > 0L && availableBytes < expectedBytes + 2L * 1024 * 1024) {
+                throw HadithPreparationException("المساحة الداخلية غير كافية لتجهيز الأحاديث. وفر نحو 40 ميجابايت ثم أعد المحاولة.")
+            }
             val coroutine = currentCoroutineContext()
-            val temporary = File.createTempFile("install-", ".part", directory)
+            val temporary = try { File.createTempFile("install-", ".part", directory) }
+                catch (error: IOException) { throw HadithPreparationException("تعذر إنشاء ملف مكتبة الأحاديث على الهاتف.", error) }
             val inputs = mutableListOf<InputStream>()
             try {
                 val digest = MessageDigest.getInstance("SHA-256")
@@ -56,6 +73,11 @@ internal object HadithLibrary {
                 } }
                 require(total == expectedBytes && digest.digest().joinToString("") { "%02x".format(it) } == hash) { "ملف مكتبة الأحاديث غير مكتمل" }
                 require(temporary.renameTo(target)) { "تعذر حفظ مكتبة الأحاديث على الهاتف" }
+            } catch (error: Exception) {
+                if (error is CancellationException) throw error
+                Log.e("AlattaHadith", "Bundled library extraction failed", error)
+                if (error is HadithPreparationException) throw error
+                throw HadithPreparationException("فشل استخراج مكتبة الأحاديث من ملفات التطبيق. أعد المحاولة؛ وإذا استمر الخطأ أعد تثبيت الإصدار.", error)
             } finally { inputs.forEach { runCatching { it.close() } }; temporary.delete() }
         }
         if (!target.isFile || target.length() != expectedBytes) { target.delete(); install() }
@@ -87,27 +109,65 @@ internal object HadithLibrary {
         }
     }
 
-    suspend fun page(context: Context, bookId: String, section: Int, query: String, requestedPage: Int): HadithPage = withContext(Dispatchers.IO) {
+    /**
+     * If the device's SQLite build cannot query FTS4, search the normalized text column.
+     * The fallback is slower but works offline and never loses the original Arabic content.
+     */
+    suspend fun page(
+        context: Context, bookId: String, section: Int, query: String,
+        requestedPage: Int, preferFullText: Boolean = true
+    ): HadithPage = withContext(Dispatchers.IO) {
         val db = open(context)
         val search = hadithSearch(query)
         if (query.isNotBlank() && search.text.isBlank()) return@withContext HadithPage(emptyList(), 0, 0, 0)
-        val conditions = mutableListOf<String>()
-        val arguments = mutableListOf<String>()
-        if (bookId.isNotBlank()) { conditions += "h.book_id=?"; arguments += bookId }
-        // A new search covers the selected book, including when opened from a reading range.
-        if (section > 0 && query.isBlank()) { conditions += "h.section=?"; arguments += section.toString() }
-        if (search.number != null) { conditions += "h.number=?"; arguments += search.number.toString() }
-        else if (search.match != null) { conditions += "hadith_search MATCH ?"; arguments += search.match }
-        val joined = if (search.match != null) " JOIN hadith_search ON hadith_search.docid=h.id" else ""
-        val where = if (conditions.isEmpty()) "" else " WHERE " + conditions.joinToString(" AND ")
-        val from = " FROM hadiths h$joined$where"
-        val total = db.rawQuery("SELECT count(*)$from", arguments.toTypedArray()).use { it.moveToFirst(); it.getInt(0) }
-        val pages = (total + HADITH_PAGE_SIZE - 1) / HADITH_PAGE_SIZE
-        val page = requestedPage.coerceIn(0, (pages - 1).coerceAtLeast(0))
-        val records = db.rawQuery("SELECT h.id,h.book_id,h.number,h.section,h.body$from ORDER BY h.id LIMIT ? OFFSET ?",
-            (arguments + listOf(HADITH_PAGE_SIZE.toString(), (page * HADITH_PAGE_SIZE).toString())).toTypedArray()).use { cursor ->
-            buildList { while (cursor.moveToNext()) add(HadithEntry(cursor.getLong(0), cursor.getString(1), cursor.getInt(2), cursor.getInt(3), cursor.getString(4))) }
+
+        fun execute(useFts: Boolean): HadithPage {
+            val conditions = mutableListOf<String>()
+            val arguments = mutableListOf<String>()
+            if (bookId.isNotBlank()) { conditions += "h.book_id=?"; arguments += bookId }
+            if (section > 0 && query.isBlank()) { conditions += "h.section=?"; arguments += section.toString() }
+            if (search.number != null) {
+                conditions += "h.number=?"; arguments += search.number.toString()
+            } else if (search.match != null) {
+                if (useFts) {
+                    conditions += "hadith_search MATCH ?"; arguments += search.match
+                } else {
+                    // All normalized terms must occur, with parameters (no SQL/FTS operators).
+                    for (term in search.text.split(' ').filter(String::isNotBlank).take(8)) {
+                        conditions += "INSTR(h.search, ?) > 0"
+                        arguments += term
+                    }
+                }
+            }
+            val joined = if (useFts && search.match != null) " JOIN hadith_search ON hadith_search.docid=h.id" else ""
+            val where = if (conditions.isEmpty()) "" else " WHERE " + conditions.joinToString(" AND ")
+            val from = " FROM hadiths h$joined$where"
+            val total = db.rawQuery("SELECT count(*)$from", arguments.toTypedArray()).use {
+                it.moveToFirst(); it.getInt(0)
+            }
+            val pages = (total + HADITH_PAGE_SIZE - 1) / HADITH_PAGE_SIZE
+            val selectedPage = requestedPage.coerceIn(0, (pages - 1).coerceAtLeast(0))
+            val records = db.rawQuery(
+                "SELECT h.id,h.book_id,h.number,h.section,h.body$from ORDER BY h.id LIMIT ? OFFSET ?",
+                (arguments + listOf(HADITH_PAGE_SIZE.toString(), (selectedPage * HADITH_PAGE_SIZE).toString())).toTypedArray()
+            ).use { cursor ->
+                buildList {
+                    while (cursor.moveToNext()) add(
+                        HadithEntry(cursor.getLong(0), cursor.getString(1), cursor.getInt(2),
+                            cursor.getInt(3), cursor.getString(4))
+                    )
+                }
+            }
+            return HadithPage(records, total, selectedPage, pages)
         }
-        HadithPage(records, total, page, pages)
+
+        if (preferFullText && search.match != null) {
+            try { execute(true) }
+            catch (error: SQLiteException) {
+                Log.w("AlattaHadith", "FTS query failed; using normalized SQL fallback", error)
+                execute(false)
+            }
+        } else execute(false)
     }
+
 }
