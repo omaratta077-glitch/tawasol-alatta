@@ -58,4 +58,17 @@ class FeedPagesTest {
         assertEquals("/api/posts?limit=50", calls.last())
         assertEquals(listOf("own"), own.posts.map { it.getString("id") })
     }
+    @Test fun anOlderSessionWithoutAUsernameResolvesIdentityBeforeLoadingOwnPosts() = runBlocking {
+        val calls = mutableListOf<String>()
+        loadAccountScreen({ path ->
+            calls += path
+            if (path == "/api/me") JSONObject().put("user", JSONObject().put("username", "omar"))
+            else {
+                assertTrue(path.contains("author=omar"))
+                JSONObject().put("paged", true).put("posts", JSONArray())
+            }
+        }, "", {}, {})
+        assertEquals("/api/me", calls.first())
+        assertEquals(2, calls.size)
+    }
 }

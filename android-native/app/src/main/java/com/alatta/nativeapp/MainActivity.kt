@@ -1093,6 +1093,11 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
     }
     fun applyAccount(user: JSONObject) {
         profile = user
+        val actualUsername = user.optString("username")
+        if (actualUsername.isNotBlank() && actualUsername != "null" && actualUsername != myUsername) {
+            myUsername = actualUsername.lowercase()
+            prefs.edit().putString("username", myUsername).apply()
+        }
         myAvatar = user.optString("avatar", myAvatar)
         adminRole = user.optString("role").trim().lowercase()
         val actualName = user.optString("fullName").ifBlank { user.optString("displayName") }

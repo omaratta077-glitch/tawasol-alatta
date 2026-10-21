@@ -35,6 +35,16 @@ internal object FeedPages {
 /** Either part may fail without suppressing the other part's successful result. */
 internal suspend fun loadAccountScreen(get: suspend (String) -> JSONObject, author: String,
     account: (JSONObject) -> Unit, posts: (FeedPage) -> Unit) = supervisorScope {
+    if (author.isBlank()) {
+        // Resolve the real identity before filtering: never label the public feed
+        // as the user's own posts when an older saved session lacks a username.
+        val user = get("/api/me").getJSONObject("user")
+        account(user)
+        val username = user.getString("username").takeIf { it.isNotBlank() }
+            ?: throw IllegalStateException("تعذر تحديد الحساب. أعد المحاولة.")
+        posts(FeedPages.fetch(get, author = username))
+        return@supervisorScope
+    }
     val results = listOf(
         async { try { account(get("/api/me").getJSONObject("user")); null }
             catch (cancelled: CancellationException) { throw cancelled }
