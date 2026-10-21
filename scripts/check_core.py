@@ -62,9 +62,10 @@ check("Official version 1.0.120", 'versionCode = 220' in gradle and 'versionName
 check("Four additional screens and scrollable navigation", all(x in main for x in ['QuranReaderScreen(', 'KnowledgeScreen(tab', 'FootballScreen(']) and all(x in read(android+"PremiumChrome.kt") for x in ['"القرآن"', '"الأحاديث"', '"الأذكار"', '"الرياضة"', '.horizontalScroll(scroll)']) and (ROOT/(android+"AlattaKnowledgeScreens.kt")).is_file())
 check("Quran-first categories and click-to-play preview", all(x in main for x in [
     'var youtubeCategory by remember { mutableStateOf("قرآن") }',
-    '"أحاديث" -> "أحاديث نبوية صحيحة شرح"',
+    '"أحاديث" -> "الشيخ سمير مصطفى دروس ومحاضرات"',
+    '"الأذكار" -> "أذكار الصباح والمساء حصن المسلم"',
     '"رياضة" -> "كرة القدم ملخص مباريات"',
-    '"أخبار" -> "أخبار الجزيرة اليوم"',
+    '"أخبار" -> "قناة الجزيرة أخبار اليوم"',
     'youtubeListState.animateScrollToItem(0)',
     'if (youtubePlayRequested)',
     'GoldButton("▶ تشغيل الفيديو")',
