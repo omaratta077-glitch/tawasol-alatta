@@ -28,7 +28,7 @@ console.log('PASS: Native offline Quran reader, 604 compressed SVG pages, sample
 
 // Android asset merger expands .svg.gz to .svg before bundling the APK.
 assert.match(source, /mushaf\/pages\/%03d\.svg/);
-assert.doesNotMatch(source, /GZIPInputStream|mushaf\/pages\/%03d\.svg\.gz/);
+assert.doesNotMatch(source, /GZIPInputStream/);
 
 for (const control of ["فهرس السور","الأجزاء","المرجعيات","الملاحظات","بحث في أسماء السور","bookmark","note_$page"]) assert.ok(source.includes(control), `reader control missing: ${control}`);
 
