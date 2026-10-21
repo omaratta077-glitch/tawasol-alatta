@@ -41,6 +41,8 @@ import java.util.Locale
 import java.util.concurrent.Executors
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -56,6 +58,9 @@ internal fun QuranReaderScreen(modifier: Modifier = Modifier, onExit: () -> Unit
     var page by remember { mutableIntStateOf(initialPage.coerceIn(1,604)) }
     val scope = rememberCoroutineScope()
     var preparingShare by remember { mutableStateOf(false) }
+    var downloadJob by remember { mutableStateOf<Job?>(null) }
+    var downloading by remember { mutableStateOf(false) }
+    var savedPages by remember { mutableStateOf(setOf(1)) }
     var shareFrom by remember { mutableStateOf(initialPage.toString()) }
     var shareTo by remember { mutableStateOf(initialPage.toString()) }
     var sharePart by remember { mutableStateOf("1") }
@@ -149,6 +154,26 @@ internal fun QuranReaderScreen(modifier: Modifier = Modifier, onExit: () -> Unit
             finally { preparingShare = false }
         }
     }
+    LaunchedEffect(pane) {
+        if (pane == "index" && !downloading) savedPages = withContext(Dispatchers.IO) {
+            (1..604).filter { MushafPageStore.isDownloaded(context, it) }.toSet()
+        }
+    }
+    fun downloadMushaf() {
+        if (downloading || !allowOnlineFeatures) return
+        downloading = true; error = null
+        downloadJob = scope.launch {
+            try {
+                for (number in 2..604) {
+                    ensureActive()
+                    withContext(Dispatchers.IO) { MushafPageStore.downloadPage(context, number) }
+                    savedPages = savedPages + number
+                }
+            } catch (cancelled: CancellationException) { throw cancelled }
+            catch (failure: Exception) { error = failure.message ?: "تعذر تنزيل المصحف. يمكنك المحاولة لاحقًا لاستكمال الصفحات." }
+            finally { downloading = false; downloadJob = null }
+        }
+    }
     BackHandler { if (pane != null) pane = null else onExit() }
     androidx.compose.runtime.CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
     Box(modifier.fillMaxSize().background(cream)) {
@@ -190,7 +215,7 @@ internal fun QuranReaderScreen(modifier: Modifier = Modifier, onExit: () -> Unit
                 MushafPageView(context, page, changePage, { chosen ->
                     selectedAyah = chosen
                     playbackError = null
-                }) { error = it }
+                }, allowOnlineFeatures) { error = it }
             }, modifier = Modifier.fillMaxWidth().weight(1f))
         }
         error?.let { message ->
@@ -238,6 +263,16 @@ internal fun QuranReaderScreen(modifier: Modifier = Modifier, onExit: () -> Unit
                 }
                 when (pane) {
                     "index", "search" -> {
+                        if (pane == "index") {
+                            Text("المحفوظ على الجهاز: ${savedPages.size} من 604 صفحة", color = gold, fontSize = 12.sp)
+                            if (savedPages.size < 604) {
+                                Text("تحتاج الصفحات إلى الإنترنت لأول مرة، ثم تبقى محفوظة للقراءة دون اتصال.", color = gold, fontSize = 11.sp)
+                                if (allowOnlineFeatures) TextButton(onClick = {
+                                    if (downloading) downloadJob?.cancel() else downloadMushaf()
+                                }) { Text(if (downloading) "إيقاف التنزيل" else "تنزيل المصحف كاملًا", color = gold) }
+                            }
+                            if (downloading) LinearProgressIndicator(progress = { savedPages.size / 604f }, modifier = Modifier.fillMaxWidth(), color = gold)
+                        }
                         OutlinedTextField(value = query, onValueChange = { query = it },
                             label = { Text("بحث في أسماء السور") }, singleLine = true,
                             modifier = Modifier.fillMaxWidth(),
@@ -417,6 +452,7 @@ private class MushafPageView(
     private val page: Int,
     private val navigate: (Int) -> Unit,
     private val selectAyah: (Int) -> Unit,
+    private val allowNetwork: Boolean,
     private val reportError: (String) -> Unit
 ) : View(context) {
     private val executor = Executors.newSingleThreadExecutor()
@@ -459,7 +495,7 @@ private class MushafPageView(
     init {
         setBackgroundColor(AndroidColor.rgb(253, 247, 230))
         executor.execute {
-            val result = runCatching { loadMushafDrawing(context, page) }
+            val result = runCatching { loadMushafDrawing(context, page, allowNetwork) }
             post {
                 if (result.isSuccess) { svg = result.getOrNull(); invalidate() }
                 else reportError("تعذّر تحميل صفحة $page: ${result.exceptionOrNull()?.message.orEmpty()}")
@@ -480,9 +516,9 @@ private class MushafPageView(
     }
 }
 
-internal fun loadMushafDrawing(context: Context, page: Int): SVG {
+internal fun loadMushafDrawing(context: Context, page: Int, allowNetwork: Boolean = true): SVG {
     require(page in 1..604)
-    return MushafPageStore.openPage(context,page)
+    return MushafPageStore.openPage(context,page,allowNetwork)
         .use { SVG.getFromInputStream(it) }
 }
 

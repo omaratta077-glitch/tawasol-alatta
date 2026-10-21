@@ -24,10 +24,8 @@ android {
         applicationId = "com.alatta.nativeapp"
         minSdk = 26
         targetSdk = 35
-        versionCode = 232
-        versionName = "1.0.132"
-        // Ship phone ABIs only; exclude emulator x86 binaries from the APK.
-        ndk { abiFilters += setOf("arm64-v8a", "armeabi-v7a") }
+        versionCode = 233
+        versionName = "1.0.133"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("boolean", "IS_APPGALLERY", appGalleryBuild.toString())
         val hmsId = (System.getenv("ALATTA_HMS_APP_ID") ?: "").trim().takeIf { it.matches(Regex("[0-9]{1,20}")) } ?: ""
@@ -70,6 +68,8 @@ android {
     buildTypes {
         getByName("release") {
             isMinifyEnabled = false
+            // Keep both ARM phone architectures; debug retains x86 for device tests.
+            ndk { abiFilters += setOf("arm64-v8a", "armeabi-v7a") }
             signingConfig = signingConfigs.getByName("officialRelease")
         }
     }

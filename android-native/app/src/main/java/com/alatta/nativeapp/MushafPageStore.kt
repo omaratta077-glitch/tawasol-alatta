@@ -23,14 +23,15 @@ internal object MushafPageStore {
         "https://raw.githubusercontent.com/omaratta077-glitch/tawasol-alatta/$SOURCE_REVISION/android-native/app/src/main/assets/mushaf/pages"
     private const val MAX_PAGE_BYTES = 2_000_000L
     private val lock = Any()
+    @Volatile private var pageMetadata: List<Pair<Long, String>>? = null
 
-    fun openPage(context: Context, page: Int): InputStream {
+    fun openPage(context: Context, page: Int, allowNetwork: Boolean = true): InputStream {
         require(page in 1..604)
         if (page == 1) {
             // Android's asset merger transparently inflates the 001.svg.gz source.
             return context.assets.open("mushaf/pages/001.svg")
         }
-        val packed = ensureCached(context, page)
+        val packed = ensureCached(context, page, allowNetwork)
         return GZIPInputStream(packed.inputStream())
     }
 
@@ -47,17 +48,21 @@ internal object MushafPageStore {
         if (page > 1) ensureCached(context, page)
     }
 
-    private fun ensureCached(context: Context, page: Int): File = synchronized(lock) {
+    internal fun ensureCached(context: Context, page: Int, allowNetwork: Boolean = true,
+        connect: (URL) -> HttpURLConnection = { it.openConnection() as HttpURLConnection }
+    ): File = synchronized(lock) {
+        require(page in 2..604)
         val dir = storage(context).apply { mkdirs() }
         val file = File(dir, name(page))
         val (expectedLength, expectedDigest) = metadata(context, page)
         if (isValid(file, expectedLength, expectedDigest)) return@synchronized file
+        if (!allowNetwork) throw IOException("هذه الصفحة غير محفوظة بعد. افتحها أثناء الاتصال أو نزّل المصحف كاملًا من الفهرس.")
         file.delete()
 
         val temporary = File(dir, name(page) + ".part")
         temporary.delete()
         val url = URL("$SOURCE_BASE/${name(page)}")
-        val connection = (url.openConnection() as HttpURLConnection).apply {
+        val connection = connect(url).apply {
             connectTimeout = 12_000
             readTimeout = 30_000
             instanceFollowRedirects = false
@@ -87,8 +92,7 @@ internal object MushafPageStore {
                     }
                 }
             }
-            val actualDigest = digest.digest().joinToString("") { "%02x".format(it) }
-            if (count != expectedLength || actualDigest != expectedDigest) {
+            if (count != expectedLength || !MessageDigest.isEqual(digest.digest(), digestBytes(expectedDigest))) {
                 throw IOException("فشل التحقق من سلامة صفحة $page؛ أعد المحاولة")
             }
             if (!temporary.renameTo(file)) throw IOException("تعذر حفظ صفحة $page على الجهاز")
@@ -103,9 +107,22 @@ internal object MushafPageStore {
     }
 
     private fun metadata(context: Context, page: Int): Pair<Long, String> {
-        val data = JSONObject(context.assets.open("mushaf/index.json").bufferedReader().use { it.readText() })
-            .getJSONArray("pages").getJSONObject(page)
-        return data.getLong("bytes") to data.getString("assetSha256").lowercase(Locale.ROOT)
+        val entries = pageMetadata ?: synchronized(lock) {
+            pageMetadata ?: run {
+                val pages = JSONObject(context.assets.open("mushaf/index.json").bufferedReader().use { it.readText() }).getJSONArray("pages")
+                require(pages.length() == 605)
+                List(605) { number ->
+                    if (number == 0) 0L to "" else {
+                        val data = pages.getJSONObject(number)
+                        val size = data.getLong("bytes")
+                        val hash = data.getString("assetSha256").lowercase(Locale.ROOT)
+                        require(size in 1..MAX_PAGE_BYTES && hash.matches(Regex("[a-f0-9]{64}")))
+                        size to hash
+                    }
+                }.also { pageMetadata = it }
+            }
+        }
+        return entries[page]
     }
 
     private fun isValid(file: File, size: Long, hash: String): Boolean {
@@ -119,9 +136,10 @@ internal object MushafPageStore {
                 digest.update(buffer, 0, n)
             }
         }
-        return digest.digest().joinToString("") { "%02x".format(it) } == hash
+        return MessageDigest.isEqual(digest.digest(), digestBytes(hash))
     }
 
+    private fun digestBytes(hash: String) = hash.chunked(2).map { it.toInt(16).toByte() }.toByteArray()
     private fun storage(context: Context) = File(context.filesDir, "mushaf-pages")
     private fun name(page: Int) = String.format(Locale.ROOT, "%03d.svg.gz", page)
 }
