@@ -24,8 +24,8 @@ android {
         applicationId = "com.alatta.nativeapp"
         minSdk = 26
         targetSdk = 35
-        versionCode = 232
-        versionName = "1.0.132"
+        versionCode = 233
+        versionName = "1.0.133"
         // Ship phone ABIs only; exclude emulator x86 binaries from the APK.
         ndk { abiFilters += setOf("arm64-v8a", "armeabi-v7a") }
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
