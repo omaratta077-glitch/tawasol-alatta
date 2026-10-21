@@ -196,6 +196,9 @@ internal fun NativeCallScreen(
     var cameraOff by remember(session.callId) { mutableStateOf(false) }
     var speakerOn by remember(session.callId) { mutableStateOf(videoCall) }
     var hangingUp by remember(session.callId) { mutableStateOf(false) }
+    // Both caller and callee hide the central video labels as soon as media
+    // connects; a received frame also covers devices missing CONNECTED callbacks.
+    val videoEstablished = connectedAt > 0L || remoteReady
 
     // A single native PeerConnectionFactory, native camera capture, and native
     // SurfaceViewRenderers are owned by this session. The old call HTML and
@@ -329,7 +332,7 @@ internal fun NativeCallScreen(
                     }
                     // During an established video call, leave the remote picture
                     // unobstructed. Audio calls keep their existing identity UI.
-                    if (!videoCall || connectedAt == 0L) {
+                    if (!videoCall || !videoEstablished) {
                         Text(peerDisplayName, fontSize = 24.sp,
                             fontWeight = FontWeight.Bold, color = CallWhite,
                             textAlign = TextAlign.Center, maxLines = 1)
@@ -349,7 +352,7 @@ internal fun NativeCallScreen(
                         }
                         Spacer(Modifier.height(30.dp))
                     }
-                    if (!videoCall || connectedAt == 0L) {
+                    if (!videoCall || !videoEstablished) {
                         Text(
                             if (connectedAt > 0L) "%02d:%02d".format(elapsed / 60, elapsed % 60)
                             else callStatus,

@@ -18,6 +18,18 @@ assert.ok(screen.includes('setZOrderMediaOverlay(true)'),'PiP renderer is above 
 assert.ok(engine.includes('localVideo?.addSink(localFrameProbe)'), 'local camera is previewed');
 assert.ok(engine.includes('localVideo?.let { videoSender = peer?.addTrack(it,'), 'same camera track is sent by WebRTC');
 assert.ok(engine.includes('track.addSink(remoteFrameProbe)'), 'remote frame confirmation');
+assert.ok(engine.includes('confirmMediaConnected()') && engine.includes('IceConnectionState.COMPLETED'),
+  'caller and callee detect connected media even when the peer-state callback is delayed');
+assert.ok(engine.includes('private val mediaConnected = AtomicBoolean(false)'),
+  'connection start is delivered once even if both ICE and video frame callbacks fire');
+assert.equal((screen.match(/if \(!videoCall \|\| !videoEstablished\)/g) || []).length, 2,
+  'name, call type, and timer disappear on both established video endpoints');
+assert.ok(screen.includes('val videoEstablished = connectedAt > 0L || remoteReady'),
+  'remote decoded video frame can hide overlay on receiving endpoint');
+assert.ok(main.includes('val keepScreenAwake = (token.isNotBlank() && youtubePlayRequested) || activeCall?.type == "video"') &&
+  main.includes('DisposableEffect(keepScreenAwake)') &&
+  main.includes('window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)'),
+  'video call keeps display awake until call ends without leaking window flags');
 assert.ok(engine.includes('/api/turn-credentials'),'use exactly the same TURN endpoint as the website');
 assert.ok(engine.includes('/api/message-send') && engine.includes('/api/call-media-signals'),'signaling interoperable with site');
 for (const type of ['call-request','call-ringing','call-accept','call-reject','offer','answer','ice','hangup']) {

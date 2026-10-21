@@ -1047,13 +1047,15 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
     val youtubeDisplayHeight = if (compactYoutubeLayout) 200.dp else
         (((LocalConfiguration.current.screenWidthDp-16).dp)*9f/16f).coerceAtLeast(200.dp)
     // One visible player survives navigation; closing it or logging out releases it.
-    DisposableEffect(youtubePlayRequested, token) {
+    // One window-awake policy for the existing YouTube player and video calls.
+    // Both endpoints keep their displays awake while their video call is active,
+    // including when the in-app call banner is minimized. Release on call end.
+    val keepScreenAwake = (token.isNotBlank() && youtubePlayRequested) || activeCall?.type == "video"
+    DisposableEffect(keepScreenAwake) {
         val window = (ctx as? ComponentActivity)?.window
-        if (token.isNotBlank() && youtubePlayRequested)
-            window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        if (keepScreenAwake) window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         onDispose {
-            if (token.isNotBlank() && youtubePlayRequested)
-                window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            if (keepScreenAwake) window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         }
     }
     LaunchedEffect(activeCall?.callId, incomingCall?.callId) {

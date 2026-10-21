@@ -180,7 +180,23 @@ internal class NativeRtcCall(
         if (firstLocal.compareAndSet(false, true)) scope.launch { localFrame() }
     }
     private val remoteFrameProbe = VideoSink {
-        if (firstRemote.compareAndSet(false, true)) scope.launch { remoteFrame() }
+        if (firstRemote.compareAndSet(false, true)) {
+            // A decoded frame proves the remote video is already arriving,
+            // even on devices that deliver WebRTC connection callbacks late.
+            confirmMediaConnected()
+            scope.launch { remoteFrame() }
+        }
+    }
+
+    private val mediaConnected = AtomicBoolean(false)
+    private fun confirmMediaConnected() {
+        if (ended || !mediaConnected.compareAndSet(false, true)) return
+        scope.launch {
+            if (ended) return@launch
+            report("متصل")
+            connected()
+            callTimeoutJob?.cancel()
+        }
     }
 
     fun eglContext(): EglBase.Context = egl.eglBaseContext
@@ -309,8 +325,13 @@ internal class NativeRtcCall(
         peer = requireNotNull(factory).createPeerConnection(options, object : PeerConnection.Observer {
             override fun onSignalingChange(state: PeerConnection.SignalingState?) {}
             override fun onIceConnectionChange(state: PeerConnection.IceConnectionState?) {
-                if (state == PeerConnection.IceConnectionState.FAILED) scope.launch {
-                    report("فشل اتصال الوسائط — راجع إعداد TURN")
+                when (state) {
+                    PeerConnection.IceConnectionState.CONNECTED,
+                    PeerConnection.IceConnectionState.COMPLETED -> confirmMediaConnected()
+                    PeerConnection.IceConnectionState.FAILED -> scope.launch {
+                        report("فشل اتصال الوسائط — راجع إعداد TURN")
+                    }
+                    else -> Unit
                 }
             }
             override fun onIceConnectionReceivingChange(receiving: Boolean) {}
@@ -341,11 +362,7 @@ internal class NativeRtcCall(
             }
             override fun onConnectionChange(state: PeerConnection.PeerConnectionState?) {
                 when (state) {
-                    PeerConnection.PeerConnectionState.CONNECTED -> scope.launch {
-                        report("متصل")
-                        connected()
-                        callTimeoutJob?.cancel()
-                    }
+                    PeerConnection.PeerConnectionState.CONNECTED -> confirmMediaConnected()
                     PeerConnection.PeerConnectionState.DISCONNECTED -> scope.launch { report("الاتصال ضعيف — جارٍ إعادة المحاولة") }
                     PeerConnection.PeerConnectionState.FAILED -> scope.launch { report("تعذر توصيل الوسائط — تحقق من TURN") }
                     else -> Unit
