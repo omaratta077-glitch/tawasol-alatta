@@ -29,6 +29,23 @@ for permission in ("SCHEDULE_EXACT_ALARM", "RECEIVE_BOOT_COMPLETED", "FOREGROUND
 assert "android.permission.USE_EXACT_ALARM" not in permissions, "Adhan must use user-approved exact alarm access"
 manifest = subprocess.check_output([aapt, "dump", "xmltree", str(args.apk), "AndroidManifest.xml"], text=True)
 assert re.search(r'android:name[^\n]*"com.alatta.distribution"[^\n]*\n\s*A: android:value[^\n]*"' + args.channel + '"', manifest), "Wrong distribution metadata"
+lines = manifest.splitlines()
+playback_service = ""
+for index, line in enumerate(lines):
+    if "E: service " not in line:
+        continue
+    indentation = len(line) - len(line.lstrip())
+    block = [line]
+    for following in lines[index + 1:]:
+        if "E: " in following and len(following) - len(following.lstrip()) <= indentation:
+            break
+        block.append(following)
+    if "AdhanPlaybackService" in "\n".join(block):
+        playback_service = "\n".join(block)
+        break
+assert playback_service, "Missing local Adhan playback service"
+assert re.search(r'android:exported[^\n]*\b0x0\b', playback_service), "Adhan service must not be exported"
+assert re.search(r'android:foregroundServiceType[^\n]*\b0x2\b', playback_service), "Adhan service must declare mediaPlayback"
 with zipfile.ZipFile(args.apk) as apk:
     audio = [name for name in apk.namelist() if name.endswith("/atta_adhan.ogg")]
     assert len(audio) == 1, "Missing or duplicated offline Adhan recording"

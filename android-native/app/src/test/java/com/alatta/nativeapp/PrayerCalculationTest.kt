@@ -71,6 +71,14 @@ class PrayerCalculationTest {
         }
     }
 
+    @Test fun everyOfferedCalculationMethodProducesSixOrderedTimes() {
+        for (method in prayerMethods.keys) {
+            val times = PrayerCalculation.day(configured.copy(method = method), LocalDate.of(2026, 10, 21))
+            assertEquals(6, times.size)
+            assertTrue(method, times.zipWithNext().all { (first, second) -> first.at < second.at })
+        }
+    }
+
     @Test fun outdatedEarlyLateDisabledAndUnselectedAlarmTicketsAreRejected() {
         val ticket = PrayerAlarmTicket("fajr", 1_000_000L, "first-generation")
         assertTrue(acceptsPrayerAlarm(configured, ticket, ticket, ticket.at, true))

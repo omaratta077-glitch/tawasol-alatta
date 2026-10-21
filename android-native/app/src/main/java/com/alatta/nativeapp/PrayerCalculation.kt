@@ -43,7 +43,7 @@ internal val prayerPlaces = listOf(
     PrayerPlace("القدس", 31.7683, 35.2137, "Asia/Jerusalem", "MUSLIM_WORLD_LEAGUE"),
     PrayerPlace("بغداد", 33.3152, 44.3661, "Asia/Baghdad", "MUSLIM_WORLD_LEAGUE"),
     PrayerPlace("دمشق", 33.5138, 36.2765, "Asia/Damascus", "MUSLIM_WORLD_LEAGUE"),
-    PrayerPlace("إسطنبول", 41.0082, 28.9784, "Europe/Istanbul", "TURKEY"),
+    PrayerPlace("إسطنبول", 41.0082, 28.9784, "Europe/Istanbul", "MUSLIM_WORLD_LEAGUE"),
     PrayerPlace("لندن", 51.5074, -0.1278, "Europe/London", "MUSLIM_WORLD_LEAGUE"),
     PrayerPlace("نيويورك", 40.7128, -74.0060, "America/New_York", "NORTH_AMERICA")
 )
@@ -54,7 +54,7 @@ internal val prayerMethods = linkedMapOf(
     "UMM_AL_QURA" to "أم القرى — مكة المكرمة", "EGYPTIAN" to "الهيئة المصرية للمساحة",
     "MUSLIM_WORLD_LEAGUE" to "رابطة العالم الإسلامي", "KARACHI" to "جامعة كراتشي",
     "DUBAI" to "الإمارات", "KUWAIT" to "الكويت", "QATAR" to "قطر",
-    "TURKEY" to "تركيا", "NORTH_AMERICA" to "أمريكا الشمالية"
+    "NORTH_AMERICA" to "أمريكا الشمالية"
 )
 
 internal data class PrayerSettings(
