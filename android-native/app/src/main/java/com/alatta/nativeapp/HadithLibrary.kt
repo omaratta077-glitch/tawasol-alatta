@@ -3,7 +3,6 @@ package com.alatta.nativeapp
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteException
-import android.os.StatFs
 import android.util.Log
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -42,7 +41,11 @@ internal object HadithLibrary {
         val target = File(directory, "library-${hash.take(16)}.db")
         suspend fun install() {
             // The compressed assets stay in the APK; only the 37 MB SQLite file is extracted.
-            if (StatFs(directory.path).availableBytes < expectedBytes + 2L * 1024 * 1024) {
+            // File.usableSpace reads the same private volume used for extraction.
+            // A zero reading can also mean "unknown" (notably in JVM/Robolectric tests);
+            // in that case try writing and let the actual I/O error explain a full disk.
+            val availableBytes = directory.usableSpace
+            if (availableBytes > 0L && availableBytes < expectedBytes + 2L * 1024 * 1024) {
                 throw HadithPreparationException("المساحة الداخلية غير كافية لتجهيز الأحاديث. وفر نحو 40 ميجابايت ثم أعد المحاولة.")
             }
             val coroutine = currentCoroutineContext()
