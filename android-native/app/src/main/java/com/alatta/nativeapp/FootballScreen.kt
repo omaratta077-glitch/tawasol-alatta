@@ -166,10 +166,13 @@ internal fun FootballScreen(query: String, modifier: Modifier = Modifier,
                         Text(channel.name, color = PremiumGoldLight, fontWeight = FontWeight.Bold, fontSize = 16.sp)
                         Text(channel.category, color = PremiumMuted, fontSize = 12.sp)
                         Text(channel.provider, color = Color.White, fontSize = 12.sp)
-                        Text(if (channel.id.startsWith("official-"))
-                            "فتح بث القناة الرسمي على يوتيوب عند توفره"
-                            else if (channel.format == "external") "المشاهدة لدى الناشر" else "مشاهدة القناة",
-                            color = PremiumGoldLight, fontSize = 12.sp)
+                        Text(when {
+                            channel.id.startsWith("official-bein-") -> "فتح beIN CONNECT • اختر القناة باشتراكك"
+                            channel.id == FootballRepository.onSportOfficial.id -> "فتح صفحة البث الرسمية على يوتيوب إن توفرت"
+                            channel.id.startsWith("official-") -> "مشاهدة القناة عبر موقع الناشر الرسمي"
+                            channel.format == "external" -> "المشاهدة لدى الناشر"
+                            else -> "مشاهدة القناة"
+                        }, color = PremiumGoldLight, fontSize = 12.sp)
                         TextButton(onClick = { runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(channel.sourceUrl))) } }, contentPadding = PaddingValues(0.dp)) {
                             Text("مصدر البث", color = PremiumMuted, fontSize = 11.sp)
                         }

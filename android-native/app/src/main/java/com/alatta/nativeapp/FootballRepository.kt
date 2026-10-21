@@ -19,6 +19,32 @@ internal object FootballRepository {
         enabled = true
     )
 
+    // The channel numbers below come from beIN's public channel list.
+    // beIN CONNECT is a single authenticated portal: none of these cards pretends
+    // to be a direct HLS stream or deep link to a specific channel.
+    internal val beinOfficialChannels: List<FootballChannel> =
+        (1..9).map { number ->
+            FootballChannel(
+                id = "official-bein-sports-$number",
+                name = "beIN SPORTS $number",
+                category = "بي إن سبورت",
+                provider = "beIN CONNECT • اشتراك مطلوب",
+                sourceUrl = "https://www.bein.com/watchbeinsports/",
+                streamUrl = "https://connect.bein.com/",
+                format = "external",
+                enabled = true
+            )
+        } + FootballChannel(
+            id = "official-bein-sports-news",
+            name = "beIN SPORTS NEWS",
+            category = "بي إن سبورت",
+            provider = "beIN CONNECT • حسب الباقة",
+            sourceUrl = "https://www.bein.com/watchbeinsports/",
+            streamUrl = "https://connect.bein.com/",
+            format = "external",
+            enabled = true
+        )
+
     // Public viewing pages served by the rightsholders. They are not raw IPTV feeds.
     // Open only at the publisher, which decides availability and regional access.
     internal val officialBroadcasters = listOf(
@@ -43,7 +69,7 @@ internal object FootballRepository {
             format = "external",
             enabled = true
         )
-    )
+    ) + beinOfficialChannels
 
     internal fun withOfficialChannels(catalog: FootballCatalog): FootballCatalog {
         val merged = catalog.channels.toMutableList()
@@ -52,7 +78,10 @@ internal object FootballRepository {
             // broadcaster when its link or display name is present.
             val alreadyPresent = merged.any { existing ->
                 existing.id == official.id ||
-                    existing.streamUrl.equals(official.streamUrl, ignoreCase = true) ||
+                    // Different beIN channels share an authenticated landing page:
+                    // identical portal URLs must not hide channels 2 through 9.
+                    (!official.id.startsWith("official-bein-") &&
+                        existing.streamUrl.equals(official.streamUrl, ignoreCase = true)) ||
                     existing.name.equals(official.name, ignoreCase = true) ||
                     (official.id == onSportOfficial.id &&
                         existing.sourceUrl.contains("youtube.com/@onsporteg", ignoreCase = true))
