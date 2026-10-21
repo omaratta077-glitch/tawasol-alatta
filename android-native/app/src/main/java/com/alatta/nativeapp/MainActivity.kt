@@ -182,8 +182,11 @@ private fun AttaRightAlignedComments(
         val dialogView = LocalView.current
         val dialogWindow = (dialogView.parent as? DialogWindowProvider)?.window
         val keyboard = LocalSoftwareKeyboardController.current
-        // Allow the dialog window to resize above the keyboard. Previously,
-        // decorFitsSystemWindows=false + fullscreen forced the composer offscreen.
+        val density = androidx.compose.ui.platform.LocalDensity.current
+        var keyboardCoveredPx by remember { mutableIntStateOf(0) }
+        // Some Android vendors keep fullscreen dialogs the same size when the
+        // keyboard opens. Measure the actual visible window area and raise
+        // only the comment composer by the covered height.
         DisposableEffect(dialogWindow) {
             dialogWindow?.let {
                 WindowCompat.setDecorFitsSystemWindows(it, true)
@@ -192,13 +195,32 @@ private fun AttaRightAlignedComments(
             }
             onDispose { }
         }
+        DisposableEffect(dialogView) {
+            val tree = dialogView.viewTreeObserver
+            val listener = android.view.ViewTreeObserver.OnGlobalLayoutListener {
+                val visible = android.graphics.Rect()
+                val screenPoint = IntArray(2)
+                dialogView.getWindowVisibleDisplayFrame(visible)
+                dialogView.getLocationOnScreen(screenPoint)
+                val viewBottomOnScreen = screenPoint[1] + dialogView.height
+                val overlap = (viewBottomOnScreen - visible.bottom).coerceAtLeast(0)
+                val minKeyboard = (110 * dialogView.resources.displayMetrics.density).toInt()
+                val next = if (overlap >= minKeyboard) overlap else 0
+                if (keyboardCoveredPx != next) keyboardCoveredPx = next
+            }
+            tree.addOnGlobalLayoutListener(listener)
+            dialogView.post { listener.onGlobalLayout() }
+            onDispose { if (tree.isAlive) tree.removeOnGlobalLayoutListener(listener) }
+        }
         LaunchedEffect(postId) {
             delay(230)
             commentFocusRequester.requestFocus()
             keyboard?.show()
         }
         CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
-            Column(Modifier.fillMaxSize().background(Black).safeDrawingPadding().imePadding()) {
+            val keyboardLift = with(density) { keyboardCoveredPx.toDp() }
+            Column(Modifier.fillMaxSize().background(Black)
+                .padding(bottom = keyboardLift).safeDrawingPadding()) {
                 Row(Modifier.fillMaxWidth().height(56.dp)
                     .border(.5.dp, Border).padding(horizontal = 12.dp),
                     verticalAlignment = Alignment.CenterVertically) {
