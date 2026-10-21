@@ -28,7 +28,7 @@ class AttaHttpTest {
     @Test fun safeGetRecoversOnceAfterConnectionClosesBeforeAResponse() {
         server.enqueue(MockResponse().setSocketPolicy(SocketPolicy.DISCONNECT_AFTER_REQUEST))
         server.enqueue(MockResponse().setBody("{\"ok\":true,\"value\":\"restored\"}"))
-        val result = AttaHttp.json(server.url("/read").toString(), client = client)
+        val result = AttaHttp.json(server.url("/read").newBuilder().host("127.0.0.1").build().toString(), client = client)
         assertEquals("restored", result.data.getString("value"))
         assertEquals(2, server.requestCount)
     }
