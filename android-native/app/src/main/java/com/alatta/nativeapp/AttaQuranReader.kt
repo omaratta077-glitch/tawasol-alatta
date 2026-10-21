@@ -64,6 +64,7 @@ internal fun QuranReaderScreen(modifier: Modifier = Modifier, onExit: () -> Unit
     var query by remember { mutableStateOf("") }
     var note by remember { mutableStateOf("") }
     var error by remember { mutableStateOf<String?>(null) }
+    var pageRetry by remember { mutableIntStateOf(0) }
     var selectedAyah by remember { mutableIntStateOf(0) }
     var playbackError by remember { mutableStateOf<String?>(null) }
     var playbackStatus by remember { mutableStateOf("") }
@@ -184,7 +185,7 @@ internal fun QuranReaderScreen(modifier: Modifier = Modifier, onExit: () -> Unit
                 modifier = Modifier.weight(1f))
             TextButton(onClick = onReadAll) { Text("المصحف كاملًا", color = gold, fontSize = 11.sp) }
         }
-        key(page) {
+        key(page, pageRetry) {
             AndroidView(factory = {
                 MushafPageView(context, page, changePage, { chosen ->
                     selectedAyah = chosen
@@ -192,7 +193,12 @@ internal fun QuranReaderScreen(modifier: Modifier = Modifier, onExit: () -> Unit
                 }) { error = it }
             }, modifier = Modifier.fillMaxWidth().weight(1f))
         }
-        error?.let { Text(it,Modifier.padding(8.dp),color=Color(0xFF933C20)) }
+        error?.let { message ->
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text(message, Modifier.weight(1f).padding(8.dp), color=Color(0xFF933C20), fontSize=12.sp)
+                TextButton(onClick = { error = null; pageRetry++ }) { Text("إعادة التحميل", color = gold) }
+            }
+        }
         // Compact reading footer: no notes, navigation arrows or oversized controls.
         // Note editor remains accessible through the index dialog.
         Row(
