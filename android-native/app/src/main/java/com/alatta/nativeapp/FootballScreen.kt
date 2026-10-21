@@ -118,7 +118,8 @@ internal fun FootballScreen(query: String, modifier: Modifier = Modifier,
             LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 if (loaded && matches.isEmpty()) item { FootballPanel {
                     Text(if (query.isBlank()) "لا توجد مباريات مضافة لهذا الموعد" else "لا توجد مباريات مطابقة للبحث", color = PremiumGoldLight)
-                    Text("يُحدّث مدير التطبيق الجدول والقنوات الناقلة. يمكن مشاهدة القنوات المتاحة من تبويب القنوات.", color = PremiumMuted, fontSize = 13.sp)
+                    Text(if (catalog.channels.isEmpty()) "يُحدّث مدير التطبيق مواعيد المباريات ونتائجها. البث غير مفعّل حاليًا."
+                        else "يُحدّث مدير التطبيق الجدول والقنوات الناقلة. يمكن مشاهدة القنوات المتاحة من تبويب القنوات.", color = PremiumMuted, fontSize = 13.sp)
                 } }
                 items(matches, key = { it.id }) { match ->
                     val channel = catalog.channels.firstOrNull { it.id == match.channelId }
