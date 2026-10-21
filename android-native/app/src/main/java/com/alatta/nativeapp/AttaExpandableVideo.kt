@@ -73,7 +73,7 @@ private fun Context.mediaActivity(): ComponentActivity? = when (this) {
 private val attaVideoPreviewCache = LruCache<String, Bitmap>(12)
 
 @Composable
-internal fun AttaExpandableVideo(url: String, onOpen: (() -> Unit)? = null) {
+internal fun AttaExpandableVideo(url: String, posterUrl: String? = null, onOpen: (() -> Unit)? = null) {
     var expanded by remember(url) { mutableStateOf(false) }
     val preview by produceState<Bitmap?>(initialValue = attaVideoPreviewCache.get(url), key1 = url) {
         if (value == null) {
@@ -102,7 +102,10 @@ internal fun AttaExpandableVideo(url: String, onOpen: (() -> Unit)? = null) {
     Box(Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(RoundedCornerShape(12.dp))
         .background(Color.Black).clickable { if (onOpen != null) onOpen() else expanded = true },
         contentAlignment = Alignment.Center) {
-        preview?.let { image ->
+        if (!posterUrl.isNullOrBlank()) {
+            coil.compose.AsyncImage(model = posterUrl, contentDescription = "صورة معاينة الفيديو",
+                modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+        } else preview?.let { image ->
             Image(image.asImageBitmap(), contentDescription = "معاينة الفيديو",
                 modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
         }

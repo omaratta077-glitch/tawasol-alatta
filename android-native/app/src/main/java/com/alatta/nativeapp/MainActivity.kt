@@ -1425,10 +1425,11 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
             "أرشيفي" -> archivedPosts = get("/api/post-archive-list").arr("posts")
             "يوتيوب" -> {
                 val recommendation = when (youtubeCategory) {
-                    "أحاديث" -> "أحاديث نبوية صحيحة شرح"
+                    "أحاديث" -> "الشيخ سمير مصطفى دروس ومحاضرات"
+                    "الأذكار" -> "أذكار الصباح والمساء حصن المسلم"
                     "رياضة" -> "كرة القدم ملخص مباريات"
-                    "أخبار" -> "أخبار الجزيرة اليوم"
-                    else -> "تلاوة القرآن الكريم"
+                    "أخبار" -> "قناة الجزيرة أخبار اليوم"
+                    else -> "الشيخ محمد صديق المنشاوي تلاوة القرآن الكريم"
                 }
                 val q = youtubeSearch.trim().ifBlank { recommendation }
                 youtubeItems = withContext(Dispatchers.IO) {
@@ -2331,7 +2332,34 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                                         require(bytes.size <= 50 * 1024 * 1024) { "الحد الأقصى 50 ميجابايت" }
                                                         val mime = pickedMime.ifBlank { "image/jpeg" }
                                                         val url = withContext(Dispatchers.IO) { upload(token, uri, mime, uri.lastPathSegment ?: "upload", bytes) }
-                                                        if (mime.startsWith("video/")) video = url else image = url
+                                                        if (mime.startsWith("video/")) {
+                                                            video = url
+                                                            val coverBytes = withContext(Dispatchers.IO) {
+                                                                runCatching {
+                                                                    val retriever = android.media.MediaMetadataRetriever()
+                                                                    try {
+                                                                        retriever.setDataSource(ctx, uri)
+                                                                        val frame = retriever.getFrameAtTime(0,
+                                                                            android.media.MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
+                                                                        frame?.let { bmp ->
+                                                                            val output = java.io.ByteArrayOutputStream()
+                                                                            val scaled = if (bmp.width > 720) android.graphics.Bitmap.createScaledBitmap(
+                                                                                bmp, 720, (bmp.height * 720f / bmp.width).toInt().coerceAtLeast(1), true
+                                                                            ) else bmp
+                                                                            scaled.compress(android.graphics.Bitmap.CompressFormat.JPEG, 80, output)
+                                                                            if (scaled !== bmp) scaled.recycle()
+                                                                            bmp.recycle()
+                                                                            output.toByteArray()
+                                                                        }
+                                                                    } finally { retriever.release() }
+                                                                }.getOrNull()
+                                                            }
+                                                            if (coverBytes != null) {
+                                                                image = withContext(Dispatchers.IO) {
+                                                                    upload(token, uri, "image/jpeg", "video-cover.jpg", coverBytes)
+                                                                }
+                                                            }
+                                                        } else image = url
                                                     }
                                                     if (sharedMushaf != null) {
                                                         val pdfPath = withContext(Dispatchers.IO) {
@@ -2469,7 +2497,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                     val image = media(p.optString("image")); val video = media(p.optString("video"))
                                     val mushafPages = parseMushafPostAttachment(p.optString("text"), BASE)?.pages
                                     if (mushafPages != null) MushafPostGallery(mushafPages, image.takeIf { it.isNotBlank() })
-                                    if (image.isNotBlank() && mushafPages == null) ExpandableProfileMedia(image, "صورة المنشور",
+                                    if (image.isNotBlank() && mushafPages == null && video.isBlank()) ExpandableProfileMedia(image, "صورة المنشور",
                                         Modifier.fillMaxWidth().padding(vertical = 6.dp)
                                             .aspectRatio(1.15f).clip(RoundedCornerShape(11.dp))
                                             .border(.6.dp, Border.copy(alpha = .75f), RoundedCornerShape(11.dp)),
@@ -2477,7 +2505,8 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                     if (video.isNotBlank()) {
                                         // Open the sole existing Media3 viewer with the full feed
                                         // playlist, so vertical swipes go to the next post video.
-                                        AttaExpandableVideo(video, onOpen = { showFullscreenVideo = true })
+                                        AttaExpandableVideo(video, image.takeIf { it.isNotBlank() },
+                                            onOpen = { showFullscreenVideo = true })
                                         if (showFullscreenVideo) {
                                             AttaPostMediaViewer(
                                                 posts = posts, startId = postId, kind = "video",
@@ -3071,7 +3100,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                     Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                                         horizontalArrangement = Arrangement.spacedBy(6.dp),
                                         verticalAlignment = Alignment.CenterVertically) {
-                                        listOf("قرآن", "أحاديث", "رياضة", "أخبار").forEach { category ->
+                                        listOf("قرآن", "أحاديث", "الأذكار", "رياضة", "أخبار").forEach { category ->
                                             val selected = category == youtubeCategory && youtubeSearch.isBlank()
                                             OutlinedButton(onClick = {
                                                 youtubeCategory = category
@@ -3086,6 +3115,39 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 2.dp),
                                                 modifier = Modifier.height(34.dp)) {
                                                 Text(category, fontSize = 12.sp, maxLines = 1)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            if (youtubeSearch.isBlank()) item {
+                                val suggestions = when (youtubeCategory) {
+                                    "قرآن" -> listOf(
+                                        "محمد صديق المنشاوي", "محمود خليل الحصري", "عبدالباسط عبدالصمد",
+                                        "مصطفى إسماعيل", "محمد رفعت", "علي جابر", "بدر التركي",
+                                        "ماهر المعيقلي", "خالد الجليل")
+                                    "أحاديث" -> listOf("سمير مصطفى", "إسحاق الحويني", "مصطفى العدوي",
+                                        "محمد حسين يعقوب", "محمد حسان", "عبدالرزاق البدر")
+                                    "الأذكار" -> listOf("أذكار الصباح", "أذكار المساء", "أذكار النوم",
+                                        "أذكار بعد الصلاة", "حصن المسلم")
+                                    "أخبار" -> listOf("الجزيرة مباشر", "العربية أخبار", "الجزيرة نت")
+                                    else -> emptyList()
+                                }
+                                if (suggestions.isNotEmpty()) {
+                                    Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                                        Text("اقتراحات $youtubeCategory", color = GoldLight, fontSize = 13.sp)
+                                        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                                            horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                            suggestions.forEach { suggestion ->
+                                                OutlinedButton(onClick = {
+                                                    youtubeSearch = suggestion
+                                                    task { load("يوتيوب") }
+                                                }, modifier = Modifier.height(34.dp),
+                                                    shape = RoundedCornerShape(18.dp),
+                                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
+                                                    border = BorderStroke(1.dp, Border)) {
+                                                    Text(suggestion, color = GoldLight, fontSize = 12.sp)
+                                                }
                                             }
                                         }
                                     }
