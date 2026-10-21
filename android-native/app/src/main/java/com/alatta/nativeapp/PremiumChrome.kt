@@ -226,6 +226,8 @@ internal fun PremiumBottomNav(current: String, go: (String) -> Unit) {
                         else Color(0xFF171A1D),
                         RoundedCornerShape(13.dp)
                     )
+                    .clip(RoundedCornerShape(13.dp))
+                    .attaGoldShine(selected)
                     .clickable { go(name) },
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center
