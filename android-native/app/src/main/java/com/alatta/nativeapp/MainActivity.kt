@@ -41,6 +41,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import kotlinx.coroutines.flow.collect
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -1001,6 +1003,8 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
     var homeCursor by remember(token) { mutableStateOf<String?>(null) }
     var ownCursor by remember(token) { mutableStateOf<String?>(null) }
     var loadingMore by remember { mutableStateOf(false) }
+    // Block automatic retries of a failed cursor until Home refreshes.
+    var olderPageFailedCursor by remember(token) { mutableStateOf<String?>(null) }
     var myAvatar by remember { mutableStateOf("") }
     var search by remember { mutableStateOf("") }
     var chatWith by remember { mutableStateOf("") }
@@ -1391,6 +1395,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                 val page = FeedPages.fetch(::get)
                 posts = FeedPages.merge(posts, page)
                 homeCursor = page.nextCursor
+                olderPageFailedCursor = null
                 val accountToken = token
                 scope.launch {
                     try { val latest = get("/api/notifications").arr("notifications"); if (token == accountToken) notifications = latest }
@@ -1977,6 +1982,41 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
             finally { if (screenLoadGeneration == generation) screenLoading = false }
         }
     }
+    // Scroll-to-load uses the SAME cursor endpoint as the former button.
+    // Only Home's composed LazyColumn drives it; no duplicate feed or player.
+    LaunchedEffect(token, tab) {
+        if (token.isBlank() || tab != "الرئيسية") return@LaunchedEffect
+        snapshotFlow {
+            val layout = homeFeedListState.layoutInfo
+            val lastVisible = layout.visibleItemsInfo.lastOrNull()?.index ?: -1
+            val cursor = homeCursor
+            if (cursor != null && cursor != olderPageFailedCursor &&
+                !screenLoading && !loadingMore && posts.isNotEmpty() &&
+                homeFeedListState.firstVisibleItemIndex > 0 &&
+                lastVisible >= layout.totalItemsCount - 3) cursor else null
+        }.collect { cursor ->
+            if (cursor == null) return@collect
+            val accountToken = token
+            val loadGeneration = screenLoadGeneration
+            loadingMore = true
+            try {
+                val next = FeedPages.fetch(::get, cursor)
+                // A pull-to-refresh or account change must not append stale results.
+                if (token == accountToken && tab == "الرئيسية" &&
+                    homeCursor == cursor && screenLoadGeneration == loadGeneration) {
+                    posts = FeedPages.merge(posts, next)
+                    homeCursor = next.nextCursor
+                    olderPageFailedCursor = null
+                }
+            } catch (cancelled: CancellationException) { throw cancelled }
+            catch (failure: Exception) {
+                olderPageFailedCursor = cursor
+                error = loadingFailureMessage(failure)
+            } finally {
+                loadingMore = false
+            }
+        }
+    }
     LaunchedEffect(Unit) {
         try {
             val conf = withContext(Dispatchers.IO) { api("/api/google-config") }
@@ -2336,10 +2376,22 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                         "الرياضة" -> FootballScreen(footballSearch, Modifier.weight(1f), isAdmin = adminRole == "super_admin",
                             onManage = { navigate("الإدارة") }, onBeforePlayback = { youtubePlayRequested = false },
                             onYoutube = { id -> youtubeId = id; youtubePlayRequested = true })
-                        "الرئيسية", "استكشاف", "المحفوظات" -> LazyColumn(
-                            Modifier.weight(1f).padding(horizontal = 8.dp),
-                            state = if (tab == "الرئيسية") homeFeedListState else otherFeedListState,
-                            verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        "الرئيسية", "استكشاف", "المحفوظات" -> {
+                            PullToRefreshBox(
+                                isRefreshing = screenLoading,
+                                onRefresh = {
+                                    if (!screenLoading && !busy) {
+                                        if (tab == "الرئيسية") homeRefreshRequest++
+                                        else refresh()
+                                    }
+                                },
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                LazyColumn(
+                                    Modifier.fillMaxSize().padding(horizontal = 8.dp),
+                                    state = if (tab == "الرئيسية") homeFeedListState else otherFeedListState,
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
                             if (tab == "استكشاف") {
                                 item { SectionTitle("الأشخاص") }
                                 if (users.isEmpty()) item { Text("لا يوجد أشخاص مطابقون للبحث", color = Muted, modifier = Modifier.padding(12.dp)) }
@@ -2672,23 +2724,18 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                     }
                                 }
                             }
-                            if (tab == "الرئيسية" && homeCursor != null) item {
-                                GoldButton(if (loadingMore) "جارٍ التحميل..." else "تحميل منشورات أقدم", !loadingMore && !screenLoading) {
-                                    val cursor = homeCursor
-                                    val accountToken = token
-                                    task {
-                                        loadingMore = true
-                                        try {
-                                            val page = FeedPages.fetch(::get, cursor)
-                                            if (token == accountToken && tab == "الرئيسية") {
-                                                posts = FeedPages.merge(posts, page); homeCursor = page.nextCursor
-                                            }
-                                        } finally { loadingMore = false }
-                                    }
+                            if (tab == "الرئيسية" && loadingMore) item {
+                                Box(Modifier.fillMaxWidth().padding(16.dp),
+                                    contentAlignment = Alignment.Center) {
+                                    CircularProgressIndicator(
+                                        color = GoldLight, strokeWidth = 2.dp,
+                                        modifier = Modifier.size(26.dp))
                                 }
                             }
                             if (posts.isEmpty() && !screenLoading && error.isBlank()) item {
                                 Text("لا توجد منشورات ظاهرة حاليًا", color = Muted, modifier = Modifier.padding(16.dp))
+                            }
+                                }
                             }
                         }
                         "الخصوصية" -> AccountPrivacyScreen(myUsername, busy, notificationsEnabled,

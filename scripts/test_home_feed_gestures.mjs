@@ -1,0 +1,16 @@
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+const source = readFileSync('android-native/app/src/main/java/com/alatta/nativeapp/MainActivity.kt','utf8');
+const gradle = readFileSync('android-native/app/build.gradle.kts','utf8');
+assert.ok(source.includes('PullToRefreshBox('), 'native pull-to-refresh must wrap the current LazyColumn');
+assert.ok(source.includes('if (tab == "الرئيسية") homeRefreshRequest++'), 'pulling down reloads Home through the existing request');
+assert.ok(source.includes('if (tab == destination) {\n                homeRefreshRequest++'), 'reselecting Home reloads even while Home is active');
+assert.ok(source.includes('homeFeedListState.firstVisibleItemIndex > 0'), 'auto pagination runs only after the user scrolls');
+assert.ok(source.includes('lastVisible >= layout.totalItemsCount - 3'), 'older posts are fetched near the bottom');
+assert.ok(source.includes('FeedPages.fetch(::get, cursor)'), 'pagination reuses the existing cursor implementation');
+assert.ok(source.includes('homeCursor == cursor && screenLoadGeneration == loadGeneration'), 'stale pages cannot overwrite a refreshed Home');
+assert.ok(source.includes('olderPageFailedCursor = cursor'), 'failed cursors do not cause rapid repeated requests');
+assert.ok(!source.includes('تحميل منشورات أقدم'), 'old manual load-more button is gone');
+assert.equal((source.match(/PullToRefreshBox\(/g)||[]).length, 1, 'one pull gesture handler for the feed');
+assert.ok(gradle.includes('versionCode = 236') && gradle.includes('versionName = "1.0.136"'));
+console.log('PASS Home infinite scrolling, pull-to-refresh, home reselect refresh, and no manual load button');
