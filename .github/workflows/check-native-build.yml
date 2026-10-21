@@ -78,8 +78,12 @@ jobs:
         working-directory: android-native
         run: |
           set -euo pipefail
-          export ALATTA_KEYSTORE_PATH="$HOME/.android/debug.keystore"
+          export ALATTA_KEYSTORE_PATH="$RUNNER_TEMP/alatta-ci-release.jks"
           export ALATTA_KEYSTORE_PASSWORD=android ALATTA_KEY_ALIAS=androiddebugkey ALATTA_KEY_PASSWORD=android
+          keytool -genkeypair -keystore "$ALATTA_KEYSTORE_PATH" -storetype JKS \
+            -storepass:env ALATTA_KEYSTORE_PASSWORD -keypass:env ALATTA_KEY_PASSWORD \
+            -alias "$ALATTA_KEY_ALIAS" -keyalg RSA -keysize 2048 -validity 2 \
+            -dname 'CN=AL-ATTA CI Test Only'
           gradle --no-daemon --console=plain :app:assembleRelease
           python3 ../scripts/check_slim_apk.py app/build/outputs/apk/release/app-release.apk
           python3 ../scripts/check_store_apk.py app/build/outputs/apk/release/app-release.apk --channel direct
