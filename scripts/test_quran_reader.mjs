@@ -28,7 +28,7 @@ console.log('PASS: Native offline Quran reader, 604 compressed SVG pages, sample
 
 // Android asset merger expands .svg.gz to .svg before bundling the APK.
 const pageStore = fs.readFileSync(path.join(app, 'java/com/alatta/nativeapp/MushafPageStore.kt'), 'utf8');
-assert.ok(source.includes('MushafPageStore.openPage(context,page)'));
+assert.ok(source.includes('MushafPageStore.openPage(context,page,allowNetwork)'));
 assert.ok(pageStore.includes('mushaf/pages/001.svg'));
 assert.match(pageStore, /GZIPInputStream/);
 assert.match(pageStore, /assetSha256/);

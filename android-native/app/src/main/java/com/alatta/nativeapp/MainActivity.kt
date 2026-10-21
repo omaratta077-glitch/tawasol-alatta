@@ -33,6 +33,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.compose.BackHandler
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.*
@@ -82,11 +83,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
 import coil.compose.AsyncImage
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -327,6 +324,8 @@ private fun JSONObject.arr(name: String): List<JSONObject> {
     return (0 until a.length()).mapNotNull { a.optJSONObject(it) }
 }
 private fun JSONObject.name(): String = optString("fullName").ifBlank { optString("displayName").ifBlank { "مستخدم" } }
+internal class AttaApiException(val statusCode: Int, message: String) : IllegalStateException(message)
+
 internal fun attaApi(path: String, payload: JSONObject? = null): JSONObject {
     val conn = (URL(BASE + path).openConnection() as HttpURLConnection).apply {
         requestMethod = if (payload == null) "GET" else "POST"
@@ -335,10 +334,14 @@ internal fun attaApi(path: String, payload: JSONObject? = null): JSONObject {
         if (payload != null) {
             doOutput = true
             setRequestProperty("Content-Type", "application/json; charset=utf-8")
-            outputStream.use { it.write(payload.toString().toByteArray(Charsets.UTF_8)) }
         }
     }
     return try {
+        if (payload != null) {
+            val bytes = payload.toString().toByteArray(Charsets.UTF_8)
+            conn.setFixedLengthStreamingMode(bytes.size)
+            conn.outputStream.use { it.write(bytes) }
+        }
         val status = conn.responseCode
         val content = (if (status in 200..299) conn.inputStream else conn.errorStream)?.bufferedReader()?.use { it.readText() } ?: "{}"
         val obj = JSONObject(content)
@@ -353,14 +356,14 @@ internal fun attaApi(path: String, payload: JSONObject? = null): JSONObject {
                 obj.optString("code") == "USERNAME_TAKEN" ||
                 serverMessage.trim() == "تعذر إنشاء الحساب. تواصل مع الإدارة."
             )
-            throw IllegalStateException(if (duplicateUsername)
+            throw AttaApiException(status, if (duplicateUsername)
                 "اسم المستخدم موجود بالفعل، اختر اسمًا آخر." else serverMessage)
         }
         obj
     } finally { conn.disconnect() }
 }
 private fun api(path: String, payload: JSONObject? = null) = attaApi(path, payload)
-private fun upload(token: String, uri: Uri, mime: String, filename: String, bytes: ByteArray): String {
+private fun upload(token: String, mime: String, filename: String, bytes: ByteArray): String {
     val kind = when {
         mime.startsWith("video/") -> "video"
         mime == "application/pdf" -> "file"
@@ -371,9 +374,11 @@ private fun upload(token: String, uri: Uri, mime: String, filename: String, byte
         requestMethod = "POST"; doOutput = true
         connectTimeout = 20000; readTimeout = 120000
         setRequestProperty("Content-Type", mime)
-        outputStream.use { it.write(bytes) }
+        setFixedLengthStreamingMode(bytes.size)
     }
     return try {
+        require(bytes.size <= 50 * 1024 * 1024) { "الحد الأقصى 50 ميجابايت" }
+        conn.outputStream.use { it.write(bytes) }
         val code = conn.responseCode
         val obj = JSONObject((if (code in 200..299) conn.inputStream else conn.errorStream)?.bufferedReader()?.use { it.readText() } ?: "{}")
         if (code !in 200..299) throw IllegalStateException(obj.optString("error", "فشل رفع الملف"))
@@ -400,13 +405,19 @@ private fun uploadChatMedia(context: android.content.Context, token: String, uri
         else -> "chat-document.pdf"
     }
     var declaredSize = -1L
-    context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE),
-        null, null, null)?.use { cursor ->
-        if (cursor.moveToFirst()) {
-            val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
-            val sizeIndex = cursor.getColumnIndex(OpenableColumns.SIZE)
-            if (nameIndex >= 0) displayName = cursor.getString(nameIndex) ?: displayName
-            if (sizeIndex >= 0 && !cursor.isNull(sizeIndex)) declaredSize = cursor.getLong(sizeIndex)
+    if (uri.scheme == "file") {
+        val file = java.io.File(requireNotNull(uri.path))
+        displayName = file.name
+        declaredSize = file.length()
+    } else {
+        context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE),
+            null, null, null)?.use { cursor ->
+            if (cursor.moveToFirst()) {
+                val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                val sizeIndex = cursor.getColumnIndex(OpenableColumns.SIZE)
+                if (nameIndex >= 0) displayName = cursor.getString(nameIndex) ?: displayName
+                if (sizeIndex >= 0 && !cursor.isNull(sizeIndex)) declaredSize = cursor.getLong(sizeIndex)
+            }
         }
     }
     require(declaredSize <= maxBytes) { "الحد الأقصى للفيديو أو الصورة 50 ميجابايت" }
@@ -421,15 +432,7 @@ private fun uploadChatMedia(context: android.content.Context, token: String, uri
     return try {
         context.contentResolver.openInputStream(uri)?.use { input ->
             conn.outputStream.use { output ->
-                val buffer = ByteArray(64 * 1024)
-                var total = 0L
-                while (true) {
-                    val n = input.read(buffer)
-                    if (n < 0) break
-                    total += n
-                    require(total <= maxBytes) { "حجم الملف يتجاوز 50 ميجابايت" }
-                    output.write(buffer, 0, n)
-                }
+                copyMediaBounded(input, output, maxBytes)
             }
         } ?: error("تعذر قراءة الفيديو من جهازك")
         val code = conn.responseCode
@@ -1383,34 +1386,30 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                     try {
                         val people = get("/api/friends").arr("friends")
                         friends = people
-                        // The Worker provides conversations by peer, not a unified inbox.
-                        // Include previously contacted peers alongside accepted friends.
                         val known = people.map { it.optString("username").lowercase() }
                         val peerIds = (recentChatPeers.toList() + known)
                             .filter { it.isNotBlank() && it != myUsername.lowercase() && !it.startsWith("g_") }
                             .distinct().take(50)
-                        val byId = people.associateBy { it.optString("username").lowercase() }
-                        val limiter = Semaphore(5)
-                        val cached = coroutineScope {
-                            peerIds.map { id ->
-                                async {
-                                    limiter.acquire()
-                                    try {
-                                        val person = byId[id] ?: try {
-                                            get("/api/profile-public?username=${enc(id)}").optJSONObject("user")
-                                        } catch (cancelled: CancellationException) { throw cancelled }
-                                        catch (_: Exception) { null } ?: JSONObject().put("username", id)
-                                        val last = try {
-                                            get("/api/conversation?with=${enc(id)}").arr("messages")
-                                                .lastOrNull { it.optString("mediaType") != "call-signal" }
-                                        } catch (cancelled: CancellationException) { throw cancelled }
-                                        catch (_: Exception) { null }
-                                        ChatPreview(person, last)
-                                    } finally { limiter.release() }
-                                }
-                            }.awaitAll()
+                        inboxPreviews = try {
+                            val summaries = get("/api/inbox?peers=${enc(peerIds.joinToString(","))}").arr("summaries")
+                            summaries.mapNotNull { summary ->
+                                summary.optJSONObject("user")?.let { ChatPreview(it, summary.optJSONObject("lastMessage")) }
+                            }
+                        } catch (failure: AttaApiException) {
+                            if (failure.statusCode != 404) throw failure
+                            // Compatibility only while a native update precedes the
+                            // backend deployment; never retry auth/server errors as N requests.
+                            val byId = people.associateBy { it.optString("username").lowercase() }
+                            peerIds.mapNotNull { id ->
+                                val person = byId[id] ?: return@mapNotNull null
+                                val last = try {
+                                    get("/api/conversation?with=${enc(id)}").arr("messages")
+                                        .lastOrNull { it.optString("mediaType") != "call-signal" }
+                                } catch (cancelled: CancellationException) { throw cancelled }
+                                catch (_: Exception) { null }
+                                ChatPreview(person, last)
+                            }
                         }
-                        inboxPreviews = cached
                     } finally { inboxLoading = false }
                 }
             }
@@ -1977,32 +1976,37 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
     // covers short disconnections and restores changes made from the website.
     LaunchedEffect(tab, chatWith, token) {
         if (token.isBlank()) return@LaunchedEffect
-        if (tab == "الأصدقاء") while (isActive) {
-            delay(18000)
-            try {
-                friends = get("/api/friends").arr("friends")
-                requests = get("/api/friend-requests").arr("requests")
-            } catch (cancelled: CancellationException) { throw cancelled }
-            catch (_: Exception) { }
-        }
-        if (tab == "الرسائل" && chatWith.isBlank()) while (isActive) {
-            delay(25000)
-            try { load("الرسائل") }
-            catch (cancelled: CancellationException) { throw cancelled }
-            catch (_: Exception) { }
+        (ctx as ComponentActivity).lifecycle.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) {
+            if (tab == "الأصدقاء") while (isActive) {
+                delay(18000)
+                try {
+                    friends = get("/api/friends").arr("friends")
+                    requests = get("/api/friend-requests").arr("requests")
+                } catch (cancelled: CancellationException) { throw cancelled }
+                catch (_: Exception) { }
+            }
+            if (tab == "الرسائل" && chatWith.isBlank()) while (isActive) {
+                delay(25000)
+                try { load("الرسائل") }
+                catch (cancelled: CancellationException) { throw cancelled }
+                catch (_: Exception) { }
+            }
         }
     }
-    // Lightweight refresh of the opened chat; messages stay on Cloudflare.
+    // Only refresh a visible conversation. Incoming-call/socket handling retains
+    // its separate lifetime so background calls continue to work.
     LaunchedEffect(tab, chatWith, token) {
         if (tab == "الرسائل" && chatWith.isNotBlank() && token.isNotBlank()) {
             val other = chatWith
-            while (true) {
-                delay(6000)
-                try {
-                    val latest = get("/api/conversation?with=${enc(other)}").arr("messages")
-                    if (chatWith == other && tab == "الرسائل") messages = latest
-                } catch (cancelled: CancellationException) { throw cancelled }
-                catch (_: Exception) { /* Manual refresh remains available. */ }
+            (ctx as ComponentActivity).lifecycle.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) {
+                while (isActive) {
+                    delay(6000)
+                    try {
+                        val latest = get("/api/conversation?with=${enc(other)}").arr("messages")
+                        if (chatWith == other && tab == "الرسائل") messages = latest
+                    } catch (cancelled: CancellationException) { throw cancelled }
+                    catch (_: Exception) { /* Manual refresh remains available. */ }
+                }
             }
         }
     }
@@ -2359,24 +2363,23 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                                     if (sharedMushaf != null) require(postText.length <= 4500) { "اكتب وصفًا أقصر من 4500 حرف" }
                                                     if (sharedYoutube.isNotBlank()) postText = attachYoutubeToPost(postText, sharedYoutube)
                                                     pickedUri?.let { uri ->
-                                                        val bytes = withContext(Dispatchers.IO) { ctx.contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: byteArrayOf() }
-                                                        require(bytes.size <= 50 * 1024 * 1024) { "الحد الأقصى 50 ميجابايت" }
                                                         val mime = pickedMime.ifBlank { "image/jpeg" }
-                                                        val url = withContext(Dispatchers.IO) { upload(token, uri, mime, uri.lastPathSegment ?: "upload", bytes) }
+                                                        val url = withContext(Dispatchers.IO) {
+                                                            uploadChatMedia(ctx, token, uri, mime, if (mime.startsWith("video/")) "video" else "image")
+                                                        }
                                                         if (mime.startsWith("video/")) {
                                                             video = url
                                                             val coverBytes = runCatching { VideoPostPreview.uploadCover(ctx, uri) }.getOrNull()
                                                             if (coverBytes != null) {
                                                                 image = withContext(Dispatchers.IO) {
-                                                                    upload(token, uri, "image/jpeg", "video-cover.jpg", coverBytes)
+                                                                    upload(token, "image/jpeg", "video-cover.jpg", coverBytes)
                                                                 }
                                                             }
                                                         } else image = url
                                                     }
                                                     if (sharedMushaf != null) {
                                                         val pdfPath = withContext(Dispatchers.IO) {
-                                                            upload(token,Uri.fromFile(sharedMushaf.document),"application/pdf",
-                                                                "mushaf-${sharedMushaf.selection.firstPage}-${sharedMushaf.selection.lastPage}.pdf",sharedMushaf.document.readBytes())
+                                                            uploadChatMedia(ctx,token,Uri.fromFile(sharedMushaf.document),"application/pdf","file")
                                                         }
                                                         postText += "\n\n"+mushafAttachmentLink(BASE,pdfPath,sharedMushaf.selection)
                                                     }

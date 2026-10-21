@@ -63,14 +63,14 @@ internal fun AttaPrivacyGate(content: @Composable ((() -> Unit), (() -> Unit)) -
             } else Column(Modifier.fillMaxSize().background(PremiumBackground).safeDrawingPadding()
                 .verticalScroll(rememberScrollState()).padding(24.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 Text("خصوصيتك في تواصل العطا", color = PremiumGoldLight, style = MaterialTheme.typography.headlineSmall)
-                Text("المصحف متاح بدون حساب أو اتصال. الخدمات الاجتماعية تحتاج بيانات الحساب والمنشورات والرسائل لتعمل، وتُحفظ لدى Cloudflare.", color = Color.White)
+                Text("الفاتحة والصفحات المحفوظة متاحة بدون حساب أو اتصال. تُنزّل بقية صفحات المصحف عند فتحها، ويمكن تنزيل المصحف كاملًا من الفهرس. الخدمات الاجتماعية تحتاج بيانات الحساب والمنشورات والرسائل لتعمل، وتُحفظ لدى Cloudflare.", color = Color.White)
                 Text("الكاميرا والميكروفون عند المكالمة فقط. تسجيل Google والإشعارات ويوتيوب خدمات اختيارية، وتُستخدم عند اختيار وظائفها. يمكنك إيقاف الإشعارات وسحب الموافقة من القائمة.", color = PremiumMuted)
                 LegalLinks { document = it }
                 Row { Checkbox(agreedPrivacy, { agreedPrivacy = it }); Text("قرأت سياسة الخصوصية وأوافق على معالجة البيانات اللازمة للخدمات التي أختارها.", Modifier.padding(top = 10.dp), color = Color.White) }
                 Row { Checkbox(agreedTerms, { agreedTerms = it }); Text("قرأت شروط الاستخدام وألتزم بحقوق الآخرين وقواعد نشر المحتوى.", Modifier.padding(top = 10.dp), color = Color.White) }
                 Button(onClick = { AttaPrivacy.accept(context); showWithdrawalGate = false }, enabled = agreedPrivacy && agreedTerms,
                     modifier = Modifier.fillMaxWidth()) { Text("الموافقة والمتابعة") }
-                OutlinedButton(onClick = { offlineReader = true }, modifier = Modifier.fillMaxWidth()) { Text("المصحف بدون حساب أو اتصال") }
+                OutlinedButton(onClick = { offlineReader = true }, modifier = Modifier.fillMaxWidth()) { Text("قراءة الصفحات المحفوظة دون اتصال") }
                 TextButton(onClick = { (context as? Activity)?.finish() }) { Text("عدم الموافقة والخروج") }
             }
             document?.let { LegalDocument(it) { document = null } }
@@ -109,7 +109,7 @@ internal fun LegalDocument(name: String, close: () -> Unit) {
                         else if (request.hasGesture() && request.url.toString() in setOf(
                             "https://www.cloudflare.com/privacypolicy/", "https://policies.google.com/privacy",
                             "https://firebase.google.com/support/privacy", "https://consumer.huawei.com/en/privacy/privacy-policy/",
-                            "https://resend.com/legal/privacy-policy"
+                            "https://resend.com/legal/privacy-policy", "https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement"
                         )) runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, request.url)) }
                         return true
                     }

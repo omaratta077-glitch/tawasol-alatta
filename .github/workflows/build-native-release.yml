@@ -118,6 +118,10 @@ jobs:
           set -euo pipefail
           python3 scripts/check_core.py
           node scripts/test_backend.mjs
+          node scripts/test_audit_security.mjs
+          node scripts/test_inbox_summary.mjs
+          node scripts/test_media_ranges.mjs
+          node scripts/test_post_interactions.mjs
           node scripts/test_football_catalog.mjs
           node scripts/test_privacy_admin_reset.mjs
           node scripts/test_full_reset.mjs
@@ -240,6 +244,7 @@ jobs:
           APK=android-native/app/build/outputs/apk/release/app-release.apk
           test -s "$APK"
           python3 scripts/check_mushaf_apk.py "$APK"
+          python3 scripts/check_slim_apk.py "$APK"
           python3 scripts/check_store_apk.py "$APK" --channel direct
           APKSIGNER="$ANDROID_HOME/build-tools/35.0.0/apksigner"
           "$APKSIGNER" verify --verbose "$APK"
@@ -270,6 +275,7 @@ jobs:
           gradle --no-daemon --console=plain -Palatta.distribution=appgallery assembleRelease
           APK=app/build/outputs/apk/release/app-release.apk
           python3 ../scripts/check_mushaf_apk.py "$APK"
+          python3 ../scripts/check_slim_apk.py "$APK"
           python3 ../scripts/check_store_apk.py "$APK" --channel appgallery
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose "$APK"
           ACTUAL_SHA1="$("$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --print-certs "$APK" | sed -n 's/.*certificate SHA-1 digest:[[:space:]]*//p' | head -n 1 | tr -d ':[:space:]' | tr '[:lower:]' '[:upper:]')"
