@@ -28,6 +28,27 @@ internal object HadithLibrary {
     private val installLock = Mutex()
     @Volatile private var cached: SQLiteDatabase? = null
 
+    /**
+     * Only clear this library's own extracted SQLite files; never touch user
+     * accounts, posts, settings, messages or other app storage.
+     * Calling books() after repair will reinstall from the signed APK assets.
+     */
+    suspend fun repair(context: Context) = withContext(Dispatchers.IO) {
+        installLock.withLock {
+            cached?.let { runCatching { it.close() } }
+            cached = null
+            val directory = File(context.applicationContext.noBackupFilesDir, "hadith")
+            directory.listFiles()?.filter { file ->
+                (file.name.startsWith("library-") && file.name.endsWith(".db")) ||
+                    (file.name.startsWith("install-") && file.name.endsWith(".part"))
+            }?.forEach { file ->
+                if (!file.delete() && file.exists()) {
+                    throw HadithPreparationException("تعذر حذف النسخة المحلية التالفة من مكتبة الأحاديث.")
+                }
+            }
+        }
+    }
+
     private suspend fun open(context: Context): SQLiteDatabase = installLock.withLock {
         cached?.takeIf { it.isOpen }?.let { return@withLock it }
         val app = context.applicationContext
@@ -90,7 +111,17 @@ internal object HadithLibrary {
                 return db
             } catch (error: Exception) { db.close(); throw error }
         }
-        val db = try { checked() } catch (_: Exception) { target.delete(); install(); checked() }
+        val db = try { checked() } catch (first: Exception) {
+            Log.w("AlattaHadith", "Existing SQLite verification failed; reinstalling verified assets", first)
+            if (!target.delete() && target.exists()) {
+                throw HadithPreparationException("تعذر استبدال مكتبة الأحاديث المحلية. استخدم إعادة تجهيز المكتبة.", first)
+            }
+            try { install(); checked() }
+            catch (again: Exception) {
+                Log.e("AlattaHadith", "SQLite open still failed after reinstall", again)
+                throw HadithPreparationException("تعذر فتح قاعدة الأحاديث بعد إعادة استخراجها. استخدم نسخ التشخيص وأرسله للدعم.", again)
+            }
+        }
         cached = db
         directory.listFiles()?.filter { it.name.startsWith("library-") && it.name.endsWith(".db") && it != target }?.forEach { it.delete() }
         db

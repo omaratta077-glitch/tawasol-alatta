@@ -5,6 +5,7 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.util.Log
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -53,6 +54,8 @@ internal fun HadithLibraryScreen(query: String, modifier: Modifier = Modifier, o
     var result by remember { mutableStateOf<HadithPage?>(null) }
     var loading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf("") }
+    var diagnostic by remember { mutableStateOf("") }
+    var repairRequested by remember { mutableStateOf(false) }
     var notice by remember { mutableStateOf("") }
     var retry by remember { mutableIntStateOf(0) }
     var fontSize by remember { mutableIntStateOf(preferences.getInt("font_size", 22).coerceIn(17, 30)) }
@@ -81,11 +84,28 @@ internal fun HadithLibraryScreen(query: String, modifier: Modifier = Modifier, o
     }
     BackHandler(enabled = bookId.isNotBlank() || query.isNotBlank() || reading) { back() }
     LaunchedEffect(retry) {
-        loading = true; error = ""
-        try { books = HadithLibrary.books(context) }
-        catch (cancelled: CancellationException) { throw cancelled }
-        catch (failure: Exception) { error = (failure as? HadithPreparationException)?.message ?: "تعذر تجهيز مكتبة الأحاديث. أعد المحاولة." }
-        finally { loading = false }
+        loading = true; error = ""; diagnostic = ""
+        try {
+            if (repairRequested) {
+                HadithLibrary.repair(context)
+                repairRequested = false
+            }
+            books = HadithLibrary.books(context)
+        } catch (cancelled: CancellationException) { throw cancelled }
+        catch (failure: Exception) {
+            Log.e("AlattaHadith", "Library initialization failed on device", failure)
+            // Keep private paths/session data out of the screenshot and clipboard.
+            val origin = generateSequence(failure as Throwable?) { it.cause }.last()
+            val kind = when (origin) {
+                is android.database.sqlite.SQLiteException -> "SQLite"
+                is java.io.IOException -> "STORAGE"
+                is SecurityException -> "ACCESS"
+                else -> "INIT"
+            }
+            diagnostic = "Hadith ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE}) • $kind • ${origin.javaClass.simpleName}"
+            error = (failure as? HadithPreparationException)?.message
+                ?: "تعذر فتح مكتبة الأحاديث ($kind). جرّب إعادة تجهيز المكتبة."
+        } finally { loading = false }
     }
     LaunchedEffect(query) {
         if (previousQuery != query) { page = 0; previousQuery = query }
@@ -130,7 +150,19 @@ internal fun HadithLibraryScreen(query: String, modifier: Modifier = Modifier, o
         if (loading) LinearProgressIndicator(Modifier.fillMaxWidth().padding(vertical = 6.dp), color = PremiumGold)
         if (error.isNotBlank()) {
             Text(error, color = Color(0xFFFFB4A9), modifier = Modifier.padding(12.dp))
-            TextButton(onClick = { retry++ }) { Text("إعادة المحاولة", color = PremiumGoldLight) }
+            if (diagnostic.isNotBlank()) Text(diagnostic, color = PremiumMuted, fontSize = 11.sp)
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                TextButton(onClick = { retry++ }) { Text("إعادة المحاولة", color = PremiumGoldLight) }
+                TextButton(onClick = {
+                    repairRequested = true
+                    retry++
+                }) { Text("إعادة تجهيز المكتبة", color = PremiumGoldLight) }
+            }
+            if (diagnostic.isNotBlank()) TextButton(onClick = {
+                (context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager)
+                    .setPrimaryClip(ClipData.newPlainText("تشخيص الأحاديث", diagnostic))
+                notice = "تم نسخ تشخيص المشكلة"
+            }) { Text("نسخ التشخيص", color = PremiumGoldLight, fontSize = 12.sp) }
         }
         when {
             books.isEmpty() -> Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
