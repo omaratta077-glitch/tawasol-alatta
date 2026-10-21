@@ -5,6 +5,12 @@ plugins {
 }
 
 val appGalleryBuild = providers.gradleProperty("alatta.distribution").orNull == "appgallery"
+// Assemble a slim asset tree; retain only the opening page inside the APK.
+val slimMushafAssets by tasks.registering(Copy::class) {
+    from("src/main/assets") { exclude("mushaf/pages/**") }
+    from("src/main/assets/mushaf/pages/001.svg.gz") { into("mushaf/pages") }
+    into(layout.buildDirectory.dir("generated/slimAssets"))
+}
 val syncLegalAssets by tasks.registering(Copy::class) {
     from(rootProject.file("../cloudflare-site/public")) { include("privacy.html", "terms.html", "data-rights.html") }
     into(layout.buildDirectory.dir("generated/legalAssets/legal"))
@@ -18,8 +24,8 @@ android {
         applicationId = "com.alatta.nativeapp"
         minSdk = 26
         targetSdk = 35
-        versionCode = 230
-        versionName = "1.0.130"
+        versionCode = 231
+        versionName = "1.0.131"
         // Ship phone ABIs only; exclude emulator x86 binaries from the APK.
         ndk { abiFilters += setOf("arm64-v8a", "armeabi-v7a") }
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
@@ -67,6 +73,7 @@ android {
             signingConfig = signingConfigs.getByName("officialRelease")
         }
     }
+    sourceSets.getByName("main").assets.setSrcDirs(listOf(layout.buildDirectory.dir("generated/slimAssets").get().asFile))
     sourceSets.getByName("main").assets.srcDir(layout.buildDirectory.dir("generated/legalAssets"))
     if (appGalleryBuild) {
         sourceSets.getByName("release").manifest.srcFile("src/appgallery/AndroidManifest.xml")
@@ -80,7 +87,7 @@ android {
     kotlinOptions { jvmTarget = "17" }
     testOptions.unitTests.isIncludeAndroidResources = true
 }
-tasks.named("preBuild").configure { dependsOn(syncLegalAssets) }
+tasks.named("preBuild").configure { dependsOn(syncLegalAssets, slimMushafAssets) }
 
 
 
