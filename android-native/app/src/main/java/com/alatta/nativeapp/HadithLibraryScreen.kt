@@ -84,7 +84,7 @@ internal fun HadithLibraryScreen(query: String, modifier: Modifier = Modifier, o
         loading = true; error = ""
         try { books = HadithLibrary.books(context) }
         catch (cancelled: CancellationException) { throw cancelled }
-        catch (_: Exception) { error = "تعذر تجهيز مكتبة الأحاديث. أعد المحاولة." }
+        catch (failure: Exception) { error = (failure as? HadithPreparationException)?.message ?: "تعذر تجهيز مكتبة الأحاديث. أعد المحاولة." }
         finally { loading = false }
     }
     LaunchedEffect(query) {
