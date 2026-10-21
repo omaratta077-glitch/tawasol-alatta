@@ -28,6 +28,7 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -40,11 +41,11 @@ import org.json.JSONObject
 
 // Android vectors are produced directly from cloudflare-site/public/icons.js.
 // This file does NOT use substitute text glyphs or platform-dependent emoji.
-internal val PremiumGold = Color(0xFFE6B94E)
-internal val PremiumGoldLight = Color(0xFFF6D776)
-internal val PremiumBackground = Color(0xFF040506)
-internal val PremiumPanel = Color(0xFF090D0F)
-internal val PremiumBorder = Color(0xFF6B5429)
+internal val PremiumGold = WebsiteStyle.goldMid
+internal val PremiumGoldLight = WebsiteStyle.goldLight
+internal val PremiumBackground = WebsiteStyle.black
+internal val PremiumPanel = WebsiteStyle.panel
+internal val PremiumBorder = WebsiteStyle.line
 internal val PremiumMuted = Color(0xFFB6BBC0)
 
 @Composable
@@ -111,50 +112,62 @@ internal fun SiteIcon(name: String, modifier: Modifier = Modifier, tint: Color =
 internal fun PremiumHeader(
     current: String,
     unreadNotifications: Int = 0,
+    avatarUrl: String = "",
+    accountName: String = "",
+    accountUsername: String = "",
     onNavigate: (String) -> Unit
 ) {
+    // Website mobile reference-header: account -> YouTube, alerts, messages,
+    // friends and search. Retain native navigation and Android click handlers.
+    val compact = LocalConfiguration.current.screenWidthDp < 440
     Row(
-        Modifier.fillMaxWidth().height(62.dp)
-            .background(Brush.verticalGradient(listOf(Color(0xFF0B0F11), PremiumBackground)))
-            .border(BorderStroke(0.5.dp, PremiumBorder.copy(alpha = .75f)))
-            .padding(horizontal = 9.dp),
+        Modifier.fillMaxWidth().height(68.dp)
+            .background(Brush.verticalGradient(listOf(Color(0xFF0B0D0F), WebsiteStyle.black)))
+            .border(BorderStroke(.5.dp, WebsiteStyle.line))
+            .padding(horizontal = 7.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween
+        horizontalArrangement = Arrangement.spacedBy(4.dp)
     ) {
-        // RTL: first child is positioned on the right. Brand icon is only
-        // slightly bigger than the notification icons, as requested.
-        Row(
-            Modifier.widthIn(min = 111.dp).clickable { onNavigate("الرئيسية") },
+        Row(Modifier.clickable { onNavigate("الملف") },
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(5.dp)
-        ) {
-            Image(painterResource(R.drawable.logo_premium), "شعار العطا", Modifier.size(34.dp).clip(CircleShape))
-            Text("AL-ATTA", color = PremiumGoldLight, fontWeight = FontWeight.Bold,
-                fontSize = 12.sp, maxLines = 1, softWrap = false)
+            horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+            if (avatarUrl.isNotBlank()) {
+                ProfileMediaImage(avatarUrl, "صورتي الشخصية", Modifier.size(42.dp).clip(CircleShape))
+            } else Image(painterResource(R.drawable.logo_premium), "شعار العطا",
+                Modifier.size(42.dp).clip(CircleShape))
+            if (!compact) Column(Modifier.widthIn(max = 104.dp)) {
+                Text(accountName.ifBlank { "حسابي" }, color = PremiumGoldLight,
+                    fontSize = 12.sp, fontWeight = FontWeight.Bold,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text("@"+accountUsername, color = PremiumMuted, fontSize = 10.sp,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
         }
-        // Keep the four navigation buttons grouped tightly on the LEFT in RTL.
-        // Preserve 38dp tap targets; reduce only the gap between the buttons.
+        if (!compact) Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text("تواصل العطا", color = PremiumGoldLight, fontSize = 12.sp,
+                fontWeight = FontWeight.Bold, maxLines = 1)
+            Text("AL-ATTA", color = PremiumMuted, fontSize = 9.sp, maxLines = 1)
+        }
         Spacer(Modifier.weight(1f))
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(3.dp)
-        ) {
-            PremiumTopItem("search", "استكشاف", current, onNavigate)
-            PremiumTopItem("message-circle", "الرسائل", current, onNavigate)
-            PremiumTopItem("users", "الأصدقاء", current, onNavigate)
+        Row(verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(1.dp)) {
+            PremiumTopItem("youtube", "يوتيوب", current, onNavigate)
             Box(Modifier.size(38.dp), contentAlignment = Alignment.Center) {
                 PremiumTopItem("bell", "الإشعارات", current, onNavigate)
                 if (unreadNotifications > 0) {
-                    Box(Modifier.align(Alignment.BottomStart).offset(x = (-1).dp, y = 2.dp)
-                        .sizeIn(minWidth = 15.dp, minHeight = 15.dp)
+                    Box(Modifier.align(Alignment.BottomStart)
+                        .sizeIn(minWidth = 16.dp, minHeight = 16.dp)
                         .background(PremiumGold, CircleShape)
                         .padding(horizontal = 3.dp), contentAlignment = Alignment.Center) {
                         Text(unreadNotifications.coerceAtMost(99).toString(),
-                            fontSize = 9.sp, lineHeight = 10.sp, color = PremiumBackground,
-                            fontWeight = FontWeight.Bold)
+                            fontSize = 9.sp, lineHeight = 10.sp,
+                            color = PremiumBackground, fontWeight = FontWeight.Bold)
                     }
                 }
             }
+            PremiumTopItem("message-circle", "الرسائل", current, onNavigate)
+            PremiumTopItem("users", "الأصدقاء", current, onNavigate)
+            PremiumTopItem("search", "استكشاف", current, onNavigate)
         }
     }
 }
@@ -198,8 +211,11 @@ internal fun PremiumBottomNav(current: String, go: (String) -> Unit) {
         // The first item is at the far right in this Arabic navigation row.
         // Remaining screens stay reachable by horizontal swiping, not removed.
         Triple("الرئيسية", "home", "الرئيسية"),
+        Triple("استكشاف", "search", "استكشاف"),
+        Triple("الأصدقاء", "users", "الأصدقاء"),
         Triple("الرسائل", "message-circle", "الرسائل"),
-        Triple("الملف", "user-round", "الملف"),
+        Triple("الإشعارات", "bell", "الإشعارات"),
+        Triple("الملف", "user-round", "حسابي"),
         Triple("القرآن", "book-open", "القرآن"),
         Triple("الأحاديث", "book-text", "الأحاديث"),
         Triple("الأذكار", "hand-heart", "الأذكار"),
@@ -209,9 +225,9 @@ internal fun PremiumBottomNav(current: String, go: (String) -> Unit) {
     )
     val scroll = rememberScrollState()
     Row(
-        Modifier.fillMaxWidth().height(74.dp)
-            .background(PremiumBackground)
-            .border(0.8.dp, PremiumBorder, RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp))
+        Modifier.fillMaxWidth().height(84.dp)
+            .background(WebsiteStyle.panel)
+            .border(.8.dp, WebsiteStyle.line, RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp))
             .horizontalScroll(scroll)
             .padding(horizontal = 5.dp, vertical = 5.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -220,10 +236,10 @@ internal fun PremiumBottomNav(current: String, go: (String) -> Unit) {
         destinations.forEach { (name, icon, label) ->
             val selected = current == name
             Column(
-                Modifier.width(66.dp).fillMaxHeight()
+                Modifier.width(68.dp).fillMaxHeight()
                     .background(
-                        if (selected) PremiumGold.copy(alpha = .20f)
-                        else Color(0xFF171A1D),
+                        if (selected) WebsiteStyle.goldMid.copy(alpha = .22f)
+                        else WebsiteStyle.panel2,
                         RoundedCornerShape(13.dp)
                     )
                     .clip(RoundedCornerShape(13.dp))
@@ -232,10 +248,11 @@ internal fun PremiumBottomNav(current: String, go: (String) -> Unit) {
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center
             ) {
-                SiteIcon(icon, tint = if (selected) PremiumGoldLight else PremiumMuted, size = 23.dp)
+                SiteIcon(icon, tint = if (selected) PremiumGoldLight else PremiumMuted, size = 28.dp)
                 Spacer(Modifier.height(4.dp))
                 Text(label, color = if (selected) PremiumGoldLight else PremiumMuted,
-                    fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    fontSize = 12.sp, fontWeight = FontWeight.Bold,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis)
                 if (selected) Box(Modifier.padding(top = 3.dp).width(20.dp).height(2.dp)
                     .background(PremiumGold, CircleShape))
             }

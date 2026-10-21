@@ -8,6 +8,9 @@ assert.equal((native.match(/YouTubePlayer\(youtubeId\)/g)||[]).length,1,'screen 
 assert.ok(!native.includes('AlattaFixedYouTubePlayer') && !native.includes('attaYouTubeHtml'),'no duplicate native player');
 assert.ok(native.includes('loadUrl("$BASE/")') && native.includes('atta-site-youtube-bridge.js') && !native.includes('document.body.replaceChildren(host)'),'Android drives the actual site player without replacing the website document');
 assert.ok(!native.includes('raw.contains("username", ignoreCase = true)'),'no blanket mapping of login failures to username-taken');
+assert.ok(native.includes('WebsiteFeedPostCard') &&
+fs.existsSync('android-native/app/src/main/java/com/alatta/nativeapp/WebsiteStyle.kt'),
+'website palette and post card styling present');
 const shine = fs.readFileSync('android-native/app/src/main/java/com/alatta/nativeapp/AttaGoldShine.kt', 'utf8');
 const auth = fs.readFileSync('android-native/app/src/main/java/com/alatta/nativeapp/PremiumAuth.kt','utf8');
 const chrome = fs.readFileSync('android-native/app/src/main/java/com/alatta/nativeapp/PremiumChrome.kt','utf8');

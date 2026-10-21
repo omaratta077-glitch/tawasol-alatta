@@ -295,11 +295,11 @@ internal const val ATTA_API_BASE = "https://tawasol-alatta.omaratta077-4fd.worke
 private const val BASE = ATTA_API_BASE
 // Colors transcribed from the FINAL :root block in cloudflare-site/public/style.css.
 // Intentionally independent of the web CSS: styling changes require an Android update.
-private val Gold = Color(0xFFE6B94E)
-private val GoldLight = Color(0xFFF6D776)
-private val Black = Color(0xFF040506)
-private val Panel = Color(0xFF090D0F)
-private val Border = Color(0xFF6B5429)
+private val Gold = WebsiteStyle.goldMid
+private val GoldLight = WebsiteStyle.goldLight
+private val Black = WebsiteStyle.black
+private val Panel = WebsiteStyle.panel
+private val Border = WebsiteStyle.line
 private val White = Color(0xFFF7F8F9)
 private val Muted = Color(0xFFC9D0D4)
 
@@ -564,6 +564,16 @@ private fun SignupLegalConsent(
     }
 }
 
+/** Website-style flat feed card, leaving form/admin cards untouched. */
+@Composable private fun WebsiteFeedPostCard(content: @Composable ColumnScope.() -> Unit) {
+    Column(
+        Modifier.fillMaxWidth().padding(vertical = 4.dp)
+            .background(WebsiteStyle.panel)
+            .border(.7.dp, WebsiteStyle.line.copy(alpha = .60f), RoundedCornerShape(10.dp))
+            .padding(horizontal = 12.dp, vertical = 14.dp),
+        verticalArrangement = Arrangement.spacedBy(3.dp), content = content
+    )
+}
 @Composable private fun SectionTitle(text: String) {
     Text(text, color = GoldLight, fontSize = 20.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 7.dp))
 }
@@ -2294,13 +2304,14 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                         if (error.isNotBlank()) Text(error, color = Color(0xFFFF8888), textAlign = TextAlign.Center)
                     }
                 } else {
-                    // Persistent authenticated header, independent of the selected tab.
-                    // Keeps the AL-ATTA logo beside the app name (not the username),
-                    // with message, notification and unboxed YouTube icons.
-                    if (tab == "الرئيسية") PremiumHeader(
+                    // Site-style social header; native Quran, calls, video and
+                    // full-screen chat keep their own controls.
+                    if (tab in setOf("الرئيسية", "استكشاف", "الأصدقاء",
+                            "الإشعارات", "الملف", "المحفوظات", "المزيد", "الإدارة")) PremiumHeader(
                         current = tab,
                         unreadNotifications = notifications.count { !it.optBoolean("read", false) },
-                        onNavigate = ::navigate
+                        avatarUrl = myAvatar, accountName = displayName,
+                        accountUsername = myUsername, onNavigate = ::navigate
                     )
                     if (tab == "الرئيسية" || tab == "استكشاف") {
                         if (tab == "استكشاف") {
@@ -2540,7 +2551,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                 val visibleLikeCount = (baseTotal +
                                     (if (selectedReaction.isNotBlank()) 1 else 0) -
                                     (if (serverReaction.isNotBlank()) 1 else 0)).coerceAtLeast(0)
-                                CardBox {
+                                WebsiteFeedPostCard {
                                     var postMenuExpanded by remember(postId) { mutableStateOf(false) }
                                     val isMyPost = p.optString("author").equals(myUsername, ignoreCase = true)
                                     val canModerate = adminRole == "super_admin"
@@ -2587,7 +2598,9 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                         }
                                     }
                                     val visiblePostText = visibleYoutubePostText(visibleMushafPostText(p.optString("text"), BASE))
-                                    if (visiblePostText.isNotBlank()) Text(visiblePostText, color = White, modifier = Modifier.padding(vertical = 10.dp))
+                                    if (visiblePostText.isNotBlank()) Text(visiblePostText, color = White,
+                                        fontSize = 19.sp, lineHeight = 30.sp,
+                                        modifier = Modifier.padding(vertical = 10.dp))
                                     MushafPostActions(p.optString("text")) { pages ->
                                         quranReadingRange = pages; quranPage = pages.first; navigate("القرآن")
                                     }
