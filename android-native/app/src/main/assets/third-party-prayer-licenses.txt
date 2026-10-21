@@ -1,0 +1,38 @@
+Prayer-time calculation: Adhan Java 1.2.1 by Batoul Apps
+Source: https://github.com/batoulapps/adhan-kotlin/tree/java
+
+The MIT License (MIT)
+
+Copyright (c) 2016 Batoul Apps
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+Bundled audio: Beautiful adhan.ogg, Adam-synagda, 2022-04-29.
+Source: https://commons.wikimedia.org/wiki/File:Beautiful_adhan.ogg
+Original file: https://upload.wikimedia.org/wikipedia/commons/b/b0/Beautiful_adhan.ogg
+License: CC0 1.0 Universal Public Domain Dedication
+https://creativecommons.org/publicdomain/zero/1.0/
+Published SHA-1: a1fa4fd942401922c5c3301816384aae86956522
+Original size: 1229032 bytes; duration: about 154 seconds.
+Bundled unchanged for offline playback; integrity is checked in the final APK.
+SHA-256: 35fe06b08fe80505c550c33fed8a783fa9901ddc81ac884958b4be048f5b2a79
+
+Reference APK: used only to inspect navigation and layout structure.
+No third-party APK code, proprietary fonts, artwork, branding, ads or audio
+was copied into this application.

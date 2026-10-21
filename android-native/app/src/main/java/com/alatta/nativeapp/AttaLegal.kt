@@ -30,7 +30,10 @@ internal object AttaPrivacy {
     fun accepted(context: Context) = prefs(context).getString("accepted_version", "") == VERSION
     fun accept(context: Context) { prefs(context).edit().putString("accepted_version", VERSION)
         .putLong("accepted_at", System.currentTimeMillis()).apply() }
-    fun revoke(context: Context) { prefs(context).edit().remove("accepted_version").remove("accepted_at").apply() }
+    fun revoke(context: Context) {
+        AdhanScheduler.disable(context)
+        prefs(context).edit().remove("accepted_version").remove("accepted_at").apply()
+    }
     fun notifications(context: Context) = prefs(context).getBoolean("notifications", true)
     fun setNotifications(context: Context, enabled: Boolean) { prefs(context).edit().putBoolean("notifications", enabled).apply() }
 }

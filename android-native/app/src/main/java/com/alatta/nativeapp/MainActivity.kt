@@ -427,6 +427,8 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Restore only on an Activity launch, never before validating a cold-start alarm receiver.
+        AdhanScheduler.restore(this)
         consumePushIntent(intent)
         setContent { NativeApp() }
     }
@@ -438,6 +440,11 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun consumePushIntent(intent: Intent?) {
+        if (intent?.action == AdhanScheduler.ACTION_OPEN) {
+            requestedNotificationTab = "الأذكار"
+            intent.action = Intent.ACTION_MAIN
+            return
+        }
         if (intent?.action == AttaPush.ACTION_OPEN_NOTIFICATION) {
             val destination = intent.getStringExtra("atta_notification_tab")
             if (destination in setOf("الرسائل", "الأصدقاء", "الإشعارات"))
