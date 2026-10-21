@@ -27,7 +27,13 @@ assert.ok(index.pages, 'offline Quran index missing');
 console.log('PASS: Native offline Quran reader, 604 compressed SVG pages, sampled valid pages, history and back navigation');
 
 // Android asset merger expands .svg.gz to .svg before bundling the APK.
-assert.match(source, /mushaf\/pages\/%03d\.svg/);
+const pageStore = fs.readFileSync(path.join(app, 'java/com/alatta/nativeapp/MushafPageStore.kt'), 'utf8');
+assert.match(source, /MushafPageStore\\.openPage\\(context,page\\)/);
+assert.match(pageStore, /mushaf\\/pages\\/001\\.svg/);
+assert.match(pageStore, /GZIPInputStream/);
+assert.match(pageStore, /assetSha256/);
+assert.match(pageStore, /ensureCached/);
+assert.match(pageStore, /MessageDigest/);
 assert.doesNotMatch(source, /GZIPInputStream/);
 
 for (const control of ["فهرس السور","الأجزاء","المرجعيات","الملاحظات","بحث في أسماء السور","bookmark","note_$page"]) assert.ok(source.includes(control), `reader control missing: ${control}`);
