@@ -76,6 +76,7 @@ class PrayerCalculationTest {
             val times = PrayerCalculation.day(configured.copy(method = method), LocalDate.of(2026, 10, 21))
             assertEquals(6, times.size)
             assertTrue(method, times.zipWithNext().all { (first, second) -> first.at < second.at })
+            assertTrue(method, times.all { it.at % 60_000L == 0L })
         }
     }
 

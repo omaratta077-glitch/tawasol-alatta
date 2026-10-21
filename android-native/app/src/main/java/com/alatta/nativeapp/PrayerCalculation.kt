@@ -94,7 +94,9 @@ internal object PrayerCalculation {
         val times = PrayerTimes(Coordinates(place.latitude, place.longitude), DateComponents(date.year, date.monthValue, date.dayOfMonth), parameters)
         val values = listOf(times.fajr, times.sunrise, times.dhuhr, times.asr, times.maghrib, times.isha)
         return prayerNames.keys.zip(values).map { (id, value) ->
-            val instant = requireNotNull(value) { "تعذر حساب المواقيت لهذا الموقع والتاريخ" }.time
+            // The Java library rounds seconds but retains Calendar's current
+            // milliseconds. Strip those so results and alarms are stable minutes.
+            val instant = requireNotNull(value) { "تعذر حساب المواقيت لهذا الموقع والتاريخ" }.time / 60_000L * 60_000L
             require(instant > 0L) { "تعذر حساب المواقيت لهذا الموقع والتاريخ" }
             PrayerMoment(id, instant)
         }
