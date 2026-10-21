@@ -8,6 +8,25 @@ assert.equal((native.match(/YouTubePlayer\(youtubeId\)/g)||[]).length,1,'screen 
 assert.ok(!native.includes('AlattaFixedYouTubePlayer') && !native.includes('attaYouTubeHtml'),'no duplicate native player');
 assert.ok(native.includes('loadUrl("$BASE/")') && native.includes('atta-site-youtube-bridge.js') && !native.includes('document.body.replaceChildren(host)'),'Android drives the actual site player without replacing the website document');
 assert.ok(!native.includes('raw.contains("username", ignoreCase = true)'),'no blanket mapping of login failures to username-taken');
+const shine = fs.readFileSync('android-native/app/src/main/java/com/alatta/nativeapp/AttaGoldShine.kt', 'utf8');
+const auth = fs.readFileSync('android-native/app/src/main/java/com/alatta/nativeapp/PremiumAuth.kt','utf8');
+const chrome = fs.readFileSync('android-native/app/src/main/java/com/alatta/nativeapp/PremiumChrome.kt','utf8');
+const chat = fs.readFileSync('android-native/app/src/main/java/com/alatta/nativeapp/MessengerChat.kt','utf8');
+const css = fs.readFileSync('cloudflare-site/public/style.css','utf8');
+assert.ok(css.includes('@keyframes attaGoldShine') && css.includes('animation:attaGoldShine 4.6s ease-in-out infinite;'),
+    'website is still the single reference animation');
+assert.ok(shine.includes('durationMillis = 4600') && shine.includes('2.6f at 2530') &&
+    shine.includes('2.6f at 4600') && shine.includes('CubicBezierEasing(.42f, 0f, .58f, 1f)'),
+    'native gold sweep uses the website 4.6-second CSS ease-in-out with 55% travel');
+assert.ok(shine.includes('size.width * .24f') && shine.includes('size.height * 1.40f') &&
+    shine.includes('Color.White.copy(alpha = .48f)') && shine.includes('tan(-22 degrees)'),
+    'native shine strip matches website width, height, opacity and slant');
+assert.ok(auth.includes('.attaGoldShine(enabled)') && !auth.includes('button-glimmer'),
+    'auth shares the same effect instead of legacy 3-second shine');
+assert.ok((native.match(/\.attaGoldShine\(enabled\)/g)||[]).length === 2 &&
+    chrome.includes('.attaGoldShine(selected)') &&
+    chat.includes('.attaGoldShine(canSend)'),
+    'publish, gold CTA, selected nav, and message send reuse the canonical shine');
 const hadithScreen=fs.readFileSync('android-native/app/src/main/java/com/alatta/nativeapp/HadithLibraryScreen.kt','utf8');
 const knowledge=fs.readFileSync('android-native/app/src/main/java/com/alatta/nativeapp/AlattaKnowledgeScreens.kt','utf8');
 assert.ok(hadithScreen.includes('onSharePost(sharedText)') &&

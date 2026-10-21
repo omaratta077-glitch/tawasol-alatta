@@ -561,6 +561,7 @@ internal fun MessengerThread(
                     .clip(CircleShape)
                     .background(if (canSend) ChatGold else Color(0xFF332919))
                     .border(1.dp, ChatGold.copy(alpha = 0.5f), CircleShape)
+                    .attaGoldShine(canSend)
                     .clickable(enabled = canSend, onClick = onSend),
                 contentAlignment = Alignment.Center
             ) {

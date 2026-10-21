@@ -50,22 +50,9 @@ internal fun PremiumAuthTextField(value: String, onChange: (String) -> Unit, hin
 
 @Composable
 internal fun PremiumAuthGoldButton(label: String, enabled: Boolean, onClick: () -> Unit) {
-    val shine = rememberInfiniteTransition(label = "gold-button-shine")
-    val progress by shine.animateFloat(
-        initialValue = -0.4f, targetValue = 1.4f,
-        animationSpec = infiniteRepeatable(animation = tween(3000, easing = LinearEasing), repeatMode = RepeatMode.Restart),
-        label = "button-glimmer"
-    )
     Button(onClick = onClick, enabled = enabled,
         modifier = Modifier.fillMaxWidth().height(54.dp).clip(RoundedCornerShape(18.dp))
-            .drawWithContent {
-                drawContent()
-                if (enabled) {
-                    val x = size.width * progress
-                    drawLine(color = Color.White.copy(alpha = .22f),
-                        start = Offset(x - 44f, 0f), end = Offset(x + 44f, size.height), strokeWidth = 28f)
-                }
-            },
+            .attaGoldShine(enabled),
         shape = RoundedCornerShape(18.dp),
         colors = ButtonDefaults.buttonColors(containerColor = AuthGold, contentColor = Color(0xFF090909),
             disabledContainerColor = Color(0xFF2A2A2A), disabledContentColor = Color.Gray)
