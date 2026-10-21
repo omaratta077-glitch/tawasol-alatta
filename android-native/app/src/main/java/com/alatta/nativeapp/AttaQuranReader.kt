@@ -456,7 +456,7 @@ private class MushafPageView(
             val result = runCatching { loadMushafDrawing(context, page) }
             post {
                 if (result.isSuccess) { svg = result.getOrNull(); invalidate() }
-                else reportError("تعذّر قراءة صفحة $page من الملفات المحلية: ${result.exceptionOrNull()?.message.orEmpty()}")
+                else reportError("تعذّر تحميل صفحة $page: ${result.exceptionOrNull()?.message.orEmpty()}")
             }
             executor.shutdown()
         }
@@ -476,7 +476,7 @@ private class MushafPageView(
 
 internal fun loadMushafDrawing(context: Context, page: Int): SVG {
     require(page in 1..604)
-    return context.assets.open(String.format(Locale.ROOT,"mushaf/pages/%03d.svg",page))
+    return MushafPageStore.openPage(context,page)
         .use { SVG.getFromInputStream(it) }
 }
 
