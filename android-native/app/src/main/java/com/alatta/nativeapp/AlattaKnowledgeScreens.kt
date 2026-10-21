@@ -33,20 +33,14 @@ private val hadithEntries = listOf(
     KnowledgeEntry("الكلمة الطيبة", "الكلمة الطيبة صدقة.", "رواه البخاري ومسلم"),
     KnowledgeEntry("الرحمة", "من لا يَرحم لا يُرحم.", "رواه البخاري ومسلم")
 )
-private val dhikrEntries = listOf(
-    KnowledgeEntry("تسبيح", "سُبْحَانَ اللَّهِ وَبِحَمْدِهِ", "100 مرة"),
-    KnowledgeEntry("الاستغفار", "أَسْتَغْفِرُ اللَّهَ وَأَتُوبُ إِلَيْهِ"),
-    KnowledgeEntry("ذكر التوحيد", "لَا إِلَهَ إِلَّا اللَّهُ وَحْدَهُ لَا شَرِيكَ لَهُ، لَهُ الْمُلْكُ وَلَهُ الْحَمْدُ وَهُوَ عَلَى كُلِّ شَيْءٍ قَدِيرٌ"),
-    KnowledgeEntry("الصلاة على النبي ﷺ", "اللَّهُمَّ صَلِّ عَلَى مُحَمَّدٍ وَعَلَى آلِ مُحَمَّدٍ")
-)
 
 @Composable
 internal fun KnowledgeScreen(section: String, query: String, modifier: Modifier = Modifier) {
-    val entries = when (section) {
-        "الأحاديث" -> hadithEntries
-        else -> dhikrEntries
+    if (section == "الأذكار") {
+        AzkarPrayerScreen(query, modifier)
+        return
     }
-    val counts = remember(section) { mutableStateMapOf<String, Int>() }
+    val entries = hadithEntries
     Column(modifier.fillMaxSize().background(Color(0xFF040506)).padding(horizontal = 12.dp)) {
         LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(bottom = 16.dp)) {
             items(entries.filter { query.isBlank() || it.title.contains(query, true) || it.body.contains(query, true) }) { item ->
@@ -57,15 +51,6 @@ internal fun KnowledgeScreen(section: String, query: String, modifier: Modifier 
                     Text(item.body, color = Color.White, fontSize = 19.sp, lineHeight = 33.sp,
                         textAlign = TextAlign.Start)
                     if (item.source.isNotEmpty()) Text(item.source, color = Color(0xFFC9D0D4), fontSize = 12.sp)
-                    if (section == "الأذكار") {
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            Button(onClick = { counts[item.title] = (counts[item.title] ?: 0) + 1 },
-                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE6B94E))) {
-                                Text("تسبيح: ${counts[item.title] ?: 0}", color = Color.Black)
-                            }
-                            TextButton(onClick = { counts[item.title] = 0 }) { Text("إعادة", color = gold) }
-                        }
-                    }
                 }
             }
         }

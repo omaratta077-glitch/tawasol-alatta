@@ -18,8 +18,8 @@ android {
         applicationId = "com.alatta.nativeapp"
         minSdk = 26
         targetSdk = 35
-        versionCode = 218
-        versionName = "1.0.118"
+        versionCode = 219
+        versionName = "1.0.119"
         buildConfigField("boolean", "IS_APPGALLERY", appGalleryBuild.toString())
         val hmsId = (System.getenv("ALATTA_HMS_APP_ID") ?: "").trim().takeIf { it.matches(Regex("[0-9]{1,20}")) } ?: ""
         buildConfigField("String", "HMS_APP_ID", "\"$hmsId\"")
@@ -82,6 +82,7 @@ tasks.named("preBuild").configure { dependsOn(syncLegalAssets) }
 
 dependencies {
     testImplementation("junit:junit:4.13.2")
+    implementation("com.batoulapps.adhan:adhan:1.2.1")
     implementation(platform("androidx.compose:compose-bom:2024.12.01"))
     implementation("androidx.activity:activity-compose:1.9.3")
     implementation("androidx.core:core-ktx:1.15.0")
