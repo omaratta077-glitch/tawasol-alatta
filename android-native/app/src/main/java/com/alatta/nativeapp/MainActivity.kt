@@ -1035,6 +1035,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
     var publicProfileLoading by remember { mutableStateOf(false) }
     var youtubeSearch by remember { mutableStateOf("") }
     var knowledgeSearch by remember { mutableStateOf("") }
+    var footballSearch by remember { mutableStateOf("") }
     var youtubeItems by remember { mutableStateOf(emptyList<JSONObject>()) }
     var youtubeId by remember { mutableStateOf("") }
     // Choosing a suggestion only previews it. The trusted v1.0.57 WebView is
@@ -2266,15 +2267,17 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                             Text(pageTitle, color = GoldLight, fontWeight = FontWeight.Bold,
                                 fontSize = 15.sp, maxLines = 1,
                                 modifier = Modifier.weight(1f))
-                            if (tab in setOf("القرآن", "الأحاديث", "الأذكار", "يوتيوب", "الأصدقاء")) {
+                            if (tab in setOf("القرآن", "الأحاديث", "الأذكار", "يوتيوب", "الأصدقاء", "الرياضة")) {
                                 val isYoutube = tab == "يوتيوب"
                                 val isFriends = tab == "الأصدقاء"
+                                val isFootball = tab == "الرياضة"
                                 AttaCompactSearch(
-                                    value = if (isYoutube) youtubeSearch else if (isFriends) search else knowledgeSearch,
+                                    value = if (isYoutube) youtubeSearch else if (isFriends) search else if (isFootball) footballSearch else knowledgeSearch,
                                     onValueChange = { value ->
                                         when {
                                             isYoutube -> youtubeSearch = value
                                             isFriends -> search = value
+                                            isFootball -> footballSearch = value
                                             else -> knowledgeSearch = value
                                         }
                                     },
@@ -2300,7 +2303,9 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                 openHomeComposer()
                             })
                         "الأحاديث", "الأذكار" -> KnowledgeScreen(tab, knowledgeSearch, Modifier.weight(1f), onClearQuery = { knowledgeSearch = "" })
-                        "الرياضة" -> FootballScreen(Modifier.weight(1f))
+                        "الرياضة" -> FootballScreen(footballSearch, Modifier.weight(1f), isAdmin = adminRole == "super_admin",
+                            onManage = { navigate("الإدارة") }, onBeforePlayback = { youtubePlayRequested = false },
+                            onYoutube = { id -> youtubeId = id; youtubePlayRequested = true })
                         "الرئيسية", "استكشاف", "المحفوظات" -> LazyColumn(
                             Modifier.weight(1f).padding(horizontal = 8.dp),
                             state = if (tab == "الرئيسية") homeFeedListState else otherFeedListState,
@@ -2761,6 +2766,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                             item { SectionTitle("لوحة الإدارة • ${if (adminRole == "super_admin") "المدير الرئيسي" else "مشرف"}") }
                             if (adminRole == "super_admin") {
                                 item { CardBox { AdminAdhanVoicesPanel(token) } }
+                                item { CardBox { AdminFootballPanel(token) } }
                                 item {
                                     CardBox {
                                         AdminStatisticsPanel(adminSummary)

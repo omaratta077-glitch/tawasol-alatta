@@ -118,6 +118,7 @@ jobs:
           set -euo pipefail
           python3 scripts/check_core.py
           node scripts/test_backend.mjs
+          node scripts/test_football_catalog.mjs
           node scripts/test_privacy_admin_reset.mjs
           node scripts/test_full_reset.mjs
           node scripts/test_owner_change.mjs

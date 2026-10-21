@@ -48,6 +48,8 @@ import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.media3.common.MediaItem
+import androidx.media3.common.C
+import androidx.media3.common.Tracks
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
@@ -61,7 +63,7 @@ import kotlinx.coroutines.launch
 import org.json.JSONObject
 import kotlin.math.abs
 
-private fun Context.mediaActivity(): ComponentActivity? = when (this) {
+internal fun Context.mediaActivity(): ComponentActivity? = when (this) {
     is ComponentActivity -> this
     is ContextWrapper -> baseContext.mediaActivity()
     else -> null
@@ -123,7 +125,8 @@ internal fun AttaPostMediaViewer(
     sendComment: PostCommentSender? = null,
     onShare: (suspend (String) -> Unit)? = null,
     onStats: (String, JSONObject) -> Unit = { _, _ -> },
-    onOpenProfile: (String) -> Unit = {}
+    onOpenProfile: (String) -> Unit = {},
+    live: LivePlayback? = null
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -145,6 +148,9 @@ internal fun AttaPostMediaViewer(
     var comments by remember(id) { mutableIntStateOf(current.optInt("commentCount", current.optJSONArray("comments")?.length() ?: 0)) }
     var selected by remember(id) { mutableStateOf(current.optString("myReaction").ifBlank { if (current.optBoolean("likedByMe")) "like" else "" }) }
     var reacting by remember(id) { mutableStateOf(false) }
+    var videoHeights by remember { mutableStateOf(emptyList<Int>()) }
+    var qualityCap by remember(id) { mutableIntStateOf(0) }
+    var qualityMenu by remember(id) { mutableStateOf(false) }
     val player = remember(isVideo) { if (isVideo) ExoPlayer.Builder(context).build() else null }
     val updateStats: (String, JSONObject) -> Unit = { postId, data ->
         if (postId == id) {
@@ -159,6 +165,11 @@ internal fun AttaPostMediaViewer(
             override fun onIsPlayingChanged(value: Boolean) { playing = value }
             override fun onPlaybackStateChanged(state: Int) { buffering = state == Player.STATE_BUFFERING }
             override fun onPlayerError(error: PlaybackException) { failed = "تعذر تشغيل الفيديو. أعد المحاولة أو تحقق من الاتصال."; controls = true }
+            override fun onTracksChanged(tracks: Tracks) {
+                videoHeights = tracks.groups.filter { it.type == C.TRACK_TYPE_VIDEO }.flatMap { group ->
+                    (0 until group.length).filter { group.isTrackSupported(it) }.map { group.getTrackFormat(it).height }
+                }.filter { it > 0 }.distinct().sorted()
+            }
         }
         player?.addListener(listener)
         val activity = context.mediaActivity()
@@ -169,9 +180,11 @@ internal fun AttaPostMediaViewer(
     // Opening the sole full-screen Media3 viewer starts playback; vertical
     // swipes switch tracks without creating a second video player.
     var continuePlayback by remember(isVideo) { mutableStateOf(isVideo) }
-    LaunchedEffect(id, url) {
+    LaunchedEffect(id, url, live?.mimeType) {
+        videoHeights = emptyList()
         player?.apply {
-            pause(); clearMediaItems(); setMediaItem(MediaItem.fromUri(url)); prepare()
+            val item = MediaItem.Builder().setUri(url).apply { live?.let { setMimeType(it.mimeType) } }.build()
+            pause(); clearMediaItems(); setMediaItem(item); prepare()
             playWhenReady = continuePlayback
             continuePlayback = false
         }
@@ -181,6 +194,10 @@ internal fun AttaPostMediaViewer(
             catch (_: Exception) { /* Reading media remains available during an API outage. */ }
         }
     }
+    LaunchedEffect(player, id, qualityCap) {
+        if (live != null && player != null) player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
+            .setMaxVideoSize(Int.MAX_VALUE, if (qualityCap == 0) Int.MAX_VALUE else qualityCap).build()
+    }
     LaunchedEffect(player, id) {
         while (player != null) {
             duration = player.duration.coerceAtLeast(0)
@@ -188,7 +205,7 @@ internal fun AttaPostMediaViewer(
             delay(350)
         }
     }
-    LaunchedEffect(playing, controls, sheet) { if (playing && controls && sheet == null) { delay(2500); controls = false } }
+    LaunchedEffect(playing, controls, sheet, qualityMenu) { if (playing && controls && sheet == null && !qualityMenu) { delay(2500); controls = false } }
     val changeVideo: (Int) -> Unit = { delta ->
         val next = index + delta
         if (next in items.indices) { continuePlayback = player?.playWhenReady == true; player?.pause(); index = next; failed = ""; controls = true }
@@ -238,6 +255,14 @@ internal fun AttaPostMediaViewer(
                         ) })
                     // Use the SINGLE central play/pause button in the controls row below.
                 } else AttaZoomableImage(url, "صورة المنشور", onTap = { controls = !controls })
+                if (live != null && controls) Row(Modifier.align(Alignment.TopCenter).fillMaxWidth()
+                    .background(Color(0xBB000000)).padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text(live.title, color = Color(0xFFF6D776), fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                        Text(live.provider, color = Color.White, fontSize = 12.sp)
+                    }
+                    IconButton(onClick = onDismiss) { SiteIcon("x", tint = Color.White, size = 22.dp) }
+                }
                 // Physical right edge in both RTL and LTR; one vertical social rail.
                 if (player != null && (sendReaction != null || onShare != null)) {
                     Column(Modifier.align(AbsoluteAlignment.TopRight)
@@ -293,7 +318,7 @@ internal fun AttaPostMediaViewer(
                             failed = ""; player.prepare(); player.play()
                         }) { Text("إعادة المحاولة", color = Color(0xFFE6B94E)) }
                     }
-                    if (duration > 0) {
+                    if (duration > 0 && live == null) {
                         // One slim seek line. Keep a comfortable 24dp invisible touch target,
                         // but draw only a 3dp track and a small gold thumb.
                         Canvas(Modifier.fillMaxWidth().height(24.dp)
@@ -339,12 +364,16 @@ internal fun AttaPostMediaViewer(
                     Row(Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceEvenly,
                         verticalAlignment = Alignment.CenterVertically) {
-                        IconButton(onClick = {
+                        if (live != null) TextButton(onClick = { player.seekToDefaultPosition(); player.play() }) {
+                            Text("للمباشر", color = Color(0xFFF6D776), fontSize = 12.sp)
+                        } else IconButton(onClick = {
                             changeVideo(-1)
                         }) { SiteIcon("skip-back", size = 20.dp, tint = Color.White) }
                         IconButton(onClick = {
                             if (playing) player.pause() else {
-                                if (player.playbackState == Player.STATE_ENDED) player.seekTo(0)
+                                if (player.playbackState == Player.STATE_ENDED) {
+                                    if (live != null) player.seekToDefaultPosition() else player.seekTo(0)
+                                }
                                 if (player.playerError != null) { failed = ""; player.prepare() }
                                 player.play()
                             }
@@ -355,7 +384,15 @@ internal fun AttaPostMediaViewer(
                             else SiteIcon(if (playing) "pause" else "play", size = 26.dp,
                                 tint = Color.White)
                         }
-                        IconButton(onClick = {
+                        if (live != null) Box {
+                            TextButton(onClick = { qualityMenu = true }, enabled = videoHeights.isNotEmpty()) {
+                                Text(if (qualityCap == 0) "الجودة: تلقائي" else "حتى ${qualityCap}p", color = Color(0xFFF6D776), fontSize = 12.sp)
+                            }
+                            DropdownMenu(qualityMenu, onDismissRequest = { qualityMenu = false }) {
+                                DropdownMenuItem(text = { Text("تلقائي حسب الاتصال") }, onClick = { qualityCap = 0; qualityMenu = false })
+                                videoHeights.forEach { height -> DropdownMenuItem(text = { Text("حتى ${height}p") }, onClick = { qualityCap = height; qualityMenu = false }) }
+                            }
+                        } else IconButton(onClick = {
                             changeVideo(1)
                         }) { SiteIcon("skip-forward", size = 20.dp, tint = Color.White) }
                     }

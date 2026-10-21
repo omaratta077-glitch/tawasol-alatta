@@ -2,6 +2,66 @@ import { DurableObject } from "cloudflare:workers";
 
 const encoder = new TextEncoder();
 
+// Football is an owner-managed catalog. Streams are played directly by the client,
+// without proxying another service or obtaining its credentials.
+function footballHttps(value){
+  const raw=typeof value==="string"?value.trim():"";
+  if(!raw || raw.length>2048 || /[\s\u0000-\u001f\u007f]/.test(raw))return "";
+  try{
+    const u=new URL(raw),host=u.hostname.toLowerCase();
+    if(u.protocol!=="https:" || u.username || u.password || (u.port&&u.port!=="443") ||
+      !/^(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z](?:[a-z0-9-]*[a-z0-9])?$/i.test(host) ||
+      /(^|\.)(localhost|local|internal)$/.test(host))return "";
+    u.hash="";return u.href;
+  }catch{return "";}
+}
+function footballYoutube(value){
+  const safe=footballHttps(value);if(!safe)return false;
+  const u=new URL(safe),host=u.hostname;
+  if(!["youtube.com","www.youtube.com","m.youtube.com","youtu.be"].includes(host))return false;
+  const id=host==="youtu.be"?u.pathname.slice(1):u.pathname==="/watch"?u.searchParams.get("v"):u.pathname.match(/^\/(?:live|embed|shorts)\/([^/]+)$/)?.[1];
+  return /^[A-Za-z0-9_-]{11}$/.test(id||"");
+}
+function footballText(value,max){
+  return typeof value==="string" && value.trim().length>=2 && value.trim().length<=max && !/[\u0000-\u001f<>]/.test(value)?value.trim():"";
+}
+function footballChange(current,body){
+  if(!Number.isSafeInteger(body.revision) || body.revision!==current.revision)return {status:409,error:"القائمة تغيرت؛ حدّثها قبل الحفظ كي لا تضيع تعديلات أخرى"};
+  const next=structuredClone(current),channel=body.channel||{},match=body.match||{};
+  if(body.action==="saveChannel"){
+    const id=channel.id||"",index=next.channels.findIndex(c=>c.id===id);
+    if(id && index<0)return {status:404,error:"القناة غير موجودة؛ حدّث القائمة"};
+    const name=footballText(channel.name,80),category=footballText(channel.category,60),provider=footballText(channel.provider,120);
+    const sourceUrl=footballHttps(channel.sourceUrl),streamUrl=footballHttps(channel.streamUrl),format=channel.format;
+    if(!name||!category||!provider||!sourceUrl||!streamUrl||!["hls","dash","youtube","external"].includes(format)||typeof channel.enabled!=="boolean" || (format==="youtube"&&!footballYoutube(streamUrl)))return {status:400,error:"أدخل اسم القناة والقسم والناشر وروابط HTTPS صحيحة واختر نوع المشغل"};
+    if(next.channels.some(c=>c.id!==id && c.streamUrl===streamUrl))return {status:409,error:"رابط القناة مضاف بالفعل؛ عدّل القناة الموجودة بدل تكرارها"};
+    if(index<0 && next.channels.length>=40)return {status:409,error:"الحد الأقصى 40 قناة؛ أزل قناة قديمة أولًا"};
+    const item={id:id||"fc-"+crypto.randomUUID(),name,category,provider,sourceUrl,streamUrl,format,enabled:channel.enabled};
+    if(index<0)next.channels.push(item);else next.channels[index]=item;
+  }else if(body.action==="deleteChannel"){
+    if(!next.channels.some(c=>c.id===body.id))return {status:404,error:"القناة غير موجودة"};
+    next.channels=next.channels.filter(c=>c.id!==body.id);
+    next.matches=next.matches.map(m=>m.channelId===body.id?{...m,channelId:""}:m);
+  }else if(body.action==="saveMatch"){
+    const id=match.id||"",index=next.matches.findIndex(m=>m.id===id);
+    if(id && index<0)return {status:404,error:"المباراة غير موجودة؛ حدّث القائمة"};
+    const home=footballText(match.home,60),away=footballText(match.away,60),league=footballText(match.league,80),channelId=typeof match.channelId==="string"?match.channelId:"";
+    const score=v=>v===null||v===undefined?null:Number.isInteger(v)&&v>=0&&v<=99?v:NaN;
+    const homeScore=score(match.homeScore),awayScore=score(match.awayScore);
+    if(!home||!away||home===away||!league||!Number.isSafeInteger(match.startsAt)||match.startsAt<1577836800000||match.startsAt>4102444800000||!["scheduled","live","finished"].includes(match.status)||Number.isNaN(homeScore)||Number.isNaN(awayScore)||(homeScore===null)!==(awayScore===null)||(channelId&&!next.channels.some(c=>c.id===channelId)))return {status:400,error:"راجع الفريقين والبطولة والموعد والحالة والنتيجة والقناة المختارة"};
+    if(next.matches.some(m=>m.id!==id && m.home===home && m.away===away && m.startsAt===match.startsAt))return {status:409,error:"المباراة مضافة بالفعل في الموعد نفسه"};
+    if(index<0 && next.matches.length>=80)return {status:409,error:"الحد الأقصى 80 مباراة؛ أزل مباراة قديمة أولًا"};
+    const item={id:id||"fm-"+crypto.randomUUID(),home,away,league,startsAt:match.startsAt,status:match.status,channelId,homeScore:match.status==="scheduled"?null:homeScore,awayScore:match.status==="scheduled"?null:awayScore};
+    if(index<0)next.matches.push(item);else next.matches[index]=item;
+  }else if(body.action==="deleteMatch"){
+    if(!next.matches.some(m=>m.id===body.id))return {status:404,error:"المباراة غير موجودة"};
+    next.matches=next.matches.filter(m=>m.id!==body.id);
+  }else return {status:400,error:"اختر إضافة أو تعديل أو إزالة قناة أو مباراة"};
+  next.revision++;next.updatedAt=Date.now();
+  if(encoder.encode(JSON.stringify(next)).length>96*1024)return {status:413,error:"حجم القائمة كبير؛ اختصر روابط المصادر أو أزل إدخالات قديمة"};
+  return {catalog:next};
+}
+
 async function hashPassword(text){
   const buf = await crypto.subtle.digest("SHA-256", encoder.encode(String(text)));
   return [...new Uint8Array(buf)].map(b=>b.toString(16).padStart(2,"0")).join("");
@@ -314,6 +374,37 @@ export class SignalingRoom extends DurableObject {
     // All administration, including backups, is restricted to the configured owner.
     if(role!=="super_admin")return {error:j({ok:false,error:"صلاحيات المدير الرئيسي فقط"},403)};
     return {session,role};
+  }
+
+  async footballApi(request,url){
+    const admin=url.pathname==="/api/admin/football";
+    if(request.method!=="GET" && (!admin||request.method!=="POST"))return j({ok:false,error:"طريقة الطلب غير مدعومة"},405);
+    let body={};
+    if(request.method==="POST"){
+      if(Number(request.headers.get("content-length")||0)>16*1024)return j({ok:false,error:"حجم الطلب أكبر من المسموح"},413);
+      const reader=request.body?.getReader();if(!reader)return j({ok:false,error:"بيانات الطلب غير مكتملة"},400);
+      const chunks=[];let size=0;
+      try{
+        for(;;){const {done,value}=await reader.read();if(done)break;size+=value.byteLength;
+          if(size>16*1024){await reader.cancel();return j({ok:false,error:"حجم الطلب أكبر من المسموح"},413);}chunks.push(value);}
+        const bytes=new Uint8Array(size);let offset=0;for(const chunk of chunks){bytes.set(chunk,offset);offset+=chunk.length;}
+        body=JSON.parse(new TextDecoder().decode(bytes));if(!body||Array.isArray(body)||typeof body!=="object")throw Error();
+      }catch{return j({ok:false,error:"بيانات الطلب غير صحيحة"},400);}finally{reader.releaseLock();}
+    }
+    if(admin){const auth=await this.requireAdmin(request.method==="GET"?url.searchParams.get("token"):body.token);if(auth.error)return auth.error;}
+    const empty=()=>({revision:0,updatedAt:0,channels:[],matches:[]});
+    if(request.method==="GET"){
+      const catalog=await this.ctx.storage.get("football:catalog")||empty();
+      const channels=admin?catalog.channels:catalog.channels.filter(c=>c.enabled);
+      const matches=admin?catalog.matches:catalog.matches.map(m=>channels.some(c=>c.id===m.channelId)?m:{...m,channelId:""});
+      const response=j({ok:true,...catalog,channels,matches});response.headers.set("cache-control","no-store");return response;
+    }
+    const result=await this.ctx.storage.transaction(async storage=>{
+      const current=await storage.get("football:catalog")||empty(),changed=footballChange(current,body);
+      if(changed.catalog)await storage.put("football:catalog",changed.catalog);
+      return changed;
+    });
+    return result.catalog?j({ok:true,...result.catalog}):j({ok:false,error:result.error},result.status);
   }
 
   // v1.0.14: calendar date is authoritative; do not trust submitted numeric age.
@@ -692,6 +783,8 @@ export class SignalingRoom extends DurableObject {
         return j({ok:false,error:"تعذر رفع الملف. حاول مرة أخرى"},502);
       }
     }
+
+    if(["/api/football","/api/admin/football"].includes(url.pathname))return this.footballApi(request,url);
 
     let body={};
     if(request.method!=="GET"){
