@@ -6,7 +6,7 @@ plugins {
 
 val appGalleryBuild = providers.gradleProperty("alatta.distribution").orNull == "appgallery"
 // Assemble a slim asset tree; retain only the opening page inside the APK.
-val slimMushafAssets by tasks.registering(Copy::class) {
+val slimMushafAssets by tasks.registering(Sync::class) {
     from("src/main/assets") { exclude("mushaf/pages/**") }
     from("src/main/assets/mushaf/pages/001.svg.gz") { into("mushaf/pages") }
     into(layout.buildDirectory.dir("generated/slimAssets"))
