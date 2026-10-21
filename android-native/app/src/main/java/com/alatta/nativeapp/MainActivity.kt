@@ -327,40 +327,24 @@ private fun JSONObject.name(): String = optString("fullName").ifBlank { optStrin
 internal class AttaApiException(val statusCode: Int, message: String) : IllegalStateException(message)
 
 internal fun attaApi(path: String, payload: JSONObject? = null): JSONObject {
-    val conn = (URL(BASE + path).openConnection() as HttpURLConnection).apply {
-        requestMethod = if (payload == null) "GET" else "POST"
-        connectTimeout = 20000; readTimeout = 30000
-        setRequestProperty("Accept", "application/json")
-        if (payload != null) {
-            doOutput = true
-            setRequestProperty("Content-Type", "application/json; charset=utf-8")
-        }
+    val response = AttaHttp.json(BASE + path, payload)
+    val status = response.code
+    val obj = response.data
+    if (status !in 200..299 || obj.optBoolean("ok", true) == false) {
+        val serverMessage = obj.optString("error").ifBlank { "HTTP $status" }
+        val googleSignup = path.startsWith("/api/google-login") &&
+            payload?.optString("signupFlow") == "android-signup"
+        // Legacy Cloudflare Worker used this generic message exclusively for
+        // the `await this.user(username)` conflict (HTTP 409). Recognise it
+        // only on the Google signup request; do not disguise other failures.
+        val duplicateUsername = status == 409 && googleSignup && (
+            obj.optString("code") == "USERNAME_TAKEN" ||
+            serverMessage.trim() == "تعذر إنشاء الحساب. تواصل مع الإدارة."
+        )
+        throw AttaApiException(status, if (duplicateUsername)
+            "اسم المستخدم موجود بالفعل، اختر اسمًا آخر." else serverMessage)
     }
-    return try {
-        if (payload != null) {
-            val bytes = payload.toString().toByteArray(Charsets.UTF_8)
-            conn.setFixedLengthStreamingMode(bytes.size)
-            conn.outputStream.use { it.write(bytes) }
-        }
-        val status = conn.responseCode
-        val content = (if (status in 200..299) conn.inputStream else conn.errorStream)?.bufferedReader()?.use { it.readText() } ?: "{}"
-        val obj = JSONObject(content)
-        if (status !in 200..299 || obj.optBoolean("ok", true) == false) {
-            val serverMessage = obj.optString("error").ifBlank { "HTTP $status" }
-            val googleSignup = path.startsWith("/api/google-login") &&
-                payload?.optString("signupFlow") == "android-signup"
-            // Legacy Cloudflare Worker used this generic message exclusively for
-            // the `await this.user(username)` conflict (HTTP 409). Recognise it
-            // only on the Google signup request; do not disguise other failures.
-            val duplicateUsername = status == 409 && googleSignup && (
-                obj.optString("code") == "USERNAME_TAKEN" ||
-                serverMessage.trim() == "تعذر إنشاء الحساب. تواصل مع الإدارة."
-            )
-            throw AttaApiException(status, if (duplicateUsername)
-                "اسم المستخدم موجود بالفعل، اختر اسمًا آخر." else serverMessage)
-        }
-        obj
-    } finally { conn.disconnect() }
+    return obj
 }
 private fun api(path: String, payload: JSONObject? = null) = attaApi(path, payload)
 private fun upload(token: String, mime: String, filename: String, bytes: ByteArray): String {
@@ -1011,7 +995,12 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
     var friends by remember { mutableStateOf(emptyList<JSONObject>()) }
     var requests by remember { mutableStateOf(emptyList<JSONObject>()) }
     var notifications by remember { mutableStateOf(emptyList<JSONObject>()) }
-    var profile by remember { mutableStateOf(JSONObject()) }
+    var profile by remember(token) { mutableStateOf(JSONObject().put("fullName", displayName).put("username", myUsername)) }
+    var screenLoading by remember { mutableStateOf(false) }
+    var screenLoadGeneration by remember { mutableIntStateOf(0) }
+    var homeCursor by remember(token) { mutableStateOf<String?>(null) }
+    var ownCursor by remember(token) { mutableStateOf<String?>(null) }
+    var loadingMore by remember { mutableStateOf(false) }
     var myAvatar by remember { mutableStateOf("") }
     var search by remember { mutableStateOf("") }
     var chatWith by remember { mutableStateOf("") }
@@ -1097,9 +1086,28 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                 // substring check matched the word "المستخدم" in a normal
                 // invalid-password response and showed a false "username taken" error.
                 // Only api() maps the explicitly identified Google-signup conflict.
-                error = e.message ?: "تعذر إتمام العملية"
+                error = loadingFailureMessage(e)
             }
             finally { busy = false }
+        }
+    }
+    fun applyAccount(user: JSONObject) {
+        profile = user
+        myAvatar = user.optString("avatar", myAvatar)
+        adminRole = user.optString("role").trim().lowercase()
+        val actualName = user.optString("fullName").ifBlank { user.optString("displayName") }
+        if (actualName.isNotBlank() && actualName != "null") {
+            displayName = actualName
+            prefs.edit().putString("name", actualName).apply()
+        }
+        if (!editProfileDetails) {
+            profileBio = user.optString("bio")
+            profileCountry = user.optString("country")
+            profileCity = user.optString("city")
+            profileEducation = user.optString("education")
+            profileWork = user.optString("work")
+            allowFriendRequests = user.optBoolean("allowFriendRequests", true)
+            accountPrivate = user.optBoolean("accountPrivate", false)
         }
     }
     fun applySession(result: JSONObject, fallbackName: String) {
@@ -1107,7 +1115,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
         val u = result.optJSONObject("user") ?: JSONObject()
         displayName = u.name().ifBlank { fallbackName }
         myUsername = u.optString("username", fallbackName).lowercase()
-        myAvatar = u.optString("avatar")
+        applyAccount(u)
         prefs.edit().putString("token", token).putString("name", displayName).putString("username", myUsername).apply()
         password = ""; regPass = ""; regConfirm = ""; googleIdToken = ""; googlePassword = ""; googlePasswordConfirm = ""
         resetPassword = ""; resetConfirm = ""; authMode = "login"; tab = "الرئيسية"
@@ -1374,7 +1382,17 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
 
     suspend fun load(which: String) {
         when (which) {
-            "الرئيسية" -> { posts = get("/api/posts?limit=40").arr("posts"); try { notifications = get("/api/notifications").arr("notifications") } catch (_: Exception) { } }
+            "الرئيسية" -> {
+                val page = FeedPages.fetch(::get)
+                posts = FeedPages.merge(posts, page)
+                homeCursor = page.nextCursor
+                val accountToken = token
+                scope.launch {
+                    try { val latest = get("/api/notifications").arr("notifications"); if (token == accountToken) notifications = latest }
+                    catch (cancelled: CancellationException) { throw cancelled }
+                    catch (_: Exception) { }
+                }
+            }
             "استكشاف" -> posts = get("/api/explore").arr("posts")
             "الأصدقاء" -> { users = get("/api/users?q=${enc(search)}").arr("users"); friends = get("/api/friends").arr("friends"); requests = get("/api/friend-requests").arr("requests") }
             "الرسائل" -> {
@@ -1420,18 +1438,9 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
             }
             "الإشعارات" -> notifications = get("/api/notifications").arr("notifications")
             "المجموعات" -> groups = get("/api/groups").arr("groups")
-            "الملف" -> {
-                ownPosts = get("/api/posts?limit=100").arr("posts").filter { it.optString("author").equals(myUsername, ignoreCase = true) }
-                profile = get("/api/me").optJSONObject("user") ?: JSONObject()
-                profileBio = profile.optString("bio")
-                profileCountry = profile.optString("country")
-                profileCity = profile.optString("city")
-                profileEducation = profile.optString("education")
-                profileWork = profile.optString("work")
-                allowFriendRequests = profile.optBoolean("allowFriendRequests", true)
-                accountPrivate = profile.optBoolean("accountPrivate", false)
-                myAvatar = profile.optString("avatar")
-            }
+            "الملف" -> loadAccountScreen(::get, myUsername,
+                account = ::applyAccount,
+                posts = { page -> ownPosts = FeedPages.merge(ownPosts, page); ownCursor = page.nextCursor })
             "المحفوظات" -> posts = get("/api/saved-posts").arr("posts")
             "الإدارة" -> {
                 if (adminRole == "super_admin") {
@@ -1937,8 +1946,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
         if (token.isNotBlank()) {
             try {
                 val user = get("/api/me").optJSONObject("user")
-                myAvatar = user?.optString("avatar").orEmpty()
-                adminRole = user?.optString("role").orEmpty().trim().lowercase()
+                if (user != null) applyAccount(user)
             }
             catch (cancelled: CancellationException) { throw cancelled }
             catch (_: Exception) { /* UI can still use the account initial. */ }
@@ -1956,9 +1964,12 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
     }
     LaunchedEffect(token, tab, homeRefreshRequest) {
         if (token.isNotBlank()) {
+            val generation = ++screenLoadGeneration
+            screenLoading = true; error = ""
             try { load(tab) }
             catch (cancelled: CancellationException) { throw cancelled }
-            catch (e: Exception) { error = e.message ?: "تعذر التحميل" }
+            catch (e: Exception) { error = loadingFailureMessage(e) }
+            finally { if (screenLoadGeneration == generation) screenLoading = false }
         }
     }
     LaunchedEffect(Unit) {
@@ -2293,6 +2304,14 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                 )
                             }
                         }
+                    }
+                    if (busy || screenLoading) LinearProgressIndicator(modifier = Modifier.fillMaxWidth(), color = Gold)
+                    if (error.isNotBlank()) Row(
+                        Modifier.fillMaxWidth().background(Color(0xFF271818)).padding(horizontal = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(error, color = Color(0xFFFFA0A0), fontSize = 12.sp, modifier = Modifier.weight(1f))
+                        TextButton(enabled = !busy && !screenLoading, onClick = { refresh() }) { Text("إعادة المحاولة", color = GoldLight) }
                     }
                     when (tab) {
                         "القرآن" -> QuranReaderScreen(Modifier.weight(1f),
@@ -2647,6 +2666,24 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                         )
                                     }
                                 }
+                            }
+                            if (tab == "الرئيسية" && homeCursor != null) item {
+                                GoldButton(if (loadingMore) "جارٍ التحميل..." else "تحميل منشورات أقدم", !loadingMore && !screenLoading) {
+                                    val cursor = homeCursor
+                                    val accountToken = token
+                                    task {
+                                        loadingMore = true
+                                        try {
+                                            val page = FeedPages.fetch(::get, cursor)
+                                            if (token == accountToken && tab == "الرئيسية") {
+                                                posts = FeedPages.merge(posts, page); homeCursor = page.nextCursor
+                                            }
+                                        } finally { loadingMore = false }
+                                    }
+                                }
+                            }
+                            if (posts.isEmpty() && !screenLoading && error.isBlank()) item {
+                                Text("لا توجد منشورات ظاهرة حاليًا", color = Muted, modifier = Modifier.padding(16.dp))
                             }
                         }
                         "الخصوصية" -> AccountPrivacyScreen(myUsername, busy, notificationsEnabled,
@@ -3310,7 +3347,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                 }
                             }
                             item { SectionTitle("منشوراتي") }
-                            if (ownPosts.isEmpty()) item { Text("لا توجد منشورات ظاهرة حاليًا", color = White) }
+                            if (ownPosts.isEmpty() && !screenLoading && error.isBlank()) item { Text("لا توجد منشورات ظاهرة حاليًا", color = White) }
                             items(ownPosts, key = { "own_" + it.optString("id", it.hashCode().toString()) }) { post ->
                                 CardBox {
                                     Text(profile.name(), color = GoldLight, fontWeight = FontWeight.Bold)
@@ -3333,14 +3370,26 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                     if (post.optString("video").isNotBlank()) Text("منشور فيديو", color = GoldLight)
                                 }
                             }
+                            if (ownCursor != null) item {
+                                GoldButton(if (loadingMore) "جارٍ التحميل..." else "تحميل منشوراتي الأقدم", !loadingMore && !screenLoading) {
+                                    val cursor = ownCursor
+                                    val accountToken = token
+                                    task {
+                                        loadingMore = true
+                                        try {
+                                            val page = FeedPages.fetch(::get, cursor, myUsername)
+                                            if (token == accountToken && tab == "الملف") {
+                                                ownPosts = FeedPages.merge(ownPosts, page); ownCursor = page.nextCursor
+                                            }
+                                        } finally { loadingMore = false }
+                                    }
+                                }
+                            }
                         }
                     }
                     if (tab != "الرسائل" || chatWith.isBlank()) PremiumBottomNav(tab, ::navigate)
                 }
-                if (token.isNotBlank()) {
-                    if (busy) LinearProgressIndicator(modifier = Modifier.fillMaxWidth(), color = Gold)
-                    if (error.isNotBlank()) Text(error, color = Color(0xFFFF8B8B), modifier = Modifier.padding(12.dp))
-                }
+
             }
             if (profilePeer.isNotBlank() && token.isNotBlank()) {
                 Box(Modifier.fillMaxSize().background(Black).safeDrawingPadding()) {
