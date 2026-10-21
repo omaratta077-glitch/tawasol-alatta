@@ -28,6 +28,9 @@ check("Cloudflare PBKDF2 iteration cap for Google signup", bool(re.search(r'cons
       'pbkdf2:${KDF_ITERATIONS}' in worker)
 check("Worker core routes preserved",all(x in worker for x in ['/api/google-login','/api/friend-request','/api/conversation','/api/youtube','/api/call-signal','/ws']))
 check("Version declared", bool(re.search(r'versionName\s*=\s*"\d+\.\d+\.\d+"',gradle)) and bool(re.search(r'versionCode\s*=\s*\d+',gradle)))
+check("Exactly one Android versionCode and versionName",
+      len(re.findall(r'^\s*versionCode\s*=', gradle, re.M)) == 1 and
+      len(re.findall(r'^\s*versionName\s*=', gradle, re.M)) == 1)
 check("No legacy root Android source copies", not any((ROOT/p).exists() for p in ["MainActivity.kt","GoogleNativeSignIn.kt","AndroidManifest.xml","build.gradle.kts"]))
 check("One actual site YouTube player, no Android duplication", main.count("fun YouTubePlayer(")==1 and "YouTubePlayer(youtubeId)" in main and 'loadUrl("$BASE/")' in main and 'atta-site-youtube-bridge.js' in main and 'document.body.replaceChildren(host)' not in main and 'new YT.Player(' not in main and 'attaYouTubeHtml' not in main and 'www.youtube.com/embed/' not in main and 'syncAttaYouTube' not in gradle and (ROOT/'android-native/app/src/main/assets/atta-site-youtube-bridge.js').is_file() and 'AttaYouTubeEmbed.create' in read('cloudflare-site/public/youtube-section.js') and 'global.AttaYouTubeEmbed=' in read('cloudflare-site/public/youtube-player-shared.js'))
 check("One compact header search and no duplicate friend search", main.count('AttaCompactSearch(')==2 and 'SectionTitle("البحث وإضافة صديق")' not in main and 'OutlinedTextField(search, { search = it }, label = { Text("ابحث بالاسم أو اسم المستخدم") }' not in main)
