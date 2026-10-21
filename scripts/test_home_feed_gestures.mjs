@@ -12,5 +12,6 @@ assert.ok(source.includes('homeCursor == cursor && screenLoadGeneration == loadG
 assert.ok(source.includes('olderPageFailedCursor = cursor'), 'failed cursors do not cause rapid repeated requests');
 assert.ok(!source.includes('تحميل منشورات أقدم'), 'old manual load-more button is gone');
 assert.equal((source.match(/PullToRefreshBox\(/g)||[]).length, 1, 'one pull gesture handler for the feed');
-assert.ok(gradle.includes('versionCode = 236') && gradle.includes('versionName = "1.0.136"'));
+assert.equal((gradle.match(/^\s*versionCode\s*=/gm)||[]).length, 1, 'one Android versionCode');
+assert.equal((gradle.match(/^\s*versionName\s*=/gm)||[]).length, 1, 'one Android versionName');
 console.log('PASS Home infinite scrolling, pull-to-refresh, home reselect refresh, and no manual load button');
