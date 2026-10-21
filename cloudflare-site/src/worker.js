@@ -1759,13 +1759,25 @@ export class SignalingRoom extends DurableObject {
 
       const ids=await this.ctx.storage.get("postIds")||[];
       const posts=[];
+      const paged=url.searchParams.get("page")==="1";
+      const author=paged?String(url.searchParams.get("author")||"").trim().toLowerCase():"";
+      if(author && !/^[a-z0-9_.-]{1,64}$/.test(author))return j({ok:false,error:"المستخدم غير صالح"},400);
       const requestedLimit=Number(url.searchParams.get("limit")||0);
-      const limit=Number.isFinite(requestedLimit)&&requestedLimit>0?Math.min(50,Math.floor(requestedLimit)):ids.length;
+      const limit=paged?Math.max(1,Math.min(20,Math.floor(requestedLimit)||10)):
+        Number.isFinite(requestedLimit)&&requestedLimit>0?Math.min(50,Math.floor(requestedLimit)):ids.length;
+      const ordered=[...ids].reverse();
+      const before=String(url.searchParams.get("before")||"");
+      const stamp=paged?[...new Uint8Array(await crypto.subtle.digest("SHA-256",encoder.encode(JSON.stringify(ids))))].map(v=>v.toString(16).padStart(2,"0")).join("").slice(0,16):"";
+      const marker=before.match(/^([a-f0-9]{16})\.(\d{1,6})$/);
+      if(paged && before && (!marker || marker[1]!==stamp || Number(marker[2])>ordered.length))return j({ok:false,error:"تغيرت قائمة المنشورات. حدّث الصفحة ثم تابع."},409);
+      const offset=before?Number(marker?.[2]||0):0;
+      const candidates=paged?ordered.slice(offset,offset+80):ordered.slice(0,limit);
       const saved=await this.ctx.storage.get(`saved:${s.username}`)||[];
-
-      for(const id of [...ids].reverse().slice(0,limit)){
+      let scanned=0,lastScanned="";
+      for(const id of candidates){
+        scanned++;lastScanned=id;
         const raw=await this.ctx.storage.get(`post:${id}`);
-        if(!raw || raw.archived===true)continue;
+        if(!raw || raw.archived===true || (author && raw.author!==author))continue;
         const p=await this.visiblePost(raw,s.username);if(!p)continue;
         const reactionCounts={};
         const reactions=p.reactions||{};
@@ -1777,7 +1789,8 @@ export class SignalingRoom extends DurableObject {
 
         const sharedPost=p.sharedPost||null;
 
-        const authorInfo=await this.publicUser(p.author);
+        const person=await this.publicUser(p.author);
+        const authorInfo=paged && person?{username:person.username,fullName:person.fullName,displayName:person.displayName,avatar:person.avatar}:person;
 
         posts.push({
           ...p,
@@ -1791,9 +1804,11 @@ export class SignalingRoom extends DurableObject {
           savedByMe:saved.includes(p.id),
           sharedPost
         });
+        if(paged && posts.length>=limit)break;
       }
 
-      return j({ok:true,posts});
+      const nextCursor=paged && offset+scanned<ordered.length?`${stamp}.${offset+scanned}`:null;
+      return j({ok:true,posts,...(paged?{paged:true,nextCursor}:{} )});
     }
 
     if(url.pathname==="/api/post-interactions" && request.method==="GET"){

@@ -140,7 +140,7 @@ internal fun AttaPostMediaViewer(
     var sheet by remember(id) { mutableStateOf<String?>(null) }
     var controls by remember(id) { mutableStateOf(true) }
     var playing by remember { mutableStateOf(false) }
-    var buffering by remember { mutableStateOf(false) }
+    var buffering by remember { mutableStateOf(isVideo) }
     var failed by remember(id) { mutableStateOf("") }
     var progress by remember(id) { mutableFloatStateOf(0f) }
     var duration by remember(id) { mutableStateOf(0L) }
@@ -151,7 +151,14 @@ internal fun AttaPostMediaViewer(
     var videoHeights by remember { mutableStateOf(emptyList<Int>()) }
     var qualityCap by remember(id) { mutableIntStateOf(0) }
     var qualityMenu by remember(id) { mutableStateOf(false) }
-    val player = remember(isVideo) { if (isVideo) ExoPlayer.Builder(context).build() else null }
+    val sources by produceState<androidx.media3.datasource.DataSource.Factory?>(null, isVideo, live != null) {
+        if (isVideo) value = withContext(Dispatchers.IO) { VideoTransport.factory(context, live != null) }
+    }
+    val player = remember(isVideo, sources) {
+        if (isVideo && sources != null) ExoPlayer.Builder(context)
+            .setMediaSourceFactory(androidx.media3.exoplayer.source.DefaultMediaSourceFactory(requireNotNull(sources)))
+            .setLoadControl(VideoTransport.loadControl(live != null)).build() else null
+    }
     val updateStats: (String, JSONObject) -> Unit = { postId, data ->
         if (postId == id) {
             reactions = data.optInt("reactionCount", reactions)
@@ -180,7 +187,7 @@ internal fun AttaPostMediaViewer(
     // Opening the sole full-screen Media3 viewer starts playback; vertical
     // swipes switch tracks without creating a second video player.
     var continuePlayback by remember(isVideo) { mutableStateOf(isVideo) }
-    LaunchedEffect(id, url, live?.mimeType) {
+    LaunchedEffect(player, id, url, live?.mimeType) {
         videoHeights = emptyList()
         player?.apply {
             val item = MediaItem.Builder().setUri(url).apply { live?.let { setMimeType(it.mimeType) } }.build()

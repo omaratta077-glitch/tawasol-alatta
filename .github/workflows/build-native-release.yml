@@ -120,6 +120,7 @@ jobs:
           node scripts/test_backend.mjs
           node scripts/test_audit_security.mjs
           node scripts/test_inbox_summary.mjs
+          node scripts/test_feed_paging.mjs
           node scripts/test_media_ranges.mjs
           node scripts/test_post_interactions.mjs
           node scripts/test_football_catalog.mjs
