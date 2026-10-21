@@ -6,6 +6,24 @@ import java.time.LocalDate
 import java.time.ZoneId
 
 class FootballModelsTest {
+    @Test fun officialPublisherLivePagesAreListedWithoutDuplicatesOrIPTVRelays() {
+        val catalog = FootballRepository.withOfficialChannels(FootballCatalog())
+        assertEquals(13, catalog.channels.size)
+        assertEquals(13, catalog.channels.map { it.id }.distinct().size)
+        assertEquals((1..9).map { "beIN SPORTS $it" } + "beIN SPORTS NEWS",
+            catalog.channels.filter { it.category == "بي إن سبورت" }.map { it.name })
+        assertTrue(catalog.channels.filter { it.category == "بي إن سبورت" }.all {
+            it.streamUrl == "https://connect.bein.com/" && it.provider.contains("beIN CONNECT")
+        })
+        assertTrue(catalog.channels.all { it.format == "external" && footballSafeUrl(it.streamUrl) != null })
+        assertTrue(catalog.channels.all { it.streamUrl.startsWith("https://") })
+        assertEquals(catalog, FootballRepository.withOfficialChannels(catalog))
+        val managed = catalog.channels.first().copy(id = "owner-existing", name = "أون سبورت ON Sport")
+        val deduped = FootballRepository.withOfficialChannels(FootballCatalog(channels = listOf(managed)))
+        assertEquals(13, deduped.channels.size)
+        assertEquals(1, deduped.channels.count { it.name == managed.name })
+    }
+
     @Test fun onlyPublicHttpsSourcesCanReachThePlayer() {
         assertEquals("https://cdn.publisher.example/live?id=1", footballSafeUrl("https://cdn.publisher.example/live?id=1#unused"))
         for (bad in listOf("http://cdn.example/a", "file:///movie", "javascript:alert(1)", "https://u:p@cdn.example/a", "https://localhost/a", "https://192.168.1.1/a", "https://[::1]/a", "https://x.local/a", "https://x.internal/a", "https://cdn.example:8443/a")) assertNull(bad, footballSafeUrl(bad))

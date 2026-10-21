@@ -26,6 +26,9 @@ class HadithDeviceTest {
             }
             assertTrue(HadithLibrary.page(context, "bukhari", 0, "إِنَّمَا الأَعْمَالُ بِالنِّيَّاتِ", 0).entries.any { it.number == 1 })
             assertEquals(7008, HadithLibrary.sections(context, "bukhari").sumOf { it.count })
+            // Same user-facing repair path, without clearing account data.
+            HadithLibrary.repair(context)
+            assertEquals(14006, HadithLibrary.books(context).sumOf { it.count })
             // Exercise the same offline fallback used when a handset lacks FTS4.
             val fallback = HadithLibrary.page(context, "bukhari", 0, "إِنَّمَا الأَعْمَالُ بِالنِّيَّاتِ", 0, preferFullText = false)
             assertTrue(fallback.entries.any { it.number == 1 })
