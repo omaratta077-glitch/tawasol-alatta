@@ -1,0 +1,125 @@
+{
+  "voices": [
+    {
+      "id": "islamhouse-008",
+      "name": "علي بن أحمد ملا",
+      "mosque": "الحرم المكي",
+      "url": "https://d1.islamhouse.com/data/ar/ih_sounds/chain/Athan/ar_008_Athan.mp3",
+      "size": 3282333,
+      "sha256": "e09223fb473439c9a0f87753ab726425b0ec8f26f2359e6a51cbb761a16a2c3a",
+      "source": "دار الإسلام • الأذان بأصوات متعددة",
+      "sourceUrl": "https://islamhouse.com/ar/audios/808260/",
+      "durationSeconds": 202
+    },
+    {
+      "id": "islamhouse-010",
+      "name": "فاروق عبد الرحمن حضراوي",
+      "mosque": "الحرم المكي",
+      "url": "https://d1.islamhouse.com/data/ar/ih_sounds/chain/Athan/ar_010_Athan.mp3",
+      "size": 2989495,
+      "sha256": "bb0e2e8a98ca3db5be303ef0fae93a5bb124bfdddd8290568a881dca6e58f708",
+      "source": "دار الإسلام • الأذان بأصوات متعددة",
+      "sourceUrl": "https://islamhouse.com/ar/audios/808260/",
+      "durationSeconds": 184
+    },
+    {
+      "id": "islamhouse-017",
+      "name": "حسين رجب",
+      "mosque": "الحرم المدني",
+      "url": "https://d1.islamhouse.com/data/ar/ih_sounds/chain/Athan/ar_017_Athan.mp3",
+      "size": 2237609,
+      "sha256": "c8a0ae98a2956d4c3354d93ecf41fff1750c9eb0e6e63e86da9151d23b07d8ad",
+      "source": "دار الإسلام • الأذان بأصوات متعددة",
+      "sourceUrl": "https://islamhouse.com/ar/audios/808260/",
+      "durationSeconds": 137
+    },
+    {
+      "id": "islamhouse-019",
+      "name": "سامي ديولي",
+      "mosque": "الحرم المدني",
+      "url": "https://d1.islamhouse.com/data/ar/ih_sounds/chain/Athan/ar_019_Athan.mp3",
+      "size": 3108311,
+      "sha256": "92e41dd7b3fc9828ce99fa1e333be8103321ecfbc011576fb6dfe049b3a10bf3",
+      "source": "دار الإسلام • الأذان بأصوات متعددة",
+      "sourceUrl": "https://islamhouse.com/ar/audios/808260/",
+      "durationSeconds": 191
+    },
+    {
+      "id": "islamhouse-024",
+      "name": "أحمد النفيس",
+      "mosque": "",
+      "url": "https://d1.islamhouse.com/data/ar/ih_sounds/chain/Athan/ar_024_Athan.mp3",
+      "size": 3453386,
+      "sha256": "2a689090a2f777c06dea0b5076c6958e9a4b470b50ac7e31e07056afd579ff2d",
+      "source": "دار الإسلام • الأذان بأصوات متعددة",
+      "sourceUrl": "https://islamhouse.com/ar/audios/808260/",
+      "durationSeconds": 213
+    },
+    {
+      "id": "islamhouse-031",
+      "name": "عبد الباسط عبد الصمد",
+      "mosque": "",
+      "url": "https://d1.islamhouse.com/data/ar/ih_sounds/chain/Athan/ar_031_Athan.mp3",
+      "size": 3436010,
+      "sha256": "a4c0801949ba38bd4cdc5ffce00881edbe2576ae8b4190851a83117d3711eb57",
+      "source": "دار الإسلام • الأذان بأصوات متعددة",
+      "sourceUrl": "https://islamhouse.com/ar/audios/808260/",
+      "durationSeconds": 212
+    },
+    {
+      "id": "islamhouse-033",
+      "name": "محمد رفعت",
+      "mosque": "",
+      "url": "https://d1.islamhouse.com/data/ar/ih_sounds/chain/Athan/ar_033_Athan.mp3",
+      "size": 1283553,
+      "sha256": "9c7a5d4c3138b9b3e4339bf231bd207218970941710fa7150bba935d0d0380b1",
+      "source": "دار الإسلام • الأذان بأصوات متعددة",
+      "sourceUrl": "https://islamhouse.com/ar/audios/808260/",
+      "durationSeconds": 206
+    },
+    {
+      "id": "islamhouse-034",
+      "name": "محمد صديق المنشاوي",
+      "mosque": "",
+      "url": "https://d1.islamhouse.com/data/ar/ih_sounds/chain/Athan/ar_034_Athan.mp3",
+      "size": 3740578,
+      "sha256": "3b035aae1d61dc8df60a11c4264e4309f4af4d00503e8758d41c69e1ee6ff668",
+      "source": "دار الإسلام • الأذان بأصوات متعددة",
+      "sourceUrl": "https://islamhouse.com/ar/audios/808260/",
+      "durationSeconds": 231
+    },
+    {
+      "id": "islamhouse-035",
+      "name": "محمود خليل الحصري",
+      "mosque": "",
+      "url": "https://d1.islamhouse.com/data/ar/ih_sounds/chain/Athan/ar_035_Athan.mp3",
+      "size": 2106063,
+      "sha256": "c468420097b2fd5452ee1f3712ec8b667812a0a03b11fae292616f2a71e4a7e4",
+      "source": "دار الإسلام • الأذان بأصوات متعددة",
+      "sourceUrl": "https://islamhouse.com/ar/audios/808260/",
+      "durationSeconds": 129
+    },
+    {
+      "id": "islamhouse-037",
+      "name": "محمود علي البنا",
+      "mosque": "",
+      "url": "https://d1.islamhouse.com/data/ar/ih_sounds/chain/Athan/ar_037_Athan.mp3",
+      "size": 353363,
+      "sha256": "b69062586324aad205bf0d17765502e7345589d7b554d832b793da385df10015",
+      "source": "دار الإسلام • الأذان بأصوات متعددة",
+      "sourceUrl": "https://islamhouse.com/ar/audios/808260/",
+      "durationSeconds": 153
+    },
+    {
+      "id": "islamhouse-038",
+      "name": "مشاري راشد العفاسي",
+      "mosque": "",
+      "url": "https://d1.islamhouse.com/data/ar/ih_sounds/chain/Athan/ar_038_Athan.mp3",
+      "size": 2382140,
+      "sha256": "b2f458b714c87e5b052f5ad574a6fe7c4ce931959f6c014d747d881005689eee",
+      "source": "دار الإسلام • الأذان بأصوات متعددة",
+      "sourceUrl": "https://islamhouse.com/ar/audios/808260/",
+      "durationSeconds": 146
+    }
+  ]
+}
