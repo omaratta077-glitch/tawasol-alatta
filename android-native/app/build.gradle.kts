@@ -18,8 +18,10 @@ android {
         applicationId = "com.alatta.nativeapp"
         minSdk = 26
         targetSdk = 35
-        versionCode = 229
-        versionName = "1.0.129"
+        versionCode = 230
+        versionName = "1.0.130"
+        // Ship phone ABIs only; exclude emulator x86 binaries from the APK.
+        ndk { abiFilters += setOf("arm64-v8a", "armeabi-v7a") }
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("boolean", "IS_APPGALLERY", appGalleryBuild.toString())
         val hmsId = (System.getenv("ALATTA_HMS_APP_ID") ?: "").trim().takeIf { it.matches(Regex("[0-9]{1,20}")) } ?: ""
