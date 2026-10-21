@@ -27,7 +27,7 @@ PERMISSIONS = "\n".join("uses-permission: name='android.permission." + name + "'
 
 
 class StoreApkTest(unittest.TestCase):
-    def check(self, path, data=RECORDING, duplicate=False, linked=None, catalog=None):
+    def check(self, path, data=RECORDING, duplicate=False, linked=None, catalog=None, missing_hadith=False, corrupt_hadith=False):
         with tempfile.TemporaryDirectory() as directory:
             apk_path = Path(directory) / "app.apk"
             with zipfile.ZipFile(apk_path, "w") as archive:
@@ -38,6 +38,13 @@ class StoreApkTest(unittest.TestCase):
                     archive.writestr("assets/legal/" + name, (ROOT / "cloudflare-site/public" / name).read_bytes())
                 archive.writestr("assets/third-party-prayer-licenses.txt", (ROOT / "android-native/app/src/main/assets/third-party-prayer-licenses.txt").read_bytes())
                 archive.writestr("assets/adhan-voices.json", catalog if catalog is not None else (ROOT / "android-native/app/src/main/assets/adhan-voices.json").read_bytes())
+                for asset in (ROOT / "android-native/app/src/main/assets/hadith").iterdir():
+                    if missing_hadith and asset.name == "library.db.gz.001":
+                        continue
+                    value = asset.read_bytes()
+                    if corrupt_hadith and asset.name == "library.db.gz.008":
+                        value = b"x" + value[1:]
+                    archive.writestr("assets/hadith/" + asset.name, value)
 
             def aapt(command, **_):
                 if "permissions" in command:
@@ -75,6 +82,14 @@ class StoreApkTest(unittest.TestCase):
     def test_outdated_catalog_is_rejected(self):
         with self.assertRaisesRegex(AssertionError, "Missing or outdated muezzin catalog"):
             self.check("res/uQ.ogg", catalog=b'{"voices":[]}')
+
+    def test_missing_hadith_part_is_rejected(self):
+        with self.assertRaisesRegex(AssertionError, "Missing offline Hadith library asset"):
+            self.check("res/uQ.ogg", missing_hadith=True)
+
+    def test_corrupt_hadith_part_is_rejected(self):
+        with self.assertRaisesRegex(AssertionError, "Corrupt offline Hadith library part"):
+            self.check("res/uQ.ogg", corrupt_hadith=True)
 
 
 if __name__ == "__main__":

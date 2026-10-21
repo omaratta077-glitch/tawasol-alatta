@@ -1,0 +1,88 @@
+{
+  "schemaVersion": 1,
+  "dbBytes": 37335040,
+  "dbSha256": "2a3d074c6557ee8619c157bd3ebab88e5358af41bde3b3262a3b2bd1da05c98d",
+  "packedBytes": 7807153,
+  "packedSha256": "9987de90839d4bbf17dccb837398effe6d650042feea2e56a0fe969657a0d204",
+  "total": 14006,
+  "books": [
+    {
+      "id": "nawawi",
+      "title": "الأربعون النووية",
+      "count": 42,
+      "sourceUrl": "https://github.com/AhmedBaset/hadith-json/tree/ca32fd72aa16eeeb9a819c80bb65c9e78766532d",
+      "sourceFile": "https://raw.githubusercontent.com/AhmedBaset/hadith-json/ca32fd72aa16eeeb9a819c80bb65c9e78766532d/db/by_book/forties/nawawi40.json",
+      "sourceSha256": "d824cec8d82751669a9ed1d41f2854219f8e6770a2cab151ed87f9a501357def",
+      "textSha256": "629441efea3dbd7eec75f11e84e769d07434f0336343d49dacd1312f54161e09"
+    },
+    {
+      "id": "bukhari",
+      "title": "صحيح البخاري",
+      "count": 7008,
+      "sourceUrl": "https://github.com/mhashim6/Open-Hadith-Data/tree/1515f6cba21efed20d8916bf55acef1dffa0d2d5",
+      "sourceFile": "https://raw.githubusercontent.com/mhashim6/Open-Hadith-Data/1515f6cba21efed20d8916bf55acef1dffa0d2d5/Sahih_Al-Bukhari/sahih_al-bukhari_ahadith_mushakkala_mufassala.utf8.csv",
+      "sourceSha256": "b03f661876fc4089520800b9231b57a1564baff734344ea8914494b86e2eb708",
+      "textSha256": "353a20bf27bff8fd3a818748484a60a8c6ba23c143ea9050aadb76f76d4437b7"
+    },
+    {
+      "id": "muslim",
+      "title": "صحيح مسلم",
+      "count": 5362,
+      "sourceUrl": "https://github.com/mhashim6/Open-Hadith-Data/tree/1515f6cba21efed20d8916bf55acef1dffa0d2d5",
+      "sourceFile": "https://raw.githubusercontent.com/mhashim6/Open-Hadith-Data/1515f6cba21efed20d8916bf55acef1dffa0d2d5/Sahih_Muslim/sahih_muslim_ahadith_mushakkala_mufassala.utf8.csv",
+      "sourceSha256": "79232c8d7c27fef161d8f33ca169f9754741cfe14957dde2ac76893374998943",
+      "textSha256": "3d6323cd598173a513608e390186df6cd123e282ea2e4f1db3bfae07b2b14ba1"
+    },
+    {
+      "id": "malik",
+      "title": "موطأ مالك",
+      "count": 1594,
+      "sourceUrl": "https://github.com/mhashim6/Open-Hadith-Data/tree/1515f6cba21efed20d8916bf55acef1dffa0d2d5",
+      "sourceFile": "https://raw.githubusercontent.com/mhashim6/Open-Hadith-Data/1515f6cba21efed20d8916bf55acef1dffa0d2d5/Maliks_Muwataa/maliks_muwataa_ahadith_mushakkala_mufassala.utf8.csv",
+      "sourceSha256": "d306930f056bb0a74745a4453fbef04cc80765213554b052a29427e24702ece0",
+      "textSha256": "662a2aac7db9d751881d05f89e712da4a43a91505b6ffab09dfb0f4676e09965"
+    }
+  ],
+  "parts": [
+    {
+      "file": "library.db.gz.001",
+      "bytes": 1048576,
+      "sha256": "c640cedef3e63b3aca480be8338a87c5a47a8fb7d0aa8ec02d1873855cf401af"
+    },
+    {
+      "file": "library.db.gz.002",
+      "bytes": 1048576,
+      "sha256": "07e46739e648432b9824c3a6bc92ec59d897f03293ffbad99c45460da14ddcb3"
+    },
+    {
+      "file": "library.db.gz.003",
+      "bytes": 1048576,
+      "sha256": "1a81939ab0ac914af56d8e7b8140ced67d79e9e558268a37906174530928a4f1"
+    },
+    {
+      "file": "library.db.gz.004",
+      "bytes": 1048576,
+      "sha256": "4c94c9d18031b2777eb99aefc28654f2396e7a8a39398b3015a2658f435a5059"
+    },
+    {
+      "file": "library.db.gz.005",
+      "bytes": 1048576,
+      "sha256": "71826c4ba3e292d68531ddb8c26b44fde7fdf54bbc9cc862ac8740e09d0f6256"
+    },
+    {
+      "file": "library.db.gz.006",
+      "bytes": 1048576,
+      "sha256": "604ac23ac4593dab0f45f6d830d165ab1bd7e7b6528b8884708b66951375a965"
+    },
+    {
+      "file": "library.db.gz.007",
+      "bytes": 1048576,
+      "sha256": "873fb2813735df6abf17a80073fec089ad6f24cdf774c48261e61dab2ee8e965"
+    },
+    {
+      "file": "library.db.gz.008",
+      "bytes": 467121,
+      "sha256": "54da354aa5d37a6e4b0f0bd9fe66f88c0b434ab02d8d8d5f8f2b42b177a04f9b"
+    }
+  ]
+}
