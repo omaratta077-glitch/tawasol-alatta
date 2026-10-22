@@ -1,4 +1,4 @@
-const CACHE="tawasol-alatta-v13-88";
+const CACHE="tawasol-alatta-web14-0";
 const STATIC_RE=/\.(?:css|js|png|jpg|jpeg|webp|svg|ico|wav|mp3|woff2?)$/i;
 
 self.addEventListener("install",event=>{
@@ -19,6 +19,9 @@ self.addEventListener("fetch",event=>{
   const u=new URL(r.url);
   if(u.origin!==self.location.origin)return;
   if(u.pathname.startsWith("/api/")||u.pathname==="/ws"||u.pathname.startsWith("/media/"))return;
+
+  // Generated Quran/Hadith data is fetched on demand; do not grow the shell cache by hundreds of MB.
+  if(u.pathname.startsWith("/knowledge/generated/"))return;
 
   if(STATIC_RE.test(u.pathname)){
     event.respondWith((async()=>{
