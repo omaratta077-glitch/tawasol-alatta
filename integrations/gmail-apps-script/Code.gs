@@ -42,8 +42,8 @@ function doPost(e) {
     const code = String(request.code || '');
     const purpose = String(request.purpose || '');
     const subject = ATTA_GMAIL_SUBJECTS[purpose];
-    if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(to) ||
-        !/^\\d{6}$/.test(code) || !subject) {
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to) ||
+        !/^\d{6}$/.test(code) || !subject) {
       return attaMailResult_({ok:false,reason:'invalid_request'});
     }
     if (MailApp.getRemainingDailyQuota() < 1) {
