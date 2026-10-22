@@ -144,6 +144,109 @@ private fun AttaCommentEntry(entry: JSONObject, nested: Boolean,
                         }
 
 /**
+ * Read-only list of users who reacted to a post, like the website's existing
+ * interactions panel. The Worker filters blocked/hidden/invisible profiles.
+ * This NEVER updates a reaction: it only fetches pages and opens profiles.
+ */
+@Composable
+private fun AttaPostReactorsDialog(
+    postId: String,
+    onClose: () -> Unit,
+    loadPeople: suspend (Int) -> JSONObject,
+    onProfile: (String) -> Unit
+) {
+    val scope = rememberCoroutineScope()
+    var people by remember(postId) { mutableStateOf(emptyList<JSONObject>()) }
+    var nextOffset by remember(postId) { mutableStateOf<Int?>(0) }
+    var loading by remember(postId) { mutableStateOf(false) }
+    var failure by remember(postId) { mutableStateOf("") }
+    suspend fun loadNext() {
+        val offset = nextOffset ?: return
+        if (loading) return
+        loading = true
+        failure = ""
+        try {
+            val response = loadPeople(offset)
+            val fresh = response.arr("people")
+            people = (people + fresh).distinctBy { it.optString("username") }
+            nextOffset = if (response.isNull("nextOffset")) null
+                         else response.optInt("nextOffset").takeIf { it > offset }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (error: Exception) {
+            failure = error.message ?: "تعذر تحميل أسماء المتفاعلين"
+        } finally {
+            loading = false
+        }
+    }
+    LaunchedEffect(postId) { loadNext() }
+    Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
+            Column(Modifier.fillMaxWidth().fillMaxHeight(.72f)
+                .padding(horizontal = 10.dp)
+                .background(Panel, RoundedCornerShape(20.dp))
+                .border(1.dp, Border, RoundedCornerShape(20.dp))
+                .padding(12.dp)) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text("المعجبون والمتفاعلون", color = GoldLight,
+                        fontSize = 19.sp, fontWeight = FontWeight.Bold,
+                        modifier = Modifier.weight(1f))
+                    TextButton(onClick = onClose) { SiteIcon("x", size = 23.dp) }
+                }
+                HorizontalDivider(color = Border)
+                LazyColumn(Modifier.weight(1f).fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    items(people, key = { it.optString("username") }) { person ->
+                        val username = person.optString("username")
+                        val label = person.optString("fullName")
+                            .ifBlank { person.optString("displayName") }
+                            .ifBlank { username }
+                        val emoji = when (person.optString("reaction")) {
+                            "love" -> "❤️"
+                            "haha" -> "😂"
+                            "wow" -> "😮"
+                            "sad" -> "😢"
+                            "angry" -> "😡"
+                            "dislike" -> "👎"
+                            else -> "👍"
+                        }
+                        Row(Modifier.fillMaxWidth().heightIn(min = 58.dp)
+                            .clickable(enabled = username.isNotBlank()) {
+                                if (username.isNotBlank()) onProfile(username)
+                            }.padding(6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Box(Modifier.size(43.dp).clip(CircleShape)
+                                .border(.7.dp, Gold, CircleShape),
+                                contentAlignment = Alignment.Center) {
+                                if (person.optString("avatar").isNotBlank())
+                                    ProfileMediaImage(person.optString("avatar"), label, Modifier.fillMaxSize())
+                                else SiteIcon("user", size = 23.dp)
+                            }
+                            Text(label, Modifier.weight(1f), color = White,
+                                fontSize = 15.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                            Text(emoji, fontSize = 22.sp)
+                        }
+                    }
+                }
+                if (people.isEmpty() && !loading && failure.isBlank())
+                    Text("لا توجد تفاعلات ظاهرة حاليًا", color = Muted,
+                        modifier = Modifier.padding(12.dp))
+                if (failure.isNotBlank())
+                    Text(failure, color = Color(0xFFFFAFAF),
+                        modifier = Modifier.padding(horizontal = 10.dp))
+                if (loading) LinearProgressIndicator(Modifier.fillMaxWidth(), color = Gold)
+                if (nextOffset != null && !loading)
+                    TextButton(onClick = { scope.launch { loadNext() } },
+                        modifier = Modifier.align(Alignment.CenterHorizontally)) {
+                        Text(if (failure.isBlank()) "عرض المزيد" else "إعادة المحاولة", color = GoldLight)
+                    }
+            }
+        }
+    }
+}
+
+/**
  * A single, genuinely RTL comment dialog used by the native feed.
  * Both Arabic and English names are on the RIGHT; English letters retain
  * their normal order. Replies use the server's existing /api/comment-reply.
@@ -2525,6 +2628,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                 val postId = p.optString("id")
                                 var comment by remember(postId) { mutableStateOf("") }
                                 var showComments by remember(postId) { mutableStateOf(false) }
+                                var showReactors by remember(postId) { mutableStateOf(false) }
                                 var showFullscreenVideo by remember(postId) { mutableStateOf(false) }
                                 val remoteLiked = p.optBoolean("likedByMe")
                                 val remoteReaction = p.optString("myReaction")
@@ -2533,7 +2637,10 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                 val reactionCounts = p.optJSONObject("reactionCounts") ?: JSONObject()
                                 val reactionTotal = listOf("like", "love", "haha", "wow", "sad", "angry", "dislike")
                                     .sumOf { reactionCounts.optInt(it) }
-                                val baseTotal = p.optInt("likeCount") + reactionTotal
+                                // One user has one reaction: server totals already
+                                // deduplicate legacy likes and modern reactions.
+                                val baseTotal = p.optInt("reactionCount",
+                                    p.optInt("likeCount") + reactionTotal)
                                 var selectedReaction by remember(postId, serverReaction) {
                                     mutableStateOf(serverReaction)
                                 }
@@ -2665,6 +2772,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                                 count = visibleLikeCount,
                                                 liked = selectedReaction == "like",
                                                 selectedReaction = selectedReaction,
+                                                onShowPeople = { showReactors = true },
                                                 onLike = {
                                                     val previous = selectedReaction
                                                     val next = if (previous == "like") "" else "like"
@@ -2715,6 +2823,19 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                             if (p.optBoolean("savedByMe")) "محفوظ" else "حفظ", GoldLight) {
                                             task { post("/api/post-save", JSONObject().put("postId", postId)); load(tab) }
                                         }
+                                    }
+                                    if (showReactors) {
+                                        AttaPostReactorsDialog(
+                                            postId = postId,
+                                            onClose = { showReactors = false },
+                                            loadPeople = { offset ->
+                                                get("/api/post-interactions?postId=${enc(postId)}&kind=reactions&offset=$offset&limit=30")
+                                            },
+                                            onProfile = { user ->
+                                                showReactors = false
+                                                openPublicProfile(user)
+                                            }
+                                        )
                                     }
                                     if (showComments) {
                                         AttaRightAlignedComments(

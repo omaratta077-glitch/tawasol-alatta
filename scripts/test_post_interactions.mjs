@@ -47,4 +47,25 @@ result=await request(endpoint('alice','&kind=comments'));assert.equal(result.dat
 for(const name of ['owner','hidden'])await storage.put('friends:'+name,[name==='owner'?'hidden':'owner']);
 result=await request(endpoint());assert.ok(result.data.people.some(x=>x.username==='hidden'),'A confirmed friend may see the permitted hidden interaction');
 result=await request(endpoint('alice'));assert.ok(!result.data.people.some(x=>x.username==='hidden'),'Friendship with the author does not disclose the identity to strangers');
-console.log('PASS post interaction API: names/avatars, read-only deduplicated people pagination, comments, hidden/blocked/disabled/private authorization, reaction switching and new comments');
+const website=fs.readFileSync(new URL('../cloudflare-site/public/app.js',import.meta.url),'utf8');
+const android=fs.readFileSync(new URL('../android-native/app/src/main/java/com/alatta/nativeapp/MainActivity.kt',import.meta.url),'utf8');
+const control=fs.readFileSync(new URL('../android-native/app/src/main/java/com/alatta/nativeapp/PremiumChrome.kt',import.meta.url),'utf8');
+assert.ok(website.includes("scope.querySelectorAll('[data-post-comments]')") &&
+  website.includes('data-post-comments="') &&
+  website.includes('openPostPanel(button.dataset.postComments,"comments")'),
+  'Website post and profile comment-count buttons open the existing named-comments sheet');
+assert.ok(website.includes('data-post-people="') &&
+  website.includes('openPostPanel(button.dataset.postPeople,"reactions")'),
+  'Website reaction counts open the existing people panel');
+assert.ok(!website.includes('data-comment-focus='), 'old focus-only comments counter removed');
+assert.ok(android.includes('private fun AttaPostReactorsDialog(') &&
+  android.includes('onShowPeople = { showReactors = true }') &&
+  android.includes('get("/api/post-interactions?postId=') &&
+  android.includes('kind=reactions&offset=$offset&limit=30'),
+  'Android opens the read-only paginated named-reactors dialog through the same API');
+assert.ok(android.includes('p.optInt("reactionCount"') &&
+  android.includes('AttaRightAlignedComments('),
+  'Android counts unique reactors and retains the existing named-comment dialog');
+assert.ok(control.includes('onShowPeople: (() -> Unit)? = null'),
+  'Existing reaction count affordance reused instead of a duplicate like control');
+console.log('PASS post interaction API: names/avatars, read-only deduplicated people pagination, comments, hidden/blocked/disabled/private authorization, reaction switching and new comments plus web/native UI links');

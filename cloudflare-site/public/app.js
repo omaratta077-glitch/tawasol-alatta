@@ -2387,6 +2387,7 @@ function bindPostMedia(posts,scope){
     if(el.tagName==="IMG"){el.setAttribute("role","button");el.tabIndex=0;el.onkeydown=e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();open();}};}
   });
   scope.querySelectorAll('[data-post-people]').forEach(button=>button.onclick=()=>openPostPanel(button.dataset.postPeople,"reactions"));
+  scope.querySelectorAll('[data-post-comments]').forEach(button=>button.onclick=()=>openPostPanel(button.dataset.postComments,"comments"));
 }
 function createPostMediaRoot(){
   if(postMediaUI.root)return postMediaUI.root;
@@ -2557,7 +2558,7 @@ async function loadProfilePosts(username){
         ${post.video?`<button class="post-video-preview" data-open-post-media="${esc(post.id)}" data-media-kind="video" aria-label="فتح الفيديو">${uiIcon("play")}</button>`:""}
         ${post.sharedPost?`<div class="shared-post-box"><div class="shared-post-head">@${esc(post.sharedPost.authorInfo?.username||post.sharedPost.author)}</div>${youtubePostInfo(post.sharedPost.text).text?`<div>${esc(youtubePostInfo(post.sharedPost.text).text)}</div>`:""}
           ${youtubePostFrame(post.sharedPost)}${post.sharedPost.image?`<img loading="lazy" decoding="async" src="${post.sharedPost.image}" class="shared-post-image" alt="">`:""}</div>`:""}
-        <div class="profile-post-footer"><div class="profile-post-stats"><button data-post-people="${esc(post.id)}" aria-label="عرض أصحاب التفاعلات">♡ ${reactionCount}</button><span>💬 ${commentCount}</span></div><button class="profile-post-open" data-profile-post-open="${esc(post.id)}">عرض المنشور</button></div>
+        <div class="profile-post-footer"><div class="profile-post-stats"><button data-post-people="${esc(post.id)}" aria-label="عرض المعجبين والمتفاعلين">❤️ ${reactionCount} <span>المتفاعلون</span></button><button data-post-comments="${esc(post.id)}" aria-label="عرض أصحاب التعليقات">💬 ${commentCount} <span>التعليقات</span></button></div><button class="profile-post-open" data-profile-post-open="${esc(post.id)}">عرض المنشور</button></div>
       </article>`;
     }).join("");
     bindProfileLinks();
@@ -2741,8 +2742,8 @@ async function loadPosts(){
             <button class="text-action-btn" data-share-post="${post.id}">${iconShare()}<span>مشاركة</span></button>
           </div>
           <div class="reference-post-stats">
-            <button class="stat-btn ${post.myReaction?"active":""}" data-react-main="${post.id}" data-current-reaction="${esc(post.myReaction||"")}" title="إعجاب" aria-label="إعجاب">${iconHeart()}</button><button class="stat-btn" data-post-people="${esc(post.id)}" aria-label="عرض أصحاب التفاعلات">${likeCount}</button>
-            <button class="stat-btn" data-comment-focus="${post.id}">${iconComment()}<span>${commentCount}</span></button>
+            <button class="stat-btn ${post.myReaction?"active":""}" data-react-main="${post.id}" data-current-reaction="${esc(post.myReaction||"")}" title="إعجاب" aria-label="إعجاب">${iconHeart()}</button><button class="stat-btn post-people-trigger" data-post-people="${esc(post.id)}" aria-label="عرض أسماء المعجبين والمتفاعلين">${likeCount}<span> المتفاعلون</span></button>
+            <button class="stat-btn post-comments-trigger" data-post-comments="${esc(post.id)}" aria-label="عرض أسماء المعلقين وتعليقاتهم">${iconComment()}<span>${commentCount} تعليق</span></button>
             <button class="stat-btn" data-share-post="${post.id}">${iconRepeat()}<span>${shareCount}</span></button>
           </div>
         </div>
@@ -2784,9 +2785,8 @@ async function loadPosts(){
       };
     });
 
-    document.querySelectorAll("[data-comment-focus]").forEach(btn=>{
-      btn.onclick=()=>document.querySelector(`[data-comment-input="${btn.dataset.commentFocus}"]`)?.focus();
-    });
+    // Comments count now opens the already existing paginated viewer,
+    // including names, avatars and the comment composer (via bindPostMedia).
 
     document.querySelectorAll("[data-react-main]").forEach(btn=>{
       // Normal click = Like / Unlike immediately. This keeps the main reaction usable
