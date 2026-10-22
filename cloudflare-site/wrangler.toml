@@ -8,6 +8,10 @@ keep_vars = true
 # Keep the existing Cloudflare owner settings.
 # Set SUPER_ADMIN_USERNAME to your chosen existing account and SUPER_ADMIN_EMAIL to its verified email.
 # Google OAuth Client ID is public (not a secret).
+# Optional FREE Brevo transactional mail provider: set BREVO_API_KEY as a
+# Cloudflare Worker secret, and BREVO_SENDER_EMAIL as a verified sender's email.
+# Optionally set BREVO_SENDER_NAME="تواصل العطا". Never commit API keys.
+# When Brevo is not configured, the existing RESEND_API_KEY provider remains unchanged.
 GOOGLE_CLIENT_ID = "892140625911-rgln2915nsojaftmuvkst46m1kepetk3.apps.googleusercontent.com"
 
 [build]

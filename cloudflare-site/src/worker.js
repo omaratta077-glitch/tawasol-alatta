@@ -540,28 +540,62 @@ export class SignalingRoom extends DurableObject {
     return `${visible}${"*".repeat(Math.max(2,name.length-visible.length))}@${domain}`;
   }
 
-  async sendVerificationEmail(email,code,adminSecurity=false){
-    const apiKey=String(this.env.RESEND_API_KEY||"").trim();
-    const from=String(
-      this.env.VERIFY_FROM_EMAIL||
-      "Tawasol Al-Atta <onboarding@resend.dev>"
-    ).trim();
-
-    if(!apiKey){
-      throw new Error("EMAIL_PROVIDER_NOT_CONFIGURED");
+  /** The already registered/verified Brevo sender can use a free mailbox.
+   * Brevo may rewrite free-mail From domains; do not claim branded delivery.
+   * Prefer Brevo only when its API key exists; otherwise retain Resend.
+   * Never retry via a second provider after an ambiguous failed delivery.
+   */
+  async sendTransactionalEmail(email,subject,html){
+    const brevoKey=String(this.env.BREVO_API_KEY||"").trim();
+    if(brevoKey){
+      const senderEmail=String(this.env.BREVO_SENDER_EMAIL||"").trim().toLowerCase();
+      if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(senderEmail)){
+        throw new Error("BREVO_SENDER_NOT_CONFIGURED");
+      }
+      const senderName=String(this.env.BREVO_SENDER_NAME||"تواصل العطا").trim().slice(0,100)||"تواصل العطا";
+      const response=await fetch("https://api.brevo.com/v3/smtp/email",{
+        method:"POST",
+        headers:{"api-key":brevoKey,"accept":"application/json","content-type":"application/json"},
+        body:JSON.stringify({
+          sender:{name:senderName,email:senderEmail},
+          to:[{email}],
+          subject,
+          htmlContent:html
+        })
+      });
+      if(!response.ok){
+        // Do not log one-time codes, addresses, API keys, or provider bodies.
+        console.error("Brevo email failed, HTTP",response.status);
+        const error=new Error("EMAIL_SEND_FAILED");
+        error.providerName="Brevo";
+        error.providerStatus=response.status;
+        throw error;
+      }
+      return true;
     }
 
+    const apiKey=String(this.env.RESEND_API_KEY||"").trim();
+    if(!apiKey)throw new Error("EMAIL_PROVIDER_NOT_CONFIGURED");
+    const from=String(this.env.VERIFY_FROM_EMAIL||
+      "Tawasol Al-Atta <onboarding@resend.dev>").trim();
     const response=await fetch("https://api.resend.com/emails",{
       method:"POST",
-      headers:{
-        "Authorization":`Bearer ${apiKey}`,
-        "Content-Type":"application/json"
-      },
-      body:JSON.stringify({
-        from,
-        to:[email],
-        subject:adminSecurity?"حماية إدارة تواصل العطا":"كود تأكيد حساب تواصل العطا",
-        html:`<!doctype html>
+      headers:{"Authorization":`Bearer ${apiKey}`,"Content-Type":"application/json"},
+      body:JSON.stringify({from,to:[email],subject,html})
+    });
+    if(!response.ok){
+      console.error("Resend email failed, HTTP",response.status);
+      const error=new Error("EMAIL_SEND_FAILED");
+      error.providerName="Resend";
+      error.providerStatus=response.status;
+      throw error;
+    }
+    return true;
+  }
+
+  async sendVerificationEmail(email,code,adminSecurity=false){
+    const subject=adminSecurity?"حماية إدارة تواصل العطا":"كود تأكيد حساب تواصل العطا";
+    const html=`<!doctype html>
           <html dir="rtl" lang="ar">
             <body style="margin:0;background:#0a0d10;font-family:Arial,sans-serif;color:#fff">
               <div style="max-width:520px;margin:30px auto;padding:28px;background:#11161a;border:1px solid #d7a936;border-radius:18px;text-align:center">
@@ -571,45 +605,13 @@ export class SignalingRoom extends DurableObject {
                 <p style="color:#aaa;font-size:13px">الكود صالح لمدة 10 دقائق. إذا لم تطلب هذا الإجراء فتجاهل الرسالة.</p>
               </div>
             </body>
-          </html>`
-      })
-    });
-
-    const text=await response.text();
-
-    if(!response.ok){
-      let providerMessage="";
-      let providerName="";
-      try{
-        const parsed=JSON.parse(text||"{}");
-        providerMessage=String(parsed.message||parsed.error||"").slice(0,300);
-        providerName=String(parsed.name||"").slice(0,100);
-      }catch{
-        providerMessage=String(text||"").slice(0,300);
-      }
-
-      console.error("Verification email provider error",response.status,providerName,providerMessage);
-
-      const err=new Error("EMAIL_SEND_FAILED");
-      err.providerStatus=response.status;
-      err.providerName=providerName;
-      err.providerMessage=providerMessage;
-      throw err;
-    }
-
-    return true;
+          </html>`;
+    return this.sendTransactionalEmail(email,subject,html);
   }
 
   async sendPasswordResetEmail(email,code){
-    const key=String(this.env.RESEND_API_KEY||'').trim();
-    if(!key)throw new Error('EMAIL_PROVIDER_NOT_CONFIGURED');
-    const from=String(this.env.VERIFY_FROM_EMAIL||'Tawasol Al-Atta <onboarding@resend.dev>').trim();
-    const response=await fetch('https://api.resend.com/emails',{
-      method:'POST',headers:{Authorization:`Bearer ${key}`,'Content-Type':'application/json'},
-      body:JSON.stringify({from,to:[email],subject:'استعادة كلمة المرور — تواصل العطا',
-        html:`<div dir="rtl" style="font-family:Arial;padding:24px">كود استعادة كلمة المرور في تواصل العطا: <strong>${code}</strong><p>ينتهي بعد 10 دقائق. تجاهل الرسالة إن لم تطلبها.</p></div>`})
-    });
-    if(!response.ok)throw new Error('EMAIL_SEND_FAILED');
+    const html=`<div dir="rtl" style="font-family:Arial;padding:24px">كود استعادة كلمة المرور في تواصل العطا: <strong>${code}</strong><p>ينتهي بعد 10 دقائق. تجاهل الرسالة إن لم تطلبها.</p></div>`;
+    return this.sendTransactionalEmail(email,"استعادة كلمة المرور — تواصل العطا",html);
   }
 
   async allRecords(prefix){
@@ -792,6 +794,8 @@ export class SignalingRoom extends DurableObject {
         diagnostics:{
           resendApiKeyConfigured:!!resend,
           resendApiKeyLooksValid:resend.startsWith("re_"),
+          brevoApiKeyConfigured:!!String(this.env.BREVO_API_KEY||"").trim(),
+          brevoSenderConfigured:/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(String(this.env.BREVO_SENDER_EMAIL||"").trim()),
           turnKeyIdConfigured:!!turnId,
           turnKeyApiTokenConfigured:!!turnToken
         },
