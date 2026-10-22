@@ -217,7 +217,7 @@ export class SignalingRoom extends DurableObject {
   async visiblePost(post,viewer,depth=0){
     if(!post || !await this.canSeeContent(viewer,post.author))return null;
     const out={...post,likes:[],comments:[],reactions:{}};
-    const identities=new Map();
+    const identities=new Map(),commentPeople=new Map();
     const identity=async name=>{
       if(identities.has(name))return identities.get(name);
       const user=await this.user(name);
@@ -236,7 +236,10 @@ export class SignalingRoom extends DurableObject {
     }
     const commentView=async comment=>{
       const author=await identity(comment.author);if(!author)return null;
-      return {...comment,author,authorInfo:await this.interactionPerson(author)};
+      // Feed previews need names, not an embedded copy of the same photo in
+      // every comment. Full avatars are loaded by the paginated people panel.
+      if(!commentPeople.has(author))commentPeople.set(author,await this.interactionPerson(author,false));
+      return {...comment,author,authorInfo:commentPeople.get(author)};
     };
     for(const comment of post.comments||[]){
       const visible=await commentView(comment);if(!visible)continue;
@@ -360,10 +363,10 @@ export class SignalingRoom extends DurableObject {
       ? await this.canCommunicate(viewer,author) : true);
   }
 
-  async interactionPerson(username){
+  async interactionPerson(username,includeAvatar=true){
     if(String(username).startsWith("~anonymous:"))return {username,fullName:"حساب مخفي",displayName:"حساب مخفي",avatar:"",anonymous:true};
     const u=await this.publicUser(username);
-    return u?{username:u.username,fullName:u.fullName,displayName:u.displayName,avatar:u.avatar}:null;
+    return u?{username:u.username,fullName:u.fullName,displayName:u.displayName,...(includeAvatar?{avatar:u.avatar}:{})}:null;
   }
 
   // Following/sharing still reveals identity and retains its prior policy.

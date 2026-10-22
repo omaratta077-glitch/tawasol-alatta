@@ -29,4 +29,19 @@ data.set('postIds',[...ids,'new-post']);assert.equal((await get('&before='+first
 // A page of entirely hidden/archived posts must still offer a private, opaque cursor.
 data.set('postIds',Array.from({length:100},(_,i)=>'secret'+i));for(let i=0;i<100;i++)data.set('post:secret'+i,{id:'secret'+i,author:'private',text:'SECRET'});
 const hidden=await get();assert.deepEqual(hidden.body.posts,[]);assert.ok(hidden.body.nextCursor);assert.ok(!JSON.stringify(hidden.body).includes('secret')&&!JSON.stringify(hidden.body).includes('SECRET'));
+// Regression: repeated base64 comment avatars must not grow the feed beyond
+// the Android transport's 32 MiB bound. Names and full panel avatars survive.
+const photo='data:image/jpeg;base64,'+'A'.repeat(400*1024);
+data.set('user:commenter',{username:'commenter',fullName:'اسم المعلق',avatar:photo});
+const comments=Array.from({length:80},(_,i)=>({id:'comment'+i,author:'commenter',text:'تعليق '+i,replies:[]}));
+for(const id of ['large1','large2'])data.set('post:'+id,{id,author:'bob',text:'كثير التعليقات',comments,likes:[]});
+data.set('postIds',['large1','large2']);reads.length=0;
+const bounded=await get();assert.equal(bounded.status,200);assert.equal(bounded.body.posts.length,2);
+assert.ok(Buffer.byteLength(JSON.stringify(bounded.body))<1024*1024,'feed must not repeat embedded comment photos');
+assert.equal(bounded.body.posts[0].comments.length,80);assert.equal(bounded.body.posts[0].comments[0].authorInfo.fullName,'اسم المعلق');
+assert.equal(bounded.body.posts[0].comments[0].authorInfo.avatar,undefined);
+assert.ok(reads.filter(k=>k==='user:commenter').length<=4,'comment metadata is resolved once per unique author per post');
+const panel=await room.api(new Request('https://unit.test/api/post-interactions?postId=large1&kind=comments&limit=1&token='+token));
+assert.equal((await panel.json()).comments[0].authorInfo.avatar,photo,'full comment panel retains the original profile image');
+assert.equal(data.get('user:commenter').avatar,photo,'stored avatars are never changed');
 console.log('PASS paged feed: bounded first page, older posts, own-author filter, no duplicate/skip, compact authors, session/privacy/block checks, opaque cursors and changed-timeline detection');
