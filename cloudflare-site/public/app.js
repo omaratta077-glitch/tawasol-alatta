@@ -173,10 +173,9 @@ async function startAuthenticatedApp(sessionToken,user=null){
     try{
       const d=await api(`/api/me?token=${encodeURIComponent(token)}`);
       user={...user,...d.user};
-      // Never retain a role from stale initial/cached login data.
       if(!d.user?.role)user.role="user";
     }catch{
-      // Normal pages may continue if offline; admin controls must fail closed.
+      // Offline cached session may keep ordinary pages; never cached admin rights.
       user={...user,role:"user"};
     }
   }
@@ -283,6 +282,11 @@ function totalReactionsCount(reactionCounts){
 }
 
 function iconHeart(){return uiIcon("heart")}
+function reactionSymbol(reaction){
+  if(advancedReactions.includes(reaction))return `<span class="selected-reaction" role="img" aria-label="${reactionLabel(reaction)}">${reactionEmoji[reaction]}</span>`;
+  return uiIcon(reaction==="like"?"heart-filled":"heart");
+}
+function reactionLabel(reaction){return ({like:"إعجاب",love:"أحببته",haha:"أضحكني",wow:"أدهشني",sad:"أحزنني",angry:"أغضبني"})[reaction]||"إعجاب";}
 function iconComment(){return uiIcon("message-circle")}
 function iconRepeat(){return uiIcon("repeat")}
 function iconBookmark(){return uiIcon("bookmark")}
@@ -1657,6 +1661,7 @@ let postVideoData="";
 let postVideoUrl="";
 let postVideoUploading=false;
 
+const advancedReactions=["love","haha","wow","sad","angry"];
 const reactionEmoji={like:"👍",love:"❤️",haha:"😂",wow:"😮",sad:"😢",angry:"😡",dislike:"👎"};
 
 
@@ -2769,16 +2774,16 @@ async function loadPosts(){
         <div class="reference-post-footer">
           <div class="reference-post-side-actions">
             <button class="text-action-btn ${post.savedByMe?"active":""}" data-save-post="${post.id}">${iconBookmark()}<span>${post.savedByMe?"محفوظ":"حفظ"}</span></button>
-            <button class="text-action-btn" data-share-post="${post.id}">${iconShare()}<span>مشاركة</span></button>
+
           </div>
           <div class="reference-post-stats">
-            <button class="stat-btn ${post.myReaction?"active":""}" data-react-main="${post.id}" data-current-reaction="${esc(post.myReaction||"")}" title="إعجاب" aria-label="إعجاب">${iconHeart()}</button><button class="stat-btn post-people-trigger" data-post-people="${esc(post.id)}" aria-label="عرض أسماء المعجبين والمتفاعلين">${likeCount}<span> المتفاعلون</span></button>
-            <button class="stat-btn post-comments-trigger" data-post-comments="${esc(post.id)}" aria-label="عرض أسماء المعلقين وتعليقاتهم">${iconComment()}<span>${commentCount} تعليق</span></button>
+            <button class="stat-btn ${post.myReaction?"active":""}" data-react-main="${post.id}" data-current-reaction="${esc(post.myReaction||"")}" title="${reactionLabel(post.myReaction)}" aria-label="${reactionLabel(post.myReaction)}">${reactionSymbol(post.myReaction)}</button><button class="stat-btn post-people-trigger" data-post-people="${esc(post.id)}" aria-label="عرض أسماء المعجبين والمتفاعلين">${likeCount}</button>
+            <button class="stat-btn post-comments-trigger" data-post-comments="${esc(post.id)}" aria-label="عرض أسماء المعلقين وتعليقاتهم">${iconComment()}<span>${commentCount}</span></button>
             <button class="stat-btn" data-share-post="${post.id}">${iconRepeat()}<span>${shareCount}</span></button>
           </div>
         </div>
         <div class="reaction-picker hidden reference-reaction-picker" data-reaction-picker="${post.id}">
-          ${Object.entries(reactionEmoji).map(([k,e])=>`<button data-react="${post.id}" data-reaction="${k}">${e}</button>`).join("")}
+          ${advancedReactions.map(k=>`<button data-react="${post.id}" data-reaction="${k}" aria-label="${reactionLabel(k)}">${reactionEmoji[k]}</button>`).join("")}
         </div>
         <div class="comments-box reference-comments-box">
           <div class="comments-list">${comments}</div>
@@ -4215,6 +4220,8 @@ window.AttaWeb=Object.freeze({
   const fullscreenQuery = window.matchMedia("(display-mode: fullscreen)");
   const isStandalone = () => standaloneQuery.matches || fullscreenQuery.matches || window.navigator.standalone === true;
   let installedThisSession = false;
+  const actions=document.getElementById("mobileInstallActions"),mount=document.getElementById("authInstallMount");
+  if(actions&&mount)mount.append(actions);
   const refreshInstallButton = () => {
     const installed = isStandalone() || installedThisSession;
     installButtons.forEach(button => button.classList.toggle("hidden", installed));
@@ -4246,7 +4253,7 @@ window.AttaWeb=Object.freeze({
 
   if ("serviceWorker" in navigator) {
     window.addEventListener("load", () => {
-      navigator.serviceWorker.register("/sw.js?v=14.3", { scope: "/" }).catch(() => {});
+      navigator.serviceWorker.register("/sw.js?v=14.4", { scope: "/" }).catch(() => {});
     });
   }
 

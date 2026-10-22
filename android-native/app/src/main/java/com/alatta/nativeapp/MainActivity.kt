@@ -1805,7 +1805,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
         }
         if (destination != "الرئيسية") activeYoutubePostId = ""
         if (destination == "القائمة" && tab != "القائمة") {
-            // Hide admin until /api/me verifies the active session's role.
+            // Display owner/moderator controls only after /api/me verifies this session.
             adminRole = ""
         }
         if (tab != destination) { visited.add(tab); tab = destination }
@@ -2963,8 +2963,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                             item {
                                 CardBox {
                                     if (adminRole == "super_admin" || adminRole == "moderator") {
-                                        // No admin icon for regular users; moderator role is granted
-                                        // to a specific account by the server-side owner only.
+                                        // The owner assigns individual moderator accounts server-side.
                                         PremiumMenuEntry("shield", "لوحة الإدارة") { navigate("الإدارة") }
                                         HorizontalDivider(color = Border.copy(alpha = .5f))
                                     }
@@ -3475,7 +3474,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                         listOf("المنشورات", "حول", "الأصدقاء", "الصور", "الفيديوهات").forEach { section ->
                                             TextButton(onClick = {
                                                 ownProfileFilter = section
-                                                // Editing belongs to About only: never leak form fields into posts/friends/photos.
+                                                // Editing belongs to About only, not posts or photos.
                                                 if (section != "حول") editProfileDetails = false
                                             }) { Text(section, color = if (ownProfileFilter == section) GoldLight else Muted) }
                                         }
@@ -3494,9 +3493,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                                         SectionTitle("التفاصيل")
                                         Spacer(Modifier.weight(1f))
-                                        TextButton(onClick = {
-                                            editProfileDetails = !editProfileDetails
-                                        }, enabled = !busy) {
+                                        TextButton(onClick = { editProfileDetails = !editProfileDetails }, enabled = !busy) {
                                             SiteIcon(if (editProfileDetails) "x" else "pencil", size = 17.dp, tint = GoldLight)
                                             Spacer(Modifier.width(5.dp))
                                             Text(if (editProfileDetails) "إلغاء" else "تعديل الملف الشخصي",

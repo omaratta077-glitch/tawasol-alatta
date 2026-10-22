@@ -13,7 +13,7 @@ assert.doesNotMatch(source,/GZIPInputStream/);
 assert.doesNotMatch(source,/WebView\(|loadDataWithBaseURL\(/);
 assert.match(source,/BackHandler/);
 assert.match(source,/putInt\("page"/);
-assert.match(source,/فهرس السور/);
+assert.match(source,/فهرس المصحف الشريف/);
 const dir=path.join(app,'assets/mushaf/pages');
 const pages=fs.readdirSync(dir).filter(x=>/^\d{3}\.svg\.gz$/.test(x));
 assert.equal(pages.length,604);
@@ -36,7 +36,7 @@ assert.match(pageStore, /ensureCached/);
 assert.match(pageStore, /MessageDigest/);
 assert.doesNotMatch(source, /GZIPInputStream/);
 
-for (const control of ["فهرس السور","الأجزاء","المرجعيات","الملاحظات","بحث في أسماء السور","bookmark","note_$page"]) assert.ok(source.includes(control), `reader control missing: ${control}`);
+for (const control of ["فهرس المصحف الشريف","الأجزاء","المرجعيات","الملاحظات","ابحث عن اسم السورة أو رقم الجزء","bookmark","note_$page"]) assert.ok(source.includes(control), `reader control missing: ${control}`);
 
 // Recitation range player regression checks.
 for(const fn of ['playRange(', 'audio.pause()', 'audio.resume()', 'audio.next()', 'audio.previous()', 'repeatRange = !repeatRange','repeat = { repeatRange }','إلى آخر الصفحة','إلى آخر السورة','customEnd','QURAN_RECITERS']) {
