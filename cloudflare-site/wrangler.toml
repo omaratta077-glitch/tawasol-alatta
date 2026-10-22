@@ -8,6 +8,11 @@ keep_vars = true
 # Keep the existing Cloudflare owner settings.
 # Set SUPER_ADMIN_USERNAME to your chosen existing account and SUPER_ADMIN_EMAIL to its verified email.
 # Google OAuth Client ID is public (not a secret).
+# Optional free Gmail codes via Google Apps Script:
+#   wrangler secret put ATTA_GMAIL_SCRIPT_URL
+#   wrangler secret put ATTA_GMAIL_SHARED_SECRET
+# Set the matching ATTA_GMAIL_SHARED_SECRET value in Apps Script > Project Settings
+# > Script properties. Never put secrets or Gmail passwords in GitHub.
 GOOGLE_CLIENT_ID = "892140625911-rgln2915nsojaftmuvkst46m1kepetk3.apps.googleusercontent.com"
 
 [build]

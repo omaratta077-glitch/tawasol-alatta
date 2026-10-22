@@ -24,6 +24,7 @@ jobs:
       - name: Backend and YouTube source tests
         run: |
           node scripts/test_backend.mjs
+          node scripts/test_gmail_apps_script.mjs
           node scripts/test_adhan_voices.mjs
           node scripts/test_football_catalog.mjs
           node scripts/test_media_ranges.mjs
