@@ -4192,48 +4192,44 @@ window.AttaWeb=Object.freeze({
 /* ===== V13.28 Android/PWA install support ===== */
 (() => {
   let deferredInstallPrompt = null;
-  const installBtn = document.getElementById("installAppBtn");
-
-  const isStandalone = () =>
-    window.matchMedia("(display-mode: standalone)").matches ||
-    window.navigator.standalone === true;
-
+  const installButtons = [...document.querySelectorAll('[data-pwa-install]')];
+  const installHelp = document.getElementById("pwaInstallHelp");
+  const standaloneQuery = window.matchMedia("(display-mode: standalone)");
+  const fullscreenQuery = window.matchMedia("(display-mode: fullscreen)");
+  const isStandalone = () => standaloneQuery.matches || fullscreenQuery.matches || window.navigator.standalone === true;
+  let installedThisSession = false;
   const refreshInstallButton = () => {
-    if (!installBtn) return;
-    if (isStandalone()) {
-      installBtn.classList.add("hidden");
-      return;
-    }
-    if (deferredInstallPrompt) installBtn.classList.remove("hidden");
+    const installed = isStandalone() || installedThisSession;
+    installButtons.forEach(button => button.classList.toggle("hidden", installed));
+    if (installHelp) installHelp.hidden = installed;
   };
-
-  window.addEventListener("beforeinstallprompt", (event) => {
+  window.addEventListener("beforeinstallprompt", event => {
     event.preventDefault();
     deferredInstallPrompt = event;
     refreshInstallButton();
   });
-
   window.addEventListener("appinstalled", () => {
     deferredInstallPrompt = null;
-    if (installBtn) installBtn.classList.add("hidden");
+    installedThisSession = true;
+    refreshInstallButton();
   });
-
-  if (installBtn) {
-    installBtn.addEventListener("click", async () => {
-      if (!deferredInstallPrompt) {
-        alert("من Chrome على Android: افتح القائمة ⋮ ثم اختر «تثبيت التطبيق» أو «إضافة إلى الشاشة الرئيسية».");
-        return;
-      }
-      deferredInstallPrompt.prompt();
-      try { await deferredInstallPrompt.userChoice; } catch (_) {}
-      deferredInstallPrompt = null;
-      refreshInstallButton();
-    });
-  }
+  standaloneQuery.addEventListener?.("change", refreshInstallButton);
+  fullscreenQuery.addEventListener?.("change", refreshInstallButton);
+  installButtons.forEach(button => button.addEventListener("click", async () => {
+    if (!deferredInstallPrompt) {
+      alert("من Chrome على Android: افتح القائمة ⋮ ثم «تثبيت التطبيق». لو ظهر «إضافة إلى الشاشة الرئيسية»، اختَر التثبيت وليس إنشاء اختصار. افتح الموقع بعدها من أيقونته. على iPhone: من Safari اضغط مشاركة ثم إضافة إلى الشاشة الرئيسية.");
+      return;
+    }
+    const prompt = deferredInstallPrompt;
+    deferredInstallPrompt = null;
+    installButtons.forEach(button => button.disabled = true);
+    try { await prompt.prompt(); await prompt.userChoice; } catch (_) {}
+    finally { installButtons.forEach(button => button.disabled = false); refreshInstallButton(); }
+  }));
 
   if ("serviceWorker" in navigator) {
     window.addEventListener("load", () => {
-      navigator.serviceWorker.register("/sw.js?v=14.1", { scope: "/" }).catch(() => {});
+      navigator.serviceWorker.register("/sw.js?v=14.2", { scope: "/" }).catch(() => {});
     });
   }
 

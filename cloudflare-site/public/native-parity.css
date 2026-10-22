@@ -1,5 +1,6 @@
 /* Website only. Values and icon geometry follow the unchanged native app. */
 :root{--native-gold:#e6b94e;--native-light:#f6d776;--native-bg:#040506;--native-panel:#090d0f;--native-border:#6b5429;--native-muted:#b6bbc0;--native-nav:calc(74px + env(safe-area-inset-bottom,0px))}
+@media(max-width:999px){
 html{font-size:16px;-webkit-text-size-adjust:100%;text-size-adjust:100%;scroll-padding-top:70px}
 body{background:var(--native-bg)!important;color:#f7f8f9!important}
 #appView{font:14px/1.5 Tahoma,Arial,sans-serif!important;background:var(--native-bg)!important;min-height:100dvh;width:100%;padding-bottom:var(--native-nav)!important;direction:rtl}
@@ -99,6 +100,7 @@ body{background:var(--native-bg)!important;color:#f7f8f9!important}
 #appView .bubble.mine{background:#302712!important}
 #appView .composer{background:#090d0f!important}
 #appView .composer input{background:#111619!important;color:white!important;font-size:16px!important}
+}
 #appView .native-toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:10px 0}
 #appView .native-toolbar input,#appView .native-toolbar select{min-width:0;min-height:42px;border:1px solid #6b5429;border-radius:10px;background:#090d0f;color:white;padding:8px;font-size:16px}
 #appView .native-toolbar input{flex:1}
@@ -131,9 +133,10 @@ body{background:var(--native-bg)!important;color:#f7f8f9!important}
  #appView .user-search-card small{font-size:11px!important}
  #appView .user-search-card button{font-size:12px!important}
 }
-@media(min-width:1100px){#appView .desktop-rail{max-height:calc(100dvh - 160px);overflow:auto}#appView .social-main{max-width:760px!important;margin-inline:calc((100% - 760px)/2)!important}}
+
 @media(prefers-reduced-motion:reduce){#appView .premium-nav .nav-btn.active::before{animation:none!important;display:none!important}}
 
+@media(max-width:999px){
 /* Composer mirrors the native full-width field below the identity row. */
 #appView .reference-composer-top{display:grid!important;grid-template-columns:42px minmax(0,1fr)!important;align-items:center!important;gap:10px!important}
 #appView .reference-composer-main{display:contents!important}
@@ -149,8 +152,9 @@ body{background:var(--native-bg)!important;color:#f7f8f9!important}
 #appView .native-toolbar label{display:flex;align-items:center;gap:6px;flex-wrap:wrap;max-width:100%}
 #appView .native-toolbar input[type=number]{width:85px}
 #appView .reference-header-actions .header-icon-btn[aria-current=page]{background:#e6b94e22!important;color:#f6d776!important}
-@media(min-width:1100px){#appView .social-main{width:calc(100% - 280px)!important;max-width:760px!important;margin-inline-start:auto!important;margin-inline-end:250px!important}}
 
+
+}
 #appView [hidden]{display:none!important}
 
 /* Shared personal/friend timeline hierarchy. */
@@ -183,13 +187,25 @@ body{background:var(--native-bg)!important;color:#f7f8f9!important}
 .admin-secret-dialog{width:min(420px,calc(100% - 24px));max-height:90dvh;overflow:auto;padding:22px;border:1px solid #ad893f;border-radius:18px;background:#101619;color:#fff;direction:rtl}
 .admin-secret-dialog::backdrop{background:#000b}.admin-secret-dialog form{display:grid;gap:10px}.admin-secret-dialog form>div{display:flex;gap:10px}.admin-secret-dialog h3{margin:0;color:#f6d776}
 #appView .admin-post-text{white-space:pre-wrap;max-height:160px;overflow-y:auto;overflow-wrap:anywhere}
-/* Let the browser own vertical touch scrolling; reserve enough space below the fixed nav. */
-@media(display-mode:standalone),(max-width:700px){
- html{height:auto!important;min-height:100%;overflow-x:clip;overscroll-behavior-y:none}
- body:not(.chat-fullscreen-open):not(.post-media-open){height:auto!important;min-height:100svh;overflow-x:clip!important;overflow-y:auto!important}
- #appView{height:auto!important;max-height:none!important;touch-action:auto;padding-bottom:calc(var(--native-nav) + 24px)!important}
- #appView .social-layout,#appView .social-main{height:auto!important;max-height:none!important;min-height:0!important;overflow:visible!important}
+/* The document is the only feed scroller. Keep overlay/chat scroll locks intact. */
+@media(max-width:999px){
+ html{height:auto!important;min-height:100%;font-size:16px!important;overflow-x:hidden!important;overflow-y:auto!important;overscroll-behavior-y:none}
+ body:not(.chat-fullscreen-open):not(.post-media-open){height:auto!important;min-height:100svh;max-height:none!important;overflow:visible!important;position:static!important;font-size:16px!important}
+ #appView{height:auto!important;max-height:none!important;overflow:visible!important;touch-action:auto;padding-bottom:calc(var(--native-nav) + 24px)!important}
+ #appView .social-layout,#appView .social-main{height:auto!important;max-height:none!important;min-height:0!important;overflow:visible!important;display:block!important;padding-top:0!important}
  #appView .page{padding-bottom:24px!important;scroll-margin-top:70px}
+ #appView #adminPage{padding-top:12px!important}
  #appView .premium-nav{touch-action:auto;padding-inline:max(5px,env(safe-area-inset-right))!important}
  #appView .premium-header{padding-top:env(safe-area-inset-top,0px)!important;height:calc(62px + env(safe-area-inset-top,0px))!important}
+ #appView .reference-composer{margin-inline:0!important}
+ #appView .reference-composer-tools{flex:1 1 100%!important;flex-wrap:wrap!important}
+ #appView .reference-tool-btn{flex:1 1 auto!important;white-space:normal!important}
+ #appView .reference-tool-btn span:last-of-type{max-width:none!important;overflow:visible!important;text-overflow:clip!important}
+ #appView .reference-post-card,#appView .post-card{box-shadow:none!important;backdrop-filter:none!important}
+ #appView .premium-nav .nav-btn.active::before{animation:none!important;display:none!important}
+ #appView .desktop-rail,#appView .reference-rightbar,#appView .reference-leftbar{display:none!important}
 }
+/* Retain the existing desktop layout; app-style chrome belongs to mobile only. */
+@media(min-width:1000px){#appView .native-search-bar{display:none}}
+#appView .native-card{padding:12px;margin-bottom:12px;border:1px solid #6b54297f;border-radius:15px;background:#090d0f;color:#f7f8f9}
+.pwa-install-help{font-size:13px;line-height:1.7;color:#b6bbc0}
