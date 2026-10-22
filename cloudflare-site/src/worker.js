@@ -540,7 +540,44 @@ export class SignalingRoom extends DurableObject {
     return `${visible}${"*".repeat(Math.max(2,name.length-visible.length))}@${domain}`;
   }
 
+  /** Optional free personal Gmail delivery using an owner's Google Apps Script.
+   * The Script is executed as its owner and sends through MailApp; never expose
+   * a Gmail password, shared secret or verification code to the mobile client.
+   * If Gmail is configured but fails, do not send a duplicate via Resend.
+   */
+  async sendGmailVerificationEmail(email,code,purpose){
+    const scriptUrl=String(this.env.ATTA_GMAIL_SCRIPT_URL||"").trim();
+    const secret=String(this.env.ATTA_GMAIL_SHARED_SECRET||"").trim();
+    if(!scriptUrl && !secret)return false; // Continue with existing Resend.
+    if(!/^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(scriptUrl) ||
+       secret.length<32){
+      throw new Error("EMAIL_PROVIDER_NOT_CONFIGURED");
+    }
+    let response;
+    try {
+      response=await fetch(scriptUrl,{
+        method:"POST",
+        headers:{"Content-Type":"text/plain;charset=utf-8"},
+        body:JSON.stringify({secret,email,code,purpose}),
+        redirect:"follow"
+      });
+    } catch(_error) {
+      throw new Error("EMAIL_SEND_FAILED");
+    }
+    let result;
+    try{result=await response.json();}catch(_error){result=null;}
+    if(!response.ok || result?.ok!==true){
+      console.error("Apps Script mail request failed",response.status);
+      const error=new Error("EMAIL_SEND_FAILED");
+      error.providerName="GmailAppsScript";
+      error.providerStatus=response.status;
+      throw error;
+    }
+    return true;
+  }
+
   async sendVerificationEmail(email,code,adminSecurity=false){
+    if(await this.sendGmailVerificationEmail(email,code,adminSecurity?"admin":"signup"))return true;
     const apiKey=String(this.env.RESEND_API_KEY||"").trim();
     const from=String(
       this.env.VERIFY_FROM_EMAIL||
@@ -601,6 +638,7 @@ export class SignalingRoom extends DurableObject {
   }
 
   async sendPasswordResetEmail(email,code){
+    if(await this.sendGmailVerificationEmail(email,code,"reset"))return true;
     const key=String(this.env.RESEND_API_KEY||'').trim();
     if(!key)throw new Error('EMAIL_PROVIDER_NOT_CONFIGURED');
     const from=String(this.env.VERIFY_FROM_EMAIL||'Tawasol Al-Atta <onboarding@resend.dev>').trim();
@@ -792,6 +830,8 @@ export class SignalingRoom extends DurableObject {
         diagnostics:{
           resendApiKeyConfigured:!!resend,
           resendApiKeyLooksValid:resend.startsWith("re_"),
+          gmailScriptConfigured:!!String(this.env.ATTA_GMAIL_SCRIPT_URL||"").trim() &&
+            String(this.env.ATTA_GMAIL_SHARED_SECRET||"").trim().length>=32,
           turnKeyIdConfigured:!!turnId,
           turnKeyApiTokenConfigured:!!turnToken
         },
