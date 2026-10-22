@@ -5,7 +5,7 @@
   let playing = false;
   let trackedFrame = null;
   const visible = () => document.visibilityState === 'visible' &&
-    !!document.querySelector('.atta-youtube-overlay:not([hidden]) .atta-youtube-frame iframe');
+    !!document.querySelector('.atta-youtube-overlay:not([hidden]) .atta-youtube-frame iframe, #youtubePage.active-page .atta-youtube-inline .atta-youtube-frame iframe');
   async function sync() {
     if (!playing || !visible()) {
       if (lock) { const held = lock; lock = null; try { await held.release(); } catch (_) {} }

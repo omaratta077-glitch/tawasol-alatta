@@ -209,3 +209,54 @@ body{background:var(--native-bg)!important;color:#f7f8f9!important}
 @media(min-width:1000px){#appView .native-search-bar{display:none}}
 #appView .native-card{padding:12px;margin-bottom:12px;border:1px solid #6b54297f;border-radius:15px;background:#090d0f;color:#f7f8f9}
 .pwa-install-help{font-size:13px;line-height:1.7;color:#b6bbc0}
+/* Match the native phone viewport, without changing the desktop sheet. */
+@media(max-width:999px){
+ html,body{width:100%!important;min-width:0!important;margin:0!important;padding:0!important;background:#040506!important}
+ #appView{width:100%!important;min-width:0!important;max-width:100%!important;margin:0!important;padding-inline:0!important;background:#040506!important}
+ #appView .social-main{width:100%!important;max-width:100%!important;margin:0!important;padding-inline:0!important}
+ #appView .page{margin-inline:0!important;min-width:0!important;max-width:100%!important;overflow-wrap:anywhere}
+ #appView .reference-header-inner{min-width:0!important;margin:0!important}
+ #appView #brandProfileBtn.reference-header-brand{min-width:111px!important;max-width:111px!important;padding:0!important;gap:5px!important;flex-shrink:0!important}
+ #appView #brandProfileBtn .header-profile-avatar{width:34px!important;height:34px!important;flex:0 0 34px!important;box-shadow:none!important;border:0!important}
+ #appView #brandProfileBtn .header-profile-copy{display:block!important;min-width:0!important}
+ #appView #brandProfileBtn #headerProfileName{font-size:12px!important;font-weight:700!important;max-width:72px!important}
+ #appView #brandProfileBtn #headerProfileUsername{display:none!important}
+ #appView .header-icon-btn .atta-icon{filter:none!important}
+ #appView .premium-header{inset-inline:0!important;width:100%!important;margin:0!important}
+ #appView[data-page]:not([data-page="homePage"]) .premium-header{display:none!important}
+ #appView .native-search-bar{display:none!important}
+ #appView .reference-composer-bottom{overflow:visible!important;flex-direction:row!important}
+ #appView .reference-post-text,#appView .post-text{overflow-wrap:anywhere!important;word-break:break-word;min-width:0!important;max-width:100%!important}
+ #appView .reference-post-head{min-width:0!important;flex:1!important}
+ #appView .reference-post-meta{min-width:0!important;overflow-wrap:anywhere}
+ #appView .post-image,#appView .reference-post-image,#appView video{max-width:100%!important}
+ #appView .page h2{font-size:15px!important;line-height:1.5!important;margin:4px 0 8px!important}
+ #appView .youtube-desktop-entry,#appView #youtubePage>h2{display:none!important}
+ #appView #youtubeInlineMount{width:100%;min-width:0}
+ #appView .atta-youtube-inline{width:100%!important;min-width:0!important;max-width:100%!important;max-height:none!important;overflow:visible!important;padding:0!important;border:0!important;border-radius:0!important;background:#040506!important;box-shadow:none!important}
+ #appView .atta-youtube-inline .atta-youtube-heading{height:39px;margin:0 0 6px;padding:0 4px}
+ #appView .atta-youtube-inline .atta-youtube-heading h2{font-size:15px!important;margin:0!important}
+ #appView .atta-youtube-inline .atta-youtube-close{display:none!important}
+ #appView .atta-youtube-inline .atta-youtube-form{width:min(184px,65%);height:34px;margin:-43px auto 9px 0;flex-wrap:nowrap;gap:4px}
+ #appView .atta-youtube-inline .atta-youtube-form input{width:0;min-width:0;min-height:34px;padding:5px 8px;border-radius:12px;font-size:12px;direction:rtl}
+ #appView .atta-youtube-inline .atta-youtube-form button{min-width:34px;padding:5px;font-size:11px;border-radius:10px}
+ #appView .atta-youtube-inline .atta-yt-suggestions-title{font-size:14px!important;margin:8px 0 5px;color:#f6d776}
+ #appView .atta-youtube-inline .atta-yt-topics{flex-wrap:nowrap;overflow-x:auto;max-width:100%;gap:6px;margin:5px 0;scrollbar-width:none}
+ #appView .atta-youtube-inline .atta-yt-topics button{flex:none;min-height:34px;padding:2px 12px;border-color:#6b5429!important;background:#090d0f;color:#f6d776;font-size:12px;white-space:nowrap}
+ #appView .atta-youtube-inline .atta-yt-results{display:grid;grid-template-columns:minmax(0,1fr);max-height:none;overflow:visible;gap:7px;margin:8px 0}
+ #appView .atta-youtube-inline .atta-yt-result{min-width:0;padding:12px;background:#090d0f;border:1px solid #6b54297f;border-radius:15px}
+ #appView .atta-youtube-inline .atta-yt-card{width:100%;min-width:0;border:0!important;background:transparent;box-shadow:none!important}
+ #appView .atta-youtube-inline .atta-yt-card img{height:165px;object-fit:contain;border-radius:14px;background:#000}
+ #appView .atta-youtube-inline .atta-yt-card-info{padding:8px 0}
+ #appView .atta-youtube-inline .atta-yt-card-info strong{font-size:14px;color:#f6d776;overflow-wrap:anywhere}
+ #appView .atta-youtube-inline .atta-yt-card-info small{font-size:12px;color:#d3d5d7}
+ #appView .atta-youtube-inline .atta-yt-share{font-size:12px;min-height:34px;border:0!important;background:transparent;padding:4px 0}
+ #appView .atta-youtube-inline .atta-youtube-frame{height:auto;aspect-ratio:16/9;min-height:0;margin:8px 0;border-radius:12px}
+ #appView .atta-youtube-inline .atta-youtube-error:empty{display:none}
+ #appView .atta-youtube-inline .atta-yt-topics button[aria-pressed="true"]{background:#3d2d13;color:#f6d776}
+ #appView .atta-youtube-inline .atta-youtube-note{font-size:11px}
+}
+#youtubeInlineMount:empty{display:none}
+.google-profile-overlay input,.google-profile-overlay select{box-sizing:border-box;min-width:0;max-width:100%;font-size:16px}
+.google-profile-overlay form>input,.google-profile-overlay form>select{width:100%}
+.atta-yt-result{min-width:0}.atta-yt-result .atta-yt-card{width:100%}.atta-yt-share{font-size:12px}

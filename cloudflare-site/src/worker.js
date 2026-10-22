@@ -1245,6 +1245,9 @@ export class SignalingRoom extends DurableObject {
       let username=await this.ctx.storage.get(googleKey);
       if(username && !(await this.user(username)))username=null;
       if(!username){
+        // A verified Google identity can request the signup form without creating an account.
+        // Consent remains mandatory on the subsequent profile submission.
+        if(!String(body.username||" ").trim())return j({ok:false,error:"USERNAME_REQUIRED: أكمل بيانات إنشاء الحساب",code:"USERNAME_REQUIRED"},409);
         if(body.legalAccepted!==true || body.legalVersion!=="2026-10-20")return j({ok:false,error:"يجب قراءة شروط الاستخدام وسياسة الخصوصية والموافقة عليهما قبل إنشاء الحساب"},400);
         const all=await this.ctx.storage.get("usernames")||[];
         for(const name of all){
