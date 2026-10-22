@@ -1,4 +1,5 @@
 import { DurableObject } from "cloudflare:workers";
+import { sendViaGoogleAppsScript } from "./google-apps-email.mjs";
 
 const encoder = new TextEncoder();
 
@@ -540,7 +541,35 @@ export class SignalingRoom extends DurableObject {
     return `${visible}${"*".repeat(Math.max(2,name.length-visible.length))}@${domain}`;
   }
 
+  // Durable Object-wide limits protect the Gmail daily recipient quota.
+  async reserveGoogleEmailQuota(){
+    const now=Date.now();
+    const windows=[
+      [`google-email-minute:${Math.floor(now/60000)}`,10,120],
+      [`google-email-day:${new Date(now).toISOString().slice(0,10)}`,80,172800]
+    ];
+    for(const [key,limit] of windows){
+      if(Number(await this.ctx.storage.get(key)||0)>=limit){
+        const err=new Error("EMAIL_SEND_RATE_LIMITED");
+        err.providerName="GoogleAppsScript";throw err;
+      }
+    }
+    for(const [key,,ttl] of windows){
+      const count=Number(await this.ctx.storage.get(key)||0);
+      await this.ctx.storage.put(key,count+1,{expirationTtl:ttl});
+    }
+  }
+
+  async sendGoogleEmailIfReady(email,code,type){
+    if(!String(this.env.GAS_EMAIL_WEBAPP_URL||"").trim() ||
+       !String(this.env.GAS_EMAIL_API_SECRET||"").trim())return false;
+    await this.reserveGoogleEmailQuota();
+    await sendViaGoogleAppsScript(this.env,email,code,type);
+    return true;
+  }
+
   async sendVerificationEmail(email,code,adminSecurity=false){
+    if(await this.sendGoogleEmailIfReady(email,code,adminSecurity?"admin":"verify"))return true;
     const apiKey=String(this.env.RESEND_API_KEY||"").trim();
     const from=String(
       this.env.VERIFY_FROM_EMAIL||
@@ -601,6 +630,7 @@ export class SignalingRoom extends DurableObject {
   }
 
   async sendPasswordResetEmail(email,code){
+    if(await this.sendGoogleEmailIfReady(email,code,"reset"))return true;
     const key=String(this.env.RESEND_API_KEY||'').trim();
     if(!key)throw new Error('EMAIL_PROVIDER_NOT_CONFIGURED');
     const from=String(this.env.VERIFY_FROM_EMAIL||'Tawasol Al-Atta <onboarding@resend.dev>').trim();
@@ -784,6 +814,8 @@ export class SignalingRoom extends DurableObject {
 
     if(url.pathname==="/api/diagnostics/env" && request.method==="GET"){
       const resend=String(this.env.RESEND_API_KEY||"").trim();
+      const googleEmailUrl=String(this.env.GAS_EMAIL_WEBAPP_URL||"").trim();
+      const googleEmailSecret=String(this.env.GAS_EMAIL_API_SECRET||"").trim();
       const turnId=String(this.env.TURN_KEY_ID||"").trim();
       const turnToken=String(this.env.TURN_KEY_API_TOKEN||"").trim();
 
@@ -792,6 +824,9 @@ export class SignalingRoom extends DurableObject {
         diagnostics:{
           resendApiKeyConfigured:!!resend,
           resendApiKeyLooksValid:resend.startsWith("re_"),
+          googleAppsEmailUrlConfigured:!!googleEmailUrl,
+          googleAppsEmailSecretConfigured:!!googleEmailSecret,
+          activeEmailProvider:googleEmailUrl&&googleEmailSecret?"GoogleAppsScript":resend?"Resend":"none",
           turnKeyIdConfigured:!!turnId,
           turnKeyApiTokenConfigured:!!turnToken
         },
@@ -1063,7 +1098,7 @@ export class SignalingRoom extends DurableObject {
           error:"تعذر إرسال كود التأكيد إلى البريد الإلكتروني",
           code:"EMAIL_SEND_FAILED",
           diagnostics:{
-            provider:"Resend",
+            provider:String(err?.providerName||"Resend"),
             status:Number(err?.providerStatus||0),
             name:String(err?.providerName||""),
             message:String(err?.providerMessage||"")
@@ -1211,7 +1246,7 @@ export class SignalingRoom extends DurableObject {
           error:"تعذر إعادة إرسال كود التأكيد",
           code:"EMAIL_RESEND_FAILED",
           diagnostics:{
-            provider:"Resend",
+            provider:String(err?.providerName||"Resend"),
             status:Number(err?.providerStatus||0),
             name:String(err?.providerName||""),
             message:String(err?.providerMessage||"")

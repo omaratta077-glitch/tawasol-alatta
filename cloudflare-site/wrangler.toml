@@ -9,6 +9,8 @@ keep_vars = true
 # Set SUPER_ADMIN_USERNAME to your chosen existing account and SUPER_ADMIN_EMAIL to its verified email.
 # Google OAuth Client ID is public (not a secret).
 GOOGLE_CLIENT_ID = "892140625911-rgln2915nsojaftmuvkst46m1kepetk3.apps.googleusercontent.com"
+# Public URL only. Set GAS_EMAIL_API_SECRET via Cloudflare secret, never here.
+GAS_EMAIL_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbz20fN_J2cs0feEHqT-lxZ3Bznk51NWu6s3buRAI5X3D8u3QpA6lAqTdn71c2rN_OjFwA/exec"
 
 [build]
 command = "node ../scripts/build_web_assets.mjs"
