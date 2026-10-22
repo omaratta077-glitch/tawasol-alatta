@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>تواصل العطا | رسائل ومكالمات وأصدقاء</title>
-<!-- Web 14.3: native design parity; website changes only. -->
+<!-- Web 14.4: native design parity; website changes only. -->
 <meta name="description" content="تواصل العطا: منصة عربية للتواصل مع الأصدقاء، الرسائل، والمكالمات الصوتية والمرئية عبر الويب وتطبيق Android.">
 <meta name="robots" content="index,follow,max-image-preview:large">
 <link rel="canonical" href="https://tawasol-alatta.omaratta077-4fd.workers.dev/">
@@ -21,7 +21,7 @@
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
 <link rel="icon" href="/icons/icon-192.png" type="image/png">
-<link rel="stylesheet" href="style.css?v=14.3">
+<link rel="stylesheet" href="style.css?v=14.4">
 
 
 <style id="atta-apk-download-button">
@@ -93,25 +93,22 @@
 </style>
 <!-- Website UI follows PremiumChrome; Android source remains unchanged. -->
 
-<link rel="stylesheet" href="native-parity.css?v=14.3">
+<link rel="stylesheet" href="native-parity.css?v=14.4">
 </head>
 <body>
 
+<section id="mobileInstallActions" class="mobile-install-actions" aria-label="التثبيت على الموبايل">
+ <a id="attaOfficialApkDownload" class="atta-official-apk-download" href="https://github.com/omaratta077-glitch/tawasol-alatta/releases/latest/download/tawasol-alatta-latest.apk">تثبيت تطبيق أندرويد (APK)</a>
+ <button type="button" id="installAppBtn" data-pwa-install>تثبيت على الموبايل (PWA)</button>
+ <p id="pwaInstallHelp" class="pwa-install-help">اختَر APK لتطبيق أندرويد، أو PWA للتثبيت من المتصفح.</p>
+</section>
 <div id="authView" class="auth-view">
   <div class="atta-login-shell">
-    <div class="atta-download-strip">
-      <span>احصل على تطبيق العطا لهاتف Android واستمتع بتصفح أسرع.</span>
-      <button type="button" id="installAppBtn" data-pwa-install class="install-app-btn hidden">تثبيت التطبيق</button>
-      <span class="download-mark">⇩</span>
-    </div>
+    <div id="authInstallMount"></div>
 
     <div class="atta-login-card">
       <!-- Tawasol Al-Atta: official Android download, visible before login -->
-      <a id="attaOfficialApkDownload" href="https://github.com/omaratta077-glitch/tawasol-alatta/releases/latest/download/tawasol-alatta-latest.apk"
-         class="atta-official-apk-download" aria-label="تحميل تطبيق Tawasol Al-Atta للأندرويد">
-        <span class="atta-apk-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m-4-4 4 4 4-4"/><path d="M4 17v3h16v-3"/></svg></span>
-        <span class="atta-apk-copy"><span class="atta-apk-title">تحميل التطبيق للأندرويد</span><span class="atta-apk-name" lang="en" dir="ltr">Tawasol Al-Atta</span></span>
-      </a>
+
       <div class="atta-language">العربية</div>
 
       <div class="atta-login-brand">
@@ -713,8 +710,7 @@
 <section id="morePage" class="page" aria-label="المزيد">
  <h2>المزيد</h2>
  <div class="native-more-list">
-  <button class="native-button" id="installSiteBtn" data-pwa-install><span data-atta-icon="plus"></span>تثبيت الموقع على الموبايل</button>
-  <p id="pwaInstallHelp" class="pwa-install-help">التثبيت يفتح الموقع من أيقونته بدون شريط عنوان Chrome. لو الأيقونة القديمة بتفتح المتصفح، احذف الاختصار وثبّت الموقع من هنا.</p>
+
   <button class="native-button" data-web-go="searchPage"><span data-atta-icon="search"></span>استكشاف</button>
   <button class="native-button" data-web-go="friendsPage"><span data-atta-icon="users"></span>الأصدقاء</button>
   <button class="native-button" data-web-go="notificationsPage"><span data-atta-icon="bell"></span>الإشعارات</button>
@@ -807,9 +803,9 @@
 </div>
 
 <script src="config.js"></script>
-<script src="icons.js?v=14.3"></script>
-<script src="app.js?v=14.3"></script>
-<script src="web-modules.js?v=14.3" defer></script>
+<script src="icons.js?v=14.4"></script>
+<script src="app.js?v=14.4"></script>
+<script src="web-modules.js?v=14.4" defer></script>
 
 <audio id="incomingRingAudio" src="audio/incoming-ring.wav" preload="auto" loop></audio>
 <audio id="outgoingRingAudio" src="audio/outgoing-ring.wav" preload="auto" loop></audio>
