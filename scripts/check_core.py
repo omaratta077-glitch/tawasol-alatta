@@ -61,7 +61,7 @@ check("Foreground ring state declared in AttaPush",
       "AttaPush.foregroundRingCallId == callId" in ring_screen)
 
 check("Native Google bridge removed", not (ROOT/(android+"GoogleWebBridge.kt")).exists())
-check("Official version 1.0.141", 'versionCode = 241' in gradle and 'versionName = "1.0.141"' in gradle)
+check("Official version 1.0.143", 'versionCode = 243' in gradle and 'versionName = "1.0.143"' in gradle)
 check("Four additional screens and scrollable navigation", all(x in main for x in ['QuranReaderScreen(', 'KnowledgeScreen(tab', 'FootballScreen(']) and all(x in read(android+"PremiumChrome.kt") for x in ['"القرآن"', '"الأحاديث"', '"الأذكار"', '"الرياضة"', '.horizontalScroll(scroll)']) and (ROOT/(android+"AlattaKnowledgeScreens.kt")).is_file())
 check("Quran-first categories and click-to-play preview", all(x in main for x in [
     'var youtubeCategory by remember { mutableStateOf("قرآن") }',
@@ -166,7 +166,7 @@ check("Quran downloadable pages and compact native controls",
       all((ROOT / f"android-native/app/src/main/assets/mushaf/pages/{p:03d}.svg.gz").is_file() for p in range(1,605)) and
       (ROOT / 'android-native/app/src/main/assets/mushaf/index.json').is_file() and
       'MushafPageStore.openPage(context,page,allowNetwork)' in quran_source and 'GZIPInputStream' not in quran_source and
-      all(x in quran_source for x in ['فهرس السور', 'BackHandler', 'prefs.edit().putInt("page"',
+      all(x in quran_source for x in ['فهرس المصحف الشريف', 'BackHandler', 'prefs.edit().putInt("page"',
                                       'height(20.dp)', 'Text("صفحة $page"', 'Text("الحزب $hizb"',
                                       'onFling(', 'navigate(page + 1)', 'navigate(page - 1)']) and
       'Text("ملاحظاتي"' not in quran_source)

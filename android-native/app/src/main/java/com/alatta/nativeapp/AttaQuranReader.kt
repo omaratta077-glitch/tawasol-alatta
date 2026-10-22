@@ -65,6 +65,7 @@ internal fun QuranReaderScreen(modifier: Modifier = Modifier, onExit: () -> Unit
     LaunchedEffect(initialPage) { page = initialPage.coerceIn(1,604) }
     var pane by remember { mutableStateOf<String?>(null) }
     var query by remember { mutableStateOf("") }
+    var indexTab by remember { mutableStateOf("surah") }
     var note by remember { mutableStateOf("") }
     var error by remember { mutableStateOf<String?>(null) }
     var pageRetry by remember { mutableIntStateOf(0) }
@@ -83,7 +84,7 @@ internal fun QuranReaderScreen(modifier: Modifier = Modifier, onExit: () -> Unit
     val audio = remember { AyahSequencePlayer() }
     DisposableEffect(Unit) { onDispose { audio.stop() } }
     val cream = Color(0xFFFFF9E8)
-    val gold = Color(0xFF75520F)
+    val gold = Color(0xFF884300)
     var indexData by remember { mutableStateOf<MushafIndex?>(null) }
     LaunchedEffect(Unit) {
         try { indexData = withContext(Dispatchers.IO) { MushafIndexStore.load(context) } }
@@ -136,7 +137,7 @@ internal fun QuranReaderScreen(modifier: Modifier = Modifier, onExit: () -> Unit
         }
     }
     LaunchedEffect(pane) {
-        if (pane == "index" && !downloading) {
+        if (pane == "downloads" && !downloading) {
             val found = withContext(Dispatchers.IO) {
                 (1..604).filter { MushafPageStore.isDownloaded(context, it) }.toSet()
             }
@@ -174,7 +175,7 @@ internal fun QuranReaderScreen(modifier: Modifier = Modifier, onExit: () -> Unit
             TextButton(onClick = { pane = "index" }, modifier = Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 2.dp)) {
                 Text(surah, color = gold, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
-            TextButton(onClick = { pane = "search" }, modifier = Modifier.width(42.dp), contentPadding = PaddingValues(0.dp)) {
+            TextButton(onClick = { indexTab = "surah"; pane = "search" }, modifier = Modifier.width(42.dp), contentPadding = PaddingValues(0.dp)) {
                 Text("⌕", color = gold, fontSize = 22.sp)
             }
             TextButton(onClick = { pane = "index" }, modifier = Modifier.width(42.dp), contentPadding = PaddingValues(0.dp)) {
@@ -223,61 +224,76 @@ internal fun QuranReaderScreen(modifier: Modifier = Modifier, onExit: () -> Unit
     if (pane != null) Dialog(onDismissRequest = { pane = null }) {
         Surface(
             modifier = Modifier.fillMaxWidth().heightIn(max = 580.dp),
-            shape = RoundedCornerShape(24.dp),
-            color = Color(0xFFFCF9F2),
+            shape = RoundedCornerShape(16.dp),
+            color = cream,
             contentColor = Color(0xFF221B14)
         ) {
             Column(Modifier.padding(16.dp)) {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text(when(pane) {"index" -> "فهرس السور"; "parts" -> "الأجزاء";
+                    Text(when(pane) {"index", "search", "parts" -> "فهرس المصحف الشريف"; "downloads" -> "تنزيل المصحف";
                         "marks" -> "المرجعيات"; "notes" -> "الملاحظات"; "share" -> "مشاركة المصحف"; else -> "البحث" },
                         color = Color(0xFF221B14), style = MaterialTheme.typography.titleLarge)
                     TextButton(onClick = { pane = null }) { Text("إغلاق", color = gold) }
                 }
                 Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                    verticalAlignment = Alignment.CenterVertically) {
-                    listOf("index" to "الفهرس", "parts" to "الأجزاء", "marks" to "المرجعيات", "notes" to "الملاحظات", "share" to "مشاركة")
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    listOf("surah" to "السور ١١٤", "juz" to "الأجزاء ٣٠", "quarter" to "أرباع الأحزاب ٢٤٠", "page" to "الصفحات ٦٠٤").forEach { (id, title) ->
+                        val selected = pane in listOf("index", "search", "parts") && indexTab == id
+                        OutlinedButton(onClick = { indexTab = id; pane = "index"; query = "" },
+                            shape = RoundedCornerShape(9.dp), contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                            colors = ButtonDefaults.outlinedButtonColors(containerColor = if(selected) gold else Color(0xFFFFF8E9),
+                                contentColor = if(selected) Color.White else gold), modifier = Modifier.height(34.dp)) {
+                            Text(title, fontSize = 12.sp, maxLines = 1)
+                        }
+                    }
+                }
+                Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) {
+                    listOf("marks" to "المرجعيات", "notes" to "الملاحظات", "downloads" to "التنزيل", "share" to "مشاركة")
                         .filter { allowOnlineFeatures || it.first != "share" }.forEach { (id, name) ->
-                        TextButton(onClick = { pane = id }, modifier = Modifier.padding(end = 3.dp)) {
-                            Text(name, maxLines = 1, softWrap = false,
-                                color = if (pane == id) gold else Color(0xFF55483A))
+                        TextButton(onClick = { pane = id }, contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)) {
+                            Text(name, maxLines = 1, fontSize = 12.sp, color = gold)
                         }
                     }
                 }
                 when (pane) {
-                    "index", "search" -> {
-                        if (pane == "index") {
-                            Text("المحفوظ على الجهاز: ${savedPages.size} من 604 صفحة", color = gold, fontSize = 12.sp)
-                            if (savedPages.size < 604) {
-                                Text("تحتاج الصفحات إلى الإنترنت لأول مرة، ثم تبقى محفوظة للقراءة دون اتصال.", color = gold, fontSize = 11.sp)
-                                if (allowOnlineFeatures) TextButton(onClick = {
-                                    if (downloading) downloadJob?.cancel() else downloadMushaf()
-                                }) { Text(if (downloading) "إيقاف التنزيل" else "تنزيل المصحف كاملًا", color = gold) }
-                            }
-                            if (downloading) LinearProgressIndicator(progress = { savedPages.size / 604f }, modifier = Modifier.fillMaxWidth(), color = gold)
-                        }
-                        OutlinedTextField(value = query, onValueChange = { query = it },
-                            label = { Text("بحث في أسماء السور") }, singleLine = true,
-                            modifier = Modifier.fillMaxWidth(),
-                            textStyle = androidx.compose.ui.text.TextStyle(color = Color(0xFF221B14)))
-                        LazyColumn(modifier = Modifier.weight(1f, fill = false)) {
-                            items(chapters.filter { query.isBlank() || it.second.contains(query) || it.first.toString() == query }) { (n, name, p) ->
-                                Text("$n  $name     صفحة $p", Modifier.fillMaxWidth().clickable { changePage(p) }.padding(12.dp),
-                                    color = Color(0xFF221B14), maxLines = 2)
-                                HorizontalDivider(color = Color(0xFFE8E0D2))
-                            }
-                        }
+                    "downloads" -> {
+                        Text("المحفوظ على الجهاز: ${savedPages.size} من 604 صفحة", color = gold, fontSize = 12.sp)
+                        Text("تحتاج الصفحات إلى الإنترنت لأول مرة، ثم تبقى محفوظة للقراءة دون اتصال.", color = gold, fontSize = 11.sp)
+                        if (allowOnlineFeatures && savedPages.size < 604) TextButton(onClick = {
+                            if (downloading) downloadJob?.cancel() else downloadMushaf()
+                        }) { Text(if (downloading) "إيقاف التنزيل" else "تنزيل المصحف كاملًا", color = gold) }
+                        if (downloading) LinearProgressIndicator(progress = { savedPages.size / 604f }, modifier = Modifier.fillMaxWidth(), color = gold)
                     }
-                    "parts" -> LazyColumn(Modifier.weight(1f, fill = false)) {
-                        items((1..30).toList()) { n ->
-                          Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                            Text("الجزء $n  •  صفحة ${juzStarts[n-1]}",
-                                Modifier.weight(1f).clickable { changePage(juzStarts[n-1]) }.padding(12.dp), color = Color(0xFF221B14))
-                            IconButton(onClick = { prepareShare(mushafPartSelection(n)) }, enabled = allowOnlineFeatures && !preparingShare) {
-                                SiteIcon("share", tint = gold, size = 20.dp)
+                    "index", "search", "parts" -> {
+                        OutlinedTextField(value = query, onValueChange = { query = it },
+                            placeholder = { Text("ابحث عن اسم السورة أو رقم الجزء...", fontSize = 14.sp) }, singleLine = true,
+                            shape = RoundedCornerShape(9.dp), modifier = Modifier.fillMaxWidth(),
+                            textStyle = androidx.compose.ui.text.TextStyle(color = Color(0xFF221B14)),
+                            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = gold, unfocusedBorderColor = Color(0xFFD7B893)))
+                        val entries = when(indexTab) {
+                            "juz" -> (1..30).map { Triple(it, "الجزء ${mushafArabicNumber(it)}", juzStarts[it-1]) }
+                            "quarter" -> hizbQuarterStarts.mapIndexed { i, p -> Triple(i+1, "الربع ${mushafArabicNumber(i+1)}", p) }
+                            "page" -> (1..604).map { Triple(it, "صفحة ${mushafArabicNumber(it)}", it) }
+                            else -> chapters
+                        }.filter { query.isBlank() || mushafIndexSearch(it.second).contains(mushafIndexSearch(query)) || it.first.toString().contains(mushafIndexSearch(query)) }
+                        if(entries.isEmpty()) Text("لا توجد نتائج مطابقة.", color = gold, modifier = Modifier.padding(12.dp))
+                        LazyColumn(modifier = Modifier.weight(1f, fill = false)) {
+                            items(entries, key = { it.first }) { (n, name, p) ->
+                                val detail = when(indexTab) {
+                                    "juz" -> "فتح بداية الجزء"
+                                    "quarter" -> "الحزب ${mushafArabicNumber((n+3)/4)} — الجزء ${mushafArabicNumber((n+7)/8)}"
+                                    "page" -> "من ٦٠٤ صفحة"
+                                    else -> "${mushafArabicNumber(indexData?.json?.getJSONArray("surahs")?.getJSONObject(n-1)?.optInt("numberOfAyahs") ?: 0)} آية"
+                                }
+                                Row(Modifier.fillMaxWidth().clickable { changePage(p) }.padding(horizontal = 5.dp, vertical = 10.dp),
+                                    verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Text(if(indexTab == "surah") "${mushafArabicNumber(n)}  $name" else name,
+                                        Modifier.weight(1f), color = Color(0xFF38210F), fontSize = 15.sp)
+                                    Text(detail, color = Color(0xFF966328), fontSize = 12.sp)
+                                }
+                                HorizontalDivider(color = Color(0xFFE4D4BE))
                             }
-                          }
                         }
                     }
                     "share" -> Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()),
@@ -620,3 +636,9 @@ private class AyahSequencePlayer {
     fun previous() { if (current > start) { current--; playCurrent() } else { current = start; playCurrent() } }
     fun stop() { stopMediaOnly(); paused = false }
 }
+
+/** Shared index presentation: accept both Arabic and Latin digits in the four tabs. */
+internal fun mushafArabicNumber(value: Int): String = value.toString().map { if(it in '0'..'9') "٠١٢٣٤٥٦٧٨٩"[it-'0'] else it }.joinToString("")
+internal fun mushafIndexSearch(value: String): String = value.map {
+    when(it) { in '٠'..'٩' -> '0' + (it-'٠'); in '۰'..'۹' -> '0' + (it-'۰'); 'أ','إ','آ','ٱ' -> 'ا'; else -> it }
+}.joinToString("").replace(Regex("[\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06ED]"), "").trim()

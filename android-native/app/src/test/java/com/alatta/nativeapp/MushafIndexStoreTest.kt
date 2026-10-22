@@ -26,6 +26,16 @@ class MushafIndexStoreTest {
         assertEquals(114, first.chapters.last().first)
         assertTrue(first.pages.getJSONObject(604).getJSONArray("markers").length() > 0)
     }
+    @Test fun indexSearchAcceptsArabicNumbersAndUnvocalizedNames() {
+        assertEquals("114", mushafIndexSearch("١١٤"))
+        assertEquals("604", mushafIndexSearch("۶۰۴"))
+        assertEquals("الفاتحة", mushafIndexSearch("ٱلْفَاتِحَة"))
+        assertEquals("٢٤٠", mushafArabicNumber(240))
+        val index = MushafIndexStore.load(RuntimeEnvironment.getApplication())
+        assertTrue(index.chapters.any { mushafIndexSearch(it.second).contains(mushafIndexSearch("الفاتحة")) })
+        assertEquals(604, index.chapters.last().third)
+        assertTrue(index.quarterStarts.all { it in 1..604 })
+    }
     @Test fun concurrentRequestsRunOneLoaderAndFailedLoadsCanRetry() {
         val cache = SingleLoadCache<Any>()
         val count = AtomicInteger()
