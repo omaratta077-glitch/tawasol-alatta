@@ -8,6 +8,14 @@ assert.equal((native.match(/YouTubePlayer\(youtubeId\)/g)||[]).length,1,'screen 
 assert.ok(!native.includes('AlattaFixedYouTubePlayer') && !native.includes('attaYouTubeHtml'),'no duplicate native player');
 assert.ok(native.includes('loadUrl("$BASE/")') && native.includes('atta-site-youtube-bridge.js') && !native.includes('document.body.replaceChildren(host)'),'Android drives the actual site player without replacing the website document');
 assert.ok(!native.includes('raw.contains("username", ignoreCase = true)'),'no blanket mapping of login failures to username-taken');
+const adminWeb=fs.readFileSync('cloudflare-site/public/app.js','utf8');
+assert.ok(native.includes('if (destination == "الإدارة" && adminRole != "super_admin") return') &&
+  native.includes('AdminOwnerHero(displayName, myAvatar') &&
+  !native.includes('تحديث صلاحية المدير') &&
+  !native.includes('صلاحية الإدارة غير مفعّلة لهذا الحساب على الخادم'),
+  'members do not see role diagnostics or enter owner dashboard');
+assert.ok(adminWeb.includes('if(pageId==="adminPage" && me?.role!=="super_admin")return false;'),
+  'non-owners cannot open the web admin screen');
 const shine = fs.readFileSync('android-native/app/src/main/java/com/alatta/nativeapp/AttaGoldShine.kt', 'utf8');
 const auth = fs.readFileSync('android-native/app/src/main/java/com/alatta/nativeapp/PremiumAuth.kt','utf8');
 const chrome = fs.readFileSync('android-native/app/src/main/java/com/alatta/nativeapp/PremiumChrome.kt','utf8');

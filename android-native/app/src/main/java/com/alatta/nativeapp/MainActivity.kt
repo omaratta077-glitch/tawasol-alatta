@@ -1546,7 +1546,8 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                 }
             }
             "القائمة" -> {
-                // Fetch current server-granted role whenever the menu is opened.
+                // Fail closed: never retain an old owner role if the refresh fails.
+                adminRole = ""
                 val current = get("/api/me").optJSONObject("user")
                 adminRole = current?.optString("role").orEmpty().trim().lowercase()
             }
@@ -1557,6 +1558,8 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                 posts = { page -> ownPosts = FeedPages.merge(ownPosts, page); ownCursor = page.nextCursor })
             "المحفوظات" -> posts = get("/api/saved-posts").arr("posts")
             "الإدارة" -> {
+                // Re-check the role from the server whenever this privileged screen loads.
+                adminRole = get("/api/me").optJSONObject("user")?.optString("role").orEmpty().trim().lowercase()
                 if (adminRole == "super_admin") {
                     adminSummary = get("/api/admin/summary")
                     val accounts = get("/api/admin/users?q=${enc(adminSearch)}")
@@ -1568,6 +1571,13 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                         adminReports = get("/api/admin/reports").arr("reports")
                         deletionRequests = get("/api/admin/deletion-requests").arr("requests")
                     }
+                } else {
+                    adminSummary = JSONObject()
+                    adminUsers = emptyList()
+                    adminPosts = emptyList()
+                    adminReports = emptyList()
+                    deletionRequests = emptyList()
+                    if (tab == "الإدارة") tab = "القائمة"
                 }
             }
             "الخصوصية" -> deletionRequest = get("/api/account-deletion-request").optJSONObject("request")
@@ -1771,6 +1781,8 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
     }
     fun refresh() = task { load(tab) }
     fun navigate(destination: String) {
+        // Only the verified owner sees or enters admin; server APIs also enforce this.
+        if (destination == "الإدارة" && adminRole != "super_admin") return
         if (destination == "الرئيسية" && token.isNotBlank()) {
             // Home always lands on the FIRST feed post, even when already on Home.
             // The scroll runs in LaunchedEffect after Home is actually composed.
@@ -2910,14 +2922,6 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                         PremiumMenuEntry("shield", "لوحة الإدارة") { navigate("الإدارة") }
                                         HorizontalDivider(color = Border.copy(alpha = .5f))
                                     }
-                                    if (adminRole != "super_admin") {
-                                        Text("صلاحية الإدارة غير مفعّلة لهذا الحساب على الخادم", color = Muted, fontSize = 12.sp)
-                                        TextButton(onClick = { task {
-                                            try { load("القائمة") }
-                                            catch (e: Exception) { error = e.message ?: "تعذر فحص الصلاحية" }
-                                        } }) { Text("تحديث صلاحية المدير", color = GoldLight) }
-                                        HorizontalDivider(color = Border.copy(alpha = .5f))
-                                    }
                                     PremiumMenuEntry("bookmark", "أرشيف منشوراتي") { navigate("أرشيفي") }
                                     HorizontalDivider(color = Border.copy(alpha = .5f))
                                     PremiumMenuEntry("user", "الملف الشخصي") { navigate("الملف") }
@@ -2989,8 +2993,8 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                             }
                         }
                         "الإدارة" -> LazyColumn(Modifier.weight(1f).padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                            item { SectionTitle("لوحة الإدارة • ${if (adminRole == "super_admin") "المدير الرئيسي" else "مشرف"}") }
                             if (adminRole == "super_admin") {
+                                item { AdminOwnerHero(displayName, myAvatar, adminSummary.optString("owner").ifBlank { myUsername }) }
                                 item { CardBox { AdminAdhanVoicesPanel(token) } }
                                 item { CardBox { AdminFootballPanel(token) } }
                                 item {
@@ -3649,6 +3653,50 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
 }
 
 
+/** Owner-only premium header; permissions come from the server, not local flags. */
+@Composable
+private fun AdminOwnerHero(accountName: String, avatarUrl: String, username: String) {
+    Column(Modifier.fillMaxWidth()
+        .background(Brush.linearGradient(listOf(Color(0xFF17150E), Color(0xFF090D10))),
+            RoundedCornerShape(20.dp))
+        .border(1.dp, Gold.copy(alpha = .68f), RoundedCornerShape(20.dp))
+        .padding(17.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Box(Modifier.size(62.dp).border(2.dp, GoldLight, CircleShape)
+                .clip(CircleShape), contentAlignment = Alignment.Center) {
+                if (avatarUrl.isNotBlank())
+                    ProfileMediaImage(avatarUrl, "صورة المدير", Modifier.fillMaxSize())
+                else SiteIcon("shield", size = 36.dp, tint = GoldLight)
+            }
+            Column(Modifier.weight(1f)) {
+                Text("لوحة القيادة", color = GoldLight,
+                    fontWeight = FontWeight.ExtraBold, fontSize = 23.sp)
+                Text("تواصل العطا • الإدارة الرئيسية",
+                    color = Color(0xFFD6C8A4), fontSize = 12.sp)
+            }
+        }
+        HorizontalDivider(color = Gold.copy(alpha = .28f))
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(accountName.ifBlank { username }, color = White,
+                    fontWeight = FontWeight.Bold, fontSize = 17.sp,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text("@$username", color = Muted, fontSize = 12.sp,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            Column(Modifier.background(Gold.copy(alpha = .14f), RoundedCornerShape(12.dp))
+                .border(1.dp, Gold.copy(alpha = .48f), RoundedCornerShape(12.dp))
+                .padding(horizontal = 10.dp, vertical = 7.dp),
+                horizontalAlignment = Alignment.CenterHorizontally) {
+                Text("👑 المدير الرئيسي", color = GoldLight,
+                    fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                Text("وصول معتمد", color = Color(0xFFDBCBA9), fontSize = 10.sp)
+            }
+        }
+    }
+}
+
 @Composable
 private fun AdminStatisticsPanel(summary: JSONObject) {
     val counts = summary.optJSONObject("counts") ?: JSONObject()
@@ -3660,13 +3708,23 @@ private fun AdminStatisticsPanel(summary: JSONObject) {
         "حسابات محظورة" to "banned", "حسابات معطّلة" to "disabled",
         "بلاغات مفتوحة" to "reports", "منشورات مؤرشفة" to "archivedPosts"
     )
-    Text("إحصائيات التطبيق", color = GoldLight, fontWeight = FontWeight.Bold)
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        SiteIcon("chart", size = 21.dp, tint = GoldLight)
+        Spacer(Modifier.width(8.dp))
+        Text("نظرة عامة على المنصة", color = GoldLight, fontSize = 18.sp,
+            fontWeight = FontWeight.Bold)
+    }
     metrics.chunked(2).forEach { pair ->
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(9.dp)) {
             pair.forEach { (label, key) ->
-                Column(Modifier.weight(1f).padding(vertical = 6.dp)) {
-                    Text(counts.optInt(key).toString(), color = White, fontSize = 23.sp, fontWeight = FontWeight.Bold)
-                    Text(label, color = Muted, fontSize = 12.sp)
+                Column(Modifier.weight(1f).padding(vertical = 4.dp)
+                    .background(Color(0xFF11171A), RoundedCornerShape(14.dp))
+                    .border(.8.dp, Gold.copy(alpha = .25f), RoundedCornerShape(14.dp))
+                    .padding(horizontal = 12.dp, vertical = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                    Text(counts.optInt(key).toString(), color = GoldLight,
+                        fontSize = 25.sp, fontWeight = FontWeight.ExtraBold)
+                    Text(label, color = Color(0xFFBFC4C6), fontSize = 12.sp, maxLines = 2)
                 }
             }
         }
