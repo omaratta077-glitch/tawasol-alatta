@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>تواصل العطا | رسائل ومكالمات وأصدقاء</title>
-<!-- Web 14.1: native design parity; website changes only. -->
+<!-- Web 14.2: native design parity; website changes only. -->
 <meta name="description" content="تواصل العطا: منصة عربية للتواصل مع الأصدقاء، الرسائل، والمكالمات الصوتية والمرئية عبر الويب وتطبيق Android.">
 <meta name="robots" content="index,follow,max-image-preview:large">
 <link rel="canonical" href="https://tawasol-alatta.omaratta077-4fd.workers.dev/">
@@ -21,7 +21,7 @@
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
 <link rel="icon" href="/icons/icon-192.png" type="image/png">
-<link rel="stylesheet" href="style.css?v=14.1">
+<link rel="stylesheet" href="style.css?v=14.2">
 
 
 <style id="atta-apk-download-button">
@@ -93,7 +93,7 @@
 </style>
 <!-- Website UI follows PremiumChrome; Android source remains unchanged. -->
 
-<link rel="stylesheet" href="native-parity.css?v=14.1">
+<link rel="stylesheet" href="native-parity.css?v=14.2">
 </head>
 <body>
 
@@ -101,7 +101,7 @@
   <div class="atta-login-shell">
     <div class="atta-download-strip">
       <span>احصل على تطبيق العطا لهاتف Android واستمتع بتصفح أسرع.</span>
-      <button type="button" id="installAppBtn" class="install-app-btn hidden">تثبيت التطبيق</button>
+      <button type="button" id="installAppBtn" data-pwa-install class="install-app-btn hidden">تثبيت التطبيق</button>
       <span class="download-mark">⇩</span>
     </div>
 
@@ -712,6 +712,8 @@
 <section id="morePage" class="page" aria-label="المزيد">
  <h2>المزيد</h2>
  <div class="native-more-list">
+  <button class="native-button" id="installSiteBtn" data-pwa-install><span data-atta-icon="plus"></span>تثبيت الموقع على الموبايل</button>
+  <p id="pwaInstallHelp" class="pwa-install-help">التثبيت يفتح الموقع من أيقونته بدون شريط عنوان Chrome. لو الأيقونة القديمة بتفتح المتصفح، احذف الاختصار وثبّت الموقع من هنا.</p>
   <button class="native-button" data-web-go="searchPage"><span data-atta-icon="search"></span>استكشاف</button>
   <button class="native-button" data-web-go="friendsPage"><span data-atta-icon="users"></span>الأصدقاء</button>
   <button class="native-button" data-web-go="notificationsPage"><span data-atta-icon="bell"></span>الإشعارات</button>
@@ -804,9 +806,9 @@
 </div>
 
 <script src="config.js"></script>
-<script src="icons.js?v=14.1"></script>
-<script src="app.js?v=14.1"></script>
-<script src="web-modules.js?v=14.1" defer></script>
+<script src="icons.js?v=14.2"></script>
+<script src="app.js?v=14.2"></script>
+<script src="web-modules.js?v=14.2" defer></script>
 
 <audio id="incomingRingAudio" src="audio/incoming-ring.wav" preload="auto" loop></audio>
 <audio id="outgoingRingAudio" src="audio/outgoing-ring.wav" preload="auto" loop></audio>
