@@ -1804,6 +1804,10 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
             }
         }
         if (destination != "الرئيسية") activeYoutubePostId = ""
+        if (destination == "القائمة" && tab != "القائمة") {
+            // Display owner/moderator controls only after /api/me verifies this session.
+            adminRole = ""
+        }
         if (tab != destination) { visited.add(tab); tab = destination }
     }
     fun openHomeComposer() {
@@ -2958,7 +2962,8 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                             }
                             item {
                                 CardBox {
-                                    if (adminRole in listOf("super_admin", "moderator")) {
+                                    if (adminRole == "super_admin" || adminRole == "moderator") {
+                                        // The owner assigns individual moderator accounts server-side.
                                         PremiumMenuEntry("shield", "لوحة الإدارة") { navigate("الإدارة") }
                                         HorizontalDivider(color = Border.copy(alpha = .5f))
                                     }
@@ -3467,7 +3472,11 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                         onCover = { if (!busy) profileCoverPicker.launch("image/*") })
                                     Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                         listOf("المنشورات", "حول", "الأصدقاء", "الصور", "الفيديوهات").forEach { section ->
-                                            TextButton(onClick = { ownProfileFilter = section }) { Text(section, color = if (ownProfileFilter == section) GoldLight else Muted) }
+                                            TextButton(onClick = {
+                                                ownProfileFilter = section
+                                                // Editing belongs to About only, not posts or photos.
+                                                if (section != "حول") editProfileDetails = false
+                                            }) { Text(section, color = if (ownProfileFilter == section) GoldLight else Muted) }
                                         }
                                     }
                                     if (ownProfileFilter == "الأصدقاء") {
@@ -3480,11 +3489,17 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                             }
                                         }
                                     }
-                                    PremiumAuthOutlineButton(if (editProfileDetails) "إلغاء التعديل" else "تعديل الملف الشخصي") {
-                                        editProfileDetails = !editProfileDetails
+                                    if (ownProfileFilter == "حول") {
+                                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                        SectionTitle("التفاصيل")
+                                        Spacer(Modifier.weight(1f))
+                                        TextButton(onClick = { editProfileDetails = !editProfileDetails }, enabled = !busy) {
+                                            SiteIcon(if (editProfileDetails) "x" else "pencil", size = 17.dp, tint = GoldLight)
+                                            Spacer(Modifier.width(5.dp))
+                                            Text(if (editProfileDetails) "إلغاء" else "تعديل الملف الشخصي",
+                                                color = GoldLight, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                                        }
                                     }
-                                    if (ownProfileFilter == "حول" || editProfileDetails) {
-                                    SectionTitle("التفاصيل")
                                     if (editProfileDetails) {
                                     OutlinedTextField(profileBio, { profileBio = it.take(300) },
                                         label = { Text("نبذة عني") }, modifier = Modifier.fillMaxWidth())

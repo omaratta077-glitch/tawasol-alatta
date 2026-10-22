@@ -170,7 +170,14 @@ async function startAuthenticatedApp(sessionToken,user=null){
     const d=await api(`/api/me?token=${encodeURIComponent(token)}`);
     user=d.user;
   }else{
-    try{ const d=await api(`/api/me?token=${encodeURIComponent(token)}`); user={...user,...d.user}; }catch{}
+    try{
+      const d=await api(`/api/me?token=${encodeURIComponent(token)}`);
+      user={...user,...d.user};
+      if(!d.user?.role)user.role="user";
+    }catch{
+      // Offline cached session may keep ordinary pages; never cached admin rights.
+      user={...user,role:"user"};
+    }
   }
 
   me=user;
