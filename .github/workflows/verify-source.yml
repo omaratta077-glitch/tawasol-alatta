@@ -58,3 +58,4 @@ jobs:
         run: |
           npm ci --ignore-scripts --no-audit --no-fund --prefix scripts/web-tests
           node scripts/web-tests/parity.mjs
+          node scripts/web-tests/admin-profile.mjs

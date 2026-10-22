@@ -174,7 +174,7 @@ async function startAuthenticatedApp(sessionToken,user=null){
   }
 
   me=user;
-  const canAdmin=me?.role==="super_admin";
+  const canAdmin=["super_admin","moderator"].includes(me?.role);
   $("adminRailBtn")?.classList.toggle("hidden",!canAdmin);
   $("adminMoreBtn")?.classList.toggle("hidden",!canAdmin);
   viewedProfileUsername=me.username;
@@ -1855,118 +1855,124 @@ $("openCallViewBtn").onclick=()=>showCallOverlay(selectedUser||incomingFrom||"م
 
 function adminEscape(v){return String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
 function adminDate(v){try{return new Date(Number(v)||0).toLocaleString("ar-SA")}catch{return ""}}
-
+function adminSecret(){
+  return new Promise(resolve=>{
+    const dialog=document.createElement("dialog");dialog.className="admin-secret-dialog";
+    dialog.innerHTML=`<form><h3>كلمة حماية الإدارة</h3><p>كلمة مستقلة خاصة بالمدير الرئيسي.</p><label>كلمة الحماية<input type="password" maxlength="128" autocomplete="off" required></label><div><button type="submit">تأكيد</button><button type="button" data-cancel>إلغاء</button></div></form>`;
+    const input=dialog.querySelector("input"),form=dialog.querySelector("form");
+    const finish=value=>{input.value="";dialog.close();dialog.remove();resolve(value);};
+    dialog.addEventListener("cancel",e=>{e.preventDefault();finish(null)});
+    dialog.querySelector("[data-cancel]").onclick=()=>finish(null);
+    form.onsubmit=e=>{e.preventDefault();if(input.value)finish(input.value)};
+    document.body.append(dialog);dialog.showModal();input.focus();
+  });
+}
 async function loadAdminDashboard(){
-  if(!me || me.role!=="super_admin")return;
+  if(!["super_admin","moderator"].includes(me?.role))return;
   try{
     const d=await api(`/api/admin/summary?token=${encodeURIComponent(token)}`);
+    me.role=d.role;
+    document.querySelectorAll("[data-owner-only]").forEach(el=>el.classList.toggle("hidden",d.role!=="super_admin"));
+    $("adminSecurityStatus").textContent=d.securityConfigured?"🔒 الحذف والصلاحيات محميان بكلمة مستقلة":"🔒 الحذف مقفول حتى تضبط كلمة حماية الإدارة";
     const fields={adminUsersCount:"users",adminPostsCount:"posts",adminReportsCount:"reports",adminBannedCount:"banned",adminDisabledCount:"disabled",adminActiveCount:"active",adminOnlineCount:"online",adminUsersTodayCount:"usersToday",adminPostsTodayCount:"postsToday",adminUsersWeekCount:"users7Days",adminPostsWeekCount:"posts7Days",adminArchivedCount:"archivedPosts"};
-    for(const [id,key] of Object.entries(fields))$(id).textContent=d.counts[key]||0;
+    for(const [id,key] of Object.entries(fields))if($(id))$(id).textContent=d.counts[key]||0;
     const maximum=Math.max(1,...(d.daily||[]).flatMap(day=>[day.users,day.posts]));
     $("adminActivityChart").innerHTML=(d.daily||[]).map(day=>`<div class="activity-row"><time>${adminEscape(day.date.slice(5))}</time><div class="activity-bars"><div class="activity-track"><span style="width:${day.users/maximum*100}%"></span></div><div class="activity-track posts"><span style="width:${day.posts/maximum*100}%"></span></div></div><span>${day.users} / ${day.posts}</span></div>`).join("");
-    const resume=$("adminDeleteResume");resume.classList.toggle("hidden",!d.deletion);
-    resume.innerHTML=d.deletion?`حذف قيد الاستكمال: @${adminEscape(d.deletion.username)} <button class="danger" data-admin-action="delete_user" data-user="${adminEscape(d.deletion.username)}">استكمال الحذف</button>`:"";
-    $("adminRoleBadge").textContent=d.role==="super_admin"?"المدير الرئيسي":"مشرف";
+    const resume=$("adminDeleteResume"),canDelete=d.role==="super_admin";
+    resume.classList.toggle("hidden",!d.deletion || !canDelete);
+    resume.innerHTML=d.deletion&&canDelete?`حذف قيد الاستكمال: @${adminEscape(d.deletion.username)} <button class="danger" data-admin-action="delete_user" data-user="${adminEscape(d.deletion.username)}">استكمال الحذف</button>`:"";
+    $("adminRoleBadge").textContent=canDelete?"👑 المدير الرئيسي":"مشرف • دون صلاحية حذف";
     await loadAdminUsers();
   }catch(e){alert(e.message||"تعذر تحميل لوحة الإدارة")}
 }
-
+$("adminSecurityCodeBtn").onclick=async()=>{
+  try{const d=await api("/api/admin/security/code",{method:"POST",body:JSON.stringify({token})});$("adminSecurityStatus").textContent=`أُرسل الكود إلى ${d.email}`;}catch(e){alert(e.message)}
+};
+$("adminSecurityForm").onsubmit=async e=>{
+  e.preventDefault();const form=e.target,button=form.querySelector("button");button.disabled=true;
+  const body={token,code:form.elements.code.value,newPassword:form.elements.newPassword.value,confirmPassword:form.elements.confirmPassword.value};
+  form.elements.newPassword.value="";form.elements.confirmPassword.value="";
+  try{await api("/api/admin/security/password",{method:"POST",body:JSON.stringify(body)});form.reset();$("adminSecurityStatus").textContent="تم حفظ كلمة الحماية";await loadAdminDashboard();}catch(err){alert(err.message)}finally{body.newPassword="";body.confirmPassword="";button.disabled=false;}
+};
 let ownerResetPlan=null;
-const resetPreviewButton=$("adminResetPreviewBtn");
-const resetExecuteButton=$("adminResetExecuteBtn");
-const resetConfirmation=$("adminResetConfirmation");
-if(resetPreviewButton){
-  resetPreviewButton.onclick=async()=>{
-    if(me?.role!=="super_admin")return;
-    const report=$("adminResetPreviewReport");
-    resetPreviewButton.disabled=true;ownerResetPlan=null;
-    $("adminResetConfirmArea").classList.add("hidden");resetConfirmation.value="";resetExecuteButton.disabled=true;
-    report.textContent="جاري عرض نطاق الحذف (لم يُنفذ الحذف بعد)...";
-    try{
-      const d=await api("/api/admin/reset/plan",{method:"POST",body:JSON.stringify({token})});
-      ownerResetPlan=d;
-      report.textContent=`لن يبقى أي حساب، بما فيه حساب المدير ${d.owner||me.username} الحالي.\nمفاتيح القاعدة: ${d.scope.durableObjectKeys}\nملفات الوسائط: ${d.scope.media.count}\nالحجم بالبايت: ${d.scope.media.bytes}\nتفصيل السجلات: ${JSON.stringify(d.scope.byCategory,null,2)}\nلا تُنشأ نسخة احتياطية.\nاكتب عبارة التأكيد ثم نفّذ الحذف.${d.resuming?"\nتوجد عملية سابقة؛ الزر يستكملها.":""}`;
-      $("adminResetConfirmArea").classList.remove("hidden");
-    }catch(e){report.textContent=e.message||"تعذر تجهيز التصفير";}
-    finally{resetPreviewButton.disabled=false;}
-  };
-  resetConfirmation.oninput=()=>{resetExecuteButton.disabled=!ownerResetPlan || resetConfirmation.value!==ownerResetPlan.confirmation;};
-  resetExecuteButton.onclick=async()=>{
-    if(!ownerResetPlan || resetConfirmation.value!==ownerResetPlan.confirmation)return;
-    const report=$("adminResetPreviewReport");resetExecuteButton.disabled=true;resetPreviewButton.disabled=true;resetConfirmation.disabled=true;
-    try{
-      let result;
-      do{
-        result=await api("/api/admin/reset/execute",{method:"POST",body:JSON.stringify({token,planId:ownerResetPlan.planId,confirmation:ownerResetPlan.confirmation})});
-        report.textContent=`جاري التصفير... ملفات الوسائط المحذوفة: ${result.deletedMedia||0}`;
-      }while(!result.done);
-      await logoutCurrentAccount();
-      alert("اكتمل التصفير: لا توجد حسابات أو منشورات أو رسائل أو ملفات وسائط. أنشئ حسابًا جديدًا؛ الأسماء والإيميلات متاحة مجددًا.");
-      location.reload();
-    }catch(e){report.textContent=(e.message||"توقف التصفير")+"\nأعد الضغط لاستكماله من نفس جلسة المدير.";resetExecuteButton.disabled=false;}
-    finally{resetPreviewButton.disabled=false;resetConfirmation.disabled=false;}
-  };
-}
-
+const resetPreviewButton=$("adminResetPreviewBtn"),resetExecuteButton=$("adminResetExecuteBtn"),resetConfirmation=$("adminResetConfirmation");
+$("adminResetScope").onchange=()=>{ownerResetPlan=null;$("adminResetConfirmArea").classList.add("hidden");};
+resetPreviewButton.onclick=async()=>{
+  if(me?.role!=="super_admin")return;
+  resetPreviewButton.disabled=true;
+  try{
+    ownerResetPlan=await api("/api/admin/reset/plan",{method:"POST",body:JSON.stringify({token,scope:$("adminResetScope").value})});
+    const scope=ownerResetPlan.scope;
+    $("adminResetPreviewReport").textContent=`حسابات للحذف: ${scope.accountsToDelete} • منشورات للحذف: ${scope.postsToDelete} • حساب المدير محفوظ`;
+    $("adminResetPhrase").textContent=`اكتب: ${ownerResetPlan.confirmation}`;
+    $("adminResetConfirmArea").classList.remove("hidden");resetConfirmation.value="";resetExecuteButton.disabled=true;
+  }catch(e){alert(e.message)}finally{resetPreviewButton.disabled=false;}
+};
+resetConfirmation.oninput=()=>{resetExecuteButton.disabled=!ownerResetPlan || resetConfirmation.value!==ownerResetPlan.confirmation;};
+resetExecuteButton.onclick=async()=>{
+  if(!ownerResetPlan || resetConfirmation.value!==ownerResetPlan.confirmation)return;
+  let adminPassword=await adminSecret();if(adminPassword===null)return;
+  const report=$("adminResetPreviewReport");resetExecuteButton.disabled=true;resetPreviewButton.disabled=true;resetConfirmation.disabled=true;
+  try{
+    let result;
+    do{result=await api("/api/admin/reset/execute",{method:"POST",body:JSON.stringify({token,planId:ownerResetPlan.planId,confirmation:ownerResetPlan.confirmation,adminPassword})});report.textContent=`تمت معالجة ${result.completed||0} • حساب المدير محفوظ`;}while(!result.done);
+    ownerResetPlan=null;$("adminResetConfirmArea").classList.add("hidden");await loadAdminDashboard();
+  }catch(e){report.textContent=e.message+" — يمكنك استكمال الحذف من لوحة الإدارة";resetExecuteButton.disabled=false;}
+  finally{adminPassword="";resetPreviewButton.disabled=false;resetConfirmation.disabled=false;}
+};
 let adminUsersNextOffset=null;
 async function loadAdminUsers(append=false){
-  const q=$("adminUserSearch")?.value.trim()||"";
+  const q=$("adminUserSearch").value.trim(),canDelete=me?.role==="super_admin";
   const d=await api(`/api/admin/users?token=${encodeURIComponent(token)}&q=${encodeURIComponent(q)}&offset=${append?adminUsersNextOffset||0:0}`);
   const markup=d.users.map(u=>{
-    const owner=u.role==="super_admin",status=u.banned?"محظور":u.disabled?"معطّل":"مفعّل";
-    const username=adminEscape(u.username);
-    return `<div class="admin-item"><div class="admin-item-main"><img src="${adminEscape(u.avatar||avatarFallback(u.displayName||u.username))}"><div class="admin-item-text"><strong>${adminEscape(u.displayName||u.username)}</strong><span>@${username} · ${owner?'مدير رئيسي':status}</span><span>${adminDate(u.createdAt)}</span></div></div><div class="admin-actions">${owner?'':`${u.banned||u.disabled?`<button class="gold" data-admin-action="activate" data-user="${username}">إعادة تفعيل</button>`:`<button class="gold" data-admin-action="suspend" data-user="${username}">تعطيل</button><button class="danger" data-admin-action="ban" data-user="${username}">حظر</button>`}<button class="danger" data-admin-action="delete_user" data-user="${username}">حذف نهائي</button>`}</div></div>`;
+    const owner=u.role==="super_admin",moderator=u.role==="moderator",status=u.banned?"محظور":u.disabled?"معطّل":moderator?"مشرف":"مفعّل",username=adminEscape(u.username);
+    const action=(name,label)=>`<button type="button" data-admin-action="${name}" data-user="${username}" data-name="${adminEscape(u.displayName||u.username)}">${label}</button>`;
+    let actions="";
+    if(!owner && (canDelete || !moderator))actions+=u.banned||u.disabled?action("activate","إعادة تفعيل"):action("suspend","تعطيل")+action("ban","حظر");
+    if(canDelete && !owner)actions+=action("update_user","تعديل الاسم")+action(moderator?"remove_moderator":"make_moderator",moderator?"إزالة الإشراف":"＋ إضافة مشرف")+action("delete_user","🔒 حذف نهائي");
+    return `<div class="admin-item"><div class="admin-item-main"><img alt="" src="${adminEscape(u.avatar||avatarFallback(u.displayName||u.username))}"><div class="admin-item-text"><strong>${adminEscape(u.displayName||u.username)}</strong><span>@${username} · ${owner?'مدير رئيسي • محمي':status}</span><span>${adminDate(u.createdAt)}</span></div></div><div class="admin-actions">${actions}</div></div>`;
   }).join("");
-  if(append)$("adminUsersList").insertAdjacentHTML("beforeend",markup);
-  else $("adminUsersList").innerHTML=markup||'<div class="admin-empty">لا يوجد مستخدمون</div>';
+  if(append)$("adminUsersList").insertAdjacentHTML("beforeend",markup);else $("adminUsersList").innerHTML=markup||'<div class="admin-empty">لا يوجد مستخدمون</div>';
   adminUsersNextOffset=d.nextOffset;$("adminMoreUsersBtn").classList.toggle("hidden",d.nextOffset===null);
 }
-if($("adminRefreshBtn"))$("adminRefreshBtn").onclick=loadAdminDashboard;
-if($("adminUserSearchBtn"))$("adminUserSearchBtn").onclick=()=>loadAdminUsers().catch(e=>alert(e.message));
-if($("adminMoreUsersBtn"))$("adminMoreUsersBtn").onclick=()=>loadAdminUsers(true).catch(e=>alert(e.message));
-
+$("adminRefreshBtn").onclick=loadAdminDashboard;
+$("adminUserSearchBtn").onclick=()=>loadAdminUsers().catch(e=>alert(e.message));
+$("adminMoreUsersBtn").onclick=()=>loadAdminUsers(true).catch(e=>alert(e.message));
+$("adminPostSearchBtn").onclick=()=>loadAdminPosts().catch(e=>alert(e.message));
 async function loadAdminPosts(){
-  const d=await api(`/api/admin/posts?token=${encodeURIComponent(token)}`);
-  $("adminPostsList").innerHTML=d.posts.length?d.posts.map(p=>`<div class="admin-item"><div class="admin-item-text"><strong>@${adminEscape(p.author)}</strong><span class="admin-post-text">${adminEscape(p.text|| (p.hasImage?'منشور صورة':'منشور'))}</span><span>${adminDate(p.createdAt)}</span></div><div class="admin-actions"><button class="danger" data-admin-action="delete_post" data-post="${adminEscape(p.id)}">حذف المنشور</button></div></div>`).join(""):'<div class="admin-empty">لا توجد منشورات</div>';
+  const d=await api(`/api/admin/posts?token=${encodeURIComponent(token)}&q=${encodeURIComponent($("adminPostSearch").value.trim())}`),owner=me?.role==="super_admin";
+  $("adminPostsList").innerHTML=d.posts.map(p=>`<div class="admin-item"><div class="admin-item-text"><strong>@${adminEscape(p.author)}</strong><p class="admin-post-text">${adminEscape(p.text||'منشور وسائط')}</p><span>${adminDate(p.createdAt)}</span></div><div class="admin-actions">${owner?`<button data-admin-action="update_post" data-post="${adminEscape(p.id)}" data-text="${adminEscape(p.text)}">تعديل المنشور</button><button data-admin-action="delete_post" data-post="${adminEscape(p.id)}">🔒 حذف المنشور</button>`:''}</div></div>`).join("")||'<div class="admin-empty">لا توجد منشورات</div>';
 }
-
 async function loadAdminReports(){
   const d=await api(`/api/admin/reports?token=${encodeURIComponent(token)}`);
-  $("adminReportsList").innerHTML=d.reports.length?d.reports.map(r=>`<div class="admin-item"><div class="admin-item-text"><strong>بلاغ من @${adminEscape(r.reporter)}</strong><span>${adminEscape(r.targetType)} · ${adminEscape(r.reason||'بدون سبب')}</span><span>${adminDate(r.createdAt)} ${r.resolved?'· تمت المراجعة':''}</span></div><div class="admin-actions">${r.resolved?'':`<button class="gold" data-admin-action="resolve_report" data-report="${adminEscape(r.id)}">تمت المراجعة</button>`}</div></div>`).join(""):'<div class="admin-empty">لا توجد بلاغات</div>';
+  $("adminReportsList").innerHTML=d.reports.map(r=>`<div class="admin-item"><div class="admin-item-text"><strong>بلاغ من @${adminEscape(r.reporter)}</strong><span>${adminEscape(r.targetType)} · ${adminEscape(r.reason||'بدون سبب')}</span><span>${adminDate(r.createdAt)} ${r.resolved?'· تمت المراجعة':''}</span></div><div class="admin-actions">${r.resolved?'':`<button data-admin-action="resolve_report" data-report="${adminEscape(r.id)}">تمت المراجعة</button>`}</div></div>`).join("")||'<div class="admin-empty">لا توجد بلاغات</div>';
 }
-
 document.addEventListener("click",async e=>{
   const tab=e.target.closest("[data-admin-tab]");
   if(tab){
     document.querySelectorAll("[data-admin-tab]").forEach(x=>x.classList.toggle("active",x===tab));
-    const name=tab.dataset.adminTab;
-    ["users","posts","reports"].forEach(x=>$("admin"+x[0].toUpperCase()+x.slice(1)+"Panel")?.classList.toggle("hidden",x!==name));
-    if(name==="users")await loadAdminUsers(); if(name==="posts")await loadAdminPosts(); if(name==="reports")await loadAdminReports();
-    return;
+    const name=tab.dataset.adminTab;["users","posts","reports"].forEach(x=>$("admin"+x[0].toUpperCase()+x.slice(1)+"Panel").classList.toggle("hidden",x!==name));
+    try{if(name==="users")await loadAdminUsers();if(name==="posts")await loadAdminPosts();if(name==="reports")await loadAdminReports();}catch(err){alert(err.message)}return;
   }
-  const btn=e.target.closest("[data-admin-action]"); if(!btn)return;
-  const action=btn.dataset.adminAction;
-  if(["ban","suspend","delete_post"].includes(action) && !confirm(action==="delete_post"?"هل تريد حذف هذا المنشور نهائيًا؟":`هل تريد ${action==="ban"?"حظر":"تعطيل"} @${btn.dataset.user}؟ سيُمنع من الدخول حتى إعادة تفعيله.`))return;
-  let confirmation="";
-  if(action==="delete_user"){
-    confirmation=prompt(`حذف @${btn.dataset.user} نهائيًا مع منشوراته ورسائله وملفاته. يمكن التسجيل مجددًا بنفس الاسم والإيميل. اكتب اسم المستخدم للتأكيد:`,"");
-    if(confirmation!==btn.dataset.user)return;
-  }
+  const btn=e.target.closest("[data-admin-action]");if(!btn)return;
+  const action=btn.dataset.adminAction,body={token,action,username:btn.dataset.user||"",postId:btn.dataset.post||"",reportId:btn.dataset.report||""};
+  if(["ban","suspend","delete_post","make_moderator","remove_moderator"].includes(action) && !confirm("تأكيد تنفيذ الإجراء على العنصر المحدد؟"))return;
+  if(action==="delete_user"){body.confirmation=prompt(`اكتب اسم المستخدم @${body.username} لتأكيد حذف حسابه وبياناته:`,"");if(body.confirmation!==body.username)return;}
+  if(action==="update_user"){body.displayName=prompt("الاسم الجديد للحساب:",btn.dataset.name);if(body.displayName===null)return;}
+  if(action==="update_post"){body.text=prompt("نص المنشور الجديد:",btn.dataset.text);if(body.text===null)return;}
+  if(["delete_user","delete_post","update_user","update_post","make_moderator","remove_moderator"].includes(action)){body.adminPassword=await adminSecret();if(body.adminPassword===null)return;}
   btn.disabled=true;
   try{
-    if(action==="delete_user"){
-      let result;
-      do{result=await api("/api/admin/users/delete",{method:"POST",body:JSON.stringify({token,username:btn.dataset.user,confirmation})});btn.textContent=`جاري الحذف... ${result.deletedMedia||0} ملف`;}while(!result.done);
-    }else await api("/api/admin/action",{method:"POST",body:JSON.stringify({token,action,username:btn.dataset.user||"",postId:btn.dataset.post||"",reportId:btn.dataset.report||""})});
-    await loadAdminDashboard();
-    const active=document.querySelector("[data-admin-tab].active")?.dataset.adminTab;
-    if(active==="posts")await loadAdminPosts(); if(active==="reports")await loadAdminReports();
-  }catch(err){alert(err.message||"تعذر تنفيذ العملية")}finally{btn.disabled=false}
+    if(action==="delete_user"){let result;do{result=await api("/api/admin/users/delete",{method:"POST",body:JSON.stringify(body)});btn.textContent=`جاري الحذف... ${result.deletedMedia||0}`;}while(!result.done);}
+    else await api("/api/admin/action",{method:"POST",body:JSON.stringify(body)});
+    await loadAdminDashboard();const active=document.querySelector("[data-admin-tab].active")?.dataset.adminTab;
+    if(active==="posts")await loadAdminPosts();if(active==="reports")await loadAdminReports();
+  }catch(err){alert(err.message)}finally{body.adminPassword="";btn.disabled=false;}
 });
 
 function showPage(pageId){
   // Owner-only UI. Cloudflare independently rejects unauthorized admin APIs.
-  if(pageId==="adminPage" && me?.role!=="super_admin")return false;
+  if(pageId==="adminPage" && !["super_admin","moderator"].includes(me?.role))return false;
   const page=$(pageId);
   if(!page || !page.classList.contains("page"))return false;
   document.querySelectorAll(".page").forEach(p=>p.classList.remove("active-page"));
@@ -2323,6 +2329,19 @@ async function renderProfilePage(username=me?.username){
     alert(e.message||"تعذر تحميل الملف الشخصي");
   }
 }
+
+document.addEventListener("click",e=>{
+  const section=e.target.closest("[data-profile-section]"),filter=e.target.closest("[data-profile-filter]");
+  if(section){
+    document.querySelectorAll("#profilePostsList > *").forEach(card=>card.hidden=false);
+    $(section.dataset.profileSection)?.scrollIntoView({behavior:"smooth",block:"start"});
+  }
+  if(filter){
+    const video=filter.dataset.profileFilter==="videos";
+    document.querySelectorAll("#profilePostsList > *").forEach(card=>{card.hidden=video?!card.querySelector("video,.post-video-preview,.atta-youtube-post-media"):!card.querySelector(".post-media-img,.post-media-image,img[data-full-src],.profile-post-image");});
+    $("profilePostsSection").scrollIntoView({behavior:"smooth",block:"start"});
+  }
+});
 
 // One immersive post viewer. The existing YouTube player is independent.
 const postMediaUI={catalogue:new Map(),playlist:[],index:0,kind:"image",root:null,panel:null,session:null,viewerOpen:false,controls:true,hideTimer:0,panelSerial:0,zoom:1,panX:0,panY:0};
@@ -4214,7 +4233,7 @@ window.AttaWeb=Object.freeze({
 
   if ("serviceWorker" in navigator) {
     window.addEventListener("load", () => {
-      navigator.serviceWorker.register("/sw.js?v=14.0", { scope: "/" }).catch(() => {});
+      navigator.serviceWorker.register("/sw.js?v=14.1", { scope: "/" }).catch(() => {});
     });
   }
 

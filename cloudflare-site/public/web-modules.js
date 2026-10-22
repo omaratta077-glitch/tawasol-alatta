@@ -135,6 +135,6 @@ document.addEventListener('atta:page',e=>{
  if(id==='hadithPage')openHadith();
  if(id==='azkarPage')openAzkar();
  if(id==='sportsPage')openFootball();
- if(id==='morePage')$('webAdminGo').hidden=bridge.user().role!=='super_admin';
+ if(id==='morePage')$('webAdminGo').hidden=!['super_admin','moderator'].includes(bridge.user().role);
 });
 })();

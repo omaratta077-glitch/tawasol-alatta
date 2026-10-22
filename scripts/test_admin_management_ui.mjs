@@ -11,14 +11,14 @@ const ctx={$:id=>nodes.get(id),JSON,Date,Math,encodeURIComponent,me:{role:'super
  return{ok:true};
 }};
 vm.createContext(ctx);
-const a=source.indexOf('function adminEscape('),b=source.indexOf('let ownerResetPlan=',a);vm.runInContext(source.slice(a,b),ctx);
+const a=source.indexOf('function adminEscape('),b=source.indexOf('let ownerResetPlan=',a);vm.runInContext(source.slice(a,b),ctx);vm.runInContext("adminSecret=async()=> 'test-second-password'",ctx);
 const c=source.indexOf('let adminUsersNextOffset='),d=source.indexOf('async function loadAdminPosts',c);vm.runInContext(source.slice(c,d),ctx);
 const e=source.indexOf('document.addEventListener("click",async e=>{\n  const tab=e.target.closest("[data-admin-tab]");'),f=source.indexOf('\nfunction showPage(',e);assert.ok(e>0&&f>e);vm.runInContext(source.slice(e,f),ctx);
 await ctx.loadAdminDashboard();assert.equal(nodes.get('adminUsersCount').textContent,3);assert.equal(nodes.get('adminUsersTodayCount').textContent,1);assert.ok(nodes.get('adminActivityChart').innerHTML.includes('2026-10-18'.slice(5)));
 const users=nodes.get('adminUsersList').innerHTML;assert.ok(users.includes('&lt;unsafe&gt;')&&!users.includes('<unsafe>'));assert.ok(users.includes('data-admin-action="activate"')&&users.includes('data-admin-action="delete_user"')&&users.includes('data-admin-action="suspend"'));
 let button={dataset:{adminAction:'delete_user',user:'alice'},disabled:false};const event={target:{closest:s=>s==='[data-admin-action]'?button:null}};
 confirmed=false;let before=calls.length;await click(event);assert.equal(calls.length,before,'wrong username never invokes deletion');
-confirmed=true;await click(event);assert.equal(batches,3);assert.ok(calls.filter(c=>c.path==='/api/admin/users/delete').every(c=>c.body.confirmation==='alice'&&c.body.token==='owner'));assert.equal(button.disabled,false);
+confirmed=true;await click(event);assert.equal(batches,3);assert.ok(calls.filter(c=>c.path==='/api/admin/users/delete').every(c=>c.body.confirmation==='alice'&&c.body.token==='owner'));assert.equal(button.disabled,false);assert.ok(calls.filter(c=>c.path==='/api/admin/users/delete').every(c=>c.body.adminPassword==='test-second-password'));
 button={dataset:{adminAction:'suspend',user:'bob'},disabled:false};await click(event);assert.ok(calls.some(c=>c.body?.action==='suspend'&&c.body?.username==='bob'));
 ctx.me.role='user';before=calls.length;await ctx.loadAdminDashboard();assert.equal(calls.length,before,'nonowner cannot load dashboard');
 const home=html.slice(html.indexOf('<section id="homePage"'),html.indexOf('<section id="messagesPage"'));

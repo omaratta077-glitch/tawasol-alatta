@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import {enrollAdmin,ADMIN_TEST_PASSWORD} from './admin_security_fixture.mjs';
 import fs from 'node:fs';
 import {webcrypto} from 'node:crypto';
 globalThis.crypto ??= webcrypto;
@@ -11,7 +12,7 @@ let sockets=[];
 const ctx={storage,getWebSockets:()=>sockets,waitUntil:p=>p.catch(()=>{})};
 const env={SUPER_ADMIN_USERNAME:'owner',SUPER_ADMIN_EMAIL:'owner@example.test',MEDIA_BUCKET:bucket};
 let room=new SignalingRoom(ctx,env);
-async function api(path,body,method='POST'){const response=await room.api(new Request('https://unit.test'+path,{method,headers:{'content-type':'application/json'},...(method==='GET'?{}:{body:JSON.stringify(body||{})})}));return{status:response.status,data:await response.json()}}
+async function api(path,body,method='POST'){const response=await room.api(new Request('https://unit.test'+path,{method,headers:{'content-type':'application/json'},...(method==='GET'?{}:{body:JSON.stringify({...body,adminPassword:ADMIN_TEST_PASSWORD})})}));return{status:response.status,data:await response.json()}}
 const now=Date.parse('2026-10-18T21:30:00Z'),originalNow=Date.now;Date.now=()=>now;
 const digest=async value=>Buffer.from(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(value))).toString('hex');
 let checks=0;const check=(name,pass)=>{assert.ok(pass,name);checks++;console.log('PASS '+name)};
@@ -24,6 +25,7 @@ try{
  await storage.put('postIds',['today','yesterday','nonexistent']);
  await storage.put('reports',[{id:'open',reporter:'bob'},{id:'done',reporter:'alice',resolved:true}]);
  let owner=await room.createSession('owner'),alice=await room.createSession('alice'),bob=await room.createSession('bob');
+ await enrollAdmin(room,owner);
  check('owner-only summary',(await api('/api/admin/summary?token='+alice,null,'GET')).status===403);
  const summary=(await api('/api/admin/summary?token='+owner,null,'GET')).data;
  check('totals count actual accounts and orphan posts rather than stale indexes',summary.counts.users===4&&summary.counts.posts===3&&summary.counts.archivedPosts===1&&summary.counts.reports===1);

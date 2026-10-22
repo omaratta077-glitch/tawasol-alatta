@@ -1,0 +1,82 @@
+package com.alatta.nativeapp
+
+import androidx.compose.foundation.layout.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import org.json.JSONObject
+
+/** All password verification and permission checks run on the server. Nothing is saved locally. */
+@Composable
+internal fun AdminProtectionPanel(
+    configured: Boolean, busy: Boolean,
+    runTask: (suspend () -> Unit) -> Unit,
+    request: suspend (String, JSONObject) -> JSONObject,
+    protect: ((String) -> Unit) -> Unit,
+    onRefresh: () -> Unit
+) {
+    var showSetup by remember { mutableStateOf(false) }
+    var code by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+    var confirmation by remember { mutableStateOf("") }
+    var status by remember { mutableStateOf("") }
+    var plan by remember { mutableStateOf<JSONObject?>(null) }
+    var phrase by remember { mutableStateOf("") }
+    val gold = Color(0xFFF6D776)
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+        Text("حماية الإدارة", color = gold, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+        Text(if (configured) "🔒 الحذف وتعديل الصلاحيات محميان بكلمة مرور مستقلة" else "🔒 الحذف مقفول حتى تضبط كلمة حماية الإدارة", color = gold, fontSize = 13.sp)
+        Text("حساب المدير الرئيسي محمي دائمًا. المشرفون لا يملكون صلاحية الحذف.", color = Color.LightGray, fontSize = 12.sp)
+        TextButton(onClick = { showSetup = !showSetup; password = ""; confirmation = "" }) {
+            SiteIcon("shield", size = 20.dp)
+            Text(if (configured) " تغيير كلمة الحماية" else " إعداد كلمة الحماية", color = gold)
+        }
+        if (showSetup) {
+            Text("كود التأكيد يصل لبريد المدير الرئيسي. اختر كلمة مختلفة عن كلمة دخول الحساب (10 أحرف على الأقل).", color = Color.LightGray, fontSize = 12.sp)
+            Button(enabled = !busy, onClick = { runTask {
+                val result = request("/api/admin/security/code", JSONObject())
+                status = "أُرسل الكود إلى ${result.optString("email")}"
+            } }) { Text("إرسال كود إلى بريد المدير") }
+            PremiumAuthTextField(code, { code = it.take(6) }, "كود البريد")
+            PremiumAuthTextField(password, { password = it.take(128) }, "كلمة حماية جديدة", password = true)
+            PremiumAuthTextField(confirmation, { confirmation = it.take(128) }, "تأكيد كلمة الحماية", password = true)
+            Button(enabled = !busy && code.length == 6 && password.length >= 10 && password == confirmation, onClick = {
+                val next = password; val again = confirmation
+                password = ""; confirmation = ""
+                runTask {
+                    request("/api/admin/security/password", JSONObject().put("code", code).put("newPassword", next).put("confirmPassword", again))
+                    code = ""; showSetup = false; status = "تم حفظ كلمة الحماية"; onRefresh()
+                }
+            }) { Text("حفظ كلمة الحماية") }
+        }
+        HorizontalDivider()
+        Text("الحذف الجماعي", color = gold, fontWeight = FontWeight.Bold)
+        Text("اعرض النطاق أولًا ثم اكتب العبارة وأدخل كلمة الحماية للتنفيذ.", color = Color.LightGray, fontSize = 12.sp)
+        listOf("accounts" to "حذف الحسابات عدا المدير", "posts" to "حذف كل المنشورات").forEach { (kind, label) ->
+            OutlinedButton(enabled = !busy, modifier = Modifier.fillMaxWidth(), onClick = { runTask {
+                plan = request("/api/admin/reset/plan", JSONObject().put("scope", kind)); phrase = ""
+                val scope = plan?.optJSONObject("scope") ?: JSONObject()
+                status = if (plan?.optBoolean("resuming") == true) "توجد عملية حذف قيد الاستكمال" else
+                    "حسابات: ${scope.optInt("accountsToDelete")} • منشورات: ${scope.optInt("postsToDelete")} • حساب المدير محفوظ"
+            } }) { Text(label, color = gold) }
+        }
+        plan?.let { current ->
+            Text("اكتب: ${current.optString("confirmation")}", color = gold, fontSize = 12.sp)
+            PremiumAuthTextField(phrase, { phrase = it }, "عبارة التأكيد")
+            Button(enabled = !busy && phrase == current.optString("confirmation"), onClick = { protect { secret -> runTask {
+                var done = false
+                while (!done) {
+                    val result = request("/api/admin/reset/execute", JSONObject().put("planId", current.optString("planId"))
+                        .put("confirmation", phrase).put("adminPassword", secret))
+                    done = result.optBoolean("done"); status = "تمت معالجة ${result.optInt("completed")}"
+                }
+                plan = null; phrase = ""; status = "اكتمل الحذف؛ حساب المدير محفوظ"; onRefresh()
+            } } }) { Text("تنفيذ الحذف المحمي") }
+        }
+        if (status.isNotBlank()) Text(status, color = gold, fontSize = 12.sp)
+    }
+}

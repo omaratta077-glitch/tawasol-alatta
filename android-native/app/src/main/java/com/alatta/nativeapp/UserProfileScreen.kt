@@ -4,6 +4,7 @@ import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -42,8 +43,6 @@ internal fun PublicUserProfile(
 ) {
     val user = profile?.optJSONObject("user") ?: JSONObject().put("username", username)
     val fullName = user.optString("fullName").ifBlank { user.optString("displayName").ifBlank { "مستخدم" } }
-    val avatar = media(user.optString("avatar"))
-    val cover = media(user.optString("cover"))
     var filter by remember(username) { mutableStateOf("المنشورات") }
     val posts = remember(recentPosts, filter) {
         recentPosts.filter { p ->
@@ -65,41 +64,11 @@ internal fun PublicUserProfile(
         if (isLoading) LinearProgressIndicator(Modifier.fillMaxWidth(), color = profileGold)
         LazyColumn(Modifier.fillMaxSize()) {
             item {
-                Box(Modifier.fillMaxWidth().height(164.dp).background(profilePanel)) {
-                    if (cover.isNotBlank()) ExpandableProfileMedia(cover, "صورة الغلاف", Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Crop)
-                }
-                Column(Modifier.fillMaxWidth().padding(horizontal = 18.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally) {
-                    Box(Modifier.offset(y = (-44).dp).size(96.dp).border(3.dp, profileGold, CircleShape)
-                        .padding(3.dp).clip(CircleShape).background(Color(0xFF41311A)),
-                        contentAlignment = Alignment.Center) {
-                        if (avatar.isNotBlank()) ExpandableProfileMedia(avatar, fullName, Modifier.fillMaxSize(),
-                            contentScale = ContentScale.Crop)
-                        else Text(fullName.take(1), fontSize = 36.sp, color = profileGold)
-                    }
-                    Text(fullName, color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold,
-                        modifier = Modifier.offset(y = (-37).dp), maxLines = 1,
-                        overflow = TextOverflow.Ellipsis)
-                    val activityLabel = if (user.optBoolean("isOnline", false)) "نشط الآن" else {
-                        val last = user.optLong("lastSeen", 0L)
-                        if (last <= 0L) "غير متصل" else {
-                            val minutes = ((System.currentTimeMillis() - last).coerceAtLeast(0L) / 60000L)
-                            when {
-                                minutes < 1L -> "نشط منذ لحظات"
-                                minutes < 60L -> "نشط منذ $minutes دقيقة"
-                                minutes < 1440L -> "نشط منذ ${minutes / 60L} ساعة"
-                                else -> "نشط منذ ${minutes / 1440L} يوم"
-                            }
-                        }
-                    }
-                    Text(activityLabel, color = profileGold, fontSize = 12.sp,
-                        modifier = Modifier.offset(y = (-32).dp).padding(bottom = 3.dp))
-                    if (user.optString("bio").isNotBlank()) Text(user.optString("bio"),
-                        color = profileMuted, fontSize = 13.sp, modifier = Modifier.offset(y = (-25).dp))
-                    val friendCount = profile?.optInt("friendCount", -1) ?: -1
-                    if (friendCount >= 0) Text("$friendCount صديق", color = profileGold, fontSize = 12.sp,
-                        modifier = Modifier.padding(bottom = 9.dp))
+                ProfileTimelineHeader(user, profile?.optInt("friendCount", friendUsers.size) ?: friendUsers.size)
+                Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                    horizontalAlignment = Alignment.Start) {
+                    Text(if (user.optBoolean("isOnline")) "● نشط الآن" else if (user.optLong("lastSeen") > 0L) "آخر ظهور: " + java.text.SimpleDateFormat("yyyy/MM/dd HH:mm", java.util.Locale.getDefault()).format(java.util.Date(user.optLong("lastSeen"))) else "غير متصل", color = profileMuted, fontSize = 12.sp)
+                    if (filter == "حول") {
                     val registeredAt = user.optLong("createdAt",0L)
                     if (registeredAt>0) Text("تاريخ إنشاء الحساب: " + java.text.SimpleDateFormat("yyyy/MM/dd", java.util.Locale.getDefault()).format(java.util.Date(registeredAt)),
                         color=profileMuted,fontSize=12.sp,modifier=Modifier.padding(bottom=9.dp))
@@ -119,6 +88,7 @@ internal fun PublicUserProfile(
                                 Text("$label: $value", color = Color.White, fontSize = 13.sp)
                             }
                         }
+                    }
                     }
                     // Reflect the friend state returned by /api/profile-public.
                     // All actions are verified by the Cloudflare backend.
@@ -185,7 +155,7 @@ internal fun PublicUserProfile(
                 }
                 Row(Modifier.fillMaxWidth().padding(vertical = 12.dp, horizontal = 14.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf("المنشورات", "الصور", "الفيديوهات").forEach { option ->
+                    listOf("المنشورات", "حول", "الأصدقاء", "الصور", "الفيديوهات").forEach { option ->
                         Box(Modifier.clip(RoundedCornerShape(14.dp))
                             .background(if (filter == option) profileGold else profilePanel)
                             .clickable { filter = option }.padding(horizontal = 13.dp, vertical = 9.dp)) {
@@ -194,21 +164,23 @@ internal fun PublicUserProfile(
                         }
                     }
                 }
-                if (friendUsers.isNotEmpty()) {
+                if (friendUsers.isNotEmpty() && filter in listOf("المنشورات", "الأصدقاء")) {
                     Text("أصدقاء المستخدم", color = profileGold, fontSize = 14.sp, fontWeight = FontWeight.Bold,
                         modifier = Modifier.padding(horizontal = 17.dp, vertical = 6.dp))
-                    friendUsers.take(30).forEach { friend ->
-                        val friendName = friend.optString("username")
-                        Text(friend.optString("fullName").ifBlank { friendName },
-                            color = Color.White, fontSize = 13.sp,
-                            modifier = Modifier.fillMaxWidth().clickable { onOpenFriend(friendName) }
-                                .padding(horizontal = 22.dp, vertical = 6.dp))
+                    LazyRow(Modifier.fillMaxWidth().padding(horizontal = 14.dp), horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+                        items(friendUsers.take(30), key = { it.optString("username") }) { friend ->
+                            val friendName = friend.optString("username")
+                            Column(Modifier.width(92.dp).clickable { onOpenFriend(friendName) }) {
+                                ProfileMediaImage(friend.optString("avatar"), "صورة الصديق", Modifier.fillMaxWidth().height(92.dp).clip(RoundedCornerShape(12.dp)))
+                                Text(friend.optString("fullName").ifBlank { friend.optString("displayName").ifBlank { friendName } }, color = Color.White, fontSize = 12.sp, maxLines = 2)
+                            }
+                        }
                     }
                 }
                 Text("أحدث المنشورات العامة", color = profileMuted, fontSize = 12.sp,
                     modifier = Modifier.padding(horizontal = 17.dp, vertical = 4.dp))
             }
-            if (posts.isEmpty()) item {
+            if (posts.isEmpty() && filter !in listOf("حول", "الأصدقاء")) item {
                 Text(if (isLoading) "جاري تحميل الصفحة..." else "لا توجد منشورات ظاهرة في هذا القسم",
                     color = profileMuted, modifier = Modifier.fillMaxWidth().padding(25.dp))
             }
@@ -234,6 +206,46 @@ internal fun PublicUserProfile(
                     }
                 }
             }
+        }
+    }
+}
+
+
+/** Shared cover/avatar/name hierarchy for both personal and friend timelines. */
+@Composable
+internal fun ProfileTimelineHeader(
+    user: JSONObject, friendCount: Int,
+    onAvatar: (() -> Unit)? = null, onCover: (() -> Unit)? = null
+) {
+    val name = user.optString("fullName").ifBlank { user.optString("displayName").ifBlank { "مستخدم" } }
+    val avatar = media(user.optString("avatar")); val cover = media(user.optString("cover"))
+    Column(Modifier.fillMaxWidth()) {
+        Box(Modifier.fillMaxWidth().height(195.dp).background(profilePanel).clip(RoundedCornerShape(0.dp, 0.dp, 14.dp, 14.dp))) {
+            if (cover.isNotBlank()) ExpandableProfileMedia(cover, "صورة الغلاف", Modifier.fillMaxSize(), ContentScale.Crop)
+            onCover?.let { change ->
+                IconButton(onClick = change, modifier = Modifier.align(Alignment.BottomEnd).padding(10.dp).size(36.dp)
+                    .background(profileGold, CircleShape)) { SiteIcon("camera", size = 20.dp, tint = Color.Black) }
+            }
+        }
+        Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+            Box(Modifier.height(94.dp).fillMaxWidth()) {
+                Box(Modifier.align(Alignment.TopStart).offset(y = (-40).dp).size(132.dp)) {
+                    Box(Modifier.fillMaxSize().border(4.dp, profileBackground, CircleShape).padding(4.dp)
+                        .clip(CircleShape).background(profilePanel), contentAlignment = Alignment.Center) {
+                        if (avatar.isNotBlank()) ExpandableProfileMedia(avatar, name, Modifier.fillMaxSize(), ContentScale.Crop)
+                        else Text(name.take(1), fontSize = 44.sp, color = profileGold)
+                    }
+                    onAvatar?.let { change ->
+                        IconButton(onClick = change, modifier = Modifier.align(Alignment.BottomEnd).size(34.dp)
+                            .border(3.dp, profileBackground, CircleShape).background(profileGold, CircleShape)) {
+                            SiteIcon("camera", size = 18.dp, tint = Color.Black)
+                        }
+                    }
+                }
+            }
+            Text(name, color = Color.White, fontSize = 27.sp, fontWeight = FontWeight.ExtraBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Text("$friendCount صديق", color = profileMuted, fontSize = 13.sp, modifier = Modifier.padding(vertical = 6.dp))
+            if (user.optString("bio").isNotBlank()) Text(user.optString("bio"), color = Color.White, fontSize = 14.sp, modifier = Modifier.padding(bottom = 12.dp))
         }
     }
 }

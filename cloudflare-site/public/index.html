@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>تواصل العطا | رسائل ومكالمات وأصدقاء</title>
-<!-- Web 14.0: native design parity; website changes only. -->
+<!-- Web 14.1: native design parity; website changes only. -->
 <meta name="description" content="تواصل العطا: منصة عربية للتواصل مع الأصدقاء، الرسائل، والمكالمات الصوتية والمرئية عبر الويب وتطبيق Android.">
 <meta name="robots" content="index,follow,max-image-preview:large">
 <link rel="canonical" href="https://tawasol-alatta.omaratta077-4fd.workers.dev/">
@@ -21,7 +21,7 @@
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
 <link rel="icon" href="/icons/icon-192.png" type="image/png">
-<link rel="stylesheet" href="style.css?v=14.0">
+<link rel="stylesheet" href="style.css?v=14.1">
 
 
 <style id="atta-apk-download-button">
@@ -93,7 +93,7 @@
 </style>
 <!-- Website UI follows PremiumChrome; Android source remains unchanged. -->
 
-<link rel="stylesheet" href="native-parity.css?v=14.0">
+<link rel="stylesheet" href="native-parity.css?v=14.1">
 </head>
 <body>
 
@@ -547,25 +547,38 @@
       </div>
       <div class="admin-activity"><strong>آخر ٧ أيام • بتوقيت الرياض</strong><p>ذهبي: مستخدمون جدد · أزرق: منشورات</p><div id="adminActivityChart" aria-label="إحصائيات آخر سبعة أيام"></div><button type="button" id="adminRefreshBtn" class="gold-mini">تحديث الإحصائيات</button></div>
       <div id="adminDeleteResume" class="admin-delete-resume hidden" aria-live="polite"></div>
-      <div style="margin:12px 0;padding:12px;border:1px solid #b48a37;border-radius:12px;background:#111619">
-        <strong style="color:#e6b94e">تصفير كل الحسابات والبيانات</strong>
-        <p style="color:#c0c4c5;font-size:13px">الحذف يشمل جميع الحسابات بما فيها حساب المدير الحالي، والمنشورات والرسائل والصور والفيديو. لا تُنشأ نسخة احتياطية. يمكن التسجيل بنفس الإيميلات والأسماء بعد اكتمال التصفير.</p>
-        <button type="button" id="adminResetPreviewBtn" class="gold-mini">عرض تقرير البيانات قبل التصفير</button>
-        <div id="adminResetConfirmArea" class="hidden"><input id="adminResetConfirmation" placeholder="اكتب: امسح كل الحسابات" autocomplete="off"><button type="button" id="adminResetExecuteBtn" class="danger" disabled>تنفيذ التصفير الكامل</button></div>
-        <pre id="adminResetPreviewReport" style="white-space:pre-wrap;word-break:break-word;color:#f5d78a;font-size:12px" aria-live="polite"></pre>
-      </div>
+      <section class="admin-protection hidden" data-owner-only>
+        <h3><span data-atta-icon="shield"></span> حماية الإدارة</h3>
+        <p id="adminSecurityStatus">الحذف مقفول حتى تضبط كلمة حماية الإدارة.</p>
+        <p>حساب المدير الرئيسي محمي دائمًا. الحذف وتعديل البيانات وإضافة المشرفين تتطلب كلمة حماية مستقلة.</p>
+        <details><summary>إعداد / تغيير كلمة الحماية</summary>
+          <p>كود التأكيد يصل إلى بريد المدير الرئيسي. كلمة الحماية مختلفة عن كلمة دخول الحساب.</p>
+          <button id="adminSecurityCodeBtn" type="button">إرسال كود إلى بريد المدير</button>
+          <form id="adminSecurityForm" class="admin-security-form">
+            <label>كود البريد<input name="code" inputmode="numeric" pattern="[0-9]{6}" required maxlength="6" autocomplete="one-time-code"></label>
+            <label>كلمة حماية جديدة<input name="newPassword" type="password" minlength="10" maxlength="128" required autocomplete="new-password"></label>
+            <label>تأكيد كلمة الحماية<input name="confirmPassword" type="password" minlength="10" maxlength="128" required autocomplete="new-password"></label>
+            <button type="submit">حفظ كلمة الحماية</button>
+          </form>
+        </details>
+        <h3>الحذف الجماعي</h3>
+        <select id="adminResetScope" aria-label="نطاق الحذف"><option value="accounts">الحسابات عدا المدير الرئيسي</option><option value="posts">كل المنشورات</option></select>
+        <button type="button" id="adminResetPreviewBtn" class="gold-mini">عرض نطاق الحذف</button>
+        <div id="adminResetConfirmArea" class="hidden"><label id="adminResetPhrase"></label><input id="adminResetConfirmation" placeholder="عبارة التأكيد" autocomplete="off"><button type="button" id="adminResetExecuteBtn" class="danger" disabled>تنفيذ الحذف المحمي</button></div>
+        <pre id="adminResetPreviewReport" aria-live="polite"></pre>
+      </section>
       <div class="admin-tabs">
         <button class="active" data-admin-tab="users">المستخدمون</button>
         <button data-admin-tab="posts">المنشورات</button>
         <button data-admin-tab="reports">البلاغات</button>
       </div>
       <div id="adminUsersPanel" class="admin-panel"><div class="search-box"><input id="adminUserSearch" placeholder="ابحث بالاسم أو اسم المستخدم"><button id="adminUserSearchBtn" type="button">بحث</button></div><div id="adminUsersList"></div><button id="adminMoreUsersBtn" type="button" class="gold-mini hidden">عرض المزيد</button></div>
-      <div id="adminPostsPanel" class="admin-panel hidden"><div id="adminPostsList"></div></div>
+      <div id="adminPostsPanel" class="admin-panel hidden"><div class="search-box"><input id="adminPostSearch" placeholder="ابحث في نص المنشور أو اسم الناشر"><button id="adminPostSearchBtn" type="button">بحث / تحديث</button></div><div id="adminPostsList"></div></div>
       <div id="adminReportsPanel" class="admin-panel hidden"><div id="adminReportsList"></div></div>
     </section>
 
 <section id="profilePage" class="page">
-<h2>الملف</h2>
+<h2 class="profile-page-label">الملف الشخصي</h2>
       <div class="profile-card-large pro-profile-card premium-profile">
         <div id="profileCover" class="profile-cover">
           <img id="profileCoverImage" class="profile-cover-image hidden" alt="صورة الغلاف">
@@ -588,9 +601,25 @@
           </div>
         </div>
 
-        <h3 class="native-profile-info-title">معلومات عني</h3>
+        <div class="profile-main-actions">
+          <button id="friendActionBtn" class="gold-action hidden">إضافة صديق</button>
+          <button id="messageProfileBtn" class="dark-outline hidden">مراسلة</button>
+          <button id="myProfileBtn" class="dark-outline hidden">ملفي الشخصي</button>
+        </div>
+
+        <button id="friendsStatBtn" class="profile-friend-stat"><strong id="friendsCount">0</strong><span>الأصدقاء</span></button>
+
+        <button id="toggleProfileEditBtn" class="dark-outline hidden" type="button"><span data-atta-icon="edit"></span> تعديل الملف الشخصي</button>
+        <nav class="profile-timeline-tabs" aria-label="أقسام الملف">
+          <button type="button" data-profile-section="profilePostsSection">المنشورات</button>
+          <button type="button" data-profile-section="profileAboutSection">حول</button>
+          <button type="button" data-profile-section="friendsSection">الأصدقاء</button>
+          <button type="button" data-profile-filter="photos">الصور</button>
+          <button type="button" data-profile-filter="videos">الفيديوهات</button>
+        </nav>
+        <h3 id="profileAboutSection" class="native-profile-info-title">التفاصيل</h3>
         <div id="profileMeta" class="profile-meta"></div>
-        <button id="toggleProfileEditBtn" class="dark-outline hidden" type="button">تعديل المعلومات</button>
+
         <div id="profileEditArea" class="profile-edit-grid profile-edit-top hidden">
           <div class="profile-photo-actions">
             <button id="profileAvatarEditListBtn" class="dark-outline" type="button"><span data-atta-icon="camera"></span> تغيير الصورة الشخصية</button>
@@ -608,14 +637,6 @@
           <button id="saveProfileBtn" class="gold-action">حفظ التغييرات</button>
         </div>
 
-        <div class="profile-main-actions">
-          <button id="friendActionBtn" class="gold-action hidden">إضافة صديق</button>
-          <button id="messageProfileBtn" class="dark-outline hidden">مراسلة</button>
-          <button id="myProfileBtn" class="dark-outline hidden">ملفي الشخصي</button>
-        </div>
-
-        <button id="friendsStatBtn" class="profile-friend-stat"><strong id="friendsCount">0</strong><span>الأصدقاء</span></button>
-
         <div id="friendRequestsSection" class="friend-section hidden">
           <div class="section-bar"><h3>طلبات الصداقة</h3><span id="friendRequestsCount" class="gold-badge">0</span></div>
           <div id="friendRequestsList" class="people-list"></div>
@@ -626,7 +647,7 @@
           <div id="friendsList" class="people-list"></div>
         </div>
 
-        <section class="profile-posts-section">
+        <section id="profilePostsSection" class="profile-posts-section">
           <div class="section-bar"><h3>المنشورات</h3><span id="profilePostsCount" class="gold-badge">0</span></div>
           <div id="profilePostsList" class="profile-posts-list"></div>
         </section>
@@ -783,9 +804,9 @@
 </div>
 
 <script src="config.js"></script>
-<script src="icons.js?v=14.0"></script>
-<script src="app.js?v=14.0"></script>
-<script src="web-modules.js?v=14.0" defer></script>
+<script src="icons.js?v=14.1"></script>
+<script src="app.js?v=14.1"></script>
+<script src="web-modules.js?v=14.1" defer></script>
 
 <audio id="incomingRingAudio" src="audio/incoming-ring.wav" preload="auto" loop></audio>
 <audio id="outgoingRingAudio" src="audio/outgoing-ring.wav" preload="auto" loop></audio>

@@ -1036,6 +1036,14 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
     var resetCode by remember { mutableStateOf("") }
     var resetPassword by remember { mutableStateOf("") }
     var resetConfirm by remember { mutableStateOf("") }
+    var adminPasswordAction by remember(token) { mutableStateOf<((String) -> Unit)?>(null) }
+    var adminProtectionPassword by remember(token) { mutableStateOf("") }
+    var adminEditUser by remember { mutableStateOf("") }
+    var adminEditUserName by remember { mutableStateOf("") }
+    var adminEditPost by remember { mutableStateOf("") }
+    var adminEditPostText by remember { mutableStateOf("") }
+    var adminPostSearch by remember { mutableStateOf("") }
+    var ownProfileFilter by remember { mutableStateOf("المنشورات") }
     var ownerResetPlan by remember { mutableStateOf<JSONObject?>(null) }
     var ownerResetConfirmation by remember { mutableStateOf("") }
     var ownerResetReport by remember { mutableStateOf("") }
@@ -1553,23 +1561,25 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
             }
             "الإشعارات" -> notifications = get("/api/notifications").arr("notifications")
             "المجموعات" -> groups = get("/api/groups").arr("groups")
-            "الملف" -> loadAccountScreen(::get, myUsername,
-                account = ::applyAccount,
-                posts = { page -> ownPosts = FeedPages.merge(ownPosts, page); ownCursor = page.nextCursor })
+            "الملف" -> {
+                loadAccountScreen(::get, myUsername, account = ::applyAccount,
+                    posts = { page -> ownPosts = FeedPages.merge(ownPosts, page); ownCursor = page.nextCursor })
+                friends = get("/api/friends").arr("friends")
+            }
             "المحفوظات" -> posts = get("/api/saved-posts").arr("posts")
             "الإدارة" -> {
                 // Re-check the role from the server whenever this privileged screen loads.
                 adminRole = get("/api/me").optJSONObject("user")?.optString("role").orEmpty().trim().lowercase()
-                if (adminRole == "super_admin") {
+                if (adminRole in listOf("super_admin", "moderator")) {
                     adminSummary = get("/api/admin/summary")
                     val accounts = get("/api/admin/users?q=${enc(adminSearch)}")
                     adminUsers = accounts.arr("users")
                     adminNextOffset = if (accounts.isNull("nextOffset")) -1 else accounts.optInt("nextOffset", -1)
                     // During a paused deletion only owner status and account reads are available.
                     if (adminSummary.isNull("deletion")) {
-                        adminPosts = get("/api/admin/posts").arr("posts")
+                        adminPosts = get("/api/admin/posts?q=${enc(adminPostSearch)}").arr("posts")
                         adminReports = get("/api/admin/reports").arr("reports")
-                        deletionRequests = get("/api/admin/deletion-requests").arr("requests")
+                        if (adminRole == "super_admin") deletionRequests = get("/api/admin/deletion-requests").arr("requests")
                     }
                 } else {
                     adminSummary = JSONObject()
@@ -1782,7 +1792,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
     fun refresh() = task { load(tab) }
     fun navigate(destination: String) {
         // Only the verified owner sees or enters admin; server APIs also enforce this.
-        if (destination == "الإدارة" && adminRole != "super_admin") return
+        if (destination == "الإدارة" && adminRole !in listOf("super_admin", "moderator")) return
         if (destination == "الرئيسية" && token.isNotBlank()) {
             // Home always lands on the FIRST feed post, even when already on Home.
             // The scroll runs in LaunchedEffect after Home is actually composed.
@@ -2007,22 +2017,51 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
             confirmButton = { TextButton(onClick = { selectedStory = null }) { Text("إغلاق", color = GoldLight) } }
         )
     }
+    adminPasswordAction?.let { action ->
+        AlertDialog(onDismissRequest = { adminPasswordAction = null; adminProtectionPassword = "" },
+            containerColor = Panel, title = { Text("كلمة حماية الإدارة", color = GoldLight) },
+            text = { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("كلمة مستقلة خاصة بالمدير الرئيسي. لا تُحفظ على الهاتف.", color = Muted, fontSize = 12.sp)
+                PremiumAuthTextField(adminProtectionPassword, { adminProtectionPassword = it.take(128) }, "كلمة الحماية", password = true)
+            } },
+            confirmButton = { TextButton(enabled = adminProtectionPassword.isNotBlank(), onClick = {
+                val secret = adminProtectionPassword; adminProtectionPassword = ""; adminPasswordAction = null; action(secret)
+            }) { Text("تأكيد", color = GoldLight) } },
+            dismissButton = { TextButton(onClick = { adminPasswordAction = null; adminProtectionPassword = "" }) { Text("إلغاء") } })
+    }
+    if (adminEditUser.isNotBlank() || adminEditPost.isNotBlank()) AlertDialog(
+        onDismissRequest = { adminEditUser = ""; adminEditPost = "" }, containerColor = Panel,
+        title = { Text(if (adminEditUser.isNotBlank()) "تعديل اسم الحساب" else "تعديل المنشور", color = GoldLight) },
+        text = { OutlinedTextField(if (adminEditUser.isNotBlank()) adminEditUserName else adminEditPostText,
+            { if (adminEditUser.isNotBlank()) adminEditUserName = it.take(60) else adminEditPostText = it.take(10000) },
+            modifier = Modifier.fillMaxWidth(), label = { Text("النص الجديد") }) },
+        confirmButton = { TextButton(onClick = {
+            val username = adminEditUser; val id = adminEditPost; val name = adminEditUserName; val text = adminEditPostText
+            adminEditUser = ""; adminEditPost = ""
+            adminPasswordAction = { secret -> task {
+                post("/api/admin/action", JSONObject().put("action", if (username.isNotBlank()) "update_user" else "update_post")
+                    .put("username", username).put("postId", id).put("displayName", name).put("text", text).put("adminPassword", secret))
+                load("الإدارة")
+            } }
+        }) { Text("حفظ", color = GoldLight) } },
+        dismissButton = { TextButton(onClick = { adminEditUser = ""; adminEditPost = "" }) { Text("إلغاء") } }
+    )
     if (confirmPostDelete.isNotBlank()) AlertDialog(
         onDismissRequest = { confirmPostDelete = "" }, containerColor = Panel,
         title = { Text("حذف المنشور؟", color = GoldLight) },
         text = { Text("الحذف نهائي ولن تتمكن من استعادة المنشور.", color = White) },
         confirmButton = { TextButton(onClick = {
             val id = confirmPostDelete; confirmPostDelete = ""
-            task {
-                if (adminRole == "super_admin") {
-                    post("/api/admin/action", JSONObject().put("action", "delete_post").put("postId", id))
-                } else post("/api/post-delete", JSONObject().put("postId", id))
+            val perform: (String) -> Unit = { secret -> task {
+                if (adminRole == "super_admin") post("/api/admin/action", JSONObject().put("action", "delete_post").put("postId", id).put("adminPassword", secret))
+                else post("/api/post-delete", JSONObject().put("postId", id))
                 load(tab)
-            }
+            } }
+            if (adminRole == "super_admin") adminPasswordAction = perform else perform("")
         }) { Text("حذف نهائي", color = Color(0xFFFF8B8B)) } },
         dismissButton = { TextButton(onClick = { confirmPostDelete = "" }) { Text("إلغاء", color = GoldLight) } }
     )
-    if (confirmAccountUser.isNotBlank()) {
+    if (confirmAccountUser.isNotBlank() && adminPasswordAction == null) {
         val permanent = confirmAccountAction == "delete_user"
         val actionLabel = if (permanent) "حذف الحساب نهائيًا" else if (confirmAccountAction == "ban") "حظر الحساب" else "تعطيل الحساب"
         AlertDialog(
@@ -2038,18 +2077,19 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
             confirmButton = { TextButton(enabled = !busy && (!permanent || deleteAccountConfirmation == confirmAccountUser), onClick = {
                 val username = confirmAccountUser
                 val action = confirmAccountAction
-                task {
+                val perform: (String) -> Unit = { secret -> task {
                     if (permanent) {
                         var done = false
                         while (!done) {
-                            val result = post("/api/admin/users/delete", JSONObject().put("username", username).put("confirmation", deleteAccountConfirmation))
+                            val result = post("/api/admin/users/delete", JSONObject().put("username", username).put("confirmation", deleteAccountConfirmation).put("adminPassword", secret))
                             done = result.optBoolean("done")
                             accountDeleteProgress = "جاري حذف بيانات الحساب... ملفات محذوفة: ${result.optInt("deletedMedia")}"
                         }
                     } else post("/api/admin/action", JSONObject().put("action", action).put("username", username))
                     confirmAccountUser = ""; deleteAccountConfirmation = ""; accountDeleteProgress = ""
                     load("الإدارة")
-                }
+                } }
+                if (permanent) adminPasswordAction = perform else perform("")
             }) { Text(if (busy) "جاري التنفيذ..." else actionLabel, color = Color(0xFFFF8B8B)) } },
             dismissButton = { TextButton(enabled = !busy, onClick = { confirmAccountUser = "" }) { Text("إغلاق", color = GoldLight) } }
         )
@@ -2918,7 +2958,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                             }
                             item {
                                 CardBox {
-                                    if (adminRole == "super_admin") {
+                                    if (adminRole in listOf("super_admin", "moderator")) {
                                         PremiumMenuEntry("shield", "لوحة الإدارة") { navigate("الإدارة") }
                                         HorizontalDivider(color = Border.copy(alpha = .5f))
                                     }
@@ -2993,15 +3033,15 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                             }
                         }
                         "الإدارة" -> LazyColumn(Modifier.weight(1f).padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                            if (adminRole == "super_admin") {
-                                item { AdminOwnerHero(displayName, myAvatar, adminSummary.optString("owner").ifBlank { myUsername }) }
-                                item { CardBox { AdminAdhanVoicesPanel(token) } }
-                                item { CardBox { AdminFootballPanel(token) } }
+                            if (adminRole in listOf("super_admin", "moderator")) {
+                                item { if (adminRole == "super_admin") AdminOwnerHero(displayName, myAvatar, adminSummary.optString("owner").ifBlank { myUsername }) else SectionTitle("لوحة المشرف • متابعة البلاغات والحسابات") }
+                                if (adminRole == "super_admin") item { CardBox { AdminAdhanVoicesPanel(token) } }
+                                if (adminRole == "super_admin") item { CardBox { AdminFootballPanel(token) } }
                                 item {
                                     CardBox {
                                         AdminStatisticsPanel(adminSummary)
                                         GoldButton("تحديث الإحصائيات", !busy) { task { load("الإدارة") } }
-                                        adminSummary.optJSONObject("deletion")?.let { deletion ->
+                                        adminSummary.optJSONObject("deletion")?.takeIf { adminRole == "super_admin" }?.let { deletion ->
                                             Text("حذف حساب قيد الاستكمال: @${deletion.optString("username")}", color = GoldLight)
                                             GoldButton("استكمال حذف الحساب", !busy) {
                                                 confirmAccountAction = "delete_user"; confirmAccountUser = deletion.optString("username")
@@ -3010,36 +3050,10 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                         }
                                     }
                                 }
-                                item {
-                                    CardBox {
-                                        Text("تصفير كل الحسابات والبيانات", color = GoldLight, fontWeight = FontWeight.Bold)
-                                        Text("يشمل حساب المدير الحالي وكل المنشورات والرسائل والوسائط. لا تُنشأ نسخة احتياطية.", color = Muted, fontSize = 12.sp)
-                                        GoldButton("عرض نطاق الحذف", !busy) {
-                                            task {
-                                                ownerResetPlan = post("/api/admin/reset/plan", JSONObject())
-                                                ownerResetConfirmation = ""
-                                                val report = ownerResetPlan?.optJSONObject("scope") ?: JSONObject()
-                                                ownerResetReport = "الحسابات المتبقية: صفر بعد التنفيذ | مفاتيح التخزين: ${report.optInt("durableObjectKeys")} | ملفات الوسائط: ${report.optJSONObject("media")?.optInt("count") ?: 0}"
-                                            }
-                                        }
-                                        if (ownerResetReport.isNotBlank()) Text(ownerResetReport, color = Muted, fontSize = 12.sp)
-                                        if (ownerResetPlan != null) {
-                                            PremiumAuthTextField(ownerResetConfirmation, { ownerResetConfirmation = it }, "اكتب: امسح كل الحسابات")
-                                            GoldButton("تنفيذ التصفير الكامل", !busy && ownerResetConfirmation == "امسح كل الحسابات") {
-                                                task {
-                                                    val planId = ownerResetPlan?.getString("planId") ?: return@task
-                                                    var done = false
-                                                    while (!done) {
-                                                        val result = post("/api/admin/reset/execute", JSONObject().put("planId", planId).put("confirmation", ownerResetConfirmation))
-                                                        done = result.optBoolean("done")
-                                                        ownerResetReport = "جاري التصفير... ملفات محذوفة: ${result.optInt("deletedMedia")}"
-                                                    }
-                                                    clearLocalSession()
-                                                    featureMessage = "اكتمل التصفير. أنشئ حسابًا جديدًا؛ يمكن إعادة استخدام الإيميل واسم المستخدم."
-                                                }
-                                            }
-                                        }
-                                    }
+                                if (adminRole == "super_admin") item {
+                                    CardBox { AdminProtectionPanel(adminSummary.optBoolean("securityConfigured"), busy,
+                                        runTask = { task(it) }, request = { path, data -> post(path, data) },
+                                        protect = { adminPasswordAction = it }, onRefresh = { refresh() }) }
                                 }
                                 item {
                                     SectionTitle("إدارة الحسابات")
@@ -3051,8 +3065,8 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                     CardBox {
                                         Text(u.optString("displayName").ifBlank { username }, color = White, fontWeight = FontWeight.Bold)
                                         Text("@$username", color = Muted, fontSize = 12.sp)
-                                        Text(if (u.optBoolean("banned")) "محظور" else if (u.optBoolean("disabled")) "معطّل" else "مفعّل", color = GoldLight, fontSize = 12.sp)
-                                        if (username != myUsername && u.optString("role") != "super_admin") {
+                                        Text(if (u.optString("role") == "moderator") "مشرف" else if (u.optBoolean("banned")) "محظور" else if (u.optBoolean("disabled")) "معطّل" else "مفعّل", color = GoldLight, fontSize = 12.sp)
+                                        if (username != myUsername && u.optString("role") != "super_admin" && (adminRole == "super_admin" || u.optString("role") != "moderator")) {
                                             Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) {
                                                 if (u.optBoolean("banned") || u.optBoolean("disabled")) TextButton(enabled = !busy, onClick = { task {
                                                     post("/api/admin/action", JSONObject().put("action", "activate").put("username", username))
@@ -3062,10 +3076,20 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                                     TextButton(onClick = { confirmAccountAction = "suspend"; confirmAccountUser = username; error = "" }) { Text("تعطيل", color = GoldLight) }
                                                     TextButton(onClick = { confirmAccountAction = "ban"; confirmAccountUser = username; error = "" }) { Text("حظر", color = Color(0xFFFF8B8B)) }
                                                 }
-                                                TextButton(onClick = {
+                                                if (adminRole == "super_admin") TextButton(onClick = {
                                                     confirmAccountAction = "delete_user"; confirmAccountUser = username
                                                     deleteAccountConfirmation = ""; accountDeleteProgress = ""; error = ""
                                                 }) { Text("حذف نهائي", color = Color(0xFFFF8B8B)) }
+                                                if (adminRole == "super_admin") {
+                                                    TextButton(onClick = { adminEditUser = username; adminEditUserName = u.optString("displayName") }) { Text("تعديل الاسم", color = GoldLight) }
+                                                    TextButton(onClick = { adminPasswordAction = { secret -> task {
+                                                        post("/api/admin/action", JSONObject().put("action", if (u.optString("role") == "moderator") "remove_moderator" else "make_moderator")
+                                                            .put("username", username).put("adminPassword", secret)); load("الإدارة")
+                                                    } } }) {
+                                                        SiteIcon("user-plus", size = 18.dp)
+                                                        Text(if (u.optString("role") == "moderator") " إزالة الإشراف" else " إضافة مشرف", color = GoldLight)
+                                                    }
+                                                }
                                             }
                                         }
                                     }
@@ -3085,11 +3109,11 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                         Text("طلب حذف @$target", color = GoldLight)
                                         Text(request.optString("reason").ifBlank { "بدون سبب إضافي" }, color = White)
                                         TextButton(onClick = { openPublicProfile(target) }) { Text("مراجعة الحساب", color = GoldLight) }
-                                        if (target != adminSummary.optString("owner") && target != myUsername) TextButton(onClick = {
+                                        if (adminRole == "super_admin" && target != adminSummary.optString("owner") && target != myUsername) TextButton(onClick = {
                                             confirmAccountAction = "delete_user"; confirmAccountUser = target
                                             deleteAccountConfirmation = ""; accountDeleteProgress = ""
                                         }) { Text("مراجعة وتنفيذ الحذف", color = Color(0xFFFF8B8B)) }
-                                        else Text("حساب المدير الرئيسي: يلزم نقل الملكية قبل حذفه.", color = Muted)
+                                        else Text("حساب المدير الرئيسي محمي دائمًا.", color = Muted)
                                     }
                                 }
                                 item { SectionTitle("بلاغات المحتوى") }
@@ -3101,7 +3125,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                         Text("مقدّم البلاغ: @${report.optString("reporter")}", color = Muted)
                                         val author = report.optString("targetUsername")
                                         if (author.isNotBlank()) TextButton(onClick = { openPublicProfile(author) }) { Text("مراجعة حساب الناشر", color = GoldLight) }
-                                        if (report.optString("targetType") == "post") TextButton(onClick = { confirmPostDelete = report.optString("targetId") }) {
+                                        if (adminRole == "super_admin" && report.optString("targetType") == "post") TextButton(onClick = { confirmPostDelete = report.optString("targetId") }) {
                                             Text("حذف المنشور المخالف", color = Color(0xFFFF8B8B))
                                         }
                                         TextButton(enabled = !busy, onClick = { task {
@@ -3110,12 +3134,17 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                         } }) { Text("تمت مراجعة البلاغ", color = GoldLight) }
                                     }
                                 }
-                                item { SectionTitle("إدارة المنشورات") }
+                                item {
+                                    SectionTitle("إدارة المنشورات")
+                                    PremiumAuthTextField(adminPostSearch, { adminPostSearch = it }, "ابحث في نص المنشور أو اسم الناشر")
+                                    GoldButton("بحث / تحديث المنشورات", !busy) { task { load("الإدارة") } }
+                                }
                                 items(adminPosts) { p ->
                                     CardBox {
                                         Text("@${p.optString("author")}", color = GoldLight)
                                         Text(p.optString("text"), color = White)
-                                        TextButton(onClick = { confirmPostDelete = p.optString("id") }) {
+                                        if (adminRole == "super_admin") TextButton(onClick = { adminEditPost = p.optString("id"); adminEditPostText = p.optString("text") }) { Text("تعديل المنشور", color = GoldLight) }
+                                        if (adminRole == "super_admin") TextButton(onClick = { confirmPostDelete = p.optString("id") }) {
                                             Text("حذف المنشور", color = Color(0xFFFF8B8B))
                                         }
                                     }
@@ -3433,57 +3462,29 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                             verticalArrangement = Arrangement.spacedBy(10.dp)) {
                             item {
                                 CardBox {
-                                    SectionTitle("ملفي الشخصي")
-                                    Spacer(Modifier.height(8.dp))
-                                    Box(Modifier.fillMaxWidth().height(174.dp)
-                                        .clip(RoundedCornerShape(16.dp)).background(Panel)) {
-                                        if (media(profile.optString("cover")).isNotBlank()) {
-                                            ExpandableProfileMedia(profile.optString("cover"), "صورة الغلاف",
-                                                Modifier.fillMaxSize(), ContentScale.Crop)
-                                        } else {
-                                            Box(Modifier.fillMaxSize().background(
-                                                Brush.horizontalGradient(listOf(Color(0xFF282014), Color(0xFF090C0F)))))
+                                    ProfileTimelineHeader(profile, friends.size,
+                                        onAvatar = { if (!busy) profileAvatarPicker.launch("image/*") },
+                                        onCover = { if (!busy) profileCoverPicker.launch("image/*") })
+                                    Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        listOf("المنشورات", "حول", "الأصدقاء", "الصور", "الفيديوهات").forEach { section ->
+                                            TextButton(onClick = { ownProfileFilter = section }) { Text(section, color = if (ownProfileFilter == section) GoldLight else Muted) }
                                         }
-                                        Box(Modifier.align(Alignment.BottomEnd).padding(8.dp)) {
-                                            Box(Modifier.size(29.dp).clip(CircleShape)
-                                                .background(Gold).clickable(enabled = !busy) {
-                                                    profileCoverPicker.launch("image/*")
-                                                }, contentAlignment = Alignment.Center) {
-                                                SiteIcon("camera", size = 15.dp, tint = Black)
+                                    }
+                                    if (ownProfileFilter == "الأصدقاء") {
+                                        friends.take(12).chunked(3).forEach { row ->
+                                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                                row.forEach { friend -> Column(Modifier.weight(1f).clickable { openPublicProfile(friend.optString("username")) }) {
+                                                    ProfileMediaImage(friend.optString("avatar"), friend.name(), Modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(12.dp)))
+                                                    Text(friend.name(), color = White, fontSize = 12.sp, maxLines = 2)
+                                                } }
                                             }
                                         }
                                     }
-                                    Spacer(Modifier.height(10.dp))
-                                    Row(verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                                        Box(Modifier.size(100.dp)) {
-                                            Box(Modifier.size(87.dp).align(Alignment.TopStart)
-                                                .border(2.dp, Gold, CircleShape).padding(3.dp)
-                                                .clip(CircleShape).background(Panel),
-                                                contentAlignment = Alignment.Center) {
-                                                if (media(profile.optString("avatar")).isNotBlank()) {
-                                                    ExpandableProfileMedia(profile.optString("avatar"), "الصورة الشخصية",
-                                                        Modifier.fillMaxSize())
-                                                } else Text(profile.name().take(1), color = GoldLight, fontSize = 35.sp)
-                                            }
-                                            Box(Modifier.align(Alignment.BottomEnd).size(25.dp)
-                                                .border(2.dp, Black, CircleShape).clip(CircleShape)
-                                                .background(Gold).clickable(enabled = !busy) {
-                                                    profileAvatarPicker.launch("image/*")
-                                                }, contentAlignment = Alignment.Center) {
-                                                SiteIcon("camera", size = 13.dp, tint = Black)
-                                            }
-                                        }
-                                        Column(Modifier.weight(1f)) {
-                                            Text(profile.name(), color = White,
-                                                fontSize = 17.sp, fontWeight = FontWeight.Bold)
-                                        }
-                                    }
-                                    Spacer(Modifier.height(14.dp))
-                                    SectionTitle("معلومات عني")
-                                    PremiumAuthOutlineButton(if (editProfileDetails) "إلغاء التعديل" else "تعديل المعلومات") {
+                                    PremiumAuthOutlineButton(if (editProfileDetails) "إلغاء التعديل" else "تعديل الملف الشخصي") {
                                         editProfileDetails = !editProfileDetails
                                     }
+                                    if (ownProfileFilter == "حول" || editProfileDetails) {
+                                    SectionTitle("التفاصيل")
                                     if (editProfileDetails) {
                                     OutlinedTextField(profileBio, { profileBio = it.take(300) },
                                         label = { Text("نبذة عني") }, modifier = Modifier.fillMaxWidth())
@@ -3532,11 +3533,17 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                     }
                                     Spacer(Modifier.height(6.dp))
                                     PremiumAuthOutlineButton("تغيير كلمة السر") { changePasswordDialog = true }
+                                    }
                                 }
                             }
-                            item { SectionTitle("منشوراتي") }
+                            if (ownProfileFilter !in listOf("حول", "الأصدقاء")) item { SectionTitle("منشوراتي") }
                             if (ownPosts.isEmpty() && !screenLoading && error.isBlank()) item { Text("لا توجد منشورات ظاهرة حاليًا", color = White) }
-                            items(ownPosts, key = { "own_" + it.optString("id", it.hashCode().toString()) }) { post ->
+                            items(ownPosts.filter { p -> when (ownProfileFilter) {
+                                "الصور" -> p.optString("image").isNotBlank()
+                                "الفيديوهات" -> p.optString("video").isNotBlank() || youtubePostId(p.optString("text")) != null
+                                "حول", "الأصدقاء" -> false
+                                else -> true
+                            } }, key = { "own_" + it.optString("id", it.hashCode().toString()) }) { post ->
                                 CardBox {
                                     Text(profile.name(), color = GoldLight, fontWeight = FontWeight.Bold)
                                     val ownText = visibleYoutubePostText(visibleMushafPostText(post.optString("text"), BASE))
@@ -3555,7 +3562,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                     if (post.optString("image").isNotBlank() && ownMushafPages == null)
                                         ExpandableProfileMedia(post.optString("image"), "صورة منشوري",
                                             Modifier.fillMaxWidth().heightIn(max = 320.dp), ContentScale.Fit)
-                                    if (post.optString("video").isNotBlank()) Text("منشور فيديو", color = GoldLight)
+                                    if (post.optString("video").isNotBlank()) AttaExpandableVideo(media(post.optString("video")))
                                 }
                             }
                             if (ownCursor != null) item {
