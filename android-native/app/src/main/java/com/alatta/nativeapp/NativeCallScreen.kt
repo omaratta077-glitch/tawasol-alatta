@@ -373,7 +373,7 @@ internal fun NativeCallScreen(
                 // Bottom third, rather than overlapping Android's navigation bar.
                 Row(Modifier.fillMaxWidth().height(92.dp)
                     .padding(horizontal = 12.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
+                    horizontalArrangement = Arrangement.spacedBy(if (videoCall) 12.dp else 20.dp, Alignment.CenterHorizontally),
                     verticalAlignment = Alignment.CenterVertically) {
                     // RTL row: first item is at the far right in audio and video calls.
                     CallControl("phone", "إنهاء", danger = true) { endCall() }

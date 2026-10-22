@@ -315,3 +315,25 @@ body{background:var(--native-bg)!important;color:#f7f8f9!important}
 
 #callOverlay #switchCameraBtn .atta-icon{position:static;display:block;width:22px;height:22px;margin:0;padding:0;background:none;border-radius:0}
 #callOverlay #minimizeCallBtn .atta-icon{width:23px;height:23px}
+
+/* Isolate call buttons from generic site borders and distribute a compact row. */
+#callOverlay .call-tools{justify-content:center;gap:clamp(10px,5vw,22px);max-width:380px}
+#callOverlay .round-call-btn{border:0!important;border-radius:0!important;outline:0;min-width:0;min-height:0;padding:0!important;background:transparent!important;box-shadow:none!important}
+#callOverlay .round-call-btn::before,#callOverlay .round-call-btn::after,#callOverlay .call-top-btn::before,#callOverlay .call-top-btn::after{display:none!important}
+#callOverlay .round-icon .atta-icon{width:27px!important;height:27px!important}
+#callOverlay .hangup-round .round-icon .atta-icon{width:30px!important;height:30px!important}
+#callOverlay .call-top-btn{border:0!important;border-radius:0!important;min-width:42px;min-height:42px;padding:0!important}
+#incomingModal{box-sizing:border-box;padding:16px;align-items:center;justify-content:center;overflow:auto}
+#incomingModal .modal-card{box-sizing:border-box;width:min(100%,380px)!important;min-width:0!important;margin:auto!important;padding:24px 16px!important;text-align:center!important;direction:rtl;overflow-wrap:anywhere;background:#090d0f!important;color:#f7f7f7!important;border:1px solid #6b5429!important;border-radius:22px}
+#incomingModal h3,#incomingModal p{width:100%;max-width:100%;margin:0 0 18px;text-align:center;white-space:normal;overflow-wrap:anywhere}
+#incomingModal .call-modal-action{display:inline-flex;justify-content:center;align-items:center;gap:8px;min-width:104px;max-width:45%;margin:4px}
+@media(max-width:999px){
+#appView #messagesPage .messages-layout.has-chat,#appView #messagesPage .messages-layout.has-chat .chat-main{width:100%!important;max-width:100%!important;min-width:0!important;left:0!important;right:0!important;box-sizing:border-box;overflow-x:hidden!important}
+#appView #messagesPage .chat,#appView #messagesPage .messages,#appView #messagesPage .composer{min-width:0!important;max-width:100%!important;box-sizing:border-box}
+#appView #messagesPage .messages{display:flex!important;flex-direction:column!important;align-items:stretch!important;overflow-x:hidden!important;width:100%!important;padding:12px!important}
+#appView #messagesPage .bubble{box-sizing:border-box;min-width:0!important;width:fit-content!important;max-width:90%!important;align-self:flex-start;margin:4px 0!important;white-space:pre-wrap;overflow-wrap:anywhere;word-break:break-word;transform:none!important}
+#appView #messagesPage .bubble.mine{align-self:flex-end}
+#appView #messagesPage .bubble>*{min-width:0;max-width:100%;overflow-wrap:anywhere}
+#appView #messagesPage .composer{display:flex!important;flex-wrap:wrap;gap:6px!important;padding:10px!important;width:100%!important}
+#appView #messagesPage .composer input,#appView #messagesPage .composer textarea{min-width:0!important;flex:1 1 120px!important;width:0!important}
+}

@@ -1,0 +1,16 @@
+import assert from 'node:assert/strict';import fs from 'node:fs';import {JSDOM,VirtualConsole} from 'jsdom';
+const read=n=>fs.readFileSync(new URL('../../cloudflare-site/public/'+n,import.meta.url),'utf8');
+const dom=new JSDOM(read('index.html'),{url:'https://test.invalid/',runScripts:'outside-only',pretendToBeVisual:true,virtualConsole:new VirtualConsole()});const w=dom.window,d=w.document;
+w.queueMicrotask=()=>{};w.setInterval=()=>1;w.setTimeout=()=>1;w.clearTimeout=()=>{};w.matchMedia=()=>({matches:false,addEventListener(){}});w.alert=()=>{};w.confirm=()=>true;w.CSS={escape:s=>s};
+w.requestAnimationFrame=fn=>{fn();return 1};w.HTMLElement.prototype.scrollIntoView=function(){this.dataset.scrolled='true'};w.Audio=class{play(){return Promise.resolve()}pause(){}};
+const requests=[];w.fetch=async(url,opts={})=>{const u=new URL(url,'https://test.invalid');requests.push({path:u.pathname,body:opts.body});
+ if(u.pathname==='/api/post')return Response.json({ok:true,post:{id:'old-post',author:'real-user',authorInfo:{username:'real-user',fullName:'الاسم الحقيقي'},text:'منشور قديم',comments:[],likes:[]}});
+ if(u.pathname==='/api/profile-public')return Response.json({ok:true,user:{username:u.searchParams.get('username'),fullName:'الاسم الحقيقي'},friendState:'friends'});
+ return Response.json({ok:true,posts:[],users:[],requests:[],friends:[],notifications:[],stories:[]});};
+w.eval(read('icons.js'));const app=read('app.js'),end=app.indexOf('})();\n\n\n/* ===== V13.28');w.eval(app.slice(0,end)+`window.notificationTest={openNotificationTarget,setIncomingCallText,setup(){token='fixture';me={username:'me'}},incoming(peer){incomingFrom=peer}};`+app.slice(end));const api=w.notificationTest;api.setup();
+await api.openNotificationTarget({id:'note-one',type:'comment',postId:'old-post',fromName:'حساب مخفي',from:''});
+assert.equal(d.querySelector('.active-page').id,'homePage');assert.equal(d.querySelector('[data-post="old-post"]').dataset.scrolled,'true');assert.ok(requests.some(r=>r.path==='/api/notifications/read-one'&&JSON.parse(r.body).notificationId==='note-one'));
+await api.openNotificationTarget({id:'note-two',type:'friend-request',from:'friend'});assert.equal(d.querySelector('.active-page').id,'friendsPage');assert.ok(requests.some(r=>r.path==='/api/friend-requests'));
+await api.openNotificationTarget({id:'note-three',type:'friend-accepted',from:'friend'});await new Promise(r=>setImmediate(r));assert.equal(d.querySelector('.active-page').id,'profilePage');assert.equal(d.querySelector('#profileName').textContent,'الاسم الحقيقي');
+api.incoming('friend');await api.setIncomingCallText('friend');assert.equal(d.querySelector('#incomingText').textContent,'الاسم الحقيقي يتصل بك');
+dom.window.close();console.log('PASS real DOM notification read and destination: old post, friendship request, accepted profile; incoming call uses real name');

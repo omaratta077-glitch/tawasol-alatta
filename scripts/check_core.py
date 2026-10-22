@@ -61,7 +61,7 @@ check("Foreground ring state declared in AttaPush",
       "AttaPush.foregroundRingCallId == callId" in ring_screen)
 
 check("Native Google bridge removed", not (ROOT/(android+"GoogleWebBridge.kt")).exists())
-check("Official version 1.0.145", 'versionCode = 245' in gradle and 'versionName = "1.0.145"' in gradle)
+check("Official version 1.0.146", 'versionCode = 246' in gradle and 'versionName = "1.0.146"' in gradle)
 check("Four additional screens and scrollable navigation", all(x in main for x in ['QuranReaderScreen(', 'KnowledgeScreen(tab', 'FootballScreen(']) and all(x in read(android+"PremiumChrome.kt") for x in ['"القرآن"', '"الأحاديث"', '"الأذكار"', '"الرياضة"', '.horizontalScroll(scroll)']) and (ROOT/(android+"AlattaKnowledgeScreens.kt")).is_file())
 check("Quran-first categories and click-to-play preview", all(x in main for x in [
     'var youtubeCategory by remember { mutableStateOf("قرآن") }',
@@ -111,7 +111,7 @@ check("Native WebRTC camera preview and remote video without call WebView",
       'io.github.webrtc-sdk:android:' in gradle and
       not (ROOT/'android-native/app/src/main/assets/atta-call.html').exists() and
       'WebView(' not in video_native and 'WebView(' not in video_engine)
-check("FCM reserved data key converted safely", "fcmData.sender=String(fcmData.from??'')" in worker and "delete fcmData.from" in worker and "data:fcmData" in worker and 'data["sender"] ?: data["from"]' in push_source and 'd["sender"] ?: d["from"]' in push_source)
+check("FCM reserved data key converted safely", "fcmData.sender=String(fcmData.from??'')" in worker and "delete fcmData.from" in worker and "data:fcmData" in worker and 'data["fromName"]' in push_source and 'd["sender"] ?: d["from"]' in push_source)
 
 # An FCM notification+data packet is displayed by Android itself when the app
 # is asleep; the launcher Intent then receives the custom payload on tap.

@@ -30,6 +30,7 @@ const ctx = {
   currentCallType: 'audio', remoteRinging: false, activeRingType: '',
   $, notify: () => {},
   setCallPeerIdentity: () => {},
+  setIncomingCallText: peer => { $("incomingText").textContent = `${peer} يتصل بك`; },
   setCallState: (state, peer, callId) => {
     ctx.callState = state;
     ctx.activeCallPeer = peer;

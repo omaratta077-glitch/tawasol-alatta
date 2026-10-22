@@ -110,7 +110,7 @@ private fun AttaCommentEntry(entry: JSONObject, nested: Boolean,
                                 verticalAlignment = Alignment.Top) {
                                 Box(Modifier.size(if (nested) 33.dp else 40.dp)
                                     .border(1.dp, Gold, CircleShape).clip(CircleShape)
-                                    .clickable { if (author.isNotBlank()) onProfile(author) },
+                                    .clickable(enabled = !person.optBoolean("anonymous")) { if (author.isNotBlank()) onProfile(author) },
                                     contentAlignment = Alignment.Center) {
                                     val avatar = person.optString("avatar")
                                     if (avatar.isNotBlank()) ProfileMediaImage(avatar, name, Modifier.fillMaxSize())
@@ -125,7 +125,7 @@ private fun AttaCommentEntry(entry: JSONObject, nested: Boolean,
                                         horizontalAlignment = Alignment.End) {
                                         Text(name, color = GoldLight, fontSize = 14.sp,
                                             fontWeight = FontWeight.SemiBold, textAlign = TextAlign.End,
-                                            modifier = Modifier.fillMaxWidth().clickable {
+                                            modifier = Modifier.fillMaxWidth().clickable(enabled = !person.optBoolean("anonymous")) {
                                                 if (author.isNotBlank()) onProfile(author)
                                             })
                                         Text(entry.optString("text"), color = White,
@@ -211,7 +211,7 @@ private fun AttaPostReactorsDialog(
                             else -> "👍"
                         }
                         Row(Modifier.fillMaxWidth().heightIn(min = 58.dp)
-                            .clickable(enabled = username.isNotBlank()) {
+                            .clickable(enabled = username.isNotBlank() && !person.optBoolean("anonymous")) {
                                 if (username.isNotBlank()) onProfile(username)
                             }.padding(6.dp),
                             verticalAlignment = Alignment.CenterVertically,
@@ -538,6 +538,7 @@ class MainActivity : ComponentActivity() {
     // Notification taps work for a cold start AND for an existing singleTask Activity.
     internal var incomingPush by mutableStateOf<PushCall?>(null)
         private set
+    internal var requestedNotificationEvent by mutableStateOf<String?>(null)
     internal var requestedNotificationTab by mutableStateOf<String?>(null)
         private set
 
@@ -562,6 +563,7 @@ class MainActivity : ComponentActivity() {
             return
         }
         if (intent?.action == AttaPush.ACTION_OPEN_NOTIFICATION) {
+            requestedNotificationEvent = intent.getStringExtra("atta_notification_event")
             val destination = intent.getStringExtra("atta_notification_tab")
             if (destination in setOf("الرسائل", "الأصدقاء", "الإشعارات"))
                 requestedNotificationTab = destination
@@ -596,6 +598,7 @@ class MainActivity : ComponentActivity() {
     }
 
     fun clearIncomingPush() { incomingPush = null }
+    fun clearNotificationEvent() { requestedNotificationEvent = null }
     fun clearNotificationNavigation() { requestedNotificationTab = null }
 }
 
@@ -1108,6 +1111,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
     var users by remember { mutableStateOf(emptyList<JSONObject>()) }
     var friends by remember { mutableStateOf(emptyList<JSONObject>()) }
     var requests by remember { mutableStateOf(emptyList<JSONObject>()) }
+    var notificationTargetPost by remember { mutableStateOf<JSONObject?>(null) }
     var notifications by remember { mutableStateOf(emptyList<JSONObject>()) }
     var profile by remember(token) { mutableStateOf(JSONObject().put("fullName", displayName).put("username", myUsername)) }
     var screenLoading by remember { mutableStateOf(false) }
@@ -1248,6 +1252,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
         NativeRtcCall.clearIceCache()
         chatWith = ""; messages = emptyList(); inboxPreviews = emptyList(); recentChatPeers.clear()
         posts = emptyList(); ownPosts = emptyList(); publicPosts = emptyList(); archivedPosts = emptyList()
+        notificationTargetPost = null
         notifications = emptyList(); friends = emptyList(); publicFriends = emptyList(); requests = emptyList(); users = emptyList(); groups = emptyList()
         adminUsers = emptyList(); adminPosts = emptyList(); adminRole = ""
         adminReports = emptyList(); deletionRequests = emptyList(); deletionRequest = null
@@ -1506,6 +1511,13 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
             "الرئيسية" -> {
                 val page = FeedPages.fetch(::get)
                 posts = FeedPages.merge(posts, page)
+                notificationTargetPost?.let { previous ->
+                    val target = try { get("/api/post?postId=${enc(previous.optString("id"))}").optJSONObject("post") }
+                        catch (cancelled: CancellationException) { throw cancelled }
+                        catch (_: Exception) { null }
+                    notificationTargetPost = target
+                    if (target != null) posts = listOf(target) + posts.filter { it.optString("id") != target.optString("id") }
+                }
                 homeCursor = page.nextCursor
                 olderPageFailedCursor = null
                 val accountToken = token
@@ -1790,7 +1802,38 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
         }
     }
     fun refresh() = task { load(tab) }
+    fun openNativeNotification(n: JSONObject) = task {
+        val id = n.optString("id")
+        if (id.isNotBlank()) post("/api/notifications/read-one", JSONObject().put("notificationId", id))
+        val postId = n.optString("postId")
+        if (postId.isNotBlank()) {
+            val target = get("/api/post?postId=${enc(postId)}").getJSONObject("post")
+            notificationTargetPost = target
+            tab = "الرئيسية"
+            posts = listOf(target) + posts.filter { it.optString("id") != postId }
+            homeScrollTarget = 1; homeFirstPostRequest++
+        } else if (n.optString("type") == "friend-request") {
+            tab = "الأصدقاء"; load(tab)
+        } else if (n.optString("type") in listOf("friend-accepted", "follow")) {
+            openPublicProfile(n.optString("from"))
+        }
+        notifications = notifications.map { if (it.optString("id") == id) JSONObject(it.toString()).put("read", true) else it }
+    }
+    val notificationEvent = (ctx as? MainActivity)?.requestedNotificationEvent
+    LaunchedEffect(notificationEvent, token) {
+        if (token.isNotBlank() && notificationEvent != null) {
+            try {
+                val list = get("/api/notifications").arr("notifications")
+                notifications = list
+                list.firstOrNull { it.optString("id") == notificationEvent }?.let { openNativeNotification(it) }
+            } catch (cancelled: CancellationException) { throw cancelled }
+            catch (e: Exception) { featureMessage = e.message ?: "تعذر فتح الإشعار" }
+            finally { (ctx as? MainActivity)?.clearNotificationEvent() }
+        }
+    }
+
     fun navigate(destination: String) {
+        notificationTargetPost = null
         // Only the verified owner sees or enters admin; server APIs also enforce this.
         if (destination == "الإدارة" && adminRole !in listOf("super_admin", "moderator")) return
         if (destination == "الرئيسية" && token.isNotBlank()) {
@@ -3312,6 +3355,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                     .border(if (unread) 1.dp else .5.dp,
                                         if (unread) Gold.copy(alpha = .78f) else Border.copy(alpha = .5f),
                                         RoundedCornerShape(16.dp))
+                                    .clickable { openNativeNotification(n) }
                                     .padding(horizontal = 14.dp, vertical = 12.dp)) {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         Box(Modifier.size(37.dp).clip(CircleShape)
@@ -3327,8 +3371,16 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                         if (unread) Box(Modifier.size(8.dp)
                                             .background(Gold, CircleShape))
                                     }
-                                    val message = n.optString("text").ifBlank {
-                                        n.optString("type").ifBlank { "لديك إشعار جديد" }
+                                    val message = when (n.optString("type")) {
+                                        "like" -> "أعجب بمنشورك"
+                                        "reaction" -> "تفاعل مع منشورك"
+                                        "comment" -> "علّق على منشورك"
+                                        "comment-reply" -> "رد على تعليقك"
+                                        "friend-request" -> "أرسل إليك طلب صداقة"
+                                        "friend-accepted" -> "قبل طلب صداقتك"
+                                        "follow" -> "بدأ متابعتك"
+                                        "share" -> "شارك منشورك"
+                                        else -> n.optString("text").ifBlank { "لديك إشعار جديد" }
                                     }
                                     Text(message, color = White, fontSize = 14.sp,
                                         modifier = Modifier.padding(start = 47.dp, top = 6.dp))

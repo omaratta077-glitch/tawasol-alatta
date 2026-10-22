@@ -497,7 +497,7 @@ async function handleCallSignal(msg){
     currentCallType=msg.callType||"video";
     setCallState("incoming",msg.from,msgCallId);
 
-    $("incomingText").textContent=`${incomingFrom} يتصل بك`;
+    setIncomingCallText(incomingFrom);
     setCallPeerIdentity(incomingFrom);
     $("incomingModal").classList.remove("hidden");
     playIncomingRing();
@@ -833,7 +833,7 @@ function connect(){
     if(msg.type==="call-request"){
       incomingFrom=msg.from;
       currentCallType=msg.callType||"video";
-      $("incomingText").textContent=`${incomingFrom} يتصل بك`;
+      setIncomingCallText(incomingFrom);
       setCallPeerIdentity(incomingFrom);
       $("incomingModal").classList.remove("hidden");
       playIncomingRing();
@@ -1828,6 +1828,12 @@ function updateCallPresentation(state){
 let callOverlayOpen=false;
 
 
+async function setIncomingCallText(peer){
+  const update=user=>{if(incomingFrom===peer)$("incomingText").textContent=`${user?.fullName||user?.displayName||"جهة اتصال"} يتصل بك`;};
+  update(users.find(u=>u.username===peer));
+  try{const d=await api(`/api/profile-public?token=${encodeURIComponent(token)}&username=${encodeURIComponent(peer)}`);update(d.user)}catch{}
+}
+
 async function setCallPeerIdentity(username){
   const name=String(username||"").trim();
   if(!name)return;
@@ -2008,6 +2014,7 @@ document.addEventListener("click",async e=>{
 });
 
 function showPage(pageId){
+  if(pageId!=="homePage")notificationPostTarget="";
   // Owner-only UI. Cloudflare independently rejects unauthorized admin APIs.
   if(pageId==="adminPage" && !["super_admin","moderator"].includes(me?.role))return false;
   const page=$(pageId);
@@ -2566,6 +2573,7 @@ async function openPostPanel(id,kind){
         const person=kind==='comments'?item.authorInfo||{username:item.author}:item,name=person.fullName||person.displayName||person.username||'مستخدم';
         const row=document.createElement('div');row.className='post-interaction-person';
         row.innerHTML=`<button class="post-interaction-profile"><img alt="" src="${esc(person.avatar||avatarFallback(name))}"><strong>${esc(name)}</strong></button>${kind==='comments'?`<p>${esc(item.text)}</p>`:`<span>${esc(reactionEmoji[item.reaction]||'👍')}</span>`}`;
+        row.querySelector('button').disabled=!!person.anonymous;
         row.querySelector('button').onclick=()=>{
           closePostPanel();closePostViewer();postMediaUI.session=null;
           history.replaceState({...history.state,attaPostMedia:null},'');openUserProfile(person.username);
@@ -2738,12 +2746,18 @@ $("messageProfileBtn").onclick=()=>{
 $("myProfileBtn").onclick=()=>{viewedProfileUsername=me.username;renderProfilePage(me.username)};
 $("friendsStatBtn").onclick=()=>$("friendsSection").scrollIntoView({behavior:"smooth"});
 
+let notificationPostTarget="";
 async function loadPosts(){
   if(!token)return;
   if(!$("postsFeed").children.length)$("postsFeed").innerHTML='<div class="native-load-state" role="status">جاري تحميل المنشورات...</div>';
   try{
     const d=await api(`/api/posts?token=${encodeURIComponent(token)}&limit=20`);
     const posts=(d.posts||[]).slice(0,20);
+    if(notificationPostTarget){
+      const result=await api(`/api/post?token=${encodeURIComponent(token)}&postId=${encodeURIComponent(notificationPostTarget)}`);
+      const index=posts.findIndex(p=>String(p.id)===String(result.post.id));
+      if(index>=0)posts.splice(index,1);posts.unshift(result.post);
+    }
 
     const shareCounts={};
     posts.forEach(p=>{
@@ -2758,11 +2772,11 @@ async function loadPosts(){
       const shareCount=shareCounts[post.id]||0;
       const comments=(post.comments||[]).slice(-5).map(c=>{
         const replies=(c.replies||[]).map(r=>`
-          <div class="comment-reply"><strong>@${esc(r.author)}</strong> ${esc(r.text)}</div>
+          <div class="comment-reply"><strong>${esc(r.authorInfo?.fullName||r.authorInfo?.displayName||r.author)}</strong> ${esc(r.text)}</div>
         `).join("");
 
         return `<div class="comment-row">
-          <div><strong>@${esc(c.author)}</strong> ${esc(c.text)}</div>
+          <div><strong>${esc(c.authorInfo?.fullName||c.authorInfo?.displayName||c.author)}</strong> ${esc(c.text)}</div>
           <button class="reply-open-btn" data-reply-open="${c.id}" data-post-id="${post.id}">رد</button>
           ${replies}
           <div class="reply-compose hidden" data-reply-box="${c.id}">
@@ -3059,6 +3073,7 @@ async function openNotificationTarget(notification){
   }
 
   if(notification.postId){
+    notificationPostTarget=String(notification.postId);
     showPage("homePage");
     await loadPosts();
     await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
@@ -4337,7 +4352,7 @@ window.AttaWeb=Object.freeze({
 
   if ("serviceWorker" in navigator) {
     window.addEventListener("load", () => {
-      navigator.serviceWorker.register("/sw.js?v=14.5", { scope: "/" }).catch(() => {});
+      navigator.serviceWorker.register("/sw.js?v=14.6", { scope: "/" }).catch(() => {});
     });
   }
 

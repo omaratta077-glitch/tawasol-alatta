@@ -1,6 +1,7 @@
 package com.alatta.nativeapp
 
 import android.Manifest
+import android.graphics.BitmapFactory
 import android.app.Application
 import android.app.Activity
 import android.os.Bundle
@@ -253,7 +254,7 @@ internal object AttaPush {
         val type = data["type"].orEmpty()
         val account = prefs(context)
         val recipient = data["to"].orEmpty().lowercase()
-        val sender = (data["sender"] ?: data["from"]).orEmpty().trim().take(64)
+        val sender = data["fromName"].orEmpty().trim().take(120).ifBlank { "أحد المستخدمين" }
         val eventId = data["eventId"].orEmpty()
         val allowed = setOf("chat", "friend-request", "friend-accepted", "like",
             "reaction", "comment", "comment-reply", "follow", "share", "push-test")
@@ -287,12 +288,14 @@ internal object AttaPush {
             this.data = Uri.parse("alatta://notification/${Uri.encode(eventId)}")
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
             putExtra("atta_notification_tab", tab)
+            putExtra("atta_notification_event", eventId)
         }
         val pending = PendingIntent.getActivity(context, eventId.hashCode(), intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
         val notice = NotificationCompat.Builder(context,
                 if (type == "chat") CHAT_CHANNEL else SOCIAL_CHANNEL)
-            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setSmallIcon(R.drawable.atta_notification_icon)
+            .setLargeIcon(BitmapFactory.decodeResource(context.resources, R.drawable.logo_premium))
             .setContentTitle(title).setContentText(message)
             .setStyle(NotificationCompat.BigTextStyle().bigText(message))
             .setCategory(if (type == "chat") NotificationCompat.CATEGORY_MESSAGE else NotificationCompat.CATEGORY_SOCIAL)

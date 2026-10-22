@@ -217,17 +217,32 @@ export class SignalingRoom extends DurableObject {
   async visiblePost(post,viewer,depth=0){
     if(!post || !await this.canSeeContent(viewer,post.author))return null;
     const out={...post,likes:[],comments:[],reactions:{}};
-    const visible=async name=>!!name && await this.canViewProfile(viewer,name);
-    for(const name of post.likes||[])if(await visible(name))out.likes.push(name);
+    const identities=new Map();
+    const identity=async name=>{
+      if(identities.has(name))return identities.get(name);
+      const user=await this.user(name);
+      let result=null;
+      if(user && !user.banned && !user.disabled && !await this.isBlockedBetween(viewer,name)){
+        // Per-response opaque aliases retain distinct counts without exposing a
+        // username, avatar, profile link, or a cross-post tracking identifier.
+        result=user.accountHidden && name!==viewer?`~anonymous:${identities.size}`:name;
+      }
+      identities.set(name,result);return result;
+    };
+    for(const name of post.likes||[]){const id=await identity(name);if(id)out.likes.push(id)}
     for(const [kind,names] of Object.entries(post.reactions||{})){
       out.reactions[kind]=[];
-      for(const name of Array.isArray(names)?names:[])if(await visible(name))out.reactions[kind].push(name);
+      for(const name of Array.isArray(names)?names:[]){const id=await identity(name);if(id)out.reactions[kind].push(id)}
     }
+    const commentView=async comment=>{
+      const author=await identity(comment.author);if(!author)return null;
+      return {...comment,author,authorInfo:await this.interactionPerson(author)};
+    };
     for(const comment of post.comments||[]){
-      if(!await visible(comment.author))continue;
+      const visible=await commentView(comment);if(!visible)continue;
       const replies=[];
-      for(const reply of comment.replies||[])if(await visible(reply.author))replies.push({...reply});
-      out.comments.push({...comment,replies});
+      for(const reply of comment.replies||[]){const item=await commentView(reply);if(item)replies.push(item)}
+      out.comments.push({...visible,replies});
     }
     delete out.sharedPost;
     if(post.sharedPostId){
@@ -345,8 +360,13 @@ export class SignalingRoom extends DurableObject {
       ? await this.canCommunicate(viewer,author) : true);
   }
 
-  // Public likes, comments and follows could disclose a hidden account to strangers.
-  // Its owner can interact with friends and use the private friend-request flow.
+  async interactionPerson(username){
+    if(String(username).startsWith("~anonymous:"))return {username,fullName:"حساب مخفي",displayName:"حساب مخفي",avatar:"",anonymous:true};
+    const u=await this.publicUser(username);
+    return u?{username:u.username,fullName:u.fullName,displayName:u.displayName,avatar:u.avatar}:null;
+  }
+
+  // Following/sharing still reveals identity and retains its prior policy.
   async canRevealInteraction(actor,audience){
     const u=await this.user(actor);
     return !u?.accountHidden || actor===audience || await this.canCommunicate(actor,audience);
@@ -1730,6 +1750,18 @@ export class SignalingRoom extends DurableObject {
       return j({ok:true,users:users.slice(0,100)});
     }
 
+    if(url.pathname==="/api/post" && request.method==="GET"){
+      const session=await this.session(url.searchParams.get("token")||"");
+      if(!session)return j({ok:false,error:"الجلسة منتهية"},401);
+      const raw=await this.ctx.storage.get(`post:${url.searchParams.get("postId")||""}`);
+      const post=raw && !raw.archived?await this.visiblePost(raw,session.username):null;
+      if(!post)return j({ok:false,error:"المنشور غير متاح"},404);
+      const members=postReactionMembers(post);
+      return j({ok:true,post:{...post,authorInfo:await this.publicUser(post.author),reactionCount:members.size,
+        likeCount:post.likes.length,commentCount:post.comments.length,myReaction:members.get(session.username)||"",
+        likedByMe:post.likes.includes(session.username)}});
+    }
+
     if(url.pathname==="/api/posts" && request.method==="POST"){
       const s=await this.session(String(body.token||""));
       if(!s)return j({ok:false,error:"الجلسة منتهية"},401);
@@ -1889,10 +1921,7 @@ export class SignalingRoom extends DurableObject {
       const offset=Number.isFinite(requestedOffset)?Math.max(0,Math.floor(requestedOffset)):0;
       const limit=Number.isFinite(requestedLimit)?Math.max(1,Math.min(50,Math.floor(requestedLimit))):30;
       const members=postReactionMembers(post);
-      const person=async username=>{
-        const u=await this.publicUser(username);
-        return u?{username:u.username,fullName:u.fullName,displayName:u.displayName,avatar:u.avatar}:null;
-      };
+      const person=username=>this.interactionPerson(username);
       const result={ok:true,postId:id,kind,reactionCount:members.size,commentCount:post.comments.length,myReaction:members.get(session.username)||""};
       if(kind==="reactions"){
         const list=[...members],people=[];
@@ -1917,7 +1946,6 @@ export class SignalingRoom extends DurableObject {
       const post=await this.ctx.storage.get(`post:${body.postId}`);
       if(!post)return j({ok:false,error:"المنشور غير موجود"},404);
       if(post.archived || !await this.canSeeContent(s.username,post.author))return j({ok:false,error:"المنشور غير متاح"},403);
-      if(!await this.canRevealInteraction(s.username,post.author))return j({ok:false,error:"يمكن للحساب المخفي التفاعل علنًا مع الأصدقاء فقط"},403);
 
       const wasLike=postReactionMembers(post).get(s.username)==="like";
       post.likes=(post.likes||[]).filter(name=>name!==s.username);
@@ -1956,7 +1984,6 @@ export class SignalingRoom extends DurableObject {
       const post=await this.ctx.storage.get(`post:${body.postId}`);
       if(!post)return j({ok:false,error:"المنشور غير موجود"},404);
       if(post.archived || !await this.canSeeContent(s.username,post.author))return j({ok:false,error:"المنشور غير متاح"},403);
-      if(!await this.canRevealInteraction(s.username,post.author))return j({ok:false,error:"يمكن للحساب المخفي التفاعل علنًا مع الأصدقاء فقط"},403);
 
       const text=String(body.text||"").trim().slice(0,1000);
       if(!text)return j({ok:false,error:"اكتب تعليقًا"},400);
@@ -2000,6 +2027,13 @@ export class SignalingRoom extends DurableObject {
       const visible=[];
       const nameCache=new Map();
       for(const notification of [...list].reverse()){
+        const sender=notification.from?await this.user(notification.from):null;
+        if(sender?.accountHidden && ["like","reaction","comment","comment-reply"].includes(notification.type)){
+          if(sender.banned || sender.disabled || await this.isBlockedBetween(s.username,sender.username))continue;
+          visible.push({...notification,from:"",fromName:"حساب مخفي",anonymous:true});
+          if(visible.length===100)break;
+          continue;
+        }
         if(!notification.from || await this.canViewProfile(s.username,notification.from)){
           const from=String(notification.from||"").trim().toLowerCase();
           let fromName="";
@@ -2272,7 +2306,6 @@ export class SignalingRoom extends DurableObject {
       const post=await this.ctx.storage.get(`post:${body.postId}`);
       if(!post)return j({ok:false,error:"المنشور غير موجود"},404);
       if(post.archived || !await this.canSeeContent(s.username,post.author))return j({ok:false,error:"المنشور غير متاح"},403);
-      if(!await this.canRevealInteraction(s.username,post.author))return j({ok:false,error:"يمكن للحساب المخفي التفاعل علنًا مع الأصدقاء فقط"},403);
 
       const allowed=["like","love","haha","wow","sad","angry","dislike"];
       const reaction=String(body.reaction||"like");
@@ -2403,7 +2436,6 @@ export class SignalingRoom extends DurableObject {
       const post=await this.ctx.storage.get(`post:${body.postId}`);
       if(!post)return j({ok:false,error:"المنشور غير موجود"},404);
       if(post.archived || !await this.canSeeContent(s.username,post.author))return j({ok:false,error:"المنشور غير متاح"},403);
-      if(!await this.canRevealInteraction(s.username,post.author))return j({ok:false,error:"يمكن للحساب المخفي التفاعل علنًا مع الأصدقاء فقط"},403);
 
       const text=String(body.text||"").trim().slice(0,1000);
       if(!text)return j({ok:false,error:"اكتب ردًا"},400);
@@ -2420,7 +2452,7 @@ export class SignalingRoom extends DurableObject {
       });
 
       await this.ctx.storage.put(`post:${post.id}`,post);
-      if(comment.author!==s.username && await this.user(comment.author) && await this.canRevealInteraction(s.username,comment.author)){
+      if(comment.author!==s.username && await this.user(comment.author) && !await this.isBlockedBetween(s.username,comment.author)){
         const notification={id:crypto.randomUUID(),type:"comment-reply",from:s.username,
           postId:post.id,commentId:comment.id,createdAt:Date.now(),read:false};
         const list=await this.ctx.storage.get(`notifications:${comment.author}`)||[];
@@ -3162,7 +3194,7 @@ export class SignalingRoom extends DurableObject {
           const android={priority:'HIGH',ttl};
           if(fcmData.type==='call-request'){
             android.notification={
-              channel_id:'alatta_incoming_call_v2',
+              channel_id:'alatta_incoming_call_v2',icon:'atta_notification_icon',
               title:fcmData.callType==='video'?'مكالمة فيديو واردة':'مكالمة صوتية واردة',
               body:'مكالمة واردة من تواصل العطا',
               visibility:'PUBLIC',notification_priority:'PRIORITY_MAX',
@@ -3266,8 +3298,12 @@ export class SignalingRoom extends DurableObject {
   }
 
   async deliverUserPush(to,event){
+    const sender=await this.user(event.from||"");
+    const anonymous=!!sender?.accountHidden && ["like","reaction","comment","comment-reply"].includes(event.type);
+    if(sender && (sender.banned || sender.disabled || await this.isBlockedBetween(to,event.from)))return;
     await this.sendDevicePush(to,{
-      type:String(event.type),to:String(to),from:String(event.from||''),
+      type:String(event.type),to:String(to),from:anonymous?"":String(event.from||''),
+      fromName:anonymous?"حساب مخفي":String(sender?.fullName||sender?.displayName||sender?.username||""),
       eventId:String(event.eventId),createdAt:String(event.createdAt||Date.now())
     },'86400s');
   }
