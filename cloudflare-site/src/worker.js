@@ -1,4 +1,41 @@
 import { DurableObject } from "cloudflare:workers";
+// BEGIN Google Apps Script email transport (server-side only)
+async function sendViaGoogleAppsScript(env,email,code,type,fetcher=fetch){
+  const endpoint=String(env.GAS_EMAIL_WEBAPP_URL||"").trim();
+  const secret=String(env.GAS_EMAIL_API_SECRET||"").trim();
+  if(!endpoint||!secret)throw new Error("EMAIL_PROVIDER_NOT_CONFIGURED");
+  let url;
+  try{
+    url=new URL(endpoint);
+    if(url.protocol!=="https:"||url.hostname!=="script.google.com"||url.username||
+      url.password||url.port||url.search||url.hash||
+      !/^\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(url.pathname))throw Error();
+  }catch{throw new Error("EMAIL_PROVIDER_NOT_CONFIGURED");}
+  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)||
+     !/^\d{6}$/.test(code)||!["verify","reset","admin"].includes(type))
+    throw new Error("EMAIL_SEND_FAILED");
+  let response;
+  try{
+    response=await fetcher(url.href,{
+      method:"POST",
+      headers:{"Content-Type":"text/plain;charset=utf-8","Accept":"application/json"},
+      body:JSON.stringify({secret,email,code,type}),
+      redirect:"follow", // Apps Script ContentService redirects to googleusercontent.com.
+      signal:AbortSignal.timeout(15000)
+    });
+  }catch{
+    const err=new Error("EMAIL_SEND_FAILED");
+    err.providerName="GoogleAppsScript";err.providerStatus=0;throw err;
+  }
+  let result;
+  try{result=await response.json();}catch{result=null;}
+  if(!response.ok||result?.ok!==true){
+    const err=new Error("EMAIL_SEND_FAILED");
+    err.providerName="GoogleAppsScript";err.providerStatus=response.status;throw err;
+  }
+  return true;
+}
+// END Google Apps Script email transport
 
 const encoder = new TextEncoder();
 
@@ -540,7 +577,33 @@ export class SignalingRoom extends DurableObject {
     return `${visible}${"*".repeat(Math.max(2,name.length-visible.length))}@${domain}`;
   }
 
+  // Single durable record avoids unsupported TTL options and unbounded minute keys.
+  async reserveGoogleEmailQuota(){
+    const now=Date.now();
+    const minute=Math.floor(now/60000);
+    const day=new Date(now).toISOString().slice(0,10);
+    const previous=await this.ctx.storage.get("google-email-quota")||{};
+    const minuteCount=previous.minute===minute?Number(previous.minuteCount||0):0;
+    const dayCount=previous.day===day?Number(previous.dayCount||0):0;
+    if(minuteCount>=10||dayCount>=80){
+      const err=new Error("EMAIL_SEND_RATE_LIMITED");
+      err.providerName="GoogleAppsScript";throw err;
+    }
+    await this.ctx.storage.put("google-email-quota",{
+      minute,minuteCount:minuteCount+1,day,dayCount:dayCount+1
+    });
+  }
+
+  async sendGoogleEmailIfReady(email,code,type){
+    if(!String(this.env.GAS_EMAIL_WEBAPP_URL||"").trim() ||
+       !String(this.env.GAS_EMAIL_API_SECRET||"").trim())return false;
+    await this.reserveGoogleEmailQuota();
+    await sendViaGoogleAppsScript(this.env,email,code,type);
+    return true;
+  }
+
   async sendVerificationEmail(email,code,adminSecurity=false){
+    if(await this.sendGoogleEmailIfReady(email,code,adminSecurity?"admin":"verify"))return true;
     const apiKey=String(this.env.RESEND_API_KEY||"").trim();
     const from=String(
       this.env.VERIFY_FROM_EMAIL||
@@ -601,6 +664,7 @@ export class SignalingRoom extends DurableObject {
   }
 
   async sendPasswordResetEmail(email,code){
+    if(await this.sendGoogleEmailIfReady(email,code,"reset"))return true;
     const key=String(this.env.RESEND_API_KEY||'').trim();
     if(!key)throw new Error('EMAIL_PROVIDER_NOT_CONFIGURED');
     const from=String(this.env.VERIFY_FROM_EMAIL||'Tawasol Al-Atta <onboarding@resend.dev>').trim();
@@ -784,6 +848,8 @@ export class SignalingRoom extends DurableObject {
 
     if(url.pathname==="/api/diagnostics/env" && request.method==="GET"){
       const resend=String(this.env.RESEND_API_KEY||"").trim();
+      const googleEmailUrl=String(this.env.GAS_EMAIL_WEBAPP_URL||"").trim();
+      const googleEmailSecret=String(this.env.GAS_EMAIL_API_SECRET||"").trim();
       const turnId=String(this.env.TURN_KEY_ID||"").trim();
       const turnToken=String(this.env.TURN_KEY_API_TOKEN||"").trim();
 
@@ -792,6 +858,9 @@ export class SignalingRoom extends DurableObject {
         diagnostics:{
           resendApiKeyConfigured:!!resend,
           resendApiKeyLooksValid:resend.startsWith("re_"),
+          googleAppsEmailUrlConfigured:!!googleEmailUrl,
+          googleAppsEmailSecretConfigured:!!googleEmailSecret,
+          activeEmailProvider:googleEmailUrl&&googleEmailSecret?"GoogleAppsScript":resend?"Resend":"none",
           turnKeyIdConfigured:!!turnId,
           turnKeyApiTokenConfigured:!!turnToken
         },
@@ -1063,7 +1132,7 @@ export class SignalingRoom extends DurableObject {
           error:"تعذر إرسال كود التأكيد إلى البريد الإلكتروني",
           code:"EMAIL_SEND_FAILED",
           diagnostics:{
-            provider:"Resend",
+            provider:String(err?.providerName||"Resend"),
             status:Number(err?.providerStatus||0),
             name:String(err?.providerName||""),
             message:String(err?.providerMessage||"")
@@ -1211,7 +1280,7 @@ export class SignalingRoom extends DurableObject {
           error:"تعذر إعادة إرسال كود التأكيد",
           code:"EMAIL_RESEND_FAILED",
           diagnostics:{
-            provider:"Resend",
+            provider:String(err?.providerName||"Resend"),
             status:Number(err?.providerStatus||0),
             name:String(err?.providerName||""),
             message:String(err?.providerMessage||"")
