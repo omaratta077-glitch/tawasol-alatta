@@ -1,5 +1,14 @@
 import assert from "node:assert/strict";
-import {sendViaGoogleAppsScript} from "../cloudflare-site/src/google-apps-email.mjs";
+import fs from "node:fs";
+// Exercise the exact function deployed in worker.js, without a second copy.
+const workerSource=fs.readFileSync(new URL("../cloudflare-site/src/worker.js",import.meta.url),"utf8");
+const start=workerSource.indexOf("// BEGIN Google Apps Script email transport");
+const end=workerSource.indexOf("// END Google Apps Script email transport");
+assert.ok(start>=0&&end>start,"Google Apps Script helper is present in worker.js");
+const helper=workerSource.slice(start,end);
+const {sendViaGoogleAppsScript}=await import(
+  "data:text/javascript;charset=utf-8,"+encodeURIComponent(helper+"\nexport {sendViaGoogleAppsScript};")
+);
 const url="https://script.google.com/macros/s/AKfycbz20fN_J2cs0feEHqT-lxZ3Bznk51NWu6s3buRAI5X3D8u3QpA6lAqTdn71c2rN_OjFwA/exec";
 const env={GAS_EMAIL_WEBAPP_URL:url,GAS_EMAIL_API_SECRET:"unit-test-secret"};
 const calls=[];
@@ -13,7 +22,7 @@ for(const type of ["verify","reset","admin"]){
   assert.equal(last.url,url);
   assert.equal(last.options.method,"POST");
   assert.equal(last.options.redirect,"follow");
-  assert.match(last.options.headers["Content-Type"],/^text\\/plain/);
+  assert.match(last.options.headers["Content-Type"],/^text\/plain/);
   assert.deepEqual(JSON.parse(last.options.body),{secret:"unit-test-secret",email:"person@example.com",code:"012345",type});
 }
 await assert.rejects(sendViaGoogleAppsScript({...env,GAS_EMAIL_API_SECRET:""},"person@example.com","123456","verify",mock),/EMAIL_PROVIDER_NOT_CONFIGURED/);
