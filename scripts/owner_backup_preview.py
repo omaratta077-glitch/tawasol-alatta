@@ -65,6 +65,7 @@ def main():
     if args.preview:
         print('PREVIEW ONLY. Nothing was deleted.')
         return
+    admin_password = getpass.getpass('Independent administration protection password (never saved): ')
     stamp = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')
     destination = Path.home() / ('AL_ATTA_PRIVATE_BACKUP_' + stamp)
     destination.mkdir(mode=0o700)
@@ -80,7 +81,7 @@ def main():
     with entries_path.open('w', encoding='utf-8') as out:
         while True:
             reply = request_json(origin, '/api/admin/reset/export',
-                                 {'token': token, 'startAfter': start_after, 'limit': 10})
+                                 {'token': token, 'adminPassword': admin_password, 'startAfter': start_after, 'limit': 10})
             for entry in reply['entries']:
                 key = entry['key']
                 if key in seen:
