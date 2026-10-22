@@ -16,3 +16,6 @@
 *.p12
 **/agconnect-services.json
 node_modules/
+
+# Derived web copies of canonical native content (created by Wrangler build)
+cloudflare-site/public/knowledge/generated/

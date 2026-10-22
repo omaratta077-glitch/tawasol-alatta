@@ -105,13 +105,28 @@ async function ensureTurnIceServers(force=false){
 }
 
 async function api(path,opts={}){
-  const r=await fetch(path,{
-    ...opts,
-    headers:{"content-type":"application/json",...(opts.headers||{})}
-  });
-  const d=await r.json().catch(()=>({}));
-  if(!r.ok)throw new Error(d.error||"حدث خطأ");
-  return d;
+  const read=(opts.method||"GET").toUpperCase()==="GET";
+  const deadline=Date.now()+20000;
+  for(let attempt=0;;attempt++){
+    const controller=new AbortController();
+    const remaining=deadline-Date.now();
+    if(remaining<=0)throw new Error("تأخر الاتصال بالخادم. أعد المحاولة.");
+    const timer=setTimeout(()=>controller.abort(),remaining);
+    let response;
+    try{
+      response=await fetch(path,{...opts,signal:opts.signal||controller.signal,
+        headers:{"content-type":"application/json",...(opts.headers||{})}});
+      const text=await response.text();
+      let data;try{data=JSON.parse(text);}catch{throw new Error("تعذر قراءة استجابة الخادم. أعد المحاولة.");}
+      if(!response.ok){const error=new Error(data.error||"حدث خطأ");error.status=response.status;throw error;}
+      return data;
+    }catch(error){
+      if(read&&attempt===0&&!opts.signal&&error instanceof TypeError)continue;
+      if(error.name==="AbortError")throw new Error("تأخر الاتصال بالخادم. أعد المحاولة.");
+      if(error instanceof TypeError)throw new Error("انقطع الاتصال. تحقق من الإنترنت واضغط إعادة المحاولة.");
+      throw error;
+    }finally{clearTimeout(timer);}
+  }
 }
 
 
@@ -171,7 +186,7 @@ async function startAuthenticatedApp(sessionToken,user=null){
 
   renderProfile();
   $("homeAvatar").src=me.avatar||avatarFallback(me.fullName||me.displayName||me.username);
-  renderProfilePage();
+  // Load the profile only when requested; it is not required for the Home feed.
 
   ensureTurnIceServers().catch(()=>{});
 
@@ -203,14 +218,14 @@ async function restoreSavedLogin(){
     $("authMsg").textContent="";
     return true;
   }catch(err){
-    console.warn("Saved login is no longer valid",err);
-    clearSavedSession();
+    console.warn("Saved login could not be restored",err);
+    if(err.status===401 || err.status===403)clearSavedSession();
     token="";resetPostMedia();
     me=null;
     appSessionStarted=false;
     $("appView").classList.add("hidden");
     $("authView").classList.remove("hidden");
-    $("authMsg").textContent="";
+    $("authMsg").textContent=err.message||"تعذر فتح الحساب. أعد المحاولة.";
     return false;
   }
 }
@@ -898,8 +913,8 @@ function send(obj){
 }
 
 function avatarFallback(name){
-  const ch=(name||"A").slice(0,1).toUpperCase();
-  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><rect width="100" height="100" fill="#fff"/><text x="50" y="64" font-size="48" text-anchor="middle" fill="#245b84">${ch}</text></svg>`)}`;
+  const ch=esc(Array.from(name||"A")[0].toUpperCase());
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><rect width="100" height="100" fill="#191307"/><text x="50" y="64" font-size="48" text-anchor="middle" fill="#f6d776">${ch}</text></svg>`)}`;
 }
 
 function renderProfile(){
@@ -907,8 +922,8 @@ function renderProfile(){
   $("meDisplay").textContent=me.displayName||me.username;
   $("meUsername").textContent="@"+me.username;
   $("avatarImg").src=me.avatar||avatarFallback(me.displayName||me.username);
-  if($("headerAvatar"))$("headerAvatar").src=me.avatar||avatarFallback(me.fullName||me.displayName||me.username);
-  if($("headerProfileName"))$("headerProfileName").textContent=me.fullName||me.displayName||me.username;
+  if($("headerAvatar"))$("headerAvatar").src="logo-premium.png";
+  if($("headerProfileName"))$("headerProfileName").textContent="AL-ATTA";
   if($("headerProfileUsername"))$("headerProfileUsername").textContent="@"+me.username;
   if($("homeAvatar"))$("homeAvatar").src=me.avatar||avatarFallback(me.fullName||me.displayName||me.username);
   if($("profileAvatarLarge") && viewedProfileUsername===me.username)$("profileAvatarLarge").src=me.avatar||avatarFallback(me.fullName||me.displayName||me.username);
@@ -1950,11 +1965,15 @@ document.addEventListener("click",async e=>{
 });
 
 function showPage(pageId){
+  const page=$(pageId);
+  if(!page || !page.classList.contains("page"))return false;
   document.querySelectorAll(".page").forEach(p=>p.classList.remove("active-page"));
   $(pageId).classList.add("active-page");
   document.querySelectorAll(".nav-btn").forEach(b=>b.classList.toggle("active",b.dataset.page===pageId));
   document.querySelectorAll(".rail-btn").forEach(b=>b.classList.toggle("active",b.dataset.page===pageId));
 
+  document.querySelectorAll("[data-top-page]").forEach(b=>b.setAttribute("aria-current",b.dataset.topPage===pageId?"page":"false"));
+  document.dispatchEvent(new CustomEvent("atta:page",{detail:{pageId}}));
   if(pageId==="homePage")loadPosts();
   if(pageId==="friendsPage"){ loadFriendRequests().catch(()=>{}); if(me?.username)loadFriends(me.username).catch(()=>{}); }
   if(pageId==="adminPage")loadAdminDashboard();
@@ -2095,6 +2114,7 @@ document.querySelectorAll(".rail-btn:not(#logoutBtn)").forEach(btn=>{
   btn.onclick=()=>{
     document.querySelectorAll(".rail-btn").forEach(x=>x.classList.remove("active"));
     btn.classList.add("active");
+    if(!btn.dataset.page)return;
     if(btn.dataset.page==="profilePage")viewedProfileUsername=me?.username||"";
     showPage(btn.dataset.page);
   };
@@ -2108,8 +2128,7 @@ if($("railStoryBtn")){
 
 if($("brandProfileBtn")){
   $("brandProfileBtn").onclick=()=>{
-    viewedProfileUsername=me?.username||"";
-    showPage("profilePage");
+    showPage("homePage");
   };
 }
 
@@ -2131,7 +2150,7 @@ if($("sideAddStoryBtn"))$("sideAddStoryBtn").onclick=()=>$("addStoryBtn")?.click
 
 
 if($("railSavedBtn"))$("railSavedBtn").onclick=()=>showPage("savedPage");
-if($("railMoreBtn"))$("railMoreBtn").onclick=()=>alert("قائمة المزيد سيتم توسيعها تدريجيًا.");
+if($("railMoreBtn"))$("railMoreBtn").onclick=()=>showPage("morePage");
 
 if($("postFeelingBtn")){
   $("postFeelingBtn").onclick=()=>{
@@ -2228,6 +2247,7 @@ if($("postVideoInput")){
 
 document.querySelectorAll(".nav-btn").forEach(btn=>{
   btn.onclick=()=>{
+    if(!btn.dataset.page)return;
     if(btn.dataset.page==="profilePage")viewedProfileUsername=me?.username||"";
     showPage(btn.dataset.page);
   };
@@ -2660,6 +2680,7 @@ $("friendsStatBtn").onclick=()=>$("friendsSection").scrollIntoView({behavior:"sm
 
 async function loadPosts(){
   if(!token)return;
+  if(!$("postsFeed").children.length)$("postsFeed").innerHTML='<div class="native-load-state" role="status">جاري تحميل المنشورات...</div>';
   try{
     const d=await api(`/api/posts?token=${encodeURIComponent(token)}&limit=20`);
     const posts=(d.posts||[]).slice(0,20);
@@ -2877,7 +2898,8 @@ async function loadPosts(){
     });
 
   }catch(e){
-    $("postsFeed").innerHTML=`<div class="empty-card">${esc(e.message)}</div>`;
+    $("postsFeed").innerHTML=`<div class="empty-card" role="alert">${esc(e.message)} <button class="native-button" id="retryFeedBtn">إعادة المحاولة</button></div>`;
+    $("retryFeedBtn").onclick=()=>loadPosts();
   }
 }
 
@@ -3140,7 +3162,7 @@ async function uploadOwnProfileImage(kind,file){
       :{maxWidth:1400,maxHeight:700,maxChars:390000,quality:.82});
     if(isAvatar){
       $("profileAvatarLarge").src=data;
-      if($("headerAvatar"))$("headerAvatar").src=data;
+      if($("headerAvatar"))$("headerAvatar").src="logo-premium.png";
       if($("homeAvatar"))$("homeAvatar").src=data;
     }else{
       const coverImg=$("profileCoverImage");
@@ -4128,6 +4150,21 @@ async function setupGoogleSignIn(){
 }
 window.addEventListener("load",setupGoogleSignIn);
 
+window.AttaWeb=Object.freeze({
+  navigate:showPage,
+  user:()=>({username:me?.username||"",role:me?.role||""}),
+  preparePost(text,image=""){
+    if(image && postImageData)throw new Error("يوجد منشور بصورة قيد التجهيز. انشره أولًا أو احذف صورته قبل مشاركة صفحة جديدة.");
+    const current=$("postText").value.trim();
+    $("postText").value=current?current+"\n\n"+text:text;
+    if(image){postImageData=image;$("postImagePreview").src=image;$("postImagePreviewWrap").classList.remove("hidden");}
+    showPage("homePage");$("postText").scrollIntoView({behavior:"smooth",block:"center"});$("postText").focus();
+  },
+  async changePassword(oldPassword,newPassword,confirmPassword){
+    await api("/api/change-password",{method:"POST",body:JSON.stringify({token,oldPassword,newPassword,confirmPassword})});
+    await logoutCurrentAccount();
+  }
+});
 })();
 
 
@@ -4175,9 +4212,11 @@ window.addEventListener("load",setupGoogleSignIn);
 
   if ("serviceWorker" in navigator) {
     window.addEventListener("load", () => {
-      navigator.serviceWorker.register("/sw.js?v=13.88", { scope: "/" }).catch(() => {});
+      navigator.serviceWorker.register("/sw.js?v=14.0", { scope: "/" }).catch(() => {});
     });
   }
 
   refreshInstallButton();
+
+
 })();

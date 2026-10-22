@@ -51,3 +51,10 @@ jobs:
           python3 scripts/test_huawei_config.py
           python3 scripts/test_store_apk.py
           python3 scripts/test_hadith_library.py
+
+      - name: Build web data from canonical native assets
+        run: node scripts/build_web_assets.mjs
+      - name: Website navigation, content, session and sharing tests
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund --prefix scripts/web-tests
+          node scripts/web-tests/parity.mjs

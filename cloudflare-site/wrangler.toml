@@ -10,6 +10,9 @@ keep_vars = true
 # Google OAuth Client ID is public (not a secret).
 GOOGLE_CLIENT_ID = "892140625911-rgln2915nsojaftmuvkst46m1kepetk3.apps.googleusercontent.com"
 
+[build]
+command = "node ../scripts/build_web_assets.mjs"
+
 [assets]
 directory = "./public"
 binding = "ASSETS"
