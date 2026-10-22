@@ -8,6 +8,22 @@ assert.equal((native.match(/YouTubePlayer\(youtubeId\)/g)||[]).length,1,'screen 
 assert.ok(!native.includes('AlattaFixedYouTubePlayer') && !native.includes('attaYouTubeHtml'),'no duplicate native player');
 assert.ok(native.includes('loadUrl("$BASE/")') && native.includes('atta-site-youtube-bridge.js') && !native.includes('document.body.replaceChildren(host)'),'Android drives the actual site player without replacing the website document');
 assert.ok(!native.includes('raw.contains("username", ignoreCase = true)'),'no blanket mapping of login failures to username-taken');
+const websiteApp=fs.readFileSync('cloudflare-site/public/app.js','utf8');
+const workerRoles=fs.readFileSync('cloudflare-site/src/worker.js','utf8');
+assert.ok(native.includes('if (section != "حول") editProfileDetails = false') &&
+  native.includes('if (ownProfileFilter == "حول") {') &&
+  native.includes('Text(if (editProfileDetails) "إلغاء" else "تعديل الملف الشخصي"') &&
+  !native.includes('ownProfileFilter == "حول" || editProfileDetails'),
+  'edit profile appears and works only within the About tab');
+assert.ok(native.includes('if (destination == "القائمة" && tab != "القائمة")') &&
+  native.includes('if (adminRole == "super_admin" || adminRole == "moderator")') &&
+  workerRoles.includes('admin-moderators:v2') &&
+  workerRoles.includes('make_moderator') &&
+  workerRoles.includes('remove_moderator'),
+  'admin entry only after role verification; owner assigns and revokes named moderators');
+assert.ok(websiteApp.includes('user={...user,role:"user"};') &&
+  websiteApp.includes('const canAdmin=["super_admin","moderator"].includes(me?.role);'),
+  'website admin controls fail closed if session role refresh fails');
 const adminWeb=fs.readFileSync('cloudflare-site/public/app.js','utf8');
 assert.ok(native.includes('if (destination == "الإدارة" && adminRole !in listOf("super_admin", "moderator")) return') &&
   native.includes('AdminOwnerHero(displayName, myAvatar') &&

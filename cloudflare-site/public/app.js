@@ -170,7 +170,15 @@ async function startAuthenticatedApp(sessionToken,user=null){
     const d=await api(`/api/me?token=${encodeURIComponent(token)}`);
     user=d.user;
   }else{
-    try{ const d=await api(`/api/me?token=${encodeURIComponent(token)}`); user={...user,...d.user}; }catch{}
+    try{
+      const d=await api(`/api/me?token=${encodeURIComponent(token)}`);
+      user={...user,...d.user};
+      // Never retain a role from stale initial/cached login data.
+      if(!d.user?.role)user.role="user";
+    }catch{
+      // Normal pages may continue if offline; admin controls must fail closed.
+      user={...user,role:"user"};
+    }
   }
 
   me=user;
