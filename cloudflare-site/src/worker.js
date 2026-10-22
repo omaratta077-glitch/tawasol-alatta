@@ -178,6 +178,9 @@ export class SignalingRoom extends DurableObject {
 
   async resetActive(){
     const state=await this.ctx.storage.get("owner-reset:plan");
+    if(state && !["accounts","posts"].includes(state.kind)){
+      await this.ctx.storage.delete("owner-reset:plan");this.resetClosing=false;return false;
+    }
     return this.resetClosing || state?.phase==="deleting" || this.accountDeleteClosing || !!await this.ctx.storage.get("admin-delete:job");
   }
 
@@ -208,7 +211,7 @@ export class SignalingRoom extends DurableObject {
         next=page.truncated?page.cursor:undefined;
       }while(next);
     }
-    return {durableObjectKeys:total,byCategory,media,keepAccount:null,keptAccounts:[],deleteOwnerAccount:true};
+    return {durableObjectKeys:total,byCategory,media,keepAccount:this.ownerUsername(),keptAccounts:[this.ownerUsername()],deleteOwnerAccount:false};
   }
 
   async visiblePost(post,viewer,depth=0){
@@ -389,17 +392,35 @@ export class SignalingRoom extends DurableObject {
       const user=await this.user(name);
       if(user && (!this.ownerEmail() || String(user.email||"").toLowerCase()===this.ownerEmail()))return "super_admin";
     }
-    // Only the owner configured in Cloudflare is elevated; legacy moderators are not.
-    return "user";
+    const moderators=await this.ctx.storage.get("admin-moderators:v2")||[];
+    return name && moderators.includes(name)?"moderator":"user";
   }
 
-  async requireAdmin(token){
+  async requireAdmin(token, allowModerator=false){
     const session=await this.session(String(token||""));
     if(!session)return {error:j({ok:false,error:"الجلسة منتهية"},401)};
     const role=await this.roleFor(session.username);
     // All administration, including backups, is restricted to the configured owner.
-    if(role!=="super_admin")return {error:j({ok:false,error:"صلاحيات المدير الرئيسي فقط"},403)};
+    if(role!=="super_admin" && !(allowModerator && role==="moderator"))return {error:j({ok:false,error:"صلاحيات المدير الرئيسي فقط"},403)};
     return {session,role};
+  }
+
+  async requireAdminPassword(password){
+    if(this.adminPasswordBusy)return j({ok:false,error:"تحقق حماية قيد التنفيذ؛ حاول بعد قليل"},409);
+    this.adminPasswordBusy=true;
+    try{
+      const owner=this.ownerUsername(),record=await this.ctx.storage.get(`admin-security:${owner}`);
+      if(!record)return j({ok:false,error:"اضبط كلمة حماية الإدارة أولًا باستخدام كود بريد المدير",code:"ADMIN_PASSWORD_SETUP_REQUIRED"},403);
+      const key=`admin-security-attempts:${owner}`,storedAttempts=await this.ctx.storage.get(key),attempts=storedAttempts||{count:0,until:0};
+      if(attempts.until>Date.now())return j({ok:false,error:"محاولات حماية كثيرة؛ حاول بعد 15 دقيقة",code:"ADMIN_PASSWORD_LOCKED"},429);
+      if(attempts.until)attempts.count=0;
+      if(typeof password!=="string" || password.length>128 || !await passwordMatches(password,record.hash)){
+        attempts.count++;attempts.until=attempts.count>=5?Date.now()+900000:0;
+        await this.ctx.storage.put(key,attempts);
+        return j({ok:false,error:"كلمة حماية الإدارة غير صحيحة",code:"ADMIN_PASSWORD_REQUIRED"},403);
+      }
+      if(storedAttempts)await this.ctx.storage.delete(key);return null;
+    }finally{this.adminPasswordBusy=false;}
   }
 
   async footballApi(request,url){
@@ -496,7 +517,7 @@ export class SignalingRoom extends DurableObject {
     return `${visible}${"*".repeat(Math.max(2,name.length-visible.length))}@${domain}`;
   }
 
-  async sendVerificationEmail(email,code){
+  async sendVerificationEmail(email,code,adminSecurity=false){
     const apiKey=String(this.env.RESEND_API_KEY||"").trim();
     const from=String(
       this.env.VERIFY_FROM_EMAIL||
@@ -516,15 +537,15 @@ export class SignalingRoom extends DurableObject {
       body:JSON.stringify({
         from,
         to:[email],
-        subject:"كود تأكيد حساب تواصل العطا",
+        subject:adminSecurity?"حماية إدارة تواصل العطا":"كود تأكيد حساب تواصل العطا",
         html:`<!doctype html>
           <html dir="rtl" lang="ar">
             <body style="margin:0;background:#0a0d10;font-family:Arial,sans-serif;color:#fff">
               <div style="max-width:520px;margin:30px auto;padding:28px;background:#11161a;border:1px solid #d7a936;border-radius:18px;text-align:center">
                 <h2 style="color:#f1c75b;margin:0 0 14px">تواصل العطا</h2>
-                <p style="line-height:1.8;color:#ddd">استخدم الكود التالي لتأكيد إنشاء حسابك:</p>
+                <p style="line-height:1.8;color:#ddd">${adminSecurity?"استخدم الكود لضبط كلمة مرور حماية الإدارة. لا تشاركه مع أي شخص:":"استخدم الكود التالي لتأكيد إنشاء حسابك:"}</p>
                 <div style="font-size:34px;letter-spacing:9px;font-weight:800;color:#f7d778;padding:18px 8px">${code}</div>
-                <p style="color:#aaa;font-size:13px">الكود صالح لمدة 10 دقائق. إذا لم تطلب إنشاء الحساب فتجاهل الرسالة.</p>
+                <p style="color:#aaa;font-size:13px">الكود صالح لمدة 10 دقائق. إذا لم تطلب هذا الإجراء فتجاهل الرسالة.</p>
               </div>
             </body>
           </html>`
@@ -608,7 +629,7 @@ export class SignalingRoom extends DurableObject {
     }catch{}
   }
 
-  async deleteAccountStep(auth,body){
+  async deleteAccountStep(auth,body,bulk=false){
     const target=String(body.username||"").trim().toLowerCase();
     if(!/^[a-z0-9_]{3,24}$/.test(target))return j({ok:false,error:"اسم المستخدم غير صالح"},400);
     if(target===this.ownerUsername() || target===auth.session.username)return j({ok:false,error:"لا يمكن حذف حساب المدير الرئيسي من إدارة الحسابات"},403);
@@ -620,7 +641,7 @@ export class SignalingRoom extends DurableObject {
     if(!job && !user)return j({ok:false,error:"المستخدم غير موجود"},404);
     if(!this.env.MEDIA_BUCKET)return j({ok:false,error:"اربط MEDIA_BUCKET لحذف ملفات الحساب أيضًا"},409);
     if(this.accountDeleteBusy)return j({ok:false,error:"دفعة حذف قيد التنفيذ؛ أعد المحاولة",code:"DELETE_BUSY"},409);
-    if(this.resetClosing || this.resetStepBusy)return j({ok:false,error:"توجد عملية تصفير جارية",code:"RESET_IN_PROGRESS"},409);
+    if(!bulk && (this.resetClosing || this.resetStepBusy))return j({ok:false,error:"توجد عملية تصفير جارية",code:"RESET_IN_PROGRESS"},409);
     this.accountDeleteBusy=true;
     try{
       this.accountDeleteClosing=true;
@@ -662,7 +683,7 @@ export class SignalingRoom extends DurableObject {
         const posts=new Set(job.postIds),stories=new Set(job.storyIds);
         const resetRateKey=`reset-rate:${await hashPassword(job.email)}`;
         const remove=async key=>this.ctx.storage.delete(key);
-        const ownPrefixes=["account-state","friends","friendIncoming","friendOutgoing","blocked","following","followers","notifications","saved","calls","callSignals","fcmTokens","hmsTokens","legal-consent","deletion-request","report-rate","lastSeen","lastCallPushResult","pushTestLast"];
+        const ownPrefixes=["admin-security","admin-security-code","admin-security-attempts","account-state","friends","friendIncoming","friendOutgoing","blocked","following","followers","notifications","saved","calls","callSignals","fcmTokens","hmsTokens","legal-consent","deletion-request","report-rate","lastSeen","lastCallPushResult","pushTestLast"];
         for(const [key,value] of page){
           if(key==="admin-delete:job")continue;
           if(key.startsWith("admin-delete-media:")){await remove(key);continue;}
@@ -677,7 +698,7 @@ export class SignalingRoom extends DurableObject {
             await remove(key);continue;
           }
           let next=value;
-          if(key==="usernames" || key==="moderators")next=(value||[]).filter(x=>x!==target);
+          if(key==="usernames" || key==="moderators" || key==="admin-moderators:v2")next=(value||[]).filter(x=>x!==target);
           else if(key==="postIds")next=(value||[]).filter(x=>!posts.has(x));
           else if(key==="storyIds")next=(value||[]).filter(x=>!stories.has(x));
           else if(key.startsWith("post:")){
@@ -718,7 +739,8 @@ export class SignalingRoom extends DurableObject {
     const path=new URL(request.url).pathname;
     const deleting=!!await this.ctx.storage.get("admin-delete:job");
     if(path.startsWith("/api/admin/reset/")){
-      if(deleting || this.accountDeleteClosing)return j({ok:false,error:"استكمل حذف الحساب الجاري أولًا",code:"ACCOUNT_DELETE_IN_PROGRESS"},409);
+      const bulk=await this.ctx.storage.get("owner-reset:plan");
+      if((deleting || this.accountDeleteClosing) && !(bulk?.kind==="accounts" && bulk.phase==="deleting"))return j({ok:false,error:"استكمل حذف الحساب الجاري أولًا",code:"ACCOUNT_DELETE_IN_PROGRESS"},409);
       return this.apiRequest(request);
     }
     if(path==="/api/admin/users/delete"){
@@ -726,10 +748,11 @@ export class SignalingRoom extends DurableObject {
       if(this.resetClosing || reset?.phase==="deleting")return j({ok:false,error:"توجد عملية تصفير جارية",code:"RESET_IN_PROGRESS"},503);
       return this.apiRequest(request);
     }
-    const adminRead=request.method==="GET" && ["/api/admin/users","/api/admin/summary"].includes(path);
+    let adminRead=request.method==="GET" && ["/api/me","/api/admin/users","/api/admin/summary","/api/admin/security"].includes(path);
+    if(path==="/api/me" && adminRead){const auth=await this.requireAdmin(new URL(request.url).searchParams.get("token"));adminRead=!auth.error;}
     if(deleting || this.accountDeleteClosing){
       if(!adminRead)return j({ok:false,error:"جاري حذف حساب بواسطة الإدارة؛ حاول بعد قليل",code:"ACCOUNT_DELETE_IN_PROGRESS"},503);
-    }else if(await this.resetActive())return j({ok:false,error:"التطبيق تحت التصفير؛ أعد المحاولة بعد اكتماله",code:"RESET_IN_PROGRESS"},503);
+    }else if(!adminRead && await this.resetActive())return j({ok:false,error:"التطبيق تحت التصفير؛ أعد المحاولة بعد اكتماله",code:"RESET_IN_PROGRESS"},503);
     return this.trackOperation(()=>this.apiRequest(request));
   }
 
@@ -817,6 +840,44 @@ export class SignalingRoom extends DurableObject {
       const parsed=await readApiJson(request);
       if(parsed.error)return parsed.error;
       body=parsed.body;
+    }
+
+    if(url.pathname==="/api/admin/security" && request.method==="GET"){
+      const auth=await this.requireAdmin(url.searchParams.get("token"));if(auth.error)return auth.error;
+      return j({ok:true,configured:!!await this.ctx.storage.get(`admin-security:${this.ownerUsername()}`)});
+    }
+    if(url.pathname==="/api/admin/security/code" && request.method==="POST"){
+      const auth=await this.requireAdmin(body.token);if(auth.error)return auth.error;
+      if(!this.ownerEmail())return j({ok:false,error:"اضبط بريد المدير الرئيسي في الخادم أولًا"},409);
+      if(this.adminEnrollmentBusy)return j({ok:false,error:"طلب حماية قيد التنفيذ"},409);
+      this.adminEnrollmentBusy=true;
+      try{
+        const key=`admin-security-code:${this.ownerUsername()}`,previous=await this.ctx.storage.get(key);
+        if(previous && Date.now()-previous.createdAt<60000)return j({ok:false,error:"انتظر دقيقة قبل طلب كود جديد"},429);
+        const code=String(crypto.getRandomValues(new Uint32Array(1))[0]%1000000).padStart(6,"0");
+        await this.sendVerificationEmail(this.ownerEmail(),code,true);
+        await this.ctx.storage.put(key,{hash:await hashPassword(code),tokenHash:await hashPassword(body.token),createdAt:Date.now(),attempts:0});
+        return j({ok:true,email:this.maskEmail(this.ownerEmail())});
+      }catch{return j({ok:false,error:"تعذر إرسال كود حماية الإدارة إلى بريد المدير؛ راجع إعداد البريد"},503);}
+      finally{this.adminEnrollmentBusy=false;}
+    }
+    if(url.pathname==="/api/admin/security/password" && request.method==="POST"){
+      const auth=await this.requireAdmin(body.token);if(auth.error)return auth.error;
+      if(this.adminEnrollmentBusy)return j({ok:false,error:"طلب حماية قيد التنفيذ"},409);
+      this.adminEnrollmentBusy=true;
+      try{
+        const key=`admin-security-code:${this.ownerUsername()}`,proof=await this.ctx.storage.get(key);
+        if(!proof || Date.now()-proof.createdAt>600000 || proof.attempts>=5 || proof.tokenHash!==await hashPassword(body.token))return j({ok:false,error:"اطلب كود حماية جديد من هذه الجلسة"},403);
+        proof.attempts++;await this.ctx.storage.put(key,proof);
+        if(!/^[0-9]{6}$/.test(String(body.code||"")) || proof.hash!==await hashPassword(body.code))return j({ok:false,error:"كود البريد غير صحيح"},403);
+        const password=String(body.newPassword||"");
+        if(password.length<10 || password.length>128 || password!==body.confirmPassword)return j({ok:false,error:"كلمة حماية الإدارة من 10 إلى 128 حرفًا مع تأكيد مطابق"},400);
+        const user=await this.user(auth.session.username);
+        if(user?.passwordHash && await passwordMatches(password,user.passwordHash))return j({ok:false,error:"اختر كلمة حماية مختلفة عن كلمة دخول الحساب"},400);
+        await this.ctx.storage.put(`admin-security:${this.ownerUsername()}`,{hash:await securePassword(password),updatedAt:Date.now()});
+        await this.ctx.storage.delete(key);await this.ctx.storage.delete(`admin-security-attempts:${this.ownerUsername()}`);
+        return j({ok:true});
+      }finally{this.adminEnrollmentBusy=false;}
     }
 
     if(url.pathname==="/api/adhan-voices" && request.method==="GET"){
@@ -1745,8 +1806,9 @@ export class SignalingRoom extends DurableObject {
       const post=await this.ctx.storage.get(`post:${id}`);
       if(!post)return j({ok:false,error:"المنشور غير موجود"},404);
       const role=await this.roleFor(s.username);
-      const isAdmin=role==="super_admin" || role==="moderator";
+      const isAdmin=role==="super_admin";
       if(post.author!==s.username && !isAdmin)return j({ok:false,error:"غير مسموح لك بحذف هذا المنشور"},403);
+      if(isAdmin){const error=await this.requireAdminPassword(body.adminPassword);if(error)return error;}
       await this.ctx.storage.delete(`post:${id}`);
       const ids=await this.ctx.storage.get("postIds")||[];
       await this.ctx.storage.put("postIds",ids.filter(x=>x!==id));
@@ -2514,62 +2576,69 @@ export class SignalingRoom extends DurableObject {
       }});
     }
 
-    // Only the authenticated owner can review and execute a complete reset.
-    // No user record (including the current owner), media or backup is retained by this flow.
+    // Protected scoped cleanup. No endpoint can remove the configured owner.
     if(url.pathname==="/api/admin/reset/plan" && request.method==="POST"){
       const auth=await this.requireAdmin(body.token||"");if(auth.error)return auth.error;
-      const owner=await this.user(auth.session.username);
-      if(!/^[a-z0-9_]{3,24}$/.test(this.ownerUsername()) || !this.ownerEmail() || this.ownerEmail()!==String(owner?.email||"").toLowerCase())
-        return j({ok:false,error:"اضبط SUPER_ADMIN_USERNAME باسم حساب المدير و SUPER_ADMIN_EMAIL ببريد الحساب نفسه أولًا",code:"OWNER_EMAIL_REQUIRED"},409);
-      if(!this.env.MEDIA_BUCKET)return j({ok:false,error:"اربط مخزن MEDIA_BUCKET قبل التصفير لمسح ملفات الوسائط أيضًا"},409);
-      const previous=await this.ctx.storage.get("owner-reset:plan");
+      if(!this.ownerEmail())return j({ok:false,error:"اضبط بريد المدير الرئيسي أولًا"},409);
+      let previous=await this.ctx.storage.get("owner-reset:plan");
+      if(previous && !["accounts","posts"].includes(previous.kind)){await this.ctx.storage.delete("owner-reset:plan");previous=null;this.resetClosing=false;}
       if(previous?.phase==="deleting"){
-        if(previous.tokenHash!==await hashPassword(body.token))return j({ok:false,error:"استكمل التصفير من جلسة المدير التي بدأت العملية"},403);
-        return j({ok:true,owner:this.ownerUsername(),planId:previous.id,confirmation:"امسح كل الحسابات",scope:previous.scope,resuming:true});
+        if(!["accounts","posts"].includes(previous.kind))return j({ok:false,error:"خطة التصفير القديمة ملغاة لحماية حساب المدير",code:"LEGACY_RESET_DISABLED"},409);
+        return j({ok:true,owner:this.ownerUsername(),planId:previous.id,confirmation:previous.confirmation,scope:previous.scope,resuming:true});
       }
-      const scope=await this.resetInventory();
-      const plan={id:crypto.randomUUID(),tokenHash:await hashPassword(body.token),phase:"review",expiresAt:Date.now()+600000,scope,deletedMedia:0};
+      const kind=body.scope||"accounts";
+      if(!["accounts","posts"].includes(kind))return j({ok:false,error:"اختر الحسابات أو المنشورات"},400);
+      if(kind==="accounts" && !this.env.MEDIA_BUCKET)return j({ok:false,error:"اربط مخزن الوسائط قبل حذف الحسابات"},409);
+      const inventory=await this.resetInventory();
+      const targets=kind==="accounts"?(await this.allRecords("user:")).map(u=>u.username).filter(n=>n!==this.ownerUsername()):[];
+      const scope={...inventory,kind,accountsToDelete:targets.length,postsToDelete:kind==="posts"?inventory.byCategory.post||0:0};
+      const confirmation=kind==="accounts"?"امسح الحسابات عدا المدير":"امسح كل المنشورات";
+      const plan={id:crypto.randomUUID(),owner:this.ownerUsername(),kind,targets,completed:0,cursor:null,phase:"review",expiresAt:Date.now()+600000,scope,confirmation,deletedMedia:0};
       await this.ctx.storage.put("owner-reset:plan",plan);
-      return j({ok:true,owner:this.ownerUsername(),planId:plan.id,confirmation:"امسح كل الحسابات",scope,resuming:false});
+      return j({ok:true,owner:this.ownerUsername(),planId:plan.id,confirmation,scope,resuming:false});
     }
 
     if(url.pathname==="/api/admin/reset/execute" && request.method==="POST"){
       const auth=await this.requireAdmin(body.token||"");if(auth.error)return auth.error;
+      const passwordError=await this.requireAdminPassword(body.adminPassword);if(passwordError)return passwordError;
       const plan=await this.ctx.storage.get("owner-reset:plan");
-      if(!plan || plan.id!==body.planId || plan.tokenHash!==await hashPassword(body.token))
-        return j({ok:false,error:"اعرض تقرير التصفير من هذه الجلسة أولًا"},409);
-      if(body.confirmation!=="امسح كل الحسابات")return j({ok:false,error:"اكتب عبارة التأكيد كما ظهرت في التقرير"},400);
+      if(!plan || plan.id!==body.planId || plan.owner!==this.ownerUsername() || !["accounts","posts"].includes(plan.kind))
+        return j({ok:false,error:"اعرض نطاق الحذف الجديد أولًا؛ الخطط القديمة ملغاة"},409);
+      if(body.confirmation!==plan.confirmation)return j({ok:false,error:"اكتب عبارة التأكيد كما ظهرت في التقرير"},400);
       if(plan.phase!=="deleting" && Date.now()>plan.expiresAt)return j({ok:false,error:"انتهت صلاحية التقرير؛ اعرضه من جديد"},409);
-      if(this.accountDeleteClosing || this.accountDeleteBusy)return j({ok:false,error:"استكمل حذف الحساب أولًا",code:"ACCOUNT_DELETE_IN_PROGRESS"},409);
-      if(this.resetStepBusy)return j({ok:false,error:"توجد دفعة تصفير قيد التنفيذ؛ أعد المحاولة",code:"RESET_BUSY"},409);
+      if(this.resetStepBusy || this.accountDeleteBusy)return j({ok:false,error:"دفعة حذف قيد التنفيذ",code:"RESET_BUSY"},409);
       this.resetStepBusy=true;
       try{
-        this.resetClosing=true;
-        plan.phase="deleting";
+        this.resetClosing=true;plan.phase="deleting";
         await this.ctx.storage.put("owner-reset:plan",plan);
-        // Let already-authorized work settle; the gate now refuses new work.
         await Promise.allSettled([...this.activeOperations]);
-        for(const ws of this.sockets())try{
-          if(this.meta(ws).user!==auth.session.username)this.send(ws,{type:"account-reset"});
-          ws.close(1012,"Application reset");
-        }catch{}
-        if(this.env.MEDIA_BUCKET){
-          // Always list the first remaining page; deleting while following a cursor can skip keys.
-          const page=await this.env.MEDIA_BUCKET.list({limit:100});
-          if(page.objects.length){
-            await this.env.MEDIA_BUCKET.delete(page.objects.map(object=>object.key));
-            plan.deletedMedia+=page.objects.length;
-            await this.ctx.storage.put("owner-reset:plan",plan);
-            return j({ok:true,done:false,deletedMedia:plan.deletedMedia});
+        if(plan.kind==="accounts" && plan.completed<plan.targets.length){
+          const target=plan.targets[plan.completed];
+          if(target===this.ownerUsername())throw Error("OWNER_PROTECTED");
+          const response=await this.deleteAccountStep(auth,{username:target,confirmation:target},true);
+          const result=await response.json();
+          if(!result.ok)return j(result,response.status);
+          if(result.done){plan.completed++;plan.deletedMedia+=result.deletedMedia||0;}
+        }else if(plan.kind==="posts"){
+          const page=await this.ctx.storage.list({limit:100,...(plan.cursor?{startAfter:plan.cursor}:{})});
+          for(const [key,value] of page){
+            if(key.startsWith("post:")){await this.ctx.storage.delete(key);plan.completed++;}
+            else if(key==="postIds" || key.startsWith("saved:"))await this.ctx.storage.put(key,[]);
+            else if(key.startsWith("notifications:"))await this.ctx.storage.put(key,(value||[]).filter(n=>!n.postId));
+            else if(key==="reports")await this.ctx.storage.put(key,(value||[]).filter(r=>r.targetType!=="post"));
           }
+          plan.cursor=page.size===100?[...page.keys()].at(-1):null;
+          plan.postsDone=!plan.cursor;
         }
-        await this.ctx.storage.deleteAll();
-        this.recentPush?.clear();this.fcmToken=null;this.fcmExpires=0;this.hmsToken=null;this.hmsExpires=0;
-        this.resetClosing=false;
-        return j({ok:true,done:true,users:0,posts:0,durableObjectKeys:0,mediaObjects:0,keptAccounts:[],deletedMedia:plan.deletedMedia,loggedOut:true});
+        const done=plan.kind==="accounts"?plan.completed>=plan.targets.length:plan.postsDone;
+        if(done){
+          await this.ctx.storage.delete("owner-reset:plan");this.resetClosing=false;
+          return j({ok:true,done:true,completed:plan.completed,keptAccounts:[this.ownerUsername()],loggedOut:false});
+        }
+        await this.ctx.storage.put("owner-reset:plan",plan);
+        return j({ok:true,done:false,completed:plan.completed,deletedMedia:plan.deletedMedia});
       }catch{
-        // The persisted gate stays closed on partial R2 failure; retry from the same owner session.
-        return j({ok:false,error:"توقف التصفير قبل اكتماله. أعد المحاولة من جلسة المدير نفسها",code:"RESET_RETRY_REQUIRED"},503);
+        return j({ok:false,error:"توقف الحذف مؤقتًا؛ استكمله من لوحة الإدارة",code:"RESET_RETRY_REQUIRED"},503);
       }finally{this.resetStepBusy=false;}
     }
 
@@ -2581,6 +2650,7 @@ export class SignalingRoom extends DurableObject {
     if(url.pathname==="/api/admin/reset/export" && request.method==="POST"){
       const auth=await this.requireAdmin(body.token||"");
       if(auth.error)return auth.error;
+      const passwordError=await this.requireAdminPassword(body.adminPassword);if(passwordError)return passwordError;
       // The export includes password hashes and session tokens. Treat it as SECRET.
       const limit=Math.max(1,Math.min(30,Number(body.limit)||15));
       const startAfter=String(body.startAfter||"");
@@ -2605,13 +2675,13 @@ export class SignalingRoom extends DurableObject {
     }
 
     if(url.pathname==="/api/admin/summary" && request.method==="GET"){
-      const auth=await this.requireAdmin(url.searchParams.get("token")||"");
+      const auth=await this.requireAdmin(url.searchParams.get("token")||"",true);
       if(auth.error)return auth.error;
-      return j({ok:true,role:auth.role,owner:this.ownerUsername(),...await this.adminStatistics()});
+      return j({ok:true,role:auth.role,owner:this.ownerUsername(),securityConfigured:!!await this.ctx.storage.get(`admin-security:${this.ownerUsername()}`),...await this.adminStatistics()});
     }
 
     if(url.pathname==="/api/admin/users" && request.method==="GET"){
-      const auth=await this.requireAdmin(url.searchParams.get("token")||"");if(auth.error)return auth.error;
+      const auth=await this.requireAdmin(url.searchParams.get("token")||"",true);if(auth.error)return auth.error;
       const query=String(url.searchParams.get("q")||"").trim().toLowerCase();
       const list=[];
       for(const u of await this.allRecords("user:")){
@@ -2626,37 +2696,62 @@ export class SignalingRoom extends DurableObject {
 
     if(url.pathname==="/api/admin/users/delete" && request.method==="POST"){
       const auth=await this.requireAdmin(body.token||"");if(auth.error)return auth.error;
+      const passwordError=await this.requireAdminPassword(body.adminPassword);if(passwordError)return passwordError;
       return this.deleteAccountStep(auth,body);
     }
 
     if(url.pathname==="/api/admin/reports" && request.method==="GET"){
-      const auth=await this.requireAdmin(url.searchParams.get("token")||"");
+      const auth=await this.requireAdmin(url.searchParams.get("token")||"",true);
       if(auth.error)return auth.error;
       const reports=await this.ctx.storage.get("reports")||[];
       return j({ok:true,reports:[...reports].reverse().slice(0,500)});
     }
 
     if(url.pathname==="/api/admin/posts" && request.method==="GET"){
-      const auth=await this.requireAdmin(url.searchParams.get("token")||"");
+      const auth=await this.requireAdmin(url.searchParams.get("token")||"",true);
       if(auth.error)return auth.error;
-      const ids=await this.ctx.storage.get("postIds")||[];
-      const posts=[];
-      for(const id of [...ids].reverse().slice(0,200)){ const p=await this.ctx.storage.get(`post:${id}`); if(p)posts.push({id:p.id,author:p.author,text:String(p.text||"").slice(0,180),createdAt:p.createdAt||0,hasImage:!!p.image}); }
+      const query=String(url.searchParams.get("q")||"").trim().toLowerCase();
+      const posts=(await this.allRecords("post:")).filter(p=>!query || `${p.id} ${p.author} ${p.text||""}`.toLowerCase().includes(query))
+        .sort((a,b)=>(b.createdAt||0)-(a.createdAt||0)).slice(0,200)
+        .map(p=>({id:p.id,author:p.author,text:String(p.text||"").slice(0,10000),createdAt:p.createdAt||0,hasImage:!!p.image}));
       return j({ok:true,posts});
     }
 
     if(url.pathname==="/api/admin/action" && request.method==="POST"){
-      const auth=await this.requireAdmin(body.token||"");
+      const auth=await this.requireAdmin(body.token||"",true);
       if(auth.error)return auth.error;
       const action=String(body.action||"");
       const target=String(body.username||"").trim().toLowerCase();
       const owner=this.ownerUsername();
 
+      const sensitive=["delete_post","update_post","update_user","make_moderator","remove_moderator"].includes(action);
+      if(sensitive){
+        if(auth.role!=="super_admin")return j({ok:false,error:"الحذف وتعديل البيانات والصلاحيات للمدير الرئيسي فقط"},403);
+        const passwordError=await this.requireAdminPassword(body.adminPassword);if(passwordError)return passwordError;
+      }
+      if(action==="update_post"){
+        const id=String(body.postId||""),post=await this.ctx.storage.get(`post:${id}`);
+        if(!post)return j({ok:false,error:"المنشور غير موجود"},404);
+        if(typeof body.text!=="string" || body.text.length>10000)return j({ok:false,error:"نص المنشور غير صالح"},400);
+        post.text=body.text;post.updatedAt=Date.now();post.editedBy=auth.session.username;
+        await this.ctx.storage.put(`post:${id}`,post);return j({ok:true});
+      }
+      if(action==="update_user"){
+        const user=await this.user(target);if(!user)return j({ok:false,error:"المستخدم غير موجود"},404);
+        if(typeof body.displayName!=="string" || body.displayName.trim().length<2 || body.displayName.length>60)return j({ok:false,error:"الاسم من حرفين إلى 60 حرفًا"},400);
+        user.displayName=body.displayName.trim();user.fullName=user.displayName;
+        await this.ctx.storage.put(`user:${target}`,user);return j({ok:true});
+      }
       if(["ban","unban","suspend","activate","make_moderator","remove_moderator"].includes(action)){
         let u=await this.user(target);
         if(!target || !u)return j({ok:false,error:"المستخدم غير موجود"},404);
         if(target===owner)return j({ok:false,error:"لا يمكن إيقاف حساب المدير الرئيسي"},403);
-        if(["make_moderator","remove_moderator"].includes(action))return j({ok:false,error:"صلاحيات الإدارة للحساب الرئيسي فقط"},403);
+        if(["make_moderator","remove_moderator"].includes(action)){
+          const moderators=await this.ctx.storage.get("admin-moderators:v2")||[];
+          await this.ctx.storage.put("admin-moderators:v2",action==="make_moderator"?[...new Set([...moderators,target])]:moderators.filter(n=>n!==target));
+          return j({ok:true});
+        }
+        if(auth.role==="moderator" && await this.roleFor(target)==="moderator")return j({ok:false,error:"لا يمكن للمشرف إيقاف مشرف آخر"},403);
         if(this.accountStatusBusy.has(target))return j({ok:false,error:"جاري تحديث هذا الحساب؛ حاول بعد قليل"},409);
         this.accountStatusBusy.add(target);
         try{

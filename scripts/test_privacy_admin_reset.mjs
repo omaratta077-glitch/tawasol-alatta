@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import {enrollAdmin,ADMIN_TEST_PASSWORD} from './admin_security_fixture.mjs';
 import fs from 'node:fs';
 import {webcrypto} from 'node:crypto';
 if(!globalThis.crypto)globalThis.crypto=webcrypto;
@@ -23,7 +24,7 @@ const media={async list({cursor,limit=1000}={}){
 }};
 const room=new SignalingRoom({storage},{SUPER_ADMIN_USERNAME:'omar1',MEDIA_BUCKET:media});
 async function api(method,path,body){
- const req=new Request('https://unit.example'+path,{method,headers:{'Content-Type':'application/json'},...(body?{body:JSON.stringify(body)}:{})});
+ const req=new Request('https://unit.example'+path,{method,headers:{'Content-Type':'application/json'},...(body?{body:JSON.stringify({...body,adminPassword:ADMIN_TEST_PASSWORD})}:{})});
  const res=await room.api(req);
  return {status:res.status,data:await res.json()};
 }
@@ -54,8 +55,11 @@ check('Hidden account does not appear in directory after friendship', !(await ge
 check('Unauthorised user cannot preview reset', (await post('/api/admin/reset/preview',{token:sessions.alice})).status===403);
 check('Unauthorised user cannot export DO', (await post('/api/admin/reset/export',{token:sessions.alice})).status===403);
 check('Unauthorised user cannot export R2 inventory', (await post('/api/admin/reset/media-list',{token:sessions.alice})).status===403);
+const ownerFixture=await storage.get("user:omar1");ownerFixture.email="owner@example.test";await storage.put("user:omar1",ownerFixture);room.env.SUPER_ADMIN_EMAIL="owner@example.test";
+await enrollAdmin(room,sessions.omar1);
+const deletesBeforeReview=deletes;
 const preview=await post('/api/admin/reset/preview',{token:sessions.omar1});
-check('Owner can preview without deletion', preview.status===200 && preview.data.dryRun===true && preview.data.keepAccount===null && preview.data.deleteOwnerAccount===true && preview.data.media.count===1);
+check('Owner can preview without deletion', preview.status===200 && preview.data.dryRun===true && preview.data.keepAccount==="omar1" && preview.data.deleteOwnerAccount===false && preview.data.media.count===1);
 const exported=[];
 let cursor='';
 while(true){
@@ -67,7 +71,7 @@ while(true){
 }
 check('Complete read-only backup page iteration', exported.length===preview.data.durableObjectKeys && exported.some(e=>e.key==='user:omar1'));
 check('Owner can inventory media', (await post('/api/admin/reset/media-list',{token:sessions.omar1})).data.objects[0].key==='image/test.png');
-check('No data was deleted during preview or export', deletes===0 && !!(await storage.get('user:omar1')));
+check('No data was deleted during preview or export', deletes===deletesBeforeReview && !!(await storage.get('user:omar1')));
 // Google account creation is equally protected (without calling Google test network).
 check('Gender is required for standard registration', Boolean(await room.validateRegistration({fullName:'X Test',username:'newname',age:20,email:'new@test.com',gender:'',password:'123456',confirmPassword:'123456'})));
 check('Female hiding choice is mandatory', (await room.validateRegistration({fullName:'X Test',username:'newname',age:20,email:'new@test.com',gender:'female',password:'123456',confirmPassword:'123456'})).includes('إخفاء'));
