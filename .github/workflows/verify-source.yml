@@ -18,7 +18,9 @@ jobs:
         with:
           python-version: '3.12'
       - name: Check official app and backend source
-        run: python3 scripts/check_core.py
+        run: |
+          python3 scripts/check_core.py
+          python3 scripts/export_web_icons.py --check
       - name: Backend and YouTube source tests
         run: |
           node scripts/test_backend.mjs
