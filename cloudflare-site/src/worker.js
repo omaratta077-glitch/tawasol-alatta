@@ -2591,7 +2591,9 @@ export class SignalingRoom extends DurableObject {
       if(kind==="accounts" && !this.env.MEDIA_BUCKET)return j({ok:false,error:"اربط مخزن الوسائط قبل حذف الحسابات"},409);
       const inventory=await this.resetInventory();
       const targets=kind==="accounts"?(await this.allRecords("user:")).map(u=>u.username).filter(n=>n!==this.ownerUsername()):[];
-      const scope={...inventory,kind,accountsToDelete:targets.length,postsToDelete:kind==="posts"?inventory.byCategory.post||0:0};
+      const targetSet=new Set(targets);
+      const postsToDelete=kind==="posts"?inventory.byCategory.post||0:(await this.allRecords("post:")).filter(p=>targetSet.has(p.author)).length;
+      const scope={...inventory,kind,accountsToDelete:targets.length,postsToDelete};
       const confirmation=kind==="accounts"?"امسح الحسابات عدا المدير":"امسح كل المنشورات";
       const plan={id:crypto.randomUUID(),owner:this.ownerUsername(),kind,targets,completed:0,cursor:null,phase:"review",expiresAt:Date.now()+600000,scope,confirmation,deletedMedia:0};
       await this.ctx.storage.put("owner-reset:plan",plan);

@@ -43,7 +43,7 @@ check('unprotected backups are forbidden',(await api('/api/admin/reset/export'))
 await storage.put('owner-reset:plan',{id:'legacy',phase:'deleting',scope:{deleteOwnerAccount:true}});
 check('old destructive plans cannot execute',(await api('/api/admin/reset/execute',secure({planId:'legacy',confirmation:'امسح كل الحسابات'}))).status===409);
 const plan=(await api('/api/admin/reset/plan')).data;
-check('new plan explicitly preserves owner',plan.scope.keepAccount==='owner'&&plan.scope.deleteOwnerAccount===false&&plan.scope.accountsToDelete===3);
+check('new plan explicitly preserves owner',plan.scope.keepAccount==='owner'&&plan.scope.deleteOwnerAccount===false&&plan.scope.accountsToDelete===3&&plan.scope.postsToDelete===1);
 for(let i=0;i<350;i++)objects.set('image/'+String(i).padStart(4,'0'),{key:'image/'+String(i).padStart(4,'0'),size:10,customMetadata:{owner:i%2?'owner':'alice'}});
 for(let i=0;i<240;i++)await storage.put('filler:'+i,{keep:true});
 let result,steps=0,failed=false;fail=true;const logError=console.error;console.error=msg=>logError(msg);
