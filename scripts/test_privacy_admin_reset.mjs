@@ -93,7 +93,7 @@ for(const path of ['/api/posts','/api/saved-posts','/api/explore']){
 const friendFeed=await get('/api/posts?token='+sessions.bob);
 check('Confirmed friend can still see hidden friend interactions',JSON.stringify(friendFeed.data).includes('hidden-comment'));
 await storage.put('notifications:alice',[{id:'legacy-hidden',from:'dina',type:'comment'},{id:'visible-note',from:'bob',type:'comment'}]);
-check('Legacy notifications do not reveal hidden stranger',(await get('/api/notifications?token='+sessions.alice)).data.notifications.length===1);
+check('Legacy notifications do not reveal hidden stranger',(await get('/api/notifications?token='+sessions.alice)).data.notifications.length===2 && !JSON.stringify((await get('/api/notifications?token='+sessions.alice)).data).includes('dina'));
 await storage.put('groupIds',['legacy']);await storage.put('group:legacy',{id:'legacy',createdBy:'dina',members:['alice','dina','bob']});
 check('Legacy group metadata hides unknown hidden creator',!JSON.stringify((await get('/api/groups?token='+sessions.alice)).data).includes('dina'));
 console.log('ALL PRIVACY AND OWNER PREVIEW TESTS PASSED');

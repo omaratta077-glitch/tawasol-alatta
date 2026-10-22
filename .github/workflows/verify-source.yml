@@ -32,6 +32,7 @@ jobs:
           node scripts/test_feed_paging.mjs
           node scripts/test_home_feed_gestures.mjs
           node scripts/test_post_interactions.mjs
+          node scripts/test_anonymous_interactions.mjs
           node scripts/test_privacy_admin_reset.mjs
           node scripts/test_full_reset.mjs
           node scripts/test_owner_change.mjs
@@ -65,3 +66,4 @@ jobs:
           node scripts/web-tests/google-signup.mjs
           node scripts/web-tests/youtube-mobile.mjs
           node scripts/web-tests/calls.mjs
+          node scripts/web-tests/notifications.mjs
