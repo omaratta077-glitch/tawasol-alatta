@@ -550,6 +550,24 @@ internal class NativeRtcCall(
         localAudio?.setEnabled(!muted)
         return muted
     }
+    private val switchingCamera = AtomicBoolean(false)
+
+    fun switchCamera(onSwitched: (Boolean) -> Unit) {
+        val capturer = videoCapturer ?: return
+        if (ended || !switchingCamera.compareAndSet(false, true)) return
+        runCatching {
+            capturer.switchCamera(object : CameraVideoCapturer.CameraSwitchHandler {
+                override fun onCameraSwitchDone(isFrontCamera: Boolean) {
+                    switchingCamera.set(false)
+                    if (!ended) onSwitched(isFrontCamera)
+                }
+                override fun onCameraSwitchError(errorDescription: String) {
+                    switchingCamera.set(false)
+                    if (!ended) report("تعذر تبديل الكاميرا")
+                }
+            })
+        }.onFailure { switchingCamera.set(false); if (!ended) report("تعذر تبديل الكاميرا") }
+    }
     fun toggleCamera(): Boolean {
         cameraOff = !cameraOff
         localVideo?.setEnabled(!cameraOff)

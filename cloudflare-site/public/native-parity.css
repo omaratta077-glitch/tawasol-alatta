@@ -279,3 +279,39 @@ body{background:var(--native-bg)!important;color:#f7f8f9!important}
  #appView .reference-reaction-picker{width:max-content;max-width:100%;gap:3px!important;padding:7px!important;border:1px solid #6b5429!important;border-radius:16px!important;background:#090d0f!important}
  #appView .reference-reaction-picker button{font-size:25px!important;width:39px!important;height:43px!important;border:0!important;background:transparent!important}
 }
+
+/* NativeCallScreen parity: one existing WebRTC stage, shared at all widths. */
+#callOverlay{background:#050709!important;direction:rtl;grid-template-rows:46px minmax(0,1fr) 136px;padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom);box-sizing:border-box;isolation:isolate}
+#callOverlay .call-overlay-header{height:46px;padding:0 12px;background:transparent!important;justify-content:flex-start;border:0}
+#callOverlay .call-top-actions{display:flex;align-items:center;gap:10px}
+#callOverlay .call-top-btn{background:transparent!important;border:0;color:#e6b94e;box-shadow:none}
+#callOverlay .call-stage{position:static;background:transparent!important;min-height:0}
+#callOverlay .remote-full-video{position:absolute;inset:0;width:100%!important;height:100%!important;max-height:none!important;object-fit:cover!important;background:#050709!important;z-index:-1}
+#callOverlay .remote-empty-state{inset:46px 18px 136px;display:flex!important;flex-direction:column;align-items:center;justify-content:center;gap:0}
+#callOverlay .remote-empty-avatar-img{width:126px;height:126px;box-sizing:border-box;object-fit:cover;border:2px solid #e6b94e!important;border-radius:50%;background:#15120d;margin:0 0 18px}
+#callPeerName{font-size:24px;color:#f7f7f7;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#callTypeLabel{font-size:16px;color:#bec3c6;margin-top:6px}
+#callPeerState{font-size:17px;color:#e6b94e;margin-top:30px;text-align:center}
+#callOverlay .call-wave{display:none;align-items:center;gap:5px;margin-top:30px;height:43px}
+#callOverlay .call-wave i{width:4px;background:#e6b94e;border-radius:10px}
+#callOverlay.audio-only-call .call-wave{display:flex}
+#callOverlay.video-established .remote-empty-state{display:none!important}
+#callOverlay .local-pip{position:absolute;top:calc(40px + env(safe-area-inset-top));right:13px;left:auto;width:96px;height:128px;aspect-ratio:auto;border-radius:13px;border:2px solid #e6b94ed9!important;z-index:2;background:#1a1f23;box-shadow:none}
+#callOverlay .local-pip video{object-fit:cover;transform:scaleX(-1)}
+#callOverlay .local-pip.rear-camera video{transform:none}
+#callOverlay .local-pip>span{bottom:0;right:auto;left:0;border-radius:0;padding:2px 8px;background:#050709b0}
+#switchCameraBtn{position:absolute;top:4px;right:4px;display:grid;place-items:center;width:32px;height:32px;border-radius:50%;border:1px solid #e6b94e80;background:#050709b0;color:#f7f7f7;padding:5px;z-index:3}
+#callOverlay .call-bottom-sheet{padding:0 12px 44px;background:transparent!important;border:0;z-index:3}
+#callOverlay .call-tools{height:92px;display:flex;justify-content:space-between;align-items:center;flex-wrap:nowrap;gap:0;max-width:560px;margin:auto;direction:rtl}
+#callOverlay .round-call-btn{width:68px;padding:0;background:transparent!important;border:0;gap:8px;color:#f7f7f7;box-shadow:none}
+#callOverlay .round-icon{box-sizing:border-box;width:59px;height:59px;border:1px solid #e6b94e4d!important;background:#1a1f23!important;backdrop-filter:none;box-shadow:none}
+#callOverlay .round-icon svg{width:27px;height:27px;color:#f7f7f7}
+#callOverlay .round-call-btn small{font-size:10px;color:#f7f7f7;opacity:1}
+#callOverlay .round-call-btn.is-off .round-icon,#callOverlay .round-call-btn[aria-pressed="true"] .round-icon{background:#665029!important}
+#callOverlay .hangup-round .round-icon{width:64px;height:64px;background:#dc2736!important;border-color:#e6b94eeb!important;box-shadow:0 4px 6px #0006}
+#callOverlay .hangup-round svg{width:30px;height:30px}
+#callOverlay .hidden{display:none!important}
+@media(max-height:460px){#callOverlay{grid-template-rows:46px minmax(0,1fr) 100px}#callOverlay .call-bottom-sheet{padding-bottom:8px}#callOverlay .remote-empty-state{bottom:100px}#callOverlay .remote-empty-avatar-img{width:64px;height:64px;margin-bottom:6px}#callOverlay .call-wave{margin-top:8px;height:25px}#callPeerState{margin-top:8px}}
+
+#callOverlay #switchCameraBtn .atta-icon{position:static;display:block;width:22px;height:22px;margin:0;padding:0;background:none;border-radius:0}
+#callOverlay #minimizeCallBtn .atta-icon{width:23px;height:23px}

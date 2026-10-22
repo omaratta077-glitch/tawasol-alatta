@@ -27,6 +27,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -272,6 +274,13 @@ internal fun NativeCallScreen(
                     Text("جارٍ تشغيل كاميرتك...", modifier = Modifier.align(Alignment.Center)
                         .padding(5.dp), textAlign = TextAlign.Center,
                         color = CallGold, fontSize = 10.sp)
+                }
+                Box(Modifier.align(Alignment.TopEnd).padding(4.dp).size(32.dp)
+                    .clip(CircleShape).background(Color(0xB0050709))
+                    .semantics { contentDescription = "تبديل الكاميرا" }
+                    .clickable { engine.switchCamera { front -> localRenderer.post { localRenderer.setMirror(front) } } },
+                    contentAlignment = Alignment.Center) {
+                    SiteIcon("repeat", tint = CallWhite, size = 22.dp)
                 }
                 Text("أنت", color = CallWhite, fontSize = 11.sp,
                     modifier = Modifier.align(Alignment.BottomStart)

@@ -360,6 +360,7 @@ function setCallState(state,peer=activeCallPeer,callId=activeCallId){
   });
 
   document.body.classList.toggle("call-busy",busy);
+  updateCallPresentation(state);
 }
 
 function clearOutgoingCallTimer(){
@@ -1388,6 +1389,7 @@ async function ensurePeer(){
       if(e.track.kind==="video"){
         const empty=document.querySelector(".remote-empty-state");
         if(empty)empty.style.display="none";
+        $("callOverlay")?.classList.add("video-established");
         $("callPeerState").textContent="الفيديو متصل";
         $("callStatusText").textContent="مكالمة فيديو جارية";
       }
@@ -1803,6 +1805,26 @@ async function playOutgoingRing(){
 
 let storyMediaData="", pendingChatMedia=null, typingTimer=null, mediaRecorder=null, voiceChunks=[], profileCoverData="";
 
+let callConnectedAt=0,callDisplayTimer=null;
+function updateCallPresentation(state){
+  const overlay=$("callOverlay");
+  if(state==="connected" && !callConnectedAt){
+    callConnectedAt=Date.now();
+    callDisplayTimer=setInterval(()=>{
+      if(currentCallType!=="audio")return;
+      const seconds=Math.floor((Date.now()-callConnectedAt)/1000);
+      $("callPeerState").textContent=`${String(Math.floor(seconds/60)).padStart(2,"0")}:${String(seconds%60).padStart(2,"0")}`;
+    },1000);
+  }
+  if(state==="idle"){
+    clearInterval(callDisplayTimer);callDisplayTimer=null;callConnectedAt=0;
+    overlay?.classList.remove("video-established");
+    for(const id of ["muteBtn","cameraBtn","speakerBtn"]){$(id)?.classList.remove("is-off");$(id)?.setAttribute("aria-pressed","false")}
+    setRoundCallButton("muteBtn","mic","الميكروفون");setRoundCallButton("cameraBtn","video","الكاميرا");
+  }
+  if(currentCallType==="video" && callConnectedAt)overlay?.classList.add("video-established");
+}
+
 let callOverlayOpen=false;
 
 
@@ -1842,6 +1864,8 @@ function showCallOverlay(peerName,stateText="مكالمة جارية"){
   $("callOverlay")?.classList.toggle("audio-only-call",audioOnly);
   $("cameraBtn")?.classList.toggle("hidden",audioOnly);
   $("localVideo")?.closest(".local-pip")?.classList.toggle("hidden",audioOnly);
+  updateCallPresentation(callState);
+  $("callTypeLabel").textContent=audioOnly?"مكالمة صوتية":"مكالمة فيديو";
   $("callOverlay").classList.remove("hidden");
   $("callStatusBar").classList.remove("hidden");
 
@@ -4011,7 +4035,8 @@ $("muteBtn").onclick=()=>{
   const tracks=localStream?.getAudioTracks()||[];
   tracks.forEach(t=>t.enabled=!t.enabled);
   const muted=tracks[0]?.enabled===false;
-  setRoundCallButton("muteBtn",muted?"mic-off":"mic",muted?"تشغيل المايك":"كتم المايك");
+  setRoundCallButton("muteBtn",muted?"mic-off":"mic","الميكروفون");
+  $("muteBtn").setAttribute("aria-pressed",String(muted));
   $("muteBtn").classList.toggle("is-off",muted);
 };
 
@@ -4037,7 +4062,8 @@ $("cameraBtn").onclick=async()=>{
     tracks.forEach(t=>t.enabled=!t.enabled);
   }
   const off=tracks[0]?.enabled===false;
-  setRoundCallButton("cameraBtn",off?"camera-off":"camera",off?"تشغيل الكاميرا":"إيقاف الكاميرا");
+  setRoundCallButton("cameraBtn",off?"camera-off":"video","الكاميرا");
+  $("cameraBtn").setAttribute("aria-pressed",String(off));
   $("cameraBtn").classList.toggle("is-off",off);
 };
 
@@ -4061,6 +4087,64 @@ if($("resumeRemoteMediaBtn")){
   };
 }
 
+let switchingWebCamera=false;
+$("switchCameraBtn").onclick=async()=>{
+  if(switchingWebCamera || currentCallType!=="video")return;
+  const previous=localStream?.getVideoTracks()[0];
+  if(!previous || !videoSender)return;
+  switchingWebCamera=true;
+  $("switchCameraBtn").disabled=true;
+  let replacement,previousReleased=false;
+  const session=localStream;
+  const priorFacing=previous.getSettings?.().facingMode || ($("localVideo").closest(".local-pip").classList.contains("rear-camera")?"environment":"user");
+  try{
+    const rear=previous.getSettings?.().facingMode==="environment" || $("localVideo").closest(".local-pip").classList.contains("rear-camera");
+    const constraints={audio:false,video:{facingMode:{exact:rear?"user":"environment"}}};
+    let stream;
+    try{stream=await navigator.mediaDevices.getUserMedia(constraints)}
+    catch(error){
+      // Some phones allow only one camera open. Keep audio alive while handing
+      // the camera over, and restore the old facing direction if opening fails.
+      if(error.name!=="NotReadableError")throw error;
+      previous.stop();previousReleased=true;
+      stream=await navigator.mediaDevices.getUserMedia(constraints);
+    }
+    replacement=stream.getVideoTracks()[0];
+    if(!replacement)throw new Error("camera unavailable");
+    replacement.enabled=previous.enabled;
+    if(localStream!==session || !pc)throw new Error("call ended");
+    await videoSender.replaceTrack(replacement);
+    localStream.removeTrack(previous);localStream.addTrack(replacement);previous.stop();
+    $("localVideo").srcObject=localStream;
+    $("localVideo").closest(".local-pip").classList.toggle("rear-camera",!rear);
+    await $("localVideo").play().catch(()=>{});
+  }catch(err){
+    replacement?.stop();
+    if(previousReleased && localStream===session && pc){
+      try{
+        const restored=await navigator.mediaDevices.getUserMedia({audio:false,video:{facingMode:{exact:priorFacing}}});
+        const track=restored.getVideoTracks()[0];
+        if(localStream!==session || !pc){restored.getTracks().forEach(t=>t.stop());return}
+        track.enabled=previous.enabled;
+        await videoSender.replaceTrack(track);
+        session.removeTrack(previous);session.addTrack(track);$("localVideo").srcObject=session;
+      }catch{}
+    }
+    if(localStream===session)alert("تعذر تبديل الكاميرا. تأكد من توفر كاميرا أخرى والسماح باستخدامها.");
+  }
+  finally{switchingWebCamera=false;$("switchCameraBtn").disabled=false}
+};
+$("speakerBtn").onclick=async()=>{
+  const audio=$("remoteAudio"),button=$("speakerBtn");
+  if(!audio?.setSinkId || !navigator.mediaDevices?.selectAudioOutput){
+    alert("تغيير السماعة غير مدعوم في هذا المتصفح. استخدم اختيار مخرج الصوت من إعدادات الجهاز.");return;
+  }
+  try{
+    const output=await navigator.mediaDevices.selectAudioOutput();
+    await audio.setSinkId(output.deviceId);
+    button.setAttribute("aria-pressed",String(output.deviceId!=="default"));
+  }catch{}
+};
 $("screenBtn").onclick=shareScreen;
 window.addEventListener("beforeunload",stopCallSounds);
 
@@ -4253,7 +4337,7 @@ window.AttaWeb=Object.freeze({
 
   if ("serviceWorker" in navigator) {
     window.addEventListener("load", () => {
-      navigator.serviceWorker.register("/sw.js?v=14.4", { scope: "/" }).catch(() => {});
+      navigator.serviceWorker.register("/sw.js?v=14.5", { scope: "/" }).catch(() => {});
     });
   }
 
