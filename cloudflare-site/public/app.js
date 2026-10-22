@@ -1965,6 +1965,8 @@ document.addEventListener("click",async e=>{
 });
 
 function showPage(pageId){
+  // Owner-only UI. Cloudflare independently rejects unauthorized admin APIs.
+  if(pageId==="adminPage" && me?.role!=="super_admin")return false;
   const page=$(pageId);
   if(!page || !page.classList.contains("page"))return false;
   document.querySelectorAll(".page").forEach(p=>p.classList.remove("active-page"));
