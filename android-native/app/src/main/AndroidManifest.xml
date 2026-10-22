@@ -13,7 +13,7 @@
     <uses-permission android:name="android.permission.WAKE_LOCK"/>
     <uses-feature android:name="android.hardware.camera" android:required="false"/>
     <uses-feature android:name="android.hardware.microphone" android:required="false"/>
-    <application android:name=".AttaApplication" android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher_round" android:allowBackup="false" android:label="تواصل العطا" android:theme="@android:style/Theme.Material.NoActionBar" android:usesCleartextTraffic="false" android:supportsRtl="true">
+    <application android:name=".AttaApplication" android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher_round" android:allowBackup="false" android:label="AL-ATTA" android:theme="@android:style/Theme.Material.NoActionBar" android:usesCleartextTraffic="false" android:supportsRtl="true">
         <meta-data android:name="firebase_messaging_auto_init_enabled" android:value="false"/>
         <meta-data android:name="firebase_analytics_collection_enabled" android:value="false"/>
         <meta-data android:name="push_kit_auto_init_enabled" android:value="false"/>

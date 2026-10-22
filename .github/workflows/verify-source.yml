@@ -64,3 +64,4 @@ jobs:
           node scripts/web-tests/pwa-layout.mjs
           node scripts/web-tests/google-signup.mjs
           node scripts/web-tests/youtube-mobile.mjs
+          node scripts/web-tests/calls.mjs
