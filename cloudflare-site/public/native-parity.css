@@ -260,3 +260,22 @@ body{background:var(--native-bg)!important;color:#f7f8f9!important}
 .google-profile-overlay input,.google-profile-overlay select{box-sizing:border-box;min-width:0;max-width:100%;font-size:16px}
 .google-profile-overlay form>input,.google-profile-overlay form>select{width:100%}
 .atta-yt-result{min-width:0}.atta-yt-result .atta-yt-card{width:100%}.atta-yt-share{font-size:12px}
+/* Two text-only install choices; one shared set on the login screen. */
+#authInstallMount{width:min(100%,860px)}
+.mobile-install-actions{display:flex;flex-wrap:wrap;justify-content:center;gap:8px;padding:10px;box-sizing:border-box;background:#040506;color:#f6d776;direction:rtl}
+.mobile-install-actions[hidden]{display:none!important}
+.mobile-install-actions #attaOfficialApkDownload,.mobile-install-actions #installAppBtn{display:flex!important;flex:1 1 0;align-items:center;justify-content:center;min-width:0!important;min-height:44px!important;width:auto!important;max-width:420px;margin:0!important;padding:9px 10px!important;border:1px solid #6b5429!important;border-radius:10px!important;background:#090d0f!important;box-shadow:none!important;color:#f6d776!important;font:700 13px/1.5 Tahoma,Arial,sans-serif!important;text-decoration:none;text-align:center}
+.mobile-install-actions #installAppBtn.hidden{display:none!important}
+.mobile-install-actions .pwa-install-help{flex-basis:100%;margin:0;text-align:center;font-size:11px}
+
+@media(max-width:999px){
+ #appView .reference-post-footer{display:flex!important;flex-direction:row!important;flex-wrap:nowrap!important;justify-content:space-between!important}
+ #appView .reference-post-stats{order:0;display:flex!important;flex-wrap:nowrap!important;gap:5px!important;min-width:0}
+ #appView .reference-post-side-actions{order:1;flex:none}
+ #appView .reference-post-stats .stat-btn{color:#b6bbc0!important;gap:5px!important;padding:4px!important;min-width:0!important}
+ #appView .reference-post-stats .stat-btn.active{color:#f6d776!important}
+ #appView .reference-post-stats .stat-btn .selected-reaction{font-size:21px!important;line-height:1;display:inline-block}
+ #appView .reference-post-stats .post-people-trigger{min-width:24px!important;font-size:12px!important}
+ #appView .reference-reaction-picker{width:max-content;max-width:100%;gap:3px!important;padding:7px!important;border:1px solid #6b5429!important;border-radius:16px!important;background:#090d0f!important}
+ #appView .reference-reaction-picker button{font-size:25px!important;width:39px!important;height:43px!important;border:0!important;background:transparent!important}
+}
