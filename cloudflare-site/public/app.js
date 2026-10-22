@@ -118,7 +118,7 @@ async function api(path,opts={}){
         headers:{"content-type":"application/json",...(opts.headers||{})}});
       const text=await response.text();
       let data;try{data=JSON.parse(text);}catch{throw new Error("تعذر قراءة استجابة الخادم. أعد المحاولة.");}
-      if(!response.ok){const error=new Error(data.error||"حدث خطأ");error.status=response.status;throw error;}
+      if(!response.ok){const error=new Error(data.error||"حدث خطأ");error.status=response.status;error.code=data.code;throw error;}
       return data;
     }catch(error){
       if(read&&attempt===0&&!opts.signal&&error instanceof TypeError)continue;
@@ -1977,6 +1977,7 @@ function showPage(pageId){
   if(!page || !page.classList.contains("page"))return false;
   document.querySelectorAll(".page").forEach(p=>p.classList.remove("active-page"));
   $(pageId).classList.add("active-page");
+  $("appView").dataset.page=pageId;
   document.querySelectorAll(".nav-btn").forEach(b=>b.classList.toggle("active",b.dataset.page===pageId));
   document.querySelectorAll(".rail-btn").forEach(b=>b.classList.toggle("active",b.dataset.page===pageId));
 
@@ -4073,11 +4074,13 @@ registerGender?.addEventListener("change",()=>{
 // V13.8 — Google Identity Services (free verified-email signup/login).
 // Google checks email ownership. No verification code is sent or exposed.
 // AL-ATTA v1.0.10: manually choose profile for first-time Google accounts.
-function requestGoogleProfile(){
+function requestGoogleProfile(submitProfile){
   return new Promise(resolve=>{
     const overlay=document.createElement("div");
-    overlay.style.cssText="position:fixed;inset:0;z-index:999999;background:rgba(0,0,0,.85);display:grid;place-items:center;padding:18px;direction:rtl";
-    overlay.innerHTML=`<form style="width:min(94vw,420px);background:#111619;border:1px solid #e6b94e;border-radius:22px;padding:24px;display:grid;gap:12px;box-shadow:0 12px 50px #000;color:#fff" autocomplete="on">
+    overlay.className="google-profile-overlay";
+    overlay.setAttribute("role","dialog");overlay.setAttribute("aria-modal","true");overlay.setAttribute("aria-label","إنشاء حساب باستخدام Google");
+    overlay.style.cssText="position:fixed;inset:0;z-index:999999;background:rgba(0,0,0,.85);display:grid;place-items:center;padding:12px;direction:rtl;overflow-y:auto";
+    overlay.innerHTML=`<form style="width:min(100%,420px);min-width:0;max-height:calc(100dvh - 24px);overflow-y:auto;background:#111619;border:1px solid #e6b94e;border-radius:22px;padding:24px;display:grid;gap:12px;box-shadow:0 12px 50px #000;color:#fff" autocomplete="on">
       <h2 style="margin:0;color:#e6b94e;font-size:21px">إنشاء حساب تواصل العطا</h2>
       <p style="margin:0;color:#b8bec1;font-size:13px">اختَر اسمك بنفسك. اسم المستخدم لا يظهر تحت اسمك في الملف الشخصي.</p>
       <input name="fullName" required minlength="2" maxlength="60" placeholder="اسمك الذي يظهر للآخرين" style="padding:13px;border-radius:11px;background:#080b0d;color:#fff;border:1px solid #514125">
@@ -4094,6 +4097,7 @@ function requestGoogleProfile(){
         </select>
       </label>
       <label style="color:#e6b94e;font-size:12px"><input type="checkbox" name="legalAccepted" required> قرأت <a href="/terms.html" target="_blank" rel="noopener noreferrer" style="color:#f8d57f">الشروط</a> و<a href="/privacy.html" target="_blank" rel="noopener noreferrer" style="color:#f8d57f">سياسة الخصوصية</a> وأوافق عليهما</label>
+      <p data-google-profile-error role="alert" style="margin:0;color:#ffb5b5;font-size:13px"></p>
       <button type="submit" style="border:0;background:#e6b94e;color:#070707;padding:13px;border-radius:13px;font-weight:800">تأكيد وإنشاء الحساب</button>
       <button type="button" data-cancel style="background:transparent;color:#d9c89a;border:1px solid #6b5429;padding:11px;border-radius:13px">إلغاء</button>
     </form>`;
@@ -4105,12 +4109,18 @@ function requestGoogleProfile(){
       form.querySelector("[data-hidden-label]").style.display=female?"block":"none";
       if(!female)form.elements.accountHidden.value="";
     };
-    form.onsubmit=e=>{
+    form.onsubmit=async e=>{
       e.preventDefault();
+      if(!form.reportValidity())return;
       if(form.elements.gender.value==="female" && !["true","false"].includes(form.elements.accountHidden.value)){
         alert("اختاري هل تريدين إخفاء الحساب أم لا");return;
       }
-      finish({fullName:form.elements.fullName.value.trim(),username:form.elements.username.value.trim().toLowerCase(),birthDate:form.elements.birthDate.value,city:form.elements.city.value.trim(),gender:form.elements.gender.value,accountHidden:form.elements.gender.value==="female" && form.elements.accountHidden.value==="true",legalAccepted:true,legalVersion:"2026-10-20"});
+      const profile={fullName:form.elements.fullName.value.trim(),username:form.elements.username.value.trim().toLowerCase(),birthDate:form.elements.birthDate.value,city:form.elements.city.value.trim(),gender:form.elements.gender.value,accountHidden:form.elements.gender.value==="female" && form.elements.accountHidden.value==="true",legalAccepted:form.elements.legalAccepted.checked,legalVersion:"2026-10-20"};
+      const submit=form.querySelector('[type="submit"]'),error=form.querySelector('[data-google-profile-error]');
+      submit.disabled=true;form.querySelector("[data-cancel]").disabled=true;error.textContent="جاري إنشاء الحساب...";
+      try{finish(await submitProfile(profile));}
+      catch(e){error.textContent=e.message||"تعذر إنشاء الحساب. راجع البيانات وأعد المحاولة.";}
+      finally{submit.disabled=false;form.querySelector("[data-cancel]").disabled=false;}
     };
     document.body.appendChild(overlay);
     const born=form.elements.birthDate;
@@ -4151,12 +4161,11 @@ async function setupGoogleSignIn(){
               method:"POST",body:JSON.stringify({credential})
             });
           }catch(firstError){
-            if(!String(firstError.message||"").includes("USERNAME_REQUIRED"))throw firstError;
-            const profile=await requestGoogleProfile();
-            if(!profile){hint.textContent="لم يتم إنشاء الحساب";return;}
-            result=await api("/api/google-login",{
+            if(firstError.code!=="USERNAME_REQUIRED" && !String(firstError.message||"").includes("USERNAME_REQUIRED"))throw firstError;
+            result=await requestGoogleProfile(profile=>api("/api/google-login",{
               method:"POST",body:JSON.stringify({credential,...profile})
-            });
+            }));
+            if(!result){hint.textContent="لم يتم إنشاء الحساب";return;}
           }
           await startAuthenticatedApp(result.token,result.user);
         }catch(e){hint.textContent=e.message||"تعذر تسجيل الدخول بواسطة Google";}
@@ -4229,7 +4238,7 @@ window.AttaWeb=Object.freeze({
 
   if ("serviceWorker" in navigator) {
     window.addEventListener("load", () => {
-      navigator.serviceWorker.register("/sw.js?v=14.2", { scope: "/" }).catch(() => {});
+      navigator.serviceWorker.register("/sw.js?v=14.3", { scope: "/" }).catch(() => {});
     });
   }
 
