@@ -20,6 +20,8 @@ internal fun AdminProtectionPanel(
     onRefresh: () -> Unit
 ) {
     var showSetup by remember { mutableStateOf(false) }
+    var currentPassword by remember { mutableStateOf("") }
+    var useEmail by remember { mutableStateOf(false) }
     var code by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var confirmation by remember { mutableStateOf("") }
@@ -28,34 +30,40 @@ internal fun AdminProtectionPanel(
     var phrase by remember { mutableStateOf("") }
     val gold = Color(0xFFF6D776)
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(9.dp)) {
-        Text("حماية الإدارة", color = gold, fontWeight = FontWeight.Bold, fontSize = 18.sp)
-        Text(if (configured) "🔒 الحذف وتعديل الصلاحيات محميان بكلمة مرور مستقلة" else "🔒 الحذف مقفول حتى تضبط كلمة حماية الإدارة", color = gold, fontSize = 13.sp)
+        Text("كلمة مرور حذف الحسابات", color = gold, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+        Text(if (configured) "🔒 حذف الحسابات فقط يتطلب كتابة كلمة المرور كل مرة" else "🔒 اضبط كلمة مرور حذف الحسابات أولًا", color = gold, fontSize = 13.sp)
         Text("حساب المدير الرئيسي محمي دائمًا. المشرفون لا يملكون صلاحية الحذف.", color = Color.LightGray, fontSize = 12.sp)
         TextButton(onClick = { showSetup = !showSetup; password = ""; confirmation = "" }) {
             SiteIcon("shield", size = 20.dp)
             Text(if (configured) " تغيير كلمة الحماية" else " إعداد كلمة الحماية", color = gold)
         }
         if (showSetup) {
-            Text("كود التأكيد يصل لبريد المدير الرئيسي. اختر كلمة مختلفة عن كلمة دخول الحساب (10 أحرف على الأقل).", color = Color.LightGray, fontSize = 12.sp)
+            Text("تُحفظ كلمة الحماية في حساب المدير على الخادم. اختر كلمة مختلفة عن كلمة الدخول (10 أحرف على الأقل).", color = Color.LightGray, fontSize = 12.sp)
+            if (configured) {
+                PremiumAuthTextField(currentPassword, { currentPassword = it.take(128) }, "كلمة حماية الحسابات الحالية", password = true)
+                TextButton(onClick = { useEmail = !useEmail; code = "" }) { Text("نسيت كلمة الحماية؟ تأكيد بالبريد", color = gold) }
+            }
+            if (!configured || useEmail) {
             Button(enabled = !busy, onClick = { runTask {
                 val result = request("/api/admin/security/code", JSONObject())
                 status = "أُرسل الكود إلى ${result.optString("email")}"
             } }) { Text("إرسال كود إلى بريد المدير") }
             PremiumAuthTextField(code, { code = it.take(6) }, "كود البريد")
+            }
             PremiumAuthTextField(password, { password = it.take(128) }, "كلمة حماية جديدة", password = true)
             PremiumAuthTextField(confirmation, { confirmation = it.take(128) }, "تأكيد كلمة الحماية", password = true)
-            Button(enabled = !busy && code.length == 6 && password.length >= 10 && password == confirmation, onClick = {
-                val next = password; val again = confirmation
-                password = ""; confirmation = ""
+            Button(enabled = !busy && (if (configured && !useEmail) currentPassword.isNotBlank() else code.length == 6) && password.length >= 10 && password == confirmation, onClick = {
+                val next = password; val again = confirmation; val current = if (configured && !useEmail) currentPassword else ""
+                password = ""; confirmation = ""; currentPassword = ""
                 runTask {
-                    request("/api/admin/security/password", JSONObject().put("code", code).put("newPassword", next).put("confirmPassword", again))
-                    code = ""; showSetup = false; status = "تم حفظ كلمة الحماية"; onRefresh()
+                    request("/api/admin/security/password", JSONObject().put("code", code).put("currentPassword", current).put("newPassword", next).put("confirmPassword", again))
+                    code = ""; showSetup = false; status = "تم حفظ كلمة مرور حذف الحسابات في حساب المدير"; onRefresh()
                 }
             }) { Text("حفظ كلمة الحماية") }
         }
         HorizontalDivider()
         Text("الحذف الجماعي", color = gold, fontWeight = FontWeight.Bold)
-        Text("اعرض النطاق أولًا ثم اكتب العبارة وأدخل كلمة الحماية للتنفيذ.", color = Color.LightGray, fontSize = 12.sp)
+        Text("حذف الحسابات يتطلب كلمة الحماية. حذف المنشورات يحتاج تأكيدًا فقط.", color = Color.LightGray, fontSize = 12.sp)
         listOf("accounts" to "حذف الحسابات عدا المدير", "posts" to "حذف كل المنشورات").forEach { (kind, label) ->
             OutlinedButton(enabled = !busy, modifier = Modifier.fillMaxWidth(), onClick = { runTask {
                 plan = request("/api/admin/reset/plan", JSONObject().put("scope", kind)); phrase = ""
@@ -67,7 +75,8 @@ internal fun AdminProtectionPanel(
         plan?.let { current ->
             Text("اكتب: ${current.optString("confirmation")}", color = gold, fontSize = 12.sp)
             PremiumAuthTextField(phrase, { phrase = it }, "عبارة التأكيد")
-            Button(enabled = !busy && phrase == current.optString("confirmation"), onClick = { protect { secret -> runTask {
+            Button(enabled = !busy && phrase == current.optString("confirmation"), onClick = {
+                val perform: (String) -> Unit = { secret -> runTask {
                 var done = false
                 while (!done) {
                     val result = request("/api/admin/reset/execute", JSONObject().put("planId", current.optString("planId"))
@@ -75,7 +84,9 @@ internal fun AdminProtectionPanel(
                     done = result.optBoolean("done"); status = "تمت معالجة ${result.optInt("completed")}"
                 }
                 plan = null; phrase = ""; status = "اكتمل الحذف؛ حساب المدير محفوظ"; onRefresh()
-            } } }) { Text("تنفيذ الحذف المحمي") }
+            } }
+                if (current.optJSONObject("scope")?.optString("kind") == "accounts") protect(perform) else perform("")
+            }) { Text("تنفيذ الحذف") }
         }
         if (status.isNotBlank()) Text(status, color = gold, fontSize = 12.sp)
     }

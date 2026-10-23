@@ -6,12 +6,19 @@ const begin=source.indexOf('let ownerResetPlan=null;');const end=source.indexOf(
 assert.ok(begin>=0&&end>begin);
 const nodes=new Map();for(const id of ['adminResetPreviewBtn','adminResetExecuteBtn','adminResetConfirmation','adminResetConfirmArea','adminResetPreviewReport','adminResetScope','adminResetPhrase'])nodes.set(id,{value:'',disabled:false,textContent:'',classList:{add(){},remove(){}}});
 const calls=[];let logout=0,reloads=0,attempt=0;
-const ctx={$:id=>nodes.get(id),me:{role:'super_admin'},token:'owner-session',JSON,alert(){},location:{reload(){reloads++}},logoutCurrentAccount:async()=>logout++,adminSecret:async()=> 'test-second-password',loadAdminDashboard:async()=>{},api:async(path,opts)=>{calls.push({path,body:JSON.parse(opts.body)});if(path.endsWith('/plan'))return{planId:'plan',confirmation:'امسح الحسابات عدا المدير',scope:{accountsToDelete:2,postsToDelete:0,durableObjectKeys:12,byCategory:{user:3,post:2},media:{count:205,bytes:2050}}};attempt++;return{done:attempt===3,deletedMedia:Math.min(attempt*100,205)}}};vm.createContext(ctx);vm.runInContext(source.slice(begin,end),ctx);
+const ctx={$:id=>nodes.get(id),me:{role:'super_admin'},token:'owner-session',JSON,alert(){},location:{reload(){reloads++}},logoutCurrentAccount:async()=>logout++,adminSecret:async()=> 'test-second-password',loadAdminDashboard:async()=>{},api:async(path,opts)=>{calls.push({path,body:JSON.parse(opts.body)});if(path.endsWith('/plan'))return{planId:'plan',confirmation:'امسح الحسابات عدا المدير',scope:{kind:nodes.get("adminResetScope").value||"accounts",accountsToDelete:2,postsToDelete:0,durableObjectKeys:12,byCategory:{user:3,post:2},media:{count:205,bytes:2050}}};attempt++;return{done:attempt===3,deletedMedia:Math.min(attempt*100,205)}}};vm.createContext(ctx);vm.runInContext(source.slice(begin,end),ctx);
 await nodes.get('adminResetPreviewBtn').onclick();assert.equal(calls.length,1);assert.equal(calls[0].path,'/api/admin/reset/plan');assert.ok(nodes.get('adminResetPreviewReport','adminResetScope','adminResetPhrase').textContent.includes('حساب المدير محفوظ'));
 await nodes.get('adminResetExecuteBtn').onclick();assert.equal(calls.length,1,'preview and missing phrase never execute deletion');
 nodes.get('adminResetConfirmation').value='wrong';nodes.get('adminResetConfirmation').oninput();assert.equal(nodes.get('adminResetExecuteBtn').disabled,true);
 nodes.get('adminResetConfirmation').value='امسح الحسابات عدا المدير';nodes.get('adminResetConfirmation').oninput();assert.equal(nodes.get('adminResetExecuteBtn').disabled,false);
 await nodes.get('adminResetExecuteBtn').onclick();assert.equal(attempt,3);assert.equal(logout,0);assert.equal(reloads,0);assert.ok(calls.slice(1).every(x=>x.body.token==='owner-session'&&x.body.planId==='plan'&&x.body.confirmation==='امسح الحسابات عدا المدير'&&x.body.adminPassword==='test-second-password'));
+nodes.get('adminResetScope').value='posts';nodes.get('adminResetScope').onchange();
+await nodes.get('adminResetPreviewBtn').onclick();
+nodes.get('adminResetConfirmation').value='امسح الحسابات عدا المدير';attempt=0;
+ctx.adminSecret=async()=>{throw Error('posts must not request a password')};
+const beforePosts=calls.length;await nodes.get('adminResetExecuteBtn').onclick();
+assert.equal(attempt,3);assert.ok(calls.slice(beforePosts).every(x=>x.body.adminPassword===''));
+console.log('PASS posts-only bulk action never asks for the account deletion password');
 console.log('PASS admin UI previews, requires phrase, completes all batches and preserves owner session (DOM harness)');
 // Socket self-profile updates must retain private login fields and authoritative role.
 const joinedStart=source.indexOf('    if(msg.type==="joined")');const joinedEnd=source.indexOf('    if(msg.type==="users")',joinedStart);

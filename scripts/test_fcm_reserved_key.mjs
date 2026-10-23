@@ -14,6 +14,7 @@ const room=new SignalingRoom(ctx,{
 room.fcmAccessToken=async()=> 'test-token';
 const device='A'.repeat(140);
 await ctx.storage.put('fcmTokens:bob',[device]);
+await ctx.storage.put('user:alice',{username:'alice',fullName:'Alice Caller'});
 const captured=[];
 const fetchBefore=globalThis.fetch;
 globalThis.fetch=async(url,options)=>{
@@ -43,6 +44,9 @@ try{
   assert.equal(delivery.attempted,1);
   assert.equal(delivery.error,'');
   assert.equal(captured[0].data.sender,'alice');
+  assert.equal(captured[0].data.fromName,'Alice Caller');
+  assert.ok(captured[0].android.notification.body.includes('Alice Caller'));
+  assert.ok(captured[0].android.notification.image.includes('/logo-premium.png'));
   assert.equal(captured[0].data.callType,'video');
   assert.equal(captured[1].data.sender,'alice');
   assert.equal(captured[2].data.sender,'');

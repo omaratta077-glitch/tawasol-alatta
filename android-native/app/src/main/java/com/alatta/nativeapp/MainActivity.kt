@@ -585,12 +585,13 @@ class MainActivity : ComponentActivity() {
             if (id.length in 8..128 && from.isNotBlank() && to.isNotBlank())
                 PushCall(from, to, id,
                     if (intent.getStringExtra("callType") == "video") "video" else "audio",
-                    created, AttaPush.ACTION_VIEW)
+                    created, AttaPush.ACTION_VIEW, intent.getStringExtra("fromName").orEmpty())
             else null
         } else null
         if (event == null) return
         incomingPush = event
-        AttaPush.dismiss(this, event.callId)
+        AttaPush.markCallAlerted(this, event.callId)
+        AttaPush.dismiss(this, event.callId, ended = false)
         // Clear one-shot extras so recreation cannot replay an incoming call.
         intent.removeExtra("atta_call_id")
         intent.removeExtra("callId")
@@ -1981,9 +1982,15 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
         dismissButton = { TextButton(onClick = { changePasswordDialog = false }) { Text("إلغاء") } }
     )
     incomingCall?.let { invitation ->
-        // Start the device's ringtone and optional vibration while this dialog
-        // is on screen; accepting or rejecting disposes and silences the alert.
-        IncomingCallRingtone(invitation.callId)
+        var callerName by remember(invitation.callId) { mutableStateOf(
+            friends.firstOrNull { it.optString("username").equals(invitation.peer, true) }?.name()
+                ?: incomingPush?.takeIf { it.callId == invitation.callId }?.displayName?.ifBlank { "مستخدم" } ?: "مستخدم") }
+        LaunchedEffect(invitation.peer) {
+            runCatching { get("/api/profile-public?username=${enc(invitation.peer)}").optJSONObject("user")?.name() }
+                .getOrNull()?.takeIf { it.isNotBlank() }?.let { callerName = it }
+        }
+        IncomingCallRingtone(PushCall(invitation.peer, myUsername.lowercase(), invitation.callId,
+            invitation.type, System.currentTimeMillis(), AttaPush.ACTION_VIEW, callerName))
         AlertDialog(
             onDismissRequest = { sendCallResponse(invitation, "rejected"); incomingCall = null },
             containerColor = Color(0xFF13181C),
@@ -1992,7 +1999,12 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
             tonalElevation = 0.dp,
             shape = RoundedCornerShape(25.dp),
             title = { Text(if (invitation.type == "video") "مكالمة فيديو واردة" else "مكالمة صوتية واردة", fontWeight = FontWeight.Bold, color = GoldLight) },
-            text = { Text("مكالمة واردة من مستخدم تواصل العطا", color = White) },
+            text = { Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Image(painterResource(R.drawable.logo_premium), "AL-ATTA MEDIA", Modifier.size(64.dp).clip(CircleShape))
+                Text("مكالمة واردة من $callerName", color = White, textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth())
+            } },
             confirmButton = { Button(
                 colors = ButtonDefaults.buttonColors(containerColor = Gold, contentColor = Black),
                 onClick = { acceptIncomingInvite(invitation) }
@@ -2091,7 +2103,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
         AlertDialog(onDismissRequest = { adminPasswordAction = null; adminProtectionPassword = "" },
             containerColor = Panel, title = { Text("كلمة حماية الإدارة", color = GoldLight) },
             text = { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("كلمة مستقلة خاصة بالمدير الرئيسي. لا تُحفظ على الهاتف.", color = Muted, fontSize = 12.sp)
+                Text("كلمة حذف الحسابات المحفوظة في حساب المدير. اكتبها لكل عملية حذف.", color = Muted, fontSize = 12.sp)
                 PremiumAuthTextField(adminProtectionPassword, { adminProtectionPassword = it.take(128) }, "كلمة الحماية", password = true)
             } },
             confirmButton = { TextButton(enabled = adminProtectionPassword.isNotBlank(), onClick = {
@@ -2108,11 +2120,11 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
         confirmButton = { TextButton(onClick = {
             val username = adminEditUser; val id = adminEditPost; val name = adminEditUserName; val text = adminEditPostText
             adminEditUser = ""; adminEditPost = ""
-            adminPasswordAction = { secret -> task {
+            task {
                 post("/api/admin/action", JSONObject().put("action", if (username.isNotBlank()) "update_user" else "update_post")
-                    .put("username", username).put("postId", id).put("displayName", name).put("text", text).put("adminPassword", secret))
+                    .put("username", username).put("postId", id).put("displayName", name).put("text", text))
                 load("الإدارة")
-            } }
+            }
         }) { Text("حفظ", color = GoldLight) } },
         dismissButton = { TextButton(onClick = { adminEditUser = ""; adminEditPost = "" }) { Text("إلغاء") } }
     )
@@ -2122,12 +2134,11 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
         text = { Text("الحذف نهائي ولن تتمكن من استعادة المنشور.", color = White) },
         confirmButton = { TextButton(onClick = {
             val id = confirmPostDelete; confirmPostDelete = ""
-            val perform: (String) -> Unit = { secret -> task {
-                if (adminRole == "super_admin") post("/api/admin/action", JSONObject().put("action", "delete_post").put("postId", id).put("adminPassword", secret))
+            task {
+                if (adminRole == "super_admin") post("/api/admin/action", JSONObject().put("action", "delete_post").put("postId", id))
                 else post("/api/post-delete", JSONObject().put("postId", id))
                 load(tab)
-            } }
-            if (adminRole == "super_admin") adminPasswordAction = perform else perform("")
+            }
         }) { Text("حذف نهائي", color = Color(0xFFFF8B8B)) } },
         dismissButton = { TextButton(onClick = { confirmPostDelete = "" }) { Text("إلغاء", color = GoldLight) } }
     )
@@ -2656,12 +2667,12 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                         Spacer(Modifier.height(8.dp))
                                         // An inset publish action in the composer; keep the existing
                                         // upload/publish callback unchanged.
-                                        Column(Modifier.fillMaxWidth()) {
-                                            OutlinedTextField(draft, { draft = it },
-                                                modifier = Modifier.fillMaxWidth().heightIn(min = 76.dp),
-                                                placeholder = { Text("بم تفكر؟", fontSize = 14.sp) },
-                                                minLines = 2, shape = RoundedCornerShape(14.dp))
-                                            Box(Modifier.align(Alignment.End).padding(top = 3.dp)) {
+                                        OutlinedTextField(draft, { draft = it },
+                                            modifier = Modifier.fillMaxWidth().heightIn(min = 76.dp),
+                                            placeholder = { Text("بم تفكر؟", fontSize = 14.sp) },
+                                            minLines = 2, shape = RoundedCornerShape(14.dp),
+                                            trailingIcon = {
+                                            Box(Modifier.padding(horizontal = 6.dp)) {
                                                 GoldPublishButton(!busy && (draft.isNotBlank() || pickedUri != null ||
                                                     youtubePostDraftId.isNotBlank() || mushafPostDraft != null)) {
                                                 task {
@@ -2705,7 +2716,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                                 }
                                             }
                                         }
-                                        }
+                                        })
                                         pickedUri?.let { Text("مرفق: ${it.lastPathSegment ?: "ملف"}", color = GoldLight, fontSize = 11.sp) }
                                         youtubePostDraftId.takeIf { it.isNotBlank() }?.let { videoId ->
                                             Text("فيديو يوتيوب مرفق", color = GoldLight, fontSize = 12.sp)
@@ -3153,10 +3164,10 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                                 }) { Text("حذف نهائي", color = Color(0xFFFF8B8B)) }
                                                 if (adminRole == "super_admin") {
                                                     TextButton(onClick = { adminEditUser = username; adminEditUserName = u.optString("displayName") }) { Text("تعديل الاسم", color = GoldLight) }
-                                                    TextButton(onClick = { adminPasswordAction = { secret -> task {
+                                                    TextButton(onClick = { task {
                                                         post("/api/admin/action", JSONObject().put("action", if (u.optString("role") == "moderator") "remove_moderator" else "make_moderator")
-                                                            .put("username", username).put("adminPassword", secret)); load("الإدارة")
-                                                    } } }) {
+                                                            .put("username", username)); load("الإدارة")
+                                                    } }) {
                                                         SiteIcon("user-plus", size = 18.dp)
                                                         Text(if (u.optString("role") == "moderator") " إزالة الإشراف" else " إضافة مشرف", color = GoldLight)
                                                     }

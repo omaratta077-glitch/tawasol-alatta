@@ -52,8 +52,8 @@ check("PushCall visibility compatible", "internal var incomingPush by mutableSta
 ring_screen=read(android+"NativeCallScreen.kt")
 push_source=read(android+"AttaPush.kt")
 check("Incoming call ringtone passes callId", 
-      "IncomingCallRingtone(invitation.callId)" in main and
-      "internal fun IncomingCallRingtone(callId: String)" in ring_screen and
+      "IncomingCallRingtone(PushCall(invitation.peer, myUsername.lowercase(), invitation.callId," in main and
+      "internal fun IncomingCallRingtone(call: PushCall)" in ring_screen and
       not re.search(r"IncomingCallRingtone\(\s*\)", main))
 check("Foreground ring state declared in AttaPush", 
       "@Volatile var foregroundRingCallId" in push_source and
@@ -61,7 +61,7 @@ check("Foreground ring state declared in AttaPush",
       "AttaPush.foregroundRingCallId == callId" in ring_screen)
 
 check("Native Google bridge removed", not (ROOT/(android+"GoogleWebBridge.kt")).exists())
-check("Official version 1.0.148", 'versionCode = 248' in gradle and 'versionName = "1.0.148"' in gradle)
+check("Official version 1.0.149", 'versionCode = 249' in gradle and 'versionName = "1.0.149"' in gradle)
 check("Four additional screens and scrollable navigation", all(x in main for x in ['QuranReaderScreen(', 'KnowledgeScreen(tab', 'FootballScreen(']) and all(x in read(android+"PremiumChrome.kt") for x in ['"القرآن"', '"الأحاديث"', '"الأذكار"', '"الرياضة"', '.horizontalScroll(scroll)']) and (ROOT/(android+"AlattaKnowledgeScreens.kt")).is_file())
 check("Quran-first categories and click-to-play preview", all(x in main for x in [
     'var youtubeCategory by remember { mutableStateOf("قرآن") }',
