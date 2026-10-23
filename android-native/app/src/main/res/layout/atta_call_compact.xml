@@ -1,7 +1,53 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:padding="2dp" android:background="#202638" android:layoutDirection="rtl"><LinearLayout android:layout_width="match_parent" android:layout_height="40dp" android:orientation="horizontal" android:gravity="center_vertical" android:layoutDirection="rtl">
-<ImageView android:id="@+id/call_logo" android:layout_width="40dp" android:layout_height="40dp" android:src="@drawable/logo_premium" android:contentDescription="AL-ATTA MEDIA" android:scaleType="fitCenter"/>
-<LinearLayout android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:orientation="vertical" android:paddingEnd="10dp">
-<TextView android:id="@+id/call_kind" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="مكالمة صوتية واردة" android:textSize="13sp" android:textColor="#E0E0E0" android:gravity="start" android:maxLines="1" android:ellipsize="end"/>
-<TextView android:id="@+id/call_name" android:layout_width="match_parent" android:layout_height="wrap_content" android:textSize="17sp" android:textStyle="bold" android:textColor="#FFFFFF" android:gravity="start" android:maxLines="1" android:ellipsize="end"/>
-</LinearLayout></LinearLayout></LinearLayout>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="10dp"
+    android:background="@drawable/atta_call_notification_bg"
+    android:layoutDirection="rtl">
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:minHeight="44dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:layoutDirection="rtl">
+        <ImageView
+            android:id="@+id/call_logo"
+            android:layout_width="38dp"
+            android:layout_height="38dp"
+            android:src="@drawable/logo_premium"
+            android:contentDescription="شعار تواصل العطا"
+            android:scaleType="fitCenter" />
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:paddingEnd="12dp"
+            android:gravity="end">
+            <TextView
+                android:id="@+id/call_kind"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="مكالمة صوتية واردة"
+                android:textSize="13sp"
+                android:textStyle="bold"
+                android:textColor="#E8C766"
+                android:gravity="end"
+                android:maxLines="1"
+                android:ellipsize="end" />
+            <TextView
+                android:id="@+id/call_name"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textSize="18sp"
+                android:textStyle="bold"
+                android:textColor="#FFFFFF"
+                android:gravity="end"
+                android:maxLines="1"
+                android:ellipsize="end" />
+        </LinearLayout>
+    </LinearLayout>
+</LinearLayout>
