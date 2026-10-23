@@ -2014,7 +2014,7 @@ document.addEventListener("click",async e=>{
   const btn=e.target.closest("[data-admin-action]");if(!btn)return;
   const action=btn.dataset.adminAction,body={token,action,username:btn.dataset.user||"",postId:btn.dataset.post||"",reportId:btn.dataset.report||""};
   if(["ban","suspend","delete_post","make_moderator","remove_moderator"].includes(action) && !confirm("تأكيد تنفيذ الإجراء على العنصر المحدد؟"))return;
-  if(action==="delete_user"){body.confirmation=prompt(`اكتب اسم المستخدم @${body.username} لتأكيد حذف حسابه وبياناته:`,"");if(body.confirmation!==body.username)return;}
+  if(action==="delete_user"){if(!confirm(`سيُحذف حساب @${body.username} مع بياناته نهائيًا. هل تريد المتابعة؟`))return;body.confirmation=body.username;}
   if(action==="update_user"){body.displayName=prompt("الاسم الجديد للحساب:",btn.dataset.name);if(body.displayName===null)return;}
   if(action==="update_post"){body.text=prompt("نص المنشور الجديد:",btn.dataset.text);if(body.text===null)return;}
   if(action==="delete_user"){body.adminPassword=await adminSecret();if(body.adminPassword===null)return;}

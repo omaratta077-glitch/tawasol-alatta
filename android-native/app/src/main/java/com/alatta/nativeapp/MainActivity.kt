@@ -1090,7 +1090,6 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
     var confirmPostDelete by remember { mutableStateOf("") }
     var confirmAccountUser by remember { mutableStateOf("") }
     var confirmAccountAction by remember { mutableStateOf("suspend") }
-    var deleteAccountConfirmation by remember { mutableStateOf("") }
     var accountDeleteProgress by remember { mutableStateOf("") }
     var adminSummary by remember { mutableStateOf(JSONObject()) }
     var adminSearch by remember { mutableStateOf("") }
@@ -1274,7 +1273,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
         adminUsers = emptyList(); adminPosts = emptyList(); adminRole = ""
         adminReports = emptyList(); deletionRequests = emptyList(); deletionRequest = null
         adminSummary = JSONObject(); adminSearch = ""; adminNextOffset = -1
-        confirmAccountUser = ""; deleteAccountConfirmation = ""; accountDeleteProgress = ""
+        confirmAccountUser = ""; accountDeleteProgress = ""
         profile = JSONObject(); publicProfile = null; displayName = ""; myUsername = ""; myAvatar = ""
         googleIdToken = ""; googleEmail = ""; ownerResetPlan = null; ownerResetConfirmation = ""
         mushafPostDraft?.discard(); mushafPostDraft = null; pickedUri = null; draft = ""
@@ -2165,25 +2164,24 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
             onDismissRequest = { if (!busy) confirmAccountUser = "" }, containerColor = Panel,
             title = { Text(actionLabel, color = GoldLight) },
             text = { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(if (permanent) "سيُحذف @$confirmAccountUser مع منشوراته ورسائله وملفاته نهائيًا. يمكنه إنشاء حساب جديد بنفس الاسم والإيميل بعد اكتمال الحذف. اكتب اسم المستخدم للتأكيد."
+                Text(if (permanent) "سيُحذف @$confirmAccountUser مع منشوراته ورسائله وملفاته نهائيًا. يمكنه إنشاء حساب جديد بنفس الاسم والإيميل بعد اكتمال الحذف."
                     else "سيُمنع @$confirmAccountUser من الدخول وسيُخفى حسابه ومحتواه حتى إعادة التفعيل.", color = White)
-                if (permanent) PremiumAuthTextField(deleteAccountConfirmation, { deleteAccountConfirmation = it }, confirmAccountUser)
                 if (accountDeleteProgress.isNotBlank()) Text(accountDeleteProgress, color = GoldLight, fontSize = 12.sp)
                 if (error.isNotBlank()) Text(error, color = Color(0xFFFF8B8B), fontSize = 12.sp)
             } },
-            confirmButton = { TextButton(enabled = !busy && (!permanent || deleteAccountConfirmation == confirmAccountUser), onClick = {
+            confirmButton = { TextButton(enabled = !busy, onClick = {
                 val username = confirmAccountUser
                 val action = confirmAccountAction
                 val perform: (String) -> Unit = { secret -> task {
                     if (permanent) {
                         var done = false
                         while (!done) {
-                            val result = post("/api/admin/users/delete", JSONObject().put("username", username).put("confirmation", deleteAccountConfirmation).put("adminPassword", secret))
+                            val result = post("/api/admin/users/delete", JSONObject().put("username", username).put("confirmation", username).put("adminPassword", secret))
                             done = result.optBoolean("done")
                             accountDeleteProgress = "جاري حذف بيانات الحساب... ملفات محذوفة: ${result.optInt("deletedMedia")}"
                         }
                     } else post("/api/admin/action", JSONObject().put("action", action).put("username", username))
-                    confirmAccountUser = ""; deleteAccountConfirmation = ""; accountDeleteProgress = ""
+                    confirmAccountUser = ""; accountDeleteProgress = ""
                     load("الإدارة")
                 } }
                 if (permanent) adminPasswordAction = perform else perform("")
@@ -3144,7 +3142,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                             Text("حذف حساب قيد الاستكمال: @${deletion.optString("username")}", color = GoldLight)
                                             GoldButton("استكمال حذف الحساب", !busy) {
                                                 confirmAccountAction = "delete_user"; confirmAccountUser = deletion.optString("username")
-                                                deleteAccountConfirmation = ""; accountDeleteProgress = ""; error = ""
+                                                accountDeleteProgress = ""; error = ""
                                             }
                                         }
                                     }
@@ -3177,7 +3175,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                                 }
                                                 if (adminRole == "super_admin") TextButton(onClick = {
                                                     confirmAccountAction = "delete_user"; confirmAccountUser = username
-                                                    deleteAccountConfirmation = ""; accountDeleteProgress = ""; error = ""
+                                                    accountDeleteProgress = ""; error = ""
                                                 }) { Text("حذف نهائي", color = Color(0xFFFF8B8B)) }
                                                 if (adminRole == "super_admin") {
                                                     TextButton(onClick = { adminEditUser = username; adminEditUserName = u.optString("displayName") }) { Text("تعديل الاسم", color = GoldLight) }
@@ -3210,7 +3208,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                         TextButton(onClick = { openPublicProfile(target) }) { Text("مراجعة الحساب", color = GoldLight) }
                                         if (adminRole == "super_admin" && target != adminSummary.optString("owner") && target != myUsername) TextButton(onClick = {
                                             confirmAccountAction = "delete_user"; confirmAccountUser = target
-                                            deleteAccountConfirmation = ""; accountDeleteProgress = ""
+                                            accountDeleteProgress = ""
                                         }) { Text("مراجعة وتنفيذ الحذف", color = Color(0xFFFF8B8B)) }
                                         else Text("حساب المدير الرئيسي محمي دائمًا.", color = Muted)
                                     }

@@ -48,12 +48,12 @@ try{
   f=await scenario({resend:mode});f.data.set('admin-security:owner',{hash:'existing-hash'});
   r=await f.api('/api/admin/security/code');assert.equal(r.status,mode==='quota'?429:503);
   assert.equal(r.data.code,mode==='quota'?'ADMIN_EMAIL_RATE_LIMITED':'ADMIN_EMAIL_REJECTED');
-  assert.ok(r.data.error.includes('ow***@example.test'));assert.ok(!JSON.stringify(r.data).includes('private-'));assert.ok(!JSON.stringify(r.data).includes('provider-internal-detail'));
+  assert.match(r.data.error,/تعذر إرسال كود الحماية/);assert.ok(!JSON.stringify(r.data).includes('private-'));assert.ok(!JSON.stringify(r.data).includes('provider-internal-detail'));
   assert.ok(!f.data.has('admin-security-code:owner'),'rejected mail never creates a usable proof');assert.equal(f.data.get('admin-security:owner').hash,'existing-hash');
  }
  for(const [mode,expected,fragment] of [['unauthorized','GOOGLE_EMAIL_SECRET_MISMATCH','GAS_EMAIL_API_SECRET'],['sendfailed','GOOGLE_EMAIL_SEND_FAILED','Gmail']]){
   f=await scenario({google:mode,resend:'reject'});r=await f.api('/api/admin/security/code');
-  assert.equal(r.status,503);assert.equal(r.data.code,expected);assert.ok(r.data.error.includes(fragment));
+  assert.equal(r.status,503);assert.equal(r.data.code,expected);assert.equal(r.data.error,'تعذر إرسال كود الحماية. حاول مرة أخرى');assert.ok(!r.data.error.includes(fragment));
   assert.equal(f.requests.length,2);assert.ok(!f.data.has('admin-security-code:owner'));
   assert.ok(!JSON.stringify(r.data).includes('private-'));assert.ok(!JSON.stringify(r.data).includes(f.requests[0].payload.code));
  }
