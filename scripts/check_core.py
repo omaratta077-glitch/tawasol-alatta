@@ -137,7 +137,7 @@ check("Accepted FCM call is not re-notified and stale dialogs expire",
       'if (activeCallId == call.callId) return' in push_source and
       'AttaPush.activeCallId = callId' in main and
       'LaunchedEffect(incomingCall?.callId)' in main and
-      'delay(45000L)' in main and
+      'remainingIncomingCallMillis(invitation.invitedAt)' in main and
       'if (AttaPush.activeCallId == session.callId) AttaPush.activeCallId = ""' in main)
 
 # Interactive Quran has one source of truth; never duplicate a second reader.
