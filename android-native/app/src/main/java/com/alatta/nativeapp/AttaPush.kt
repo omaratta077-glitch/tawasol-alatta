@@ -83,7 +83,7 @@ internal object AttaPush {
     const val ACTION_ACCEPT = "accept"
     const val ACTION_VIEW = "view"
     private const val BASE = "https://tawasol-alatta.omaratta077-4fd.workers.dev"
-    internal const val CHANNEL = "alatta_incoming_call_v2"
+    internal const val CHANNEL = "alatta_incoming_call_v3"
     private const val CHAT_CHANNEL = "alatta_messages_v1"
     private const val SOCIAL_CHANNEL = "alatta_social_v1"
     const val ACTION_OPEN_NOTIFICATION = "com.alatta.nativeapp.OPEN_NOTIFICATION"
