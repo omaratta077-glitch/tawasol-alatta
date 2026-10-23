@@ -554,6 +554,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onStart() {
         super.onStart()
+        if (incomingPush == null) incomingPush = AttaPush.pendingIncoming(this)
         prayerLocationJob = lifecycleScope.launch { PrayerLocation.refreshIfEnabled(this@MainActivity) }
     }
 
@@ -600,10 +601,11 @@ class MainActivity : ComponentActivity() {
                     created, AttaPush.ACTION_VIEW, intent.getStringExtra("fromName").orEmpty())
             else null
         } else null
-        if (event == null) return
-        incomingPush = event
-        AttaPush.markCallAlerted(this, event.callId)
-        AttaPush.dismiss(this, event.callId, ended = false)
+        val pending = event ?: AttaPush.pendingIncoming(this) ?: return
+        AttaPush.rememberIncoming(this, pending)
+        incomingPush = pending
+        AttaPush.markCallAlerted(this, pending.callId)
+        AttaPush.dismiss(this, pending.callId, ended = false)
         // Clear one-shot extras so recreation cannot replay an incoming call.
         intent.removeExtra("atta_call_id")
         intent.removeExtra("callId")
@@ -1423,6 +1425,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
         }
     }
     fun sendCallResponse(session: NativeCallSession, reason: String) {
+        AttaPush.dismiss(ctx, session.callId)
         scope.launch {
             try {
                 val data = JSONObject().put("type", "call-reject").put("to", session.peer)
@@ -1665,15 +1668,16 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
             val age = System.currentTimeMillis() - timestamp
             if (age !in 0..45000L || !knownCalls.add(callId)) return
             val invite = NativeCallSession(sender,
-                if (signal.optString("callType") == "video") "video" else "audio", callId, true)
+                if (signal.optString("callType") == "video") "video" else "audio", callId, true, invitedAt = timestamp)
             if (activeCall == null && incomingCall == null && pendingPermissionCall == null) {
                 incomingCall = invite
                 sendCallRinging(invite) // Ringback only after the incoming dialog is created.
             } else sendCallResponse(invite, "busy")
         } else if (kind == "hangup" || kind == "call-reject") {
             val pending = incomingCall
-            if (pending?.callId == callId && pending.peer.equals(sender, ignoreCase = true))
-                incomingCall = null
+            if (pending?.callId == callId && pending.peer.equals(sender, ignoreCase = true)) {
+                AttaPush.dismiss(ctx, callId); incomingCall = null
+            }
         }
     }
 
@@ -1685,9 +1689,14 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
         val push = incomingPush ?: return@LaunchedEffect
         if (token.isBlank() || myUsername.isBlank()) return@LaunchedEffect
         activity.clearIncomingPush()
-        if (push.to != myUsername.lowercase() ||
-            System.currentTimeMillis() - push.createdAt !in 0..45000L) return@LaunchedEffect
-        val session = NativeCallSession(push.from, push.type, push.callId, incoming = true, displayName = push.displayName)
+        if (push.to != myUsername.lowercase()) return@LaunchedEffect
+        if (System.currentTimeMillis() - push.createdAt !in 0..45000L) {
+            AttaPush.dismiss(ctx, push.callId)
+            featureMessage = "انتهت المكالمة الواردة. يمكنك الاتصال بالشخص من المحادثات."
+            return@LaunchedEffect
+        }
+        val session = NativeCallSession(push.from, push.type, push.callId, incoming = true,
+            displayName = push.displayName, invitedAt = push.createdAt)
         if (push.action == AttaPush.ACTION_ACCEPT) {
             acceptIncomingInvite(session)
         } else if (activeCall?.callId == push.callId ||
@@ -1705,7 +1714,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
     // if the screen was asleep when the cancellation signal arrived.
     LaunchedEffect(incomingCall?.callId) {
         val invitation = incomingCall ?: return@LaunchedEffect
-        delay(45000L)
+        delay(if (invitation.invitedAt > 0L) remainingIncomingCallMillis(invitation.invitedAt) else 45000L)
         if (incomingCall?.callId == invitation.callId) {
             incomingCall = null
             AttaPush.dismiss(ctx, invitation.callId)
@@ -2017,34 +2026,11 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
         }
         IncomingCallRingtone(PushCall(invitation.peer, myUsername.lowercase(), invitation.callId,
             invitation.type, System.currentTimeMillis(), AttaPush.ACTION_VIEW, callerName))
-        AlertDialog(
-            onDismissRequest = { sendCallResponse(invitation, "rejected"); incomingCall = null },
-            containerColor = Color(0xFF13181C),
-            titleContentColor = GoldLight,
-            textContentColor = White,
-            tonalElevation = 0.dp,
-            shape = RoundedCornerShape(25.dp),
-            title = { Text(if (invitation.type == "video") "مكالمة فيديو واردة" else "مكالمة صوتية واردة", fontWeight = FontWeight.Bold, color = GoldLight) },
-            text = { Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text("مكالمة واردة من $callerName", color = White, textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth())
-            } },
-            confirmButton = {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(14.dp),
-                    verticalAlignment = Alignment.CenterVertically) {
-                    Button(modifier = Modifier.weight(1f).heightIn(min = 48.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Gold, contentColor = Black),
-                        onClick = { acceptIncomingInvite(invitation) }) { Text("رد", fontWeight = FontWeight.Bold) }
-                    Button(modifier = Modifier.weight(1f).heightIn(min = 48.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFC83B3B), contentColor = White),
-                        onClick = { sendCallResponse(invitation, "rejected"); incomingCall = null }) {
-                        Text("رفض", fontWeight = FontWeight.Bold)
-                    }
-                }
-            }
-        )
+        IncomingCallDialog(callerName, invitation.type,
+            onClick = { acceptIncomingInvite(invitation) },
+            onReject = { sendCallResponse(invitation, "rejected"); incomingCall = null })
     }
+
     if (featureMessage.isNotBlank()) AlertDialog(
         onDismissRequest = { featureMessage = "" },
         title = { Text("معلومة") }, text = { Text(featureMessage) },

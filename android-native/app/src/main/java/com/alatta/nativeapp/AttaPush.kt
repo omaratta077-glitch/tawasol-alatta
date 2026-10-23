@@ -16,8 +16,6 @@ import android.media.AudioAttributes
 import android.media.RingtoneManager
 import android.net.Uri
 import android.os.Build
-import androidx.core.app.Person
-import androidx.core.graphics.drawable.IconCompat
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
@@ -85,7 +83,7 @@ internal object AttaPush {
     const val ACTION_ACCEPT = "accept"
     const val ACTION_VIEW = "view"
     private const val BASE = "https://tawasol-alatta.omaratta077-4fd.workers.dev"
-    private const val CHANNEL = "alatta_incoming_call_v2"
+    internal const val CHANNEL = "alatta_incoming_call_v2"
     private const val CHAT_CHANNEL = "alatta_messages_v1"
     private const val SOCIAL_CHANNEL = "alatta_social_v1"
     const val ACTION_OPEN_NOTIFICATION = "com.alatta.nativeapp.OPEN_NOTIFICATION"
@@ -207,7 +205,7 @@ internal object AttaPush {
         } }
         if (provider == "hms") AttaHuaweiPush.stop(context)
         (context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager).cancelAll()
-        prefs(context).edit().remove("push_device_token").remove("push_registered_at").remove("push_registered_user").apply()
+        prefs(context).edit().remove("push_device_token").remove("push_registered_at").remove("push_registered_user").remove("pending_incoming_call").apply()
         if (session.isBlank() || device.isBlank()) return
         io.execute {
             runCatching { post(context, "/api/push/unregister", JSONObject()
@@ -235,15 +233,38 @@ internal object AttaPush {
         val to = d["to"].orEmpty().trim().lowercase()
         val created = d["createdAt"]?.toLongOrNull() ?: return
         if (from.isBlank() || to.isBlank() || id.length !in 8..128) return
-        incoming(context, PushCall(from, to, id, if (d["callType"] == "video") "video" else "audio", created, ACTION_VIEW, d["fromName"].orEmpty()))
+        try {
+            incoming(context, PushCall(from, to, id, if (d["callType"] == "video") "video" else "audio", created, ACTION_VIEW, d["fromName"].orEmpty()))
+        } catch (failure: RuntimeException) { android.util.Log.e("AttaPush", "Call notification unavailable", failure) }
     }
 
+    internal fun rememberIncoming(context: Context, call: PushCall) {
+        if (!validSession(context, call)) return
+        val data = JSONObject().put("from", call.from).put("to", call.to).put("id", call.callId)
+            .put("type", call.type).put("created", call.createdAt).put("name", call.displayName)
+        prefs(context).edit().putString("pending_incoming_call", data.toString()).apply()
+    }
+    fun pendingIncoming(context: Context): PushCall? {
+        val call = runCatching {
+            val data = JSONObject(prefs(context).getString("pending_incoming_call", "").orEmpty())
+            PushCall(data.getString("from"), data.getString("to"), data.getString("id"), data.getString("type"),
+                data.getLong("created"), ACTION_VIEW, data.optString("name"))
+        }.getOrNull()
+        if (call != null && validSession(context, call) && call.callId != activeCallId &&
+            call.callId != prefs(context).getString("ended_call_alert_id", "")) return call
+        prefs(context).edit().remove("pending_incoming_call").apply()
+        return null
+    }
     fun markCallAlerted(context: Context, callId: String) {
         prefs(context).edit().putString("last_call_alert_id", callId).apply()
     }
 
     fun dismiss(context: Context, callId: String, ended: Boolean = true) {
-        if (ended) prefs(context).edit().putString("ended_call_alert_id", callId).apply()
+        if (ended) {
+            val local = prefs(context)
+            val pendingId = runCatching { JSONObject(local.getString("pending_incoming_call", "").orEmpty()).optString("id") }.getOrDefault("")
+            local.edit().putString("ended_call_alert_id", callId).apply { if (pendingId == callId) remove("pending_incoming_call") }.apply()
+        }
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         // Locally posted data-only invitation (foreground).
         manager.cancel(callId.hashCode())
@@ -252,7 +273,7 @@ internal object AttaPush {
         manager.cancel("alatta-call-$callId", 0)
     }
 
-    private fun intentFor(context: Context, call: PushCall, action: String): Intent =
+    internal fun intentFor(context: Context, call: PushCall, action: String): Intent =
         Intent(context, MainActivity::class.java).apply {
             this.action = ACTION_OPEN_CALL
             data = Uri.parse("alatta://call/${Uri.encode(call.callId)}/$action")
@@ -335,24 +356,25 @@ internal object AttaPush {
     }
 
     @Synchronized
-    fun incoming(context: Context, call: PushCall, foreground: Boolean = false) {
-        if (!validSession(context, call)) return
-        if (activeCallId == call.callId) return // Same accepted call, not another incoming call.
+    fun incoming(context: Context, call: PushCall, foreground: Boolean = false): Boolean {
+        if (!validSession(context, call)) return true
+        if (activeCallId == call.callId) return true // Same accepted call, not another incoming call.
         // Foreground calls already have a native dialog + ringtone through the
         // authenticated WebSocket/HTTP path. Never ring the same device twice.
-        if (!foreground && appVisible && foregroundRingCallId == call.callId) return
+        if (!foreground && appVisible && foregroundRingCallId == call.callId) return true
         createChannel(context)
         if (Build.VERSION.SDK_INT >= 33 &&
             ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS)
-                != PackageManager.PERMISSION_GRANTED) return
-        if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) return
+                != PackageManager.PERMISSION_GRANTED) return true
+        if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) return true
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         val present = manager.activeNotifications.any {
             (it.tag == "alatta-call-${call.callId}" && it.id == 0) || it.id == call.callId.hashCode()
         }
         val decision = callAlertDecision(call.callId, prefs(context).getString("last_call_alert_id", "").orEmpty(),
             prefs(context).getString("ended_call_alert_id", "").orEmpty(), present)
-        if (decision == CallAlertDecision.IGNORE || decision == CallAlertDecision.KEEP) return
+        if (decision == CallAlertDecision.IGNORE || decision == CallAlertDecision.KEEP) return true
+        rememberIncoming(context, call)
         val code = call.callId.hashCode()
         val flags = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         val view = PendingIntent.getActivity(context, code, intentFor(context, call, ACTION_VIEW), flags)
@@ -366,25 +388,14 @@ internal object AttaPush {
             putExtra("atta_call_created", call.createdAt)
         }
         val reject = PendingIntent.getBroadcast(context, code + 2, rejectIntent, flags)
-        val builder = NotificationCompat.Builder(context, CHANNEL)
-            .setSmallIcon(R.drawable.atta_notification_icon)
-            .setLargeIcon(BitmapFactory.decodeResource(context.resources, R.drawable.logo_premium))
-            .setContentTitle(call.displayName.ifBlank { "مستخدم" })
-            .setContentText("مكالمة واردة من ${call.displayName.ifBlank { "مستخدم" }}")
-            .setSilent(decision == CallAlertDecision.SILENT)
-            .setOnlyAlertOnce(true)
-            .setCategory(NotificationCompat.CATEGORY_CALL)
-            .setPriority(NotificationCompat.PRIORITY_MAX)
-            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-            .setAutoCancel(true)
-            .setContentIntent(view)
-            .setTimeoutAfter(45000L)
-            .setOngoing(true)
-            .setColorized(true).setColor(android.graphics.Color.BLACK)
-            .setStyle(incomingCallStyle(context, call, reject, accept))
-        val notification = builder.build()
-        if (decision == CallAlertDecision.RING) notification.flags = notification.flags or android.app.Notification.FLAG_INSISTENT
-        NotificationManagerCompat.from(context).notify("alatta-call-${call.callId}", 0, notification)
+        try {
+            val notification = incomingCallNotification(context, call, view, accept, reject, decision == CallAlertDecision.SILENT)
+            if (decision == CallAlertDecision.RING) notification.flags = notification.flags or android.app.Notification.FLAG_INSISTENT
+            NotificationManagerCompat.from(context).notify("alatta-call-${call.callId}", 0, notification)
+        } catch (failure: RuntimeException) {
+            android.util.Log.e("AttaPush", "Incoming notification could not be displayed", failure)
+            return false
+        }
         markCallAlerted(context, call.callId)
         // The caller should hear ringback only after the phone actually displayed
         // an incoming call notification (or the existing foreground dialog).
@@ -394,6 +405,7 @@ internal object AttaPush {
                 .put("token", session).put("to", call.from)
                 .put("signal", JSONObject().put("type", "call-ringing").put("callId", call.callId))) }
         }
+        return true
     }
 
     fun reject(context: Context, call: PushCall) {
@@ -437,14 +449,4 @@ class AttaFirebaseMessagingService : FirebaseMessagingService() {
         super.onMessageReceived(message)
         AttaPush.receive(this, message.data)
     }
-}
-
-/** Native call template places the caller and colored answer/decline actions on the lock screen. */
-internal fun incomingCallStyle(context: Context, call: PushCall, reject: PendingIntent, accept: PendingIntent): NotificationCompat.CallStyle {
-    val person = Person.Builder().setName(call.displayName.ifBlank { "مستخدم" })
-        .setIcon(IconCompat.createWithBitmap(BitmapFactory.decodeResource(context.resources, R.drawable.logo_premium))).setImportant(true).build()
-    return NotificationCompat.CallStyle.forIncomingCall(person, reject, accept)
-        .setIsVideo(call.type == "video")
-        .setAnswerButtonColorHint(android.graphics.Color.rgb(35, 155, 86))
-        .setDeclineButtonColorHint(android.graphics.Color.rgb(211, 47, 47))
 }

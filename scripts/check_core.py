@@ -61,7 +61,7 @@ check("Foreground ring state declared in AttaPush",
       "AttaPush.foregroundRingCallId == callId" in ring_screen)
 
 check("Native Google bridge removed", not (ROOT/(android+"GoogleWebBridge.kt")).exists())
-check("Official version 1.0.154", 'versionCode = 254' in gradle and 'versionName = "1.0.154"' in gradle)
+check("Official version 1.0.155", 'versionCode = 255' in gradle and 'versionName = "1.0.155"' in gradle)
 check("Four additional screens and scrollable navigation", all(x in main for x in ['QuranReaderScreen(', 'KnowledgeScreen(tab', 'FootballScreen(']) and all(x in read(android+"PremiumChrome.kt") for x in ['"القرآن"', '"الأحاديث"', '"الأذكار"', '"الرياضة"', '.horizontalScroll(scroll)']) and (ROOT/(android+"AlattaKnowledgeScreens.kt")).is_file())
 check("Quran-first categories and click-to-play preview", all(x in main for x in [
     'var youtubeCategory by remember { mutableStateOf("قرآن") }',
@@ -113,11 +113,9 @@ check("Native WebRTC camera preview and remote video without call WebView",
       'WebView(' not in video_native and 'WebView(' not in video_engine)
 check("FCM reserved data key converted safely", "fcmData.sender=String(fcmData.from??'')" in worker and "delete fcmData.from" in worker and "data:fcmData" in worker and 'data["fromName"]' in push_source and 'd["sender"] ?: d["from"]' in push_source)
 
-# An FCM notification+data packet is displayed by Android itself when the app
-# is asleep; the launcher Intent then receives the custom payload on tap.
-check("OS-displayed background call notification and safe call controls",
-      "android.notification={" in worker and
-      "channel_id:'alatta_incoming_call_v2'" in worker and
+# Calls reach the native receiver in foreground/background; legacy SDK taps remain supported.
+check("Native actionable background calls and safe call controls",
+      "const android={priority:'HIGH',ttl}" in worker and "android.notification={" not in worker and
       'lastCallPushResult:' in worker and
       'intent.getStringExtra("type") == "call-request"' in main and
       'manager.cancel("alatta-call-$callId", 0)' in push_source and
@@ -139,7 +137,7 @@ check("Accepted FCM call is not re-notified and stale dialogs expire",
       'if (activeCallId == call.callId) return' in push_source and
       'AttaPush.activeCallId = callId' in main and
       'LaunchedEffect(incomingCall?.callId)' in main and
-      'delay(45000L)' in main and
+      'remainingIncomingCallMillis(invitation.invitedAt)' in main and
       'if (AttaPush.activeCallId == session.callId) AttaPush.activeCallId = ""' in main)
 
 # Interactive Quran has one source of truth; never duplicate a second reader.
