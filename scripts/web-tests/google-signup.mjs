@@ -5,7 +5,7 @@ const source=fs.readFileSync(new URL('../../cloudflare-site/public/app.js',impor
 const dom=new JSDOM('<div id="googleSetupHint"></div><div id="googleSignInBtn"></div>',{runScripts:'outside-only',url:'https://unit.test/'});
 const w=dom.window,d=w.document;let callback,loggedIn,submissions=0;
 w.google={accounts:{id:{initialize:opts=>callback=opts.callback,renderButton(){}}}};
-w.attaCalendarLimit=years=>`${2026+years}-01-01`;
+w.eval(source.slice(source.indexOf('function attaCalendarLimit('),source.indexOf('let pendingVerificationId=')));
 w.startAuthenticatedApp=async(token,user)=>loggedIn={token,user};
 w.api=async(path,opts)=>{
  if(path==='/api/google-config')return{enabled:true,clientId:'fixture'};
@@ -18,7 +18,9 @@ w.api=async(path,opts)=>{
 w.eval(source.slice(source.indexOf('function requestGoogleProfile('),source.indexOf('window.AttaWeb=Object.freeze')));
 await w.setupGoogleSignIn();const pending=callback({credential:'verified-fixture'});await new Promise(r=>setTimeout(r,0));
 const form=d.querySelector('.google-profile-overlay form');assert.ok(form,'new Google users reach signup form');
-Object.entries({fullName:'اسم تجريبي',username:'taken',birthDate:'2000-01-01',gender:'male'}).forEach(([name,value])=>form.elements[name].value=value);
+Object.entries({fullName:'اسم تجريبي',username:'taken',gender:'male'}).forEach(([name,value])=>form.elements[name].value=value);
+for(const [part,value] of Object.entries({year:'2000',month:'01',day:'01'})){const field=form.querySelector(`[data-birth-part="${part}"]`);field.value=value;field.dispatchEvent(new w.Event('change'));}
+assert.equal(form.elements.birthDate.value,'2000-01-01');
 form.dispatchEvent(new w.Event('submit',{cancelable:true}));await new Promise(r=>setTimeout(r,0));assert.equal(submissions,0,'consent cannot be skipped');
 form.elements.legalAccepted.checked=true;form.dispatchEvent(new w.Event('submit',{cancelable:true}));await new Promise(r=>setTimeout(r,0));
 assert.equal(submissions,1);assert.ok(form.isConnected);assert.equal(form.elements.fullName.value,'اسم تجريبي');assert.match(form.querySelector('[role=alert]').textContent,/موجود/);

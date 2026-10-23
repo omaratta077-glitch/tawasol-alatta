@@ -67,6 +67,7 @@ jobs:
           node scripts/web-tests/parity.mjs
           node scripts/web-tests/admin-profile.mjs
           node scripts/web-tests/pwa-layout.mjs
+          node scripts/web-tests/birthdate.mjs
           node scripts/web-tests/google-signup.mjs
           node scripts/web-tests/youtube-mobile.mjs
           node scripts/web-tests/calls.mjs
