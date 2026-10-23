@@ -16,6 +16,8 @@ import android.media.AudioAttributes
 import android.media.RingtoneManager
 import android.net.Uri
 import android.os.Build
+import androidx.core.app.Person
+import androidx.core.graphics.drawable.IconCompat
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
@@ -367,7 +369,7 @@ internal object AttaPush {
         val builder = NotificationCompat.Builder(context, CHANNEL)
             .setSmallIcon(R.drawable.atta_notification_icon)
             .setLargeIcon(BitmapFactory.decodeResource(context.resources, R.drawable.logo_premium))
-            .setContentTitle(if (call.type == "video") "مكالمة فيديو واردة" else "مكالمة صوتية واردة")
+            .setContentTitle(call.displayName.ifBlank { "مستخدم" })
             .setContentText("مكالمة واردة من ${call.displayName.ifBlank { "مستخدم" }}")
             .setSilent(decision == CallAlertDecision.SILENT)
             .setOnlyAlertOnce(true)
@@ -377,9 +379,9 @@ internal object AttaPush {
             .setAutoCancel(true)
             .setContentIntent(view)
             .setTimeoutAfter(45000L)
-            .setOngoing(false)
-            .addAction(android.R.drawable.sym_action_call, "رد", accept)
-            .addAction(android.R.drawable.ic_menu_close_clear_cancel, "رفض", reject)
+            .setOngoing(true)
+            .setColorized(true).setColor(android.graphics.Color.BLACK)
+            .setStyle(incomingCallStyle(context, call, reject, accept))
         val notification = builder.build()
         if (decision == CallAlertDecision.RING) notification.flags = notification.flags or android.app.Notification.FLAG_INSISTENT
         NotificationManagerCompat.from(context).notify("alatta-call-${call.callId}", 0, notification)
@@ -435,4 +437,14 @@ class AttaFirebaseMessagingService : FirebaseMessagingService() {
         super.onMessageReceived(message)
         AttaPush.receive(this, message.data)
     }
+}
+
+/** Native call template places the caller and colored answer/decline actions on the lock screen. */
+internal fun incomingCallStyle(context: Context, call: PushCall, reject: PendingIntent, accept: PendingIntent): NotificationCompat.CallStyle {
+    val person = Person.Builder().setName(call.displayName.ifBlank { "مستخدم" })
+        .setIcon(IconCompat.createWithBitmap(BitmapFactory.decodeResource(context.resources, R.drawable.logo_premium))).setImportant(true).build()
+    return NotificationCompat.CallStyle.forIncomingCall(person, reject, accept)
+        .setIsVideo(call.type == "video")
+        .setAnswerButtonColorHint(android.graphics.Color.rgb(35, 155, 86))
+        .setDeclineButtonColorHint(android.graphics.Color.rgb(211, 47, 47))
 }

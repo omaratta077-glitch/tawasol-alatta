@@ -187,8 +187,7 @@ internal fun PublicUserProfile(
             items(posts, key = { it.optString("id").ifBlank { it.hashCode().toString() } }) { post ->
                 Column(Modifier.fillMaxWidth().padding(horizontal = 13.dp, vertical = 5.dp)
                     .clip(RoundedCornerShape(15.dp)).background(profilePanel).padding(13.dp)) {
-                    if (post.optString("text").isNotBlank()) Text(post.optString("text"), color = Color.White,
-                        fontSize = 14.sp, modifier = Modifier.padding(bottom = 10.dp))
+                    PostTextContent(post.optString("text"), modifier = Modifier.padding(bottom = 10.dp))
                     MushafPostActions(post.optString("text"))
                     TextButton(onClick = { onReport("post", post.optString("id")) }) { Text("إبلاغ عن المنشور أو تعليقاته", color = profileGold) }
                     val photo = media(post.optString("image"))
