@@ -25,6 +25,7 @@ jobs:
         run: |
           node scripts/test_backend.mjs
           node scripts/test_google_apps_email.mjs
+          node scripts/test_admin_email_delivery.mjs
           node scripts/test_adhan_voices.mjs
           node scripts/test_football_catalog.mjs
           node scripts/test_media_ranges.mjs

@@ -647,8 +647,16 @@ export class SignalingRoom extends DurableObject {
   }
 
   async sendVerificationEmail(email,code,adminSecurity=false){
-    if(await this.sendGoogleEmailIfReady(email,code,adminSecurity?"admin":"verify"))return true;
     const apiKey=String(this.env.RESEND_API_KEY||"").trim();
+    try{
+      if(await this.sendGoogleEmailIfReady(email,code,adminSecurity?"admin":"verify"))return true;
+    }catch(error){
+      // Owner enrollment must not be stranded by a failed/quota-limited Google
+      // transport when the already-configured secondary sender is available.
+      // Keep the same code, fixed owner recipient and session-bound proof.
+      if(!adminSecurity || !apiKey)throw error;
+      console.warn("Admin email primary transport unavailable; trying configured secondary sender");
+    }
     const from=String(
       this.env.VERIFY_FROM_EMAIL||
       "Tawasol Al-Atta <onboarding@resend.dev>"
@@ -995,7 +1003,17 @@ export class SignalingRoom extends DurableObject {
         await this.sendVerificationEmail(this.ownerEmail(),code,true);
         await this.ctx.storage.put(key,{hash:await hashPassword(code),tokenHash:await hashPassword(body.token),createdAt:Date.now(),attempts:0});
         return j({ok:true,email:this.maskEmail(this.ownerEmail())});
-      }catch{return j({ok:false,error:"تعذر إرسال كود حماية الإدارة إلى بريد المدير؛ راجع إعداد البريد"},503);}
+      }catch(error){
+        const rateLimited=error?.message==="EMAIL_SEND_RATE_LIMITED" || error?.providerStatus===429;
+        const notConfigured=error?.message==="EMAIL_PROVIDER_NOT_CONFIGURED";
+        const rejected=[401,403].includes(error?.providerStatus);
+        const reason=rateLimited?"وصلت خدمة البريد إلى حد الإرسال؛ حاول لاحقًا":
+          notConfigured?"خدمة إرسال البريد غير مهيأة في الخادم":
+          rejected?"خدمة البريد رفضت الإرسال؛ راجع صلاحية مفتاح الخدمة واعتماد عنوان المرسل":
+          "خدمة البريد لم تقبل الرسالة؛ راجع إعدادها أو حاول لاحقًا";
+        return j({ok:false,error:`تعذر إرسال كود حماية الإدارة إلى ${this.maskEmail(this.ownerEmail())}. ${reason}. صلاحية المدير مفعّلة؛ لم تُغيّر كلمة الحماية.`,
+          code:rateLimited?"ADMIN_EMAIL_RATE_LIMITED":notConfigured?"ADMIN_EMAIL_NOT_CONFIGURED":rejected?"ADMIN_EMAIL_REJECTED":"ADMIN_EMAIL_SEND_FAILED"},rateLimited?429:503);
+      }
       finally{this.adminEnrollmentBusy=false;}
     }
     if(url.pathname==="/api/admin/security/password" && request.method==="POST"){
