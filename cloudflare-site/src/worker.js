@@ -959,9 +959,13 @@ export class SignalingRoom extends DurableObject {
       this.adminEnrollmentBusy=true;
       try{
         const key=`admin-security-code:${this.ownerUsername()}`,proof=await this.ctx.storage.get(key);
-        if(!proof || Date.now()-proof.createdAt>600000 || proof.attempts>=5 || proof.tokenHash!==await hashPassword(body.token))return j({ok:false,error:"اطلب كود حماية جديد من هذه الجلسة"},403);
-        proof.attempts++;await this.ctx.storage.put(key,proof);
-        if(!/^[0-9]{6}$/.test(String(body.code||"")) || proof.hash!==await hashPassword(body.code))return j({ok:false,error:"كود البريد غير صحيح"},403);
+        if(typeof body.currentPassword==="string" && body.currentPassword){
+          const passwordError=await this.requireAdminPassword(body.currentPassword);if(passwordError)return passwordError;
+        }else{
+          if(!proof || Date.now()-proof.createdAt>600000 || proof.attempts>=5 || proof.tokenHash!==await hashPassword(body.token))return j({ok:false,error:"أدخل كلمة الحماية الحالية أو اطلب كود بريد جديد",code:"ADMIN_PASSWORD_PROOF_REQUIRED"},403);
+          proof.attempts++;await this.ctx.storage.put(key,proof);
+          if(!/^[0-9]{6}$/.test(String(body.code||"")) || proof.hash!==await hashPassword(body.code))return j({ok:false,error:"كود البريد غير صحيح"},403);
+        }
         const password=String(body.newPassword||"");
         if(password.length<10 || password.length>128 || password!==body.confirmPassword)return j({ok:false,error:"كلمة حماية الإدارة من 10 إلى 128 حرفًا مع تأكيد مطابق"},400);
         const user=await this.user(auth.session.username);
@@ -1915,7 +1919,6 @@ export class SignalingRoom extends DurableObject {
       const role=await this.roleFor(s.username);
       const isAdmin=role==="super_admin";
       if(post.author!==s.username && !isAdmin)return j({ok:false,error:"غير مسموح لك بحذف هذا المنشور"},403);
-      if(isAdmin){const error=await this.requireAdminPassword(body.adminPassword);if(error)return error;}
       await this.ctx.storage.delete(`post:${id}`);
       const ids=await this.ctx.storage.get("postIds")||[];
       await this.ctx.storage.put("postIds",ids.filter(x=>x!==id));
@@ -2710,10 +2713,10 @@ export class SignalingRoom extends DurableObject {
 
     if(url.pathname==="/api/admin/reset/execute" && request.method==="POST"){
       const auth=await this.requireAdmin(body.token||"");if(auth.error)return auth.error;
-      const passwordError=await this.requireAdminPassword(body.adminPassword);if(passwordError)return passwordError;
       const plan=await this.ctx.storage.get("owner-reset:plan");
       if(!plan || plan.id!==body.planId || plan.owner!==this.ownerUsername() || !["accounts","posts"].includes(plan.kind))
         return j({ok:false,error:"اعرض نطاق الحذف الجديد أولًا؛ الخطط القديمة ملغاة"},409);
+      if(plan.kind==="accounts"){const passwordError=await this.requireAdminPassword(body.adminPassword);if(passwordError)return passwordError;}
       if(body.confirmation!==plan.confirmation)return j({ok:false,error:"اكتب عبارة التأكيد كما ظهرت في التقرير"},400);
       if(plan.phase!=="deleting" && Date.now()>plan.expiresAt)return j({ok:false,error:"انتهت صلاحية التقرير؛ اعرضه من جديد"},409);
       if(this.resetStepBusy || this.accountDeleteBusy)return j({ok:false,error:"دفعة حذف قيد التنفيذ",code:"RESET_BUSY"},409);
@@ -2837,7 +2840,6 @@ export class SignalingRoom extends DurableObject {
       const sensitive=["delete_post","update_post","update_user","make_moderator","remove_moderator"].includes(action);
       if(sensitive){
         if(auth.role!=="super_admin")return j({ok:false,error:"الحذف وتعديل البيانات والصلاحيات للمدير الرئيسي فقط"},403);
-        const passwordError=await this.requireAdminPassword(body.adminPassword);if(passwordError)return passwordError;
       }
       if(action==="update_post"){
         const id=String(body.postId||""),post=await this.ctx.storage.get(`post:${id}`);

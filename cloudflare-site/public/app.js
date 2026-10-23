@@ -935,7 +935,7 @@ function renderProfile(){
   $("meDisplay").textContent=me.displayName||me.username;
   $("meUsername").textContent="@"+me.username;
   $("avatarImg").src=me.avatar||avatarFallback(me.displayName||me.username);
-  if($("headerAvatar"))$("headerAvatar").src="logo-premium.png?v=14.7";
+  if($("headerAvatar"))$("headerAvatar").src="logo-premium.png?v=14.8";
   if($("headerProfileName"))$("headerProfileName").textContent="AL-ATTA";
   if($("headerProfileUsername"))$("headerProfileUsername").textContent="@"+me.username;
   if($("homeAvatar"))$("homeAvatar").src=me.avatar||avatarFallback(me.fullName||me.displayName||me.username);
@@ -1916,7 +1916,7 @@ async function loadAdminDashboard(){
     const d=await api(`/api/admin/summary?token=${encodeURIComponent(token)}`);
     me.role=d.role;
     document.querySelectorAll("[data-owner-only]").forEach(el=>el.classList.toggle("hidden",d.role!=="super_admin"));
-    $("adminSecurityStatus").textContent=d.securityConfigured?"🔒 الحذف والصلاحيات محميان بكلمة مستقلة":"🔒 الحذف مقفول حتى تضبط كلمة حماية الإدارة";
+    $("adminSecurityStatus").textContent=d.securityConfigured?"🔒 حذف الحسابات يتطلب كلمة الحماية كل مرة":"🔒 اضبط كلمة مرور حذف الحسابات أولًا";
     const fields={adminUsersCount:"users",adminPostsCount:"posts",adminReportsCount:"reports",adminBannedCount:"banned",adminDisabledCount:"disabled",adminActiveCount:"active",adminOnlineCount:"online",adminUsersTodayCount:"usersToday",adminPostsTodayCount:"postsToday",adminUsersWeekCount:"users7Days",adminPostsWeekCount:"posts7Days",adminArchivedCount:"archivedPosts"};
     for(const [id,key] of Object.entries(fields))if($(id))$(id).textContent=d.counts[key]||0;
     const maximum=Math.max(1,...(d.daily||[]).flatMap(day=>[day.users,day.posts]));
@@ -1933,9 +1933,9 @@ $("adminSecurityCodeBtn").onclick=async()=>{
 };
 $("adminSecurityForm").onsubmit=async e=>{
   e.preventDefault();const form=e.target,button=form.querySelector("button");button.disabled=true;
-  const body={token,code:form.elements.code.value,newPassword:form.elements.newPassword.value,confirmPassword:form.elements.confirmPassword.value};
-  form.elements.newPassword.value="";form.elements.confirmPassword.value="";
-  try{await api("/api/admin/security/password",{method:"POST",body:JSON.stringify(body)});form.reset();$("adminSecurityStatus").textContent="تم حفظ كلمة الحماية";await loadAdminDashboard();}catch(err){alert(err.message)}finally{body.newPassword="";body.confirmPassword="";button.disabled=false;}
+  const body={token,code:form.elements.code.value,currentPassword:form.elements.currentPassword.value,newPassword:form.elements.newPassword.value,confirmPassword:form.elements.confirmPassword.value};
+  form.elements.newPassword.value="";form.elements.confirmPassword.value="";form.elements.currentPassword.value="";
+  try{await api("/api/admin/security/password",{method:"POST",body:JSON.stringify(body)});form.reset();$("adminSecurityStatus").textContent="تم حفظ كلمة الحماية";await loadAdminDashboard();}catch(err){alert(err.message)}finally{body.newPassword="";body.confirmPassword="";body.currentPassword="";button.disabled=false;}
 };
 let ownerResetPlan=null;
 const resetPreviewButton=$("adminResetPreviewBtn"),resetExecuteButton=$("adminResetExecuteBtn"),resetConfirmation=$("adminResetConfirmation");
@@ -1954,7 +1954,7 @@ resetPreviewButton.onclick=async()=>{
 resetConfirmation.oninput=()=>{resetExecuteButton.disabled=!ownerResetPlan || resetConfirmation.value!==ownerResetPlan.confirmation;};
 resetExecuteButton.onclick=async()=>{
   if(!ownerResetPlan || resetConfirmation.value!==ownerResetPlan.confirmation)return;
-  let adminPassword=await adminSecret();if(adminPassword===null)return;
+  let adminPassword=ownerResetPlan.scope.kind==="accounts"?await adminSecret():"";if(adminPassword===null)return;
   const report=$("adminResetPreviewReport");resetExecuteButton.disabled=true;resetPreviewButton.disabled=true;resetConfirmation.disabled=true;
   try{
     let result;
@@ -2003,7 +2003,7 @@ document.addEventListener("click",async e=>{
   if(action==="delete_user"){body.confirmation=prompt(`اكتب اسم المستخدم @${body.username} لتأكيد حذف حسابه وبياناته:`,"");if(body.confirmation!==body.username)return;}
   if(action==="update_user"){body.displayName=prompt("الاسم الجديد للحساب:",btn.dataset.name);if(body.displayName===null)return;}
   if(action==="update_post"){body.text=prompt("نص المنشور الجديد:",btn.dataset.text);if(body.text===null)return;}
-  if(["delete_user","delete_post","update_user","update_post","make_moderator","remove_moderator"].includes(action)){body.adminPassword=await adminSecret();if(body.adminPassword===null)return;}
+  if(action==="delete_user"){body.adminPassword=await adminSecret();if(body.adminPassword===null)return;}
   btn.disabled=true;
   try{
     if(action==="delete_user"){let result;do{result=await api("/api/admin/users/delete",{method:"POST",body:JSON.stringify(body)});btn.textContent=`جاري الحذف... ${result.deletedMedia||0}`;}while(!result.done);}
@@ -3236,7 +3236,7 @@ async function uploadOwnProfileImage(kind,file){
       :{maxWidth:1400,maxHeight:700,maxChars:390000,quality:.82});
     if(isAvatar){
       $("profileAvatarLarge").src=data;
-      if($("headerAvatar"))$("headerAvatar").src="logo-premium.png?v=14.7";
+      if($("headerAvatar"))$("headerAvatar").src="logo-premium.png?v=14.8";
       if($("homeAvatar"))$("homeAvatar").src=data;
     }else{
       const coverImg=$("profileCoverImage");
@@ -4352,7 +4352,7 @@ window.AttaWeb=Object.freeze({
 
   if ("serviceWorker" in navigator) {
     window.addEventListener("load", () => {
-      navigator.serviceWorker.register("/sw.js?v=14.7", { scope: "/" }).catch(() => {});
+      navigator.serviceWorker.register("/sw.js?v=14.8", { scope: "/" }).catch(() => {});
     });
   }
 

@@ -2091,7 +2091,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
         AlertDialog(onDismissRequest = { adminPasswordAction = null; adminProtectionPassword = "" },
             containerColor = Panel, title = { Text("كلمة حماية الإدارة", color = GoldLight) },
             text = { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("كلمة مستقلة خاصة بالمدير الرئيسي. لا تُحفظ على الهاتف.", color = Muted, fontSize = 12.sp)
+                Text("كلمة حذف الحسابات المحفوظة في حساب المدير. اكتبها لكل عملية حذف.", color = Muted, fontSize = 12.sp)
                 PremiumAuthTextField(adminProtectionPassword, { adminProtectionPassword = it.take(128) }, "كلمة الحماية", password = true)
             } },
             confirmButton = { TextButton(enabled = adminProtectionPassword.isNotBlank(), onClick = {
@@ -2108,11 +2108,11 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
         confirmButton = { TextButton(onClick = {
             val username = adminEditUser; val id = adminEditPost; val name = adminEditUserName; val text = adminEditPostText
             adminEditUser = ""; adminEditPost = ""
-            adminPasswordAction = { secret -> task {
+            task {
                 post("/api/admin/action", JSONObject().put("action", if (username.isNotBlank()) "update_user" else "update_post")
-                    .put("username", username).put("postId", id).put("displayName", name).put("text", text).put("adminPassword", secret))
+                    .put("username", username).put("postId", id).put("displayName", name).put("text", text))
                 load("الإدارة")
-            } }
+            }
         }) { Text("حفظ", color = GoldLight) } },
         dismissButton = { TextButton(onClick = { adminEditUser = ""; adminEditPost = "" }) { Text("إلغاء") } }
     )
@@ -2122,12 +2122,11 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
         text = { Text("الحذف نهائي ولن تتمكن من استعادة المنشور.", color = White) },
         confirmButton = { TextButton(onClick = {
             val id = confirmPostDelete; confirmPostDelete = ""
-            val perform: (String) -> Unit = { secret -> task {
-                if (adminRole == "super_admin") post("/api/admin/action", JSONObject().put("action", "delete_post").put("postId", id).put("adminPassword", secret))
+            task {
+                if (adminRole == "super_admin") post("/api/admin/action", JSONObject().put("action", "delete_post").put("postId", id))
                 else post("/api/post-delete", JSONObject().put("postId", id))
                 load(tab)
-            } }
-            if (adminRole == "super_admin") adminPasswordAction = perform else perform("")
+            }
         }) { Text("حذف نهائي", color = Color(0xFFFF8B8B)) } },
         dismissButton = { TextButton(onClick = { confirmPostDelete = "" }) { Text("إلغاء", color = GoldLight) } }
     )
@@ -3153,10 +3152,10 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                                 }) { Text("حذف نهائي", color = Color(0xFFFF8B8B)) }
                                                 if (adminRole == "super_admin") {
                                                     TextButton(onClick = { adminEditUser = username; adminEditUserName = u.optString("displayName") }) { Text("تعديل الاسم", color = GoldLight) }
-                                                    TextButton(onClick = { adminPasswordAction = { secret -> task {
+                                                    TextButton(onClick = { task {
                                                         post("/api/admin/action", JSONObject().put("action", if (u.optString("role") == "moderator") "remove_moderator" else "make_moderator")
-                                                            .put("username", username).put("adminPassword", secret)); load("الإدارة")
-                                                    } } }) {
+                                                            .put("username", username)); load("الإدارة")
+                                                    } }) {
                                                         SiteIcon("user-plus", size = 18.dp)
                                                         Text(if (u.optString("role") == "moderator") " إزالة الإشراف" else " إضافة مشرف", color = GoldLight)
                                                     }
