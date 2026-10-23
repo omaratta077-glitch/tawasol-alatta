@@ -26,6 +26,7 @@ internal fun incomingCallNotification(context: Context, call: PushCall, view: Pe
         .setCustomContentView(layout(R.layout.atta_call_compact))
         .setCustomBigContentView(layout(R.layout.atta_call_expanded))
         .setCustomHeadsUpContentView(layout(R.layout.atta_call_expanded))
+        .setFullScreenIntent(view, true)
         .setStyle(NotificationCompat.DecoratedCustomViewStyle())
         .setSilent(silent).setOnlyAlertOnce(true)
         .setCategory(NotificationCompat.CATEGORY_CALL).setPriority(NotificationCompat.PRIORITY_MAX)
