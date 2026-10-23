@@ -3400,10 +3400,21 @@ export class SignalingRoom extends DurableObject {
       for(const deviceToken of tokens.slice(-5)){
         attempted++;
         try {
-          // Data-only lets the native receiver post the branded actionable call
-          // notification immediately, also in the background. A notification
-          // payload bypasses that receiver and becomes an image-only FCM card.
+          // Call invitations must have a visible OS notification when Android
+          // suspends our process. Data-only messages can be delayed/deprioritized
+          // by Doze/OEM background restrictions, even if push-test works.
+          // The service handles this same payload while the app is foregrounded;
+          // Android displays the notification itself when it is backgrounded.
           const android={priority:'HIGH',ttl};
+          if(fcmData.type==='call-request'){
+            android.notification={
+              channel_id:'alatta_incoming_call_v2',
+              title:fcmData.callType==='video'?'مكالمة فيديو واردة':'مكالمة صوتية واردة',
+              body:'مكالمة واردة من تواصل العطا',
+              visibility:'PUBLIC',notification_priority:'PRIORITY_MAX',
+              tag:'alatta-call-'+String(fcmData.callId||'').slice(0,128)
+            };
+          }
           const resp=await fetch(url,{method:'POST',headers:{
             Authorization:'Bearer '+accessToken,'Content-Type':'application/json'
           },body:JSON.stringify({message:{token:deviceToken,data:fcmData,android}})});
