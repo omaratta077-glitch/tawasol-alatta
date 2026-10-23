@@ -61,7 +61,7 @@ check("Foreground ring state declared in AttaPush",
       "AttaPush.foregroundRingCallId == callId" in ring_screen)
 
 check("Native Google bridge removed", not (ROOT/(android+"GoogleWebBridge.kt")).exists())
-check("Official version 1.0.159", 'versionCode = 259' in gradle and 'versionName = "1.0.159"' in gradle)
+check("Official version 1.0.160", 'versionCode = 260' in gradle and 'versionName = "1.0.160"' in gradle)
 check("Four additional screens and scrollable navigation", all(x in main for x in ['QuranReaderScreen(', 'KnowledgeScreen(tab', 'FootballScreen(']) and all(x in read(android+"PremiumChrome.kt") for x in ['"القرآن"', '"الأحاديث"', '"الأذكار"', '"الرياضة"', '.horizontalScroll(scroll)']) and (ROOT/(android+"AlattaKnowledgeScreens.kt")).is_file())
 check("Quran-first categories and click-to-play preview", all(x in main for x in [
     'var youtubeCategory by remember { mutableStateOf("قرآن") }',
@@ -113,9 +113,9 @@ check("Native WebRTC camera preview and remote video without call WebView",
       'WebView(' not in video_native and 'WebView(' not in video_engine)
 check("FCM reserved data key converted safely", "fcmData.sender=String(fcmData.from??'')" in worker and "delete fcmData.from" in worker and "data:fcmData" in worker and 'data["fromName"]' in push_source and 'd["sender"] ?: d["from"]' in push_source)
 
-# Calls reach the native receiver in foreground/background; legacy SDK taps remain supported.
-check("Native actionable background calls and safe call controls",
-      "const android={priority:'HIGH',ttl}" in worker and "android.notification={" not in worker and
+# Restore v145 OS background delivery and direct foreground ringing; keep safe call controls.
+check("v145 background notification and local ringtone restored",
+      "const android={priority:'HIGH',ttl}" in worker and "android.notification={" in worker and "alatta_incoming_call_v2" in worker and "val alert = IncomingCallAlert(context.applicationContext)" in video_native and
       'lastCallPushResult:' in worker and
       'intent.getStringExtra("type") == "call-request"' in main and
       'manager.cancel("alatta-call-$callId", 0)' in push_source and

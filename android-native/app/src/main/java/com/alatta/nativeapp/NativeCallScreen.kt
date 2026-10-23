@@ -49,7 +49,7 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
 
-private class ForegroundCallAlertFallback(private val context: Context) {
+private class IncomingCallAlert(private val context: Context) {
     private val audio = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
     private var ringtone: Ringtone? = null
     private var vibrator: Vibrator? = null
@@ -86,36 +86,33 @@ private class ForegroundCallAlertFallback(private val context: Context) {
     }
 }
 
-/** Keep one OS notification/ringtone across lock screen, launcher and call dialog. */
+/** Restore the v145 local ringtone while the incoming-call prompt is visible. */
 @Composable
 internal fun IncomingCallRingtone(call: PushCall) {
     val context = LocalContext.current
+    val lifecycleOwner = context as? LifecycleOwner
     val callId = call.callId
-    DisposableEffect(context, callId) {
+    DisposableEffect(context, lifecycleOwner, callId) {
         AttaPush.foregroundRingCallId = callId
-        // Only use local audio if Android notifications cannot produce an alert.
-        // It never runs alongside an OS-owned call notification.
-        var fallback = if (AttaPush.canShowCallNotification(context)) null else ForegroundCallAlertFallback(context.applicationContext)
-        val lifecycle = (context as? LifecycleOwner)?.lifecycle
+        AttaPush.rememberIncoming(context, call)
+        val alert = IncomingCallAlert(context.applicationContext)
+        fun startVisibleAlert() {
+            // Hand over from the background OS notification before local audio.
+            AttaPush.dismiss(context, callId, ended = false)
+            alert.start()
+        }
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
-                Lifecycle.Event.ON_START -> fallback?.start()
-                Lifecycle.Event.ON_STOP, Lifecycle.Event.ON_DESTROY -> fallback?.stop()
+                Lifecycle.Event.ON_START -> startVisibleAlert()
+                Lifecycle.Event.ON_STOP, Lifecycle.Event.ON_DESTROY -> alert.stop()
                 else -> Unit
             }
         }
-        if (fallback == null) {
-            val posted = try { AttaPush.incoming(context, call, foreground = true) } catch (_: RuntimeException) { false }
-            if (!posted) fallback = ForegroundCallAlertFallback(context.applicationContext)
-        }
-        if (fallback != null) {
-            lifecycle?.addObserver(observer)
-            if (lifecycle == null || lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) fallback?.start()
-        }
+        lifecycleOwner?.lifecycle?.addObserver(observer)
+        if (lifecycleOwner == null || lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) startVisibleAlert()
         onDispose {
-            lifecycle?.removeObserver(observer)
-            fallback?.stop()
-            AttaPush.dismiss(context, callId, ended = false)
+            lifecycleOwner?.lifecycle?.removeObserver(observer)
+            alert.stop()
             if (AttaPush.foregroundRingCallId == callId) AttaPush.foregroundRingCallId = ""
         }
     }

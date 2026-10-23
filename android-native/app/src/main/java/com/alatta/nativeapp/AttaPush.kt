@@ -83,7 +83,7 @@ internal object AttaPush {
     const val ACTION_ACCEPT = "accept"
     const val ACTION_VIEW = "view"
     private const val BASE = "https://tawasol-alatta.omaratta077-4fd.workers.dev"
-    internal const val CHANNEL = "alatta_incoming_call_v3"
+    internal const val CHANNEL = "alatta_incoming_call_v2"
     private const val CHAT_CHANNEL = "alatta_messages_v1"
     private const val SOCIAL_CHANNEL = "alatta_social_v1"
     const val ACTION_OPEN_NOTIFICATION = "com.alatta.nativeapp.OPEN_NOTIFICATION"
@@ -349,19 +349,13 @@ internal object AttaPush {
         NotificationManagerCompat.from(context).notify(eventId.hashCode(), notice.build())
     }
 
-    fun canShowCallNotification(context: Context): Boolean {
-        if (!canNotify(context) || !NotificationManagerCompat.from(context).areNotificationsEnabled()) return false
-        val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        return Build.VERSION.SDK_INT < 26 || manager.getNotificationChannel(CHANNEL)?.importance != NotificationManager.IMPORTANCE_NONE
-    }
-
     @Synchronized
-    fun incoming(context: Context, call: PushCall, foreground: Boolean = false): Boolean {
+    fun incoming(context: Context, call: PushCall): Boolean {
         if (!validSession(context, call)) return true
         if (activeCallId == call.callId) return true // Same accepted call, not another incoming call.
         // Foreground calls already have a native dialog + ringtone through the
         // authenticated WebSocket/HTTP path. Never ring the same device twice.
-        if (!foreground && appVisible && foregroundRingCallId == call.callId) return true
+        if (appVisible && foregroundRingCallId == call.callId) return true
         createChannel(context)
         if (Build.VERSION.SDK_INT >= 33 &&
             ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS)

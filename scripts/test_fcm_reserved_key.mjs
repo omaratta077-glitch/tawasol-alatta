@@ -28,14 +28,24 @@ try{
   await room.deliverUserPush('bob',{type:'chat',from:'alice',eventId:'event-chat-abc123',createdAt:Date.now()});
   const testing=await room.sendFcmToUser('bob',{type:'push-test',to:'bob',from:'',eventId:'event-test-abc123',createdAt:String(Date.now())},'60s');
   assert.equal(testing.accepted,1);
-  assert.equal(captured.length,3);
+  await room.sendFcmToUser('bob',{type:'call-request',to:'bob',from:'alice',callId:'call-audio-abc123',callType:'audio'},'45s');
+  await room.sendFcmToUser('bob',{type:'hangup',to:'bob',from:'alice',callId:'call-audio-abc123'},'45s');
+  assert.equal(captured.length,5);
   for(const item of captured){
     assert.equal(item.token,device);
     assert.equal(Object.hasOwn(item.data,'from'),false,'reserved FCM data.from was sent');
     assert.equal(item.android.priority,'HIGH');
     assert.ok(item.android.ttl.endsWith('s'));
   }
-  assert.equal(captured[0].android.notification,undefined,'calls must reach the native actionable notification handler');
+  assert.equal(captured[0].android.notification.channel_id,'alatta_incoming_call_v2');
+  assert.equal(captured[0].android.notification.visibility,'PUBLIC');
+  assert.equal(captured[0].android.notification.notification_priority,'PRIORITY_MAX');
+  assert.equal(captured[0].android.notification.tag,'alatta-call-call-abc123');
+  assert.equal(captured[0].android.notification.image,undefined,'v145 call delivery has no large image');
+  assert.equal(captured[0].android.notification.title,'مكالمة فيديو واردة');
+  assert.equal(captured[3].android.notification.title,'مكالمة صوتية واردة');
+  assert.equal(captured[3].android.notification.tag,'alatta-call-call-audio-abc123');
+  assert.equal(captured[4].android.notification,undefined,'hangup must not display a new incoming call');
   assert.equal(captured[1].android.notification,undefined,'ordinary messages stay data-only');
   assert.equal(captured[2].android.notification,undefined,'push test stays data-only');
   const delivery = await ctx.storage.get('lastCallPushResult:bob');
@@ -49,5 +59,5 @@ try{
   assert.equal(captured[0].data.callType,'video');
   assert.equal(captured[1].data.sender,'alice');
   assert.equal(captured[2].data.sender,'');
-  console.log('PASS: all pushes reach native handlers without automatic image-only cards, no reserved from key');
+  console.log('PASS: v145 OS call notification restored; other pushes stay data-only; no reserved from key');
 }finally{globalThis.fetch=fetchBefore;}

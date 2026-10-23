@@ -4,14 +4,14 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class CallAlertPolicyTest {
-    @Test fun backgroundNotificationRemainsTheOnlySoundWhenActivityOpens() {
+    @Test fun existingBackgroundNotificationIsNotPostedTwice() {
         assertEquals(CallAlertDecision.KEEP, callAlertDecision("call-a", "", "", true))
         assertEquals(CallAlertDecision.KEEP, callAlertDecision("call-a", "call-a", "", true))
     }
-    @Test fun tappingAnAutoCancelledNotificationDoesNotStartAnotherRingtone() {
+    @Test fun repostingACancelledBackgroundNotificationRemainsSilent() {
         assertEquals(CallAlertDecision.SILENT, callAlertDecision("call-a", "call-a", "", false))
     }
-    @Test fun firstForegroundInvitationRingsAndDuplicatesStayQuiet() {
+    @Test fun firstBackgroundInvitationRingsAndDuplicatesStayQuiet() {
         assertEquals(CallAlertDecision.RING, callAlertDecision("call-a", "", "", false))
         assertEquals(CallAlertDecision.KEEP, callAlertDecision("call-a", "call-a", "", true))
         assertEquals(CallAlertDecision.SILENT, callAlertDecision("call-a", "call-a", "", false))
