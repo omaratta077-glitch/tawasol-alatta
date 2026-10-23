@@ -2624,7 +2624,8 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                             onShareHadithPost = { hadith ->
                                 val composed = composeHadithPost(draft, hadith)
                                 if (composed == null) {
-                                    featureMessage = "الحديث مع نص المنشور يتجاوز 5000 حرف. لا يمكن اختصار الحديث دون تنبيه؛ احذف نصًا من المسودة أولًا."
+                                    val kind = if (tab == "الأذكار") "الذكر" else "الحديث"
+                                    featureMessage = "$kind مع نص المنشور يتجاوز 5000 حرف. لن يُختصر النص؛ احذف نصًا من المسودة أولًا."
                                 } else {
                                     draft = composed
                                     openHomeComposer()

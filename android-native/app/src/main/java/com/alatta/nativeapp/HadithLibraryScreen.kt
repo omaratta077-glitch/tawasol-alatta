@@ -14,6 +14,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.selection.SelectionContainer
@@ -21,6 +22,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -44,6 +46,10 @@ private fun HadithPanel(content: @Composable ColumnScope.() -> Unit) {
 internal fun HadithLibraryScreen(query: String, modifier: Modifier = Modifier,
     onClearQuery: () -> Unit, onSharePost: (String) -> Unit) {
     val context = LocalContext.current
+    val hadithPrimaryColors = ButtonDefaults.buttonColors(containerColor = PremiumGold, contentColor = PremiumBackground, disabledContainerColor = PremiumGold.copy(alpha = .20f), disabledContentColor = PremiumMuted)
+    val hadithOutlineColors = ButtonDefaults.outlinedButtonColors(containerColor = PremiumBackground, contentColor = PremiumGoldLight, disabledContentColor = PremiumMuted)
+    val hadithTextColors = ButtonDefaults.textButtonColors(containerColor = PremiumGold.copy(alpha = .08f), contentColor = PremiumGoldLight, disabledContentColor = PremiumMuted)
+    val hadithIconColors = IconButtonDefaults.iconButtonColors(containerColor = PremiumGold.copy(alpha = .10f), contentColor = PremiumGoldLight)
     val preferences = remember { context.getSharedPreferences("alatta_hadith", Context.MODE_PRIVATE) }
     var books by remember { mutableStateOf(emptyList<HadithBook>()) }
     var sections by remember { mutableStateOf(emptyList<HadithSection>()) }
@@ -133,19 +139,19 @@ internal fun HadithLibraryScreen(query: String, modifier: Modifier = Modifier,
 
     Column(modifier.fillMaxSize().background(PremiumBackground).padding(horizontal = 12.dp)) {
         Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-            if (bookId.isNotBlank() || query.isNotBlank() || reading) IconButton(onClick = { back() }) { SiteIcon("arrow-left", size = 22.dp) }
+            if (bookId.isNotBlank() || query.isNotBlank() || reading) IconButton(onClick = { back() }, modifier = Modifier.clip(CircleShape).attaGoldShine(true), colors = hadithIconColors) { SiteIcon("arrow-left", size = 22.dp) }
             Text(book?.title ?: "مكتبة الأحاديث", Modifier.weight(1f), color = PremiumGoldLight, fontWeight = FontWeight.Bold, fontSize = 18.sp)
-            TextButton(onClick = { showSources = true }) { Text("المصادر", color = PremiumGoldLight, fontSize = 12.sp) }
+            TextButton(onClick = { showSources = true }, modifier = Modifier.clip(RoundedCornerShape(12.dp)).attaGoldShine(true), colors = hadithTextColors, shape = RoundedCornerShape(12.dp)) { Text("المصادر", color = PremiumGoldLight, fontSize = 12.sp) }
         }
         if (notice.isNotBlank()) Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text(notice, Modifier.weight(1f), color = PremiumGoldLight, fontSize = 12.sp)
-            TextButton(onClick = { notice = "" }) { Text("تم", color = PremiumMuted) }
+            TextButton(onClick = { notice = "" }, modifier = Modifier.clip(RoundedCornerShape(12.dp)).attaGoldShine(true), colors = hadithTextColors, shape = RoundedCornerShape(12.dp)) { Text("تم", color = PremiumMuted) }
         }
         if (book != null) {
             Text(book.edition, color = PremiumMuted, fontSize = 11.sp)
             if (!showReadings) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                TextButton(onClick = { reading = true; section = 0; page = 0 }, modifier = Modifier.weight(1f)) { Text("قراءة كل الأحاديث", color = PremiumGoldLight) }
-                TextButton(onClick = { jump = ""; jumpError = ""; showJump = true }, modifier = Modifier.weight(1f)) { Text("انتقال لرقم حديث", color = PremiumGoldLight) }
+                TextButton(onClick = { reading = true; section = 0; page = 0 }, modifier = Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).attaGoldShine(true), colors = hadithTextColors, shape = RoundedCornerShape(12.dp)) { Text("قراءة كل الأحاديث", color = PremiumGoldLight) }
+                TextButton(onClick = { jump = ""; jumpError = ""; showJump = true }, modifier = Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).attaGoldShine(true), colors = hadithTextColors, shape = RoundedCornerShape(12.dp)) { Text("انتقال لرقم حديث", color = PremiumGoldLight) }
             }
         }
         if (loading) LinearProgressIndicator(Modifier.fillMaxWidth().padding(vertical = 6.dp), color = PremiumGold)
@@ -153,17 +159,17 @@ internal fun HadithLibraryScreen(query: String, modifier: Modifier = Modifier,
             Text(error, color = Color(0xFFFFB4A9), modifier = Modifier.padding(12.dp))
             if (diagnostic.isNotBlank()) Text(diagnostic, color = PremiumMuted, fontSize = 11.sp)
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                TextButton(onClick = { retry++ }) { Text("إعادة المحاولة", color = PremiumGoldLight) }
+                TextButton(onClick = { retry++ }, modifier = Modifier.clip(RoundedCornerShape(12.dp)).attaGoldShine(true), colors = hadithTextColors, shape = RoundedCornerShape(12.dp)) { Text("إعادة المحاولة", color = PremiumGoldLight) }
                 TextButton(onClick = {
                     repairRequested = true
                     retry++
-                }) { Text("إعادة تجهيز المكتبة", color = PremiumGoldLight) }
+                }, modifier = Modifier.clip(RoundedCornerShape(12.dp)).attaGoldShine(true), colors = hadithTextColors, shape = RoundedCornerShape(12.dp)) { Text("إعادة تجهيز المكتبة", color = PremiumGoldLight) }
             }
             if (diagnostic.isNotBlank()) TextButton(onClick = {
                 (context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager)
                     .setPrimaryClip(ClipData.newPlainText("تشخيص الأحاديث", diagnostic))
                 notice = "تم نسخ تشخيص المشكلة"
-            }) { Text("نسخ التشخيص", color = PremiumGoldLight, fontSize = 12.sp) }
+            }, modifier = Modifier.clip(RoundedCornerShape(12.dp)).attaGoldShine(true), colors = hadithTextColors, shape = RoundedCornerShape(12.dp)) { Text("نسخ التشخيص", color = PremiumGoldLight, fontSize = 12.sp) }
         }
         when {
             books.isEmpty() -> Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
@@ -173,8 +179,8 @@ internal fun HadithLibraryScreen(query: String, modifier: Modifier = Modifier,
                 result?.let { data ->
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                         Text("${data.total} حديثًا • ${if (query.isNotBlank()) "نتائج البحث" else if (section > 0) "مجموعة القراءة $section" else "كل الكتاب"}", Modifier.weight(1f), color = PremiumMuted, fontSize = 12.sp)
-                        TextButton(onClick = { fontSize = (fontSize - 1).coerceAtLeast(17); preferences.edit().putInt("font_size", fontSize).apply() }, contentPadding = PaddingValues(4.dp), modifier = Modifier.width(34.dp)) { Text("أ−", color = PremiumGold) }
-                        TextButton(onClick = { fontSize = (fontSize + 1).coerceAtMost(30); preferences.edit().putInt("font_size", fontSize).apply() }, contentPadding = PaddingValues(4.dp), modifier = Modifier.width(34.dp)) { Text("أ+", color = PremiumGold) }
+                        TextButton(onClick = { fontSize = (fontSize - 1).coerceAtLeast(17); preferences.edit().putInt("font_size", fontSize).apply() }, contentPadding = PaddingValues(4.dp), modifier = Modifier.width(34.dp).clip(RoundedCornerShape(12.dp)).attaGoldShine(true), colors = hadithTextColors, shape = RoundedCornerShape(12.dp)) { Text("أ−", color = PremiumGold) }
+                        TextButton(onClick = { fontSize = (fontSize + 1).coerceAtMost(30); preferences.edit().putInt("font_size", fontSize).apply() }, contentPadding = PaddingValues(4.dp), modifier = Modifier.width(34.dp).clip(RoundedCornerShape(12.dp)).attaGoldShine(true), colors = hadithTextColors, shape = RoundedCornerShape(12.dp)) { Text("أ+", color = PremiumGold) }
                     }
                 }
                 LazyColumn(Modifier.weight(1f), state = listState, contentPadding = PaddingValues(vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -188,35 +194,33 @@ internal fun HadithLibraryScreen(query: String, modifier: Modifier = Modifier,
                                 lineHeight = (fontSize * 1.8f).sp, textAlign = TextAlign.Start, modifier = Modifier.fillMaxWidth()) }
                             Text(sourceBook.edition, color = PremiumMuted, fontSize = 11.sp)
                             val sharedText = "${entry.body}\n\n${sourceBook.title} • الحديث ${entry.number}\n${sourceBook.edition}"
-                            OutlinedButton(onClick = { onSharePost(sharedText) },
-                                modifier = Modifier.fillMaxWidth(),
-                                border = BorderStroke(1.dp, PremiumGold)) {
+                            OutlinedButton(onClick = { onSharePost(sharedText) }, modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).attaGoldShine(true), border = BorderStroke(1.dp, PremiumGold), colors = hadithOutlineColors, shape = RoundedCornerShape(12.dp)) {
                                 Text("مشاركة كمنشور في تواصل العطا", color = PremiumGoldLight, fontSize = 14.sp)
                             }
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                                 TextButton(onClick = {
                                     (context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager).setPrimaryClip(ClipData.newPlainText("حديث", sharedText))
                                     notice = "تم نسخ الحديث ومرجعه"
-                                }) { Text("نسخ", color = PremiumGoldLight) }
+                                }, modifier = Modifier.clip(RoundedCornerShape(12.dp)).attaGoldShine(true), colors = hadithTextColors, shape = RoundedCornerShape(12.dp)) { Text("نسخ", color = PremiumGoldLight) }
                                 TextButton(onClick = {
                                     context.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, sharedText), "مشاركة الحديث"))
-                                }) { Text("مشاركة", color = PremiumGoldLight) }
+                                }, modifier = Modifier.clip(RoundedCornerShape(12.dp)).attaGoldShine(true), colors = hadithTextColors, shape = RoundedCornerShape(12.dp)) { Text("مشاركة", color = PremiumGoldLight) }
                                 TextButton(onClick = {
                                     bookmarkBook = entry.bookId; bookmarkNumber = entry.number
                                     preferences.edit().putString("bookmark_book", entry.bookId).putInt("bookmark_number", entry.number).apply()
                                     notice = "تم حفظ موضع القراءة"
-                                }) { Text("حفظ الموضع", color = PremiumGoldLight, fontSize = 12.sp) }
+                                }, modifier = Modifier.clip(RoundedCornerShape(12.dp)).attaGoldShine(true), colors = hadithTextColors, shape = RoundedCornerShape(12.dp)) { Text("حفظ الموضع", color = PremiumGoldLight, fontSize = 12.sp) }
                             }
                         }
                     }
                 }
                 result?.takeIf { it.pages > 0 }?.let { data ->
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                        TextButton(enabled = !loading && data.page > 0, onClick = { page = 0 }, contentPadding = PaddingValues(4.dp)) { Text("الأولى", fontSize = 12.sp) }
-                        TextButton(enabled = !loading && data.page > 0, onClick = { page = data.page - 1 }, contentPadding = PaddingValues(4.dp)) { Text("السابق", fontSize = 12.sp) }
+                        TextButton(enabled = !loading && data.page > 0, onClick = { page = 0 }, contentPadding = PaddingValues(4.dp), modifier = Modifier.clip(RoundedCornerShape(12.dp)).attaGoldShine(!loading && data.page > 0), colors = hadithTextColors, shape = RoundedCornerShape(12.dp)) { Text("الأولى", fontSize = 12.sp) }
+                        TextButton(enabled = !loading && data.page > 0, onClick = { page = data.page - 1 }, contentPadding = PaddingValues(4.dp), modifier = Modifier.clip(RoundedCornerShape(12.dp)).attaGoldShine(!loading && data.page > 0), colors = hadithTextColors, shape = RoundedCornerShape(12.dp)) { Text("السابق", fontSize = 12.sp) }
                         Text("${data.page + 1}/${data.pages}", color = PremiumGoldLight, fontSize = 12.sp)
-                        TextButton(enabled = !loading && data.page < data.pages - 1, onClick = { page = data.page + 1 }, contentPadding = PaddingValues(4.dp)) { Text("التالي", fontSize = 12.sp) }
-                        TextButton(enabled = !loading && data.page < data.pages - 1, onClick = { page = data.pages - 1 }, contentPadding = PaddingValues(4.dp)) { Text("الأخيرة", fontSize = 12.sp) }
+                        TextButton(enabled = !loading && data.page < data.pages - 1, onClick = { page = data.page + 1 }, contentPadding = PaddingValues(4.dp), modifier = Modifier.clip(RoundedCornerShape(12.dp)).attaGoldShine(!loading && data.page < data.pages - 1), colors = hadithTextColors, shape = RoundedCornerShape(12.dp)) { Text("التالي", fontSize = 12.sp) }
+                        TextButton(enabled = !loading && data.page < data.pages - 1, onClick = { page = data.pages - 1 }, contentPadding = PaddingValues(4.dp), modifier = Modifier.clip(RoundedCornerShape(12.dp)).attaGoldShine(!loading && data.page < data.pages - 1), colors = hadithTextColors, shape = RoundedCornerShape(12.dp)) { Text("الأخيرة", fontSize = 12.sp) }
                     }
                 }
             }
@@ -224,7 +228,7 @@ internal fun HadithLibraryScreen(query: String, modifier: Modifier = Modifier,
                 LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     item { Text("فهرس القراءة • مجموعات حتى 100 حديث، وليست أسماء أبواب الكتاب الأصلية", color = PremiumMuted, fontSize = 12.sp) }
                     items(sections, key = { it.id }) { part ->
-                        OutlinedButton(onClick = { section = part.id; reading = true; page = 0 }, modifier = Modifier.fillMaxWidth()) {
+                        OutlinedButton(onClick = { section = part.id; reading = true; page = 0 }, modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).attaGoldShine(true), colors = hadithOutlineColors, shape = RoundedCornerShape(12.dp), border = BorderStroke(1.dp, PremiumGold.copy(alpha = .6f))) {
                             Text(part.title, color = PremiumGoldLight, modifier = Modifier.weight(1f), textAlign = TextAlign.Start)
                             Text("${part.count}", color = PremiumMuted, fontSize = 12.sp)
                         }
@@ -235,7 +239,7 @@ internal fun HadithLibraryScreen(query: String, modifier: Modifier = Modifier,
                 item { Text("النصوص العربية محفوظة دون إنترنت. ابحث بالكلمات أو برقم الحديث من الشريط العلوي.", color = PremiumMuted, fontSize = 13.sp) }
                 val savedBook = books.firstOrNull { it.id == bookmarkBook }
                 if (savedBook != null && bookmarkNumber in 1..savedBook.count) item {
-                    Button(onClick = { readAt(savedBook.id, bookmarkNumber) }, modifier = Modifier.fillMaxWidth()) {
+                    Button(onClick = { readAt(savedBook.id, bookmarkNumber) }, modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).attaGoldShine(true), colors = hadithPrimaryColors, shape = RoundedCornerShape(12.dp)) {
                         Text("متابعة ${savedBook.title} • الحديث $bookmarkNumber")
                     }
                 }
@@ -244,7 +248,7 @@ internal fun HadithLibraryScreen(query: String, modifier: Modifier = Modifier,
                         Text(collection.title, color = PremiumGoldLight, fontSize = 20.sp, fontWeight = FontWeight.Bold)
                         Text(collection.author, color = Color.White, fontSize = 13.sp)
                         Text("${collection.count} حديثًا في النسخة المضمنة", color = PremiumMuted, fontSize = 12.sp)
-                        Button(onClick = { bookId = collection.id; section = 0; reading = false; page = 0 }, modifier = Modifier.fillMaxWidth()) { Text("فتح الكتاب") }
+                        Button(onClick = { bookId = collection.id; section = 0; reading = false; page = 0 }, modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).attaGoldShine(true), colors = hadithPrimaryColors, shape = RoundedCornerShape(12.dp)) { Text("فتح الكتاب") }
                     }
                 }
             }
@@ -260,7 +264,7 @@ internal fun HadithLibraryScreen(query: String, modifier: Modifier = Modifier,
         val number = normalizeHadithSearch(jump).toIntOrNull()
         if (number != null && number in 1..book.count) { readAt(book.id, number); showJump = false }
         else jumpError = "اكتب رقم حديث صحيحًا من هذه النسخة"
-    }) { Text("انتقال") } }, dismissButton = { TextButton(onClick = { showJump = false }) { Text("رجوع") } })
+    }, modifier = Modifier.clip(RoundedCornerShape(12.dp)).attaGoldShine(true), colors = hadithTextColors, shape = RoundedCornerShape(12.dp)) { Text("انتقال") } }, dismissButton = { TextButton(onClick = { showJump = false }, modifier = Modifier.clip(RoundedCornerShape(12.dp)).attaGoldShine(true), colors = hadithTextColors, shape = RoundedCornerShape(12.dp)) { Text("رجوع") } })
     if (showSources) AlertDialog(onDismissRequest = { showSources = false }, title = { Text("مصادر مكتبة الأحاديث") }, text = {
         Column(Modifier.heightIn(max = 440.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text("النصوص كاملة كما في النسخ المصدرية المبيّنة. تختلف طريقة جمع الروايات وترقيمها بين الطبعات. فهرس القراءة يقسّم النص إلى مجموعات للتصفح.", fontSize = 13.sp)
@@ -268,8 +272,8 @@ internal fun HadithLibraryScreen(query: String, modifier: Modifier = Modifier,
                 Text(collection.title, fontWeight = FontWeight.Bold)
                 Text(collection.source, fontSize = 12.sp)
                 Text(collection.edition, fontSize = 12.sp)
-                TextButton(onClick = { runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(collection.sourceUrl))) } }) { Text("عرض المصدر") }
+                TextButton(onClick = { runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(collection.sourceUrl))) } }, modifier = Modifier.clip(RoundedCornerShape(12.dp)).attaGoldShine(true), colors = hadithTextColors, shape = RoundedCornerShape(12.dp)) { Text("عرض المصدر") }
             }
         }
-    }, confirmButton = { TextButton(onClick = { showSources = false }) { Text("تم") } })
+    }, confirmButton = { TextButton(onClick = { showSources = false }, modifier = Modifier.clip(RoundedCornerShape(12.dp)).attaGoldShine(true), colors = hadithTextColors, shape = RoundedCornerShape(12.dp)) { Text("تم") } })
 }
