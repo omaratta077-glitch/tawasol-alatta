@@ -40,7 +40,10 @@ room=restart();assert.deepEqual((await chat()).map(m=>m.id),['signal']);
 const inbox=await api('/api/inbox?peers=bob');assert.deepEqual(inbox.data.hiddenPeers,['bob']);assert.equal(inbox.data.summaries.length,0);
 assert.ok((await chat('bob')).some(m=>m.id==='two'),'clearing only affects the owner');
 // Offline delivery respects deletion without dropping active call transport.
+const pending=data.get(key);for(const m of pending)m.deliveredAt=0;
+pending.push(msg('incoming-signal','bob','call-signal'));data.set(key,pending);
 events.length=0;await room.deliverPendingMessages('alice',sockets[0]);assert.ok(!events.some(e=>e.id==='two'));
+assert.ok(events.some(e=>e.id==='incoming-signal'),'active RTC packets still replay after history is cleared');
 const list=data.get(key);list.push(msg('new','bob'));data.set(key,list);
 assert.ok((await chat()).some(m=>m.id==='new'));assert.deepEqual((await api('/api/inbox?peers=bob')).data.hiddenPeers,[]);
 data.set('friends:alice',[]);data.set('friends:bob',[]);
