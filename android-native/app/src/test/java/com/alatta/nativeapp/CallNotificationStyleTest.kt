@@ -28,6 +28,8 @@ class CallNotificationStyleTest {
         assertEquals("عمر عطا", notification.extras.getCharSequence("android.title").toString())
         assertFalse(notification.extras.containsKey("android.picture"))
         assertEquals(android.app.Notification.VISIBILITY_PUBLIC, notification.visibility)
+        assertNotNull(notification.fullScreenIntent)
+        assertEquals(android.app.Notification.CATEGORY_CALL, notification.category)
         val expanded = notification.bigContentView.apply(context, FrameLayout(context))
         assertEquals("عمر عطا", expanded.findViewById<TextView>(R.id.call_name).text.toString())
         assertNotNull(expanded.findViewById<ImageView>(R.id.call_logo).drawable)
