@@ -125,6 +125,23 @@ internal fun AzkarPrayerScreen(query: String, modifier: Modifier = Modifier, onS
     var page by rememberSaveable { mutableStateOf("home") }
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
     var message by remember { mutableStateOf("") }
+    var shareChoice by remember { mutableStateOf<Pair<DhikrGroup, Dhikr>?>(null) }
+    var externalShare by remember { mutableStateOf(false) }
+    shareChoice?.let { (selectedGroup, selectedEntry) ->
+        fun share(wholeGroup: Boolean) {
+            val text = formatDhikrShare(selectedGroup, if (wholeGroup) null else selectedEntry)
+            shareChoice = null
+            if (externalShare) context.startActivity(Intent.createChooser(
+                Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, text), "مشاركة الأذكار"))
+            else onSharePost(text)
+        }
+        AlertDialog(onDismissRequest = { shareChoice = null },
+            title = { Text("مشاركة الأذكار") },
+            text = { Text("اختر النص الذي تريد مشاركته") },
+            confirmButton = { TextButton(onClick = { share(true) }) { Text("${selectedGroup.title} كاملة") } },
+            dismissButton = { TextButton(onClick = { share(false) }) { Text("الذكر الحالي فقط") } },
+            containerColor = PremiumBackground, titleContentColor = PremiumGoldLight, textContentColor = PremiumMuted)
+    }
     var chooseCity by remember { mutableStateOf(false) }
     var chooseMethod by remember { mutableStateOf(false) }
     var customCity by remember { mutableStateOf(false) }
@@ -246,9 +263,7 @@ internal fun AzkarPrayerScreen(query: String, modifier: Modifier = Modifier, onS
                         Text(entry.text, color = Color.White, fontSize = fontSize.sp, lineHeight = (fontSize * 1.75).sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
                         Text(entry.source, color = PremiumMuted, fontSize = 12.sp)
                         if (entry.note.isNotBlank()) Text(entry.note, color = prayerSoft, fontSize = 12.sp)
-                        val sharedText = listOf(group.title, entry.title, entry.text, entry.source, entry.note)
-                            .filter { it.isNotBlank() }.joinToString("\n\n")
-                        Button(onClick = { onSharePost(sharedText) },
+                        Button(onClick = { externalShare = false; shareChoice = group to entry },
                             modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(13.dp)).attaGoldShine(),
                             colors = ButtonDefaults.buttonColors(containerColor = PremiumGold, contentColor = PremiumBackground),
                             shape = RoundedCornerShape(13.dp)) {
@@ -258,8 +273,7 @@ internal fun AzkarPrayerScreen(query: String, modifier: Modifier = Modifier, onS
                         }
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                             TextButton(onClick = {
-                                val share = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, sharedText)
-                                context.startActivity(Intent.createChooser(share, "مشاركة الذكر"))
+                                externalShare = true; shareChoice = group to entry
                             }) { SiteIcon("share", size = 21.dp) }
                             Box(Modifier.size(108.dp).clip(CircleShape).background(prayerTeal).clickable(enabled = count < entry.target) {
                                 val nextCount = (count + 1).coerceAtMost(entry.target)

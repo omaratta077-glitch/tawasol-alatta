@@ -825,7 +825,8 @@ export class SignalingRoom extends DurableObject {
             key.startsWith("google-account:") && value===target || ["fcmOwner:","hmsOwner:"].some(p=>key.startsWith(p)) && value===target ||
             key.startsWith("pending-registration:") && (value?.registration?.username===target || value?.registration?.email===job.email) ||
             key.startsWith("reset:") && value?.username===target ||
-            key.startsWith("messages:") && key.slice(9).split(":").includes(target)){
+            (key.startsWith("messages:") && key.slice(9).split(":").includes(target) ||
+            key.startsWith("chat-view:") && key.slice(10).split(":").includes(target))){
             await remove(key);continue;
           }
           let next=value;
@@ -1888,7 +1889,8 @@ export class SignalingRoom extends DurableObject {
       const s=await this.session(String(body.token||""));
       if(!s)return j({ok:false,error:"الجلسة منتهية"},401);
 
-      const text=String(body.text||"").trim().slice(0,5000);
+      const text=String(body.text||"").trim();
+      if(text.length>50000)return j({ok:false,error:"المنشور يتجاوز 50000 حرف"},400);
       // Keep legacy small inline images/videos, but store new large media as R2 URLs.
       const mediaValue=(value,legacyLimit)=>{
         const raw=String(value||"");
@@ -2376,6 +2378,48 @@ export class SignalingRoom extends DurableObject {
       const response=j({ok:true,signals});response.headers.set("cache-control","no-store");return response;
     }
 
+    if(["/api/conversation-delete","/api/message-delete"].includes(url.pathname) && request.method==="POST"){
+      const s=await this.session(String(body.token||""));
+      if(!s)return j({ok:false,error:"الجلسة منتهية"},401);
+      const other=String(body.with||"").trim().toLowerCase();
+      if(!/^[a-z0-9_.-]{1,64}$/.test(other) || other===s.username || !await this.user(other))return j({ok:false,error:"محادثة غير صالحة"},400);
+      const key="messages:"+[s.username,other].sort().join(":"), messages=await this.ctx.storage.get(key)||[];
+      const viewKey=`chat-view:${s.username}:${other}`, view=await this.ctx.storage.get(viewKey)||{hiddenIds:[]};
+      const hidden=new Set(view.hiddenIds||[]), whole=url.pathname==="/api/conversation-delete";
+      const scope=whole?"me":String(body.scope||"");
+      if(!["me","everyone"].includes(scope))return j({ok:false,error:"خيار حذف غير صالح"},400);
+      let removed=[];
+      if(whole){
+        removed=messages.filter(m=>m.mediaType!=="call-signal" && !m.deletedForEveryone).map(m=>m.id);
+        for(const id of removed)hidden.add(id);
+        view.hideEmpty=true;
+      }else{
+        const id=String(body.messageId||"");
+        if(!id || id.length>200)return j({ok:false,error:"رسالة غير صالحة"},400);
+        const index=messages.findIndex(m=>m.id===id && m.mediaType!=="call-signal" &&
+          ((m.from===s.username && m.to===other)||(m.from===other && m.to===s.username)));
+        if(index<0)return j({ok:false,error:"الرسالة غير موجودة"},404);
+        const m=messages[index];
+        if(scope==="everyone"){
+          if(m.from!==s.username)return j({ok:false,error:"يمكن للمرسل فقط الحذف لدى الطرفين"},403);
+          // Keep only a tombstone: late call events must not recreate the deleted history.
+          messages[index]={id:m.id,from:m.from,to:m.to,ts:m.ts,mediaType:m.mediaType,callId:m.callId,deletedForEveryone:true};
+          await this.ctx.storage.put(key,messages);
+        }else hidden.add(id);
+        removed=[id];
+      }
+      view.hiddenIds=messages.filter(m=>hidden.has(m.id)).map(m=>m.id);
+      await this.ctx.storage.put(viewKey,view);
+      const recipients=scope==="everyone"?[s.username,other]:[s.username];
+      for(const recipient of recipients){
+        const peer=recipient===s.username?other:s.username;
+        for(const ws of this.sockets())if(this.meta(ws).user===recipient)
+          this.send(ws,{type:"chat-deleted",peer,messageId:whole?"":removed[0],scope});
+        for(const id of (whole?[]:removed))this.ctx.waitUntil(this.trackOperation(()=>this.sendDevicePush(recipient,{type:"chat-deleted",to:recipient,messageId:id},"86400s")));
+      }
+      return j({ok:true,removed});
+    }
+
     // One network response for the inbox: never send 200 messages per peer.
     // Apply the same mutual-friend / block policy as opening a conversation.
     if(url.pathname==="/api/inbox" && request.method==="GET"){
@@ -2385,7 +2429,7 @@ export class SignalingRoom extends DurableObject {
       if(raw.length>4000)return j({ok:false,error:"قائمة المحادثات طويلة"},400);
       const peers=[...new Set(raw.split(",").map(v=>v.trim().toLowerCase()).filter(Boolean))];
       if(peers.length>50 || peers.some(v=>!/^[a-z0-9_.-]{1,64}$/.test(v)))return j({ok:false,error:"قائمة المحادثات غير صالحة"},400);
-      const summaries=[];
+      const summaries=[],hiddenPeers=[];
       for(const peer of peers){
         if(!await this.canCommunicate(s.username,peer))continue;
         const user=await this.publicUser(peer);if(!user)continue;
@@ -2394,11 +2438,14 @@ export class SignalingRoom extends DurableObject {
         // Expired call status is reflected in the preview without marking unseen
         // messages delivered or writing the whole conversation on every refresh.
         this.finishExpiredCallEvents(messages);
-        const last=messages.findLast(m=>m.mediaType!=="call-signal");
+        const visible=await this.visibleChatMessages(messages,s.username,peer);
+        const last=visible.findLast(m=>m.mediaType!=="call-signal");
+        const view=await this.ctx.storage.get(`chat-view:${s.username}:${peer}`);
+        if(!last && view?.hideEmpty){hiddenPeers.push(peer);continue;}
         const lastMessage=last?{id:last.id,from:last.from,to:last.to,text:String(last.text||"").slice(0,160),mediaType:last.mediaType||"",callType:last.callType,callStatus:last.callStatus,ts:last.ts,deliveredAt:last.deliveredAt,readAt:last.readAt}:null;
         summaries.push({user:{username:user.username,displayName:user.displayName,fullName:user.fullName,avatar:user.avatar,isOnline:user.isOnline,lastSeen:user.lastSeen},lastMessage});
       }
-      return j({ok:true,summaries});
+      return j({ok:true,summaries,hiddenPeers});
     }
 
     if(url.pathname==="/api/conversation" && request.method==="GET"){
@@ -2422,7 +2469,7 @@ export class SignalingRoom extends DurableObject {
         await this.ctx.storage.put(`messages:${key}`,messages.slice(-300));
       }
 
-      return j({ok:true,messages:messages.slice(-200)});
+      return j({ok:true,messages:(await this.visibleChatMessages(messages,s.username,other)).slice(-200)});
     }
 
     
@@ -2878,7 +2925,7 @@ export class SignalingRoom extends DurableObject {
       const query=String(url.searchParams.get("q")||"").trim().toLowerCase();
       const posts=(await this.allRecords("post:")).filter(p=>!query || `${p.id} ${p.author} ${p.text||""}`.toLowerCase().includes(query))
         .sort((a,b)=>(b.createdAt||0)-(a.createdAt||0)).slice(0,200)
-        .map(p=>({id:p.id,author:p.author,text:String(p.text||"").slice(0,10000),createdAt:p.createdAt||0,hasImage:!!p.image}));
+        .map(p=>({id:p.id,author:p.author,text:String(p.text||""),createdAt:p.createdAt||0,hasImage:!!p.image}));
       return j({ok:true,posts});
     }
 
@@ -2896,7 +2943,7 @@ export class SignalingRoom extends DurableObject {
       if(action==="update_post"){
         const id=String(body.postId||""),post=await this.ctx.storage.get(`post:${id}`);
         if(!post)return j({ok:false,error:"المنشور غير موجود"},404);
-        if(typeof body.text!=="string" || body.text.length>10000)return j({ok:false,error:"نص المنشور غير صالح"},400);
+        if(typeof body.text!=="string" || body.text.length>50000)return j({ok:false,error:"نص المنشور غير صالح"},400);
         post.text=body.text;post.updatedAt=Date.now();post.editedBy=auth.session.username;
         await this.ctx.storage.put(`post:${id}`,post);return j({ok:true});
       }
@@ -3152,6 +3199,12 @@ export class SignalingRoom extends DurableObject {
   }
 
 
+  async visibleChatMessages(messages,viewer,other){
+    const view=await this.ctx.storage.get(`chat-view:${viewer}:${other}`);
+    const hidden=new Set(view?.hiddenIds||[]);
+    return messages.filter(m=>!m.deletedForEveryone && (m.mediaType==="call-signal" || !hidden.has(m.id)));
+  }
+
   async deliverPendingMessages(username, ws){
     try{
       const entries=await this.ctx.storage.list({prefix:"messages:"});
@@ -3162,7 +3215,8 @@ export class SignalingRoom extends DurableObject {
         let changed=false;
 
         for(const m of listValue){
-          if(m.to!==username || m.read || m.deliveredAt)continue;
+          if(m.to!==username || m.read || m.deliveredAt || m.deletedForEveryone)continue;
+          if(!(await this.visibleChatMessages([m],username,m.from)).length)continue;
           if(!await this.canCommunicate(m.from,username))continue;
 
           if(this.send(ws,{...m,type:"chat",offlineDelivery:true})){
@@ -3216,6 +3270,7 @@ export class SignalingRoom extends DurableObject {
     const storageKey='messages:'+key;
     const messages=await this.ctx.storage.get(storageKey)||[];
     let record=messages.find(m=>m.mediaType==='call-event' && m.callId===id);
+    if(record?.deletedForEveryone)return;
     if(!record){
       // A reply/end is not sufficient proof of who called whom.
       if(type!=='call-request')return;
@@ -3324,7 +3379,7 @@ export class SignalingRoom extends DurableObject {
               channel_id:'alatta_incoming_call_v2',icon:'atta_notification_icon',
               title:fcmData.callType==='video'?'مكالمة فيديو واردة':'مكالمة صوتية واردة',
               body:'مكالمة واردة من '+String(fcmData.fromName||'مستخدم'),
-              image:'https://tawasol-alatta.omaratta077-4fd.workers.dev/logo-premium.png?v=14.9',
+              image:'https://tawasol-alatta.omaratta077-4fd.workers.dev/logo-premium.png?v=14.10',
               visibility:'PUBLIC',notification_priority:'PRIORITY_MAX',
               tag:'alatta-call-'+String(fcmData.callId||'').slice(0,128)
             };
@@ -3428,6 +3483,11 @@ export class SignalingRoom extends DurableObject {
   }
 
   async deliverUserPush(to,event){
+    if(event.type==="chat"){
+      const key="messages:"+[event.from,to].sort().join(":"),messages=await this.ctx.storage.get(key)||[];
+      const visible=await this.visibleChatMessages(messages,to,event.from);
+      if(!visible.some(m=>m.id===event.eventId && m.from===event.from && m.to===to && m.mediaType!=="call-signal"))return;
+    }
     if(event.type==="new-post"){
       const recipient=await this.user(to),post=await this.ctx.storage.get(`post:${event.postId}`);
       if(!recipient || recipient.banned || recipient.disabled || !post || post.archived ||

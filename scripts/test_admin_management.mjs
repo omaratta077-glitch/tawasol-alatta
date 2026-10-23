@@ -58,6 +58,7 @@ try{
  await storage.put('story:alice-story',{id:'alice-story',author:'alice'});await storage.put('storyIds',['alice-story']);
  await storage.put('post:bob-interaction',{id:'bob-interaction',author:'bob',text:'retain',likes:['alice','bob'],reactions:{love:['alice','bob'],legacyCount:3},comments:[{author:'alice',text:'remove'},{author:'bob',text:'keep',replies:[{author:'alice'},{author:'orphan'}]}],sharedPostId:'today',sharedFrom:'alice'});
  await storage.put('saved:bob',['today','bob-interaction']);await storage.put('messages:alice:bob',[{from:'alice',to:'bob',text:'private'}]);await storage.put('messages:group:one',[{from:'alice',to:'one',text:'remove'},{from:'bob',to:'one',text:'retain'}]);
+ await storage.put('chat-view:alice:bob',{hiddenIds:['old']});await storage.put('chat-view:bob:alice',{hideEmpty:true});await storage.put('chat-view:bob:orphan',{hideEmpty:true});
  await storage.put('group:one',{createdBy:'alice',members:['alice','bob'],name:'keep group'});
  await storage.put('calls:bob',[{with:'alice',id:'c1'},{with:'orphan',id:'c2'}]);await storage.put('notifications:bob',[{from:'alice'},{from:'orphan'}]);
  for(let i=0;i<312;i++)await storage.put('filler:'+String(i).padStart(3,'0'),{keep:true});
@@ -81,6 +82,7 @@ try{
  check('only deleted account media is removed across R2 pages',objects.size===keepMedia&&[...objects.values()].every(o=>o.customMetadata.owner==='bob'));
  check('user, old sessions, Google link, reset codes and signup reservations removed',!data.has('user:alice')&&!data.has('google-account:old-google')&&!data.has('pending-registration:old')&&!data.has('reset:old')&&!data.has('login-fail:alice')&&![...data.values()].some(v=>v?.username==='alice'));
  check('account posts and stories including in-flight post removed',!data.has('post:today')&&!data.has('post:late')&&!data.has('story:alice-story')&&!data.has('messages:alice:bob'));
+ check('deleted account chat views scrubbed on both sides without touching other chats',!data.has('chat-view:alice:bob')&&!data.has('chat-view:bob:alice')&&data.has('chat-view:bob:orphan'));
  const remaining=await storage.get('post:bob-interaction');
  check('others posts retained with deleted account interactions removed',remaining.text==='retain'&&remaining.likes.join()==='bob'&&remaining.reactions.legacyCount===3&&remaining.comments.length===1&&remaining.comments[0].replies[0].author==='orphan'&&!remaining.sharedPostId);
  check('friend, call and group references scrubbed',(await storage.get('friends:bob')).length===0&&(await storage.get('calls:bob')).length===1&&(await storage.get('group:one')).members.join()==='bob'&&(await storage.get('messages:group:one')).length===1);
