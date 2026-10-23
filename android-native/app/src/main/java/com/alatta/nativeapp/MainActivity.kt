@@ -655,17 +655,16 @@ private fun SignupLegalConsent(
         Text(text, fontWeight = FontWeight.Bold, fontSize = 13.sp, maxLines = 1)
     }
 }
-/** Keep the composer publish action bright gold, but disabled when empty. */
+/** A quiet empty action becomes gold and animated when content is ready. */
 @Composable private fun GoldPublishButton(enabled: Boolean, onClick: () -> Unit) {
     Button(onClick = onClick, enabled = enabled,
         colors = ButtonDefaults.buttonColors(
             containerColor = Gold, contentColor = Black,
-            disabledContainerColor = Gold, disabledContentColor = Black),
+            disabledContainerColor = Gold.copy(alpha = .65f), disabledContentColor = Black.copy(alpha = .75f)),
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 5.dp),
         shape = RoundedCornerShape(13.dp),
-        modifier = Modifier.shadow(5.dp, RoundedCornerShape(13.dp),
-            ambientColor = Gold.copy(alpha = .32f), spotColor = Gold.copy(alpha = .30f))
-            .heightIn(min = 40.dp).clip(RoundedCornerShape(13.dp)).attaGoldShine(enabled)) {
+        modifier = Modifier
+            .heightIn(min = 36.dp).clip(RoundedCornerShape(13.dp)).attaGoldShine(enabled)) {
         Text("نشر", fontWeight = FontWeight.Bold, fontSize = 14.sp, maxLines = 1)
     }
 }
@@ -1106,6 +1105,8 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
     var posts by remember { mutableStateOf(emptyList<JSONObject>()) }
     var stories by remember { mutableStateOf(emptyList<JSONObject>()) }
     var storyText by remember { mutableStateOf("") }
+    var storyMediaUri by remember { mutableStateOf<Uri?>(null) }
+    var storyMediaType by remember { mutableStateOf("") }
     var groups by remember { mutableStateOf(emptyList<JSONObject>()) }
     var groupName by remember { mutableStateOf("") }
     var users by remember { mutableStateOf(emptyList<JSONObject>()) }
@@ -1486,6 +1487,12 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
             myAvatar = profile.optString("avatar")
             featureMessage = if (kind == "avatar") "تم تحديث الصورة الشخصية على الموقع والتطبيق" else "تم تحديث صورة الغلاف على الموقع والتطبيق"
         }
+    }
+    val storyImagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri != null) { storyMediaUri = uri; storyMediaType = "image" }
+    }
+    val storyVideoPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri != null) { storyMediaUri = uri; storyMediaType = "video" }
     }
     val profileAvatarPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         if (uri != null) changeOwnProfileImage("avatar", uri)
@@ -2019,7 +2026,13 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
         title = { Text("إضافة قصة ✨", fontWeight = FontWeight.Bold) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("شارك أصدقاءك لحظة جميلة", color = Muted, fontSize = 14.sp)
+                Text("شارك نصًا أو صورة أو فيديو", color = Muted, fontSize = 14.sp)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextButton(enabled = !busy, onClick = { storyImagePicker.launch("image/*") }) { Text("صورة", color = GoldLight) }
+                    TextButton(enabled = !busy, onClick = { storyVideoPicker.launch("video/*") }) { Text("فيديو", color = GoldLight) }
+                    if (storyMediaUri != null) TextButton(enabled = !busy, onClick = { storyMediaUri = null; storyMediaType = "" }) { Text("إزالة", color = Muted) }
+                }
+                if (storyMediaUri != null) Text(if (storyMediaType == "video") "تم اختيار فيديو" else "تم اختيار صورة", color = GoldLight)
                 OutlinedTextField(
                     value = storyText, onValueChange = { storyText = it },
                     label = { Text("اكتب قصتك", color = Muted) },
@@ -2036,12 +2049,22 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
         },
         confirmButton = {
             TextButton(onClick = {
-                showStoryComposer = false
-                if (storyText.isNotBlank()) task {
-                    post("/api/stories", JSONObject().put("text", storyText))
-                    storyText = ""; load("الرسائل")
+                val text = storyText.trim()
+                val uri = storyMediaUri
+                val type = storyMediaType
+                task {
+                    val url = if (uri != null) withContext(Dispatchers.IO) {
+                        val mime = ctx.contentResolver.getType(uri) ?: if (type == "video") "video/mp4" else "image/jpeg"
+                        uploadChatMedia(ctx, token, uri, mime, type)
+                    } else ""
+                    post("/api/stories", JSONObject().put("text", text).put("media", url).put("mediaType", type))
+                    storyText = ""; storyMediaUri = null; storyMediaType = ""
+                    showStoryComposer = false
+                    load("الرسائل")
                 }
-            }, enabled = storyText.isNotBlank()) { Text("نشر القصة", color = if (storyText.isNotBlank()) GoldLight else Muted) }
+            }, enabled = !busy && (storyText.isNotBlank() || storyMediaUri != null)) {
+                Text(if (busy) "جارٍ النشر…" else "نشر القصة", color = GoldLight)
+            }
         },
         dismissButton = { TextButton(onClick = { showStoryComposer = false }) { Text("إلغاء", color = Muted) } }
     )
@@ -2056,7 +2079,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                     Text(st.optString("text"), color = White, fontSize = 18.sp, lineHeight = 28.sp)
                     val storyMedia = media(st.optString("media"))
                     if (storyMedia.isNotBlank()) {
-                        if (storyMedia.contains(".mp4", true)) NativeVideo(storyMedia)
+                        if (st.optString("mediaType") == "video" || storyMedia.contains(".mp4", true)) NativeVideo(storyMedia)
                         else ProfileMediaImage(storyMedia, "القصة", Modifier.fillMaxWidth().heightIn(max = 280.dp), contentScale = ContentScale.Fit)
                     }
                 }
@@ -2289,7 +2312,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Image(painterResource(R.drawable.logo_premium), "شعار العطا",
-                            Modifier.size(98.dp).clip(CircleShape))
+                            Modifier.size(98.dp).clip(CircleShape).attaGoldShine())
                         Text("AL-ATTA", color = GoldLight, fontSize = 18.sp,
                             fontWeight = FontWeight.SemiBold, letterSpacing = 4.sp)
                         Spacer(Modifier.height(8.dp))
@@ -2633,12 +2656,12 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                         Spacer(Modifier.height(8.dp))
                                         // An inset publish action in the composer; keep the existing
                                         // upload/publish callback unchanged.
-                                        Box(Modifier.fillMaxWidth()) {
+                                        Column(Modifier.fillMaxWidth()) {
                                             OutlinedTextField(draft, { draft = it },
-                                                modifier = Modifier.fillMaxWidth().heightIn(min = 114.dp),
+                                                modifier = Modifier.fillMaxWidth().heightIn(min = 76.dp),
                                                 placeholder = { Text("بم تفكر؟", fontSize = 14.sp) },
-                                                minLines = 3, shape = RoundedCornerShape(14.dp))
-                                            Box(Modifier.align(Alignment.BottomStart).padding(10.dp)) {
+                                                minLines = 2, shape = RoundedCornerShape(14.dp))
+                                            Box(Modifier.align(Alignment.End).padding(top = 3.dp)) {
                                                 GoldPublishButton(!busy && (draft.isNotBlank() || pickedUri != null ||
                                                     youtubePostDraftId.isNotBlank() || mushafPostDraft != null)) {
                                                 task {

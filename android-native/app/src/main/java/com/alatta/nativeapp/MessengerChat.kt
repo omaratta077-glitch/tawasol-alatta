@@ -198,7 +198,6 @@ internal fun MessengerInbox(
             verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text("الدردشات", fontWeight = FontWeight.ExtraBold, color = ChatText, fontSize = 23.sp)
-                Text("تواصل العطا", color = ChatGold, fontSize = 11.sp)
             }
             ChatCircleAction("plus", "بدء دردشة") { showNewChat = true }
             Spacer(Modifier.width(5.dp))
@@ -233,10 +232,8 @@ internal fun MessengerInbox(
         }
         // Stories have one location: the message inbox, replacing the old friends strip.
         if (query.isBlank()) {
-            Text("القصص", color = ChatGold, fontSize = 12.sp,
-                modifier = Modifier.padding(horizontal = 15.dp, vertical = 1.dp))
             Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())
-                .padding(horizontal = 14.dp, vertical = 7.dp),
+                .padding(horizontal = 14.dp, vertical = 3.dp),
                 horizontalArrangement = Arrangement.spacedBy(9.dp)) {
                 StoryRing("إضافة قصة", "", true, diameter = 49, onClick = onAddStory)
                 stories.forEach { story ->

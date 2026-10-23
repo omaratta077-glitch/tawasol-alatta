@@ -94,15 +94,20 @@ internal fun IncomingCallRingtone(callId: String) {
     DisposableEffect(context, lifecycleOwner, callId) {
         AttaPush.foregroundRingCallId = callId
         val alert = IncomingCallAlert(context.applicationContext)
+        fun startForegroundAlert() {
+            // Transfer sound ownership from both local and OS-posted push alerts.
+            AttaPush.dismiss(context, callId)
+            alert.start()
+        }
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
-                Lifecycle.Event.ON_START -> alert.start()
+                Lifecycle.Event.ON_START -> startForegroundAlert()
                 Lifecycle.Event.ON_STOP, Lifecycle.Event.ON_DESTROY -> alert.stop()
                 else -> Unit
             }
         }
         lifecycleOwner?.lifecycle?.addObserver(observer)
-        if (lifecycleOwner == null || lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) alert.start()
+        if (lifecycleOwner == null || lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) startForegroundAlert()
         onDispose {
             lifecycleOwner?.lifecycle?.removeObserver(observer)
             alert.stop()

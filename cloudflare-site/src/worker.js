@@ -2206,7 +2206,8 @@ export class SignalingRoom extends DurableObject {
       const media=String(body.media||"").slice(0,700000);
       if(!text && !media)return j({ok:false,error:"أضف نصًا أو صورة للحالة"},400);
       const id=crypto.randomUUID();
-      const story={id,author:s.username,text,media,createdAt:Date.now(),expiresAt:Date.now()+86400000};
+      const mediaType=body.mediaType==="video"?"video":body.mediaType==="image"?"image":"";
+      const story={id,author:s.username,text,media,mediaType,createdAt:Date.now(),expiresAt:Date.now()+86400000};
       await this.ctx.storage.put(`story:${id}`,story);
       const ids=await this.ctx.storage.get("storyIds")||[];ids.push(id);
       await this.ctx.storage.put("storyIds",ids.slice(-500));
