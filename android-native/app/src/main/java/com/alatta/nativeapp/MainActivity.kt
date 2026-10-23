@@ -768,10 +768,9 @@ private class AttaYoutubeFullscreenChrome(
  * using cloudflare-site/public/youtube-player-shared.js on the HTTPS site origin.
  * The local JS is an interaction/diagnostics bridge and never creates an iframe.
  */
-@Composable private fun YouTubePlayer(id: String, onNext: (() -> Unit)? = null) {
+@Composable private fun YouTubePlayer(id: String) {
     val safeId = id.takeIf { Regex("[A-Za-z0-9_-]{11}").matches(it) } ?: return
     val ctx = LocalContext.current
-    val nextVideo by rememberUpdatedState(onNext)
     var loading by remember(safeId) { mutableStateOf(true) }
     var frameLoaded by remember(safeId) { mutableStateOf(false) }
     var playbackConfirmed by remember(safeId) { mutableStateOf(false) }
@@ -818,20 +817,7 @@ private class AttaYoutubeFullscreenChrome(
         }
     }
     val webView = remember(ctx, safeId) {
-        object : WebView(ctx) {
-            private val swipe = YouTubeSwipe(resources.displayMetrics.density)
-            override fun dispatchTouchEvent(event: android.view.MotionEvent): Boolean {
-                if (nextVideo != null && swipe.onTouch(event)) {
-                    val cancel = android.view.MotionEvent.obtain(event)
-                    cancel.action = android.view.MotionEvent.ACTION_CANCEL
-                    super.dispatchTouchEvent(cancel)
-                    cancel.recycle()
-                    nextVideo?.invoke()
-                    return true
-                }
-                return super.dispatchTouchEvent(event)
-            }
-        }.apply {
+        WebView(ctx).apply {
             setBackgroundColor(AndroidColor.BLACK)
             settings.javaScriptEnabled = true
             settings.domStorageEnabled = true
@@ -3776,14 +3762,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                             SiteIcon("x", size = 16.dp)
                         }
                     }
-                    YouTubePlayer(youtubeId, onNext = {
-                        val ids = youtubeItems.map { it.optString("id") }
-                            .filter { Regex("[A-Za-z0-9_-]{11}").matches(it) }.distinct()
-                        val current = ids.indexOf(youtubeId)
-                        val next = ids.getOrNull(current + 1)
-                        if (next != null && next != youtubeId) youtubeId = next
-                        else android.widget.Toast.makeText(ctx, "لا توجد فيديوهات أخرى في القائمة", android.widget.Toast.LENGTH_SHORT).show()
-                    })
+                    YouTubePlayer(youtubeId)
                 }
             }
             activeCall?.let { session ->

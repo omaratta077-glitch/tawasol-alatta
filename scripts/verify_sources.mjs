@@ -4,7 +4,7 @@ const native=fs.readFileSync('android-native/app/src/main/java/com/alatta/native
 const worker=fs.readFileSync('cloudflare-site/src/worker.js','utf8');
 const html=fs.readFileSync('cloudflare-site/public/index.html','utf8');
 assert.equal((native.match(/fun YouTubePlayer\(/g)||[]).length,1,'one canonical YouTubePlayer');
-assert.equal((native.match(/YouTubePlayer\(youtubeId,\s*onNext\s*=/g)||[]).length,1,'screen calls canonical player');
+assert.equal((native.match(/YouTubePlayer\(youtubeId\)/g)||[]).length,1,'screen calls canonical player');
 assert.ok(!native.includes('AlattaFixedYouTubePlayer') && !native.includes('attaYouTubeHtml'),'no duplicate native player');
 assert.ok(native.includes('loadUrl("$BASE/")') && native.includes('atta-site-youtube-bridge.js') && !native.includes('document.body.replaceChildren(host)'),'Android drives the actual site player without replacing the website document');
 assert.ok(!native.includes('raw.contains("username", ignoreCase = true)'),'no blanket mapping of login failures to username-taken');
