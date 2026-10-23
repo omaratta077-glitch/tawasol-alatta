@@ -949,7 +949,7 @@ function renderProfile(){
   $("meDisplay").textContent=me.displayName||me.username;
   $("meUsername").textContent="@"+me.username;
   $("avatarImg").src=me.avatar||avatarFallback(me.displayName||me.username);
-  if($("headerAvatar"))$("headerAvatar").src="logo-premium.png?v=14.10";
+  if($("headerAvatar"))$("headerAvatar").src="logo-premium.png?v=14.11";
   if($("headerProfileName"))$("headerProfileName").textContent="AL-ATTA";
   if($("headerProfileUsername"))$("headerProfileUsername").textContent="@"+me.username;
   if($("homeAvatar"))$("homeAvatar").src=me.avatar||avatarFallback(me.fullName||me.displayName||me.username);
@@ -3251,7 +3251,7 @@ async function uploadOwnProfileImage(kind,file){
       :{maxWidth:1400,maxHeight:700,maxChars:390000,quality:.82});
     if(isAvatar){
       $("profileAvatarLarge").src=data;
-      if($("headerAvatar"))$("headerAvatar").src="logo-premium.png?v=14.10";
+      if($("headerAvatar"))$("headerAvatar").src="logo-premium.png?v=14.11";
       if($("homeAvatar"))$("homeAvatar").src=data;
     }else{
       const coverImg=$("profileCoverImage");
@@ -3622,8 +3622,44 @@ function attaCalendarLimit(offsetYears){
   const p=n=>String(n).padStart(2,"0");
   return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`;
 }
-const birthDateInput=document.getElementById("ageInput");
-if(birthDateInput){birthDateInput.min=attaCalendarLimit(-120);birthDateInput.max=attaCalendarLimit(-13);}
+// Use ordinary selects instead of locale-dependent native date segments in the PWA.
+function setupBirthDateFields(input){
+  if(!input || input.attaReadBirthDate)return;
+  const initial=input.value,minimum=attaCalendarLimit(-120),maximum=attaCalendarLimit(-13);
+  const group=document.createElement("div");
+  group.className="atta-birth-date";group.setAttribute("role","group");group.setAttribute("aria-label","تاريخ الميلاد");
+  const makeSelect=(part,label)=>{
+    const field=document.createElement("select");field.dataset.birthPart=part;field.required=true;
+    field.setAttribute("aria-label",label);field.add(new Option(label,""));group.append(field);return field;
+  };
+  const day=makeSelect("day","اليوم"),month=makeSelect("month","الشهر"),year=makeSelect("year","السنة");
+  const pad=n=>String(n).padStart(2,"0");
+  const months=["يناير","فبراير","مارس","أبريل","مايو","يونيو","يوليو","أغسطس","سبتمبر","أكتوبر","نوفمبر","ديسمبر"];
+  months.forEach((name,index)=>month.add(new Option(`${index+1} - ${name}`,pad(index+1))));
+  for(let y=Number(maximum.slice(0,4));y>=Number(minimum.slice(0,4));y--)year.add(new Option(String(y),String(y)));
+  function sync(){
+    const chosen=day.value,count=month.value?new Date(Number(year.value)||2000,Number(month.value),0).getDate():31;
+    day.length=1;for(let d=1;d<=count;d++)day.add(new Option(String(d),pad(d)));
+    day.value=Number(chosen)<=count?chosen:"";
+    input.value=year.value&&month.value&&day.value?`${year.value}-${month.value}-${day.value}`:"";
+    year.setCustomValidity(input.value && (input.value<minimum || input.value>maximum)?"العمر المسموح من 13 إلى 120 سنة":"");
+  }
+  input.type="hidden";input.required=false;input.style.display="none";
+  input.insertAdjacentElement("afterend",group);
+  const label=input.previousElementSibling;
+  if(label?.tagName==="LABEL" && label.htmlFor===input.id){day.id=input.id+"Day";label.htmlFor=day.id;}
+  if(/^\d{4}-\d{2}-\d{2}$/.test(initial)){
+    const [y,m,d]=initial.split("-");year.value=y;month.value=m;sync();day.value=d;
+  }
+  sync();for(const field of [day,month,year])field.addEventListener("change",sync);
+  input.attaReadBirthDate=()=>{
+    sync();
+    for(const field of [day,month,year])if(!field.reportValidity())throw Error(field.validationMessage||"اختر تاريخ ميلاد صحيحًا");
+    return input.value;
+  };
+}
+function readBirthDate(input){return input.attaReadBirthDate();}
+setupBirthDateFields(document.getElementById("ageInput"));
 
 let pendingVerificationId="";
 // AL-ATTA v1.0.10 login/register hint
@@ -3782,7 +3818,7 @@ $("authBtn").onclick=async()=>{
       if(gender==="female" && !["true","false"].includes(hidden))throw new Error("اختاري هل تريدين إخفاء الحساب أم لا");
       body.accountHidden=gender==="female" && hidden==="true";
       body.fullName=$("fullNameInput").value.trim();
-      body.birthDate=$("ageInput").value;
+      body.birthDate=readBirthDate($("ageInput"));
       body.phone=$("phoneInput").value.trim();
       body.email=$("emailInput").value.trim();
       body.gender=$("genderInput").value;
@@ -4238,6 +4274,7 @@ function requestGoogleProfile(submitProfile){
     };
     form.onsubmit=async e=>{
       e.preventDefault();
+      try{readBirthDate(form.elements.birthDate);}catch(error){form.querySelector('[data-google-profile-error]').textContent=error.message;return;}
       if(!form.reportValidity())return;
       if(form.elements.gender.value==="female" && !["true","false"].includes(form.elements.accountHidden.value)){
         alert("اختاري هل تريدين إخفاء الحساب أم لا");return;
@@ -4251,7 +4288,7 @@ function requestGoogleProfile(submitProfile){
     };
     document.body.appendChild(overlay);
     const born=form.elements.birthDate;
-    if(born){ born.min=attaCalendarLimit(-120); born.max=attaCalendarLimit(-13); }
+    setupBirthDateFields(born);
     form.elements.fullName.focus();
   });
 }
@@ -4367,7 +4404,7 @@ window.AttaWeb=Object.freeze({
 
   if ("serviceWorker" in navigator) {
     window.addEventListener("load", () => {
-      navigator.serviceWorker.register("/sw.js?v=14.10", { scope: "/" }).catch(() => {});
+      navigator.serviceWorker.register("/sw.js?v=14.11", { scope: "/" }).catch(() => {});
     });
   }
 

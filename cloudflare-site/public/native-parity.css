@@ -337,3 +337,8 @@ body{background:var(--native-bg)!important;color:#f7f8f9!important}
 #appView #messagesPage .composer{display:flex!important;flex-wrap:wrap;gap:6px!important;padding:10px!important;width:100%!important}
 #appView #messagesPage .composer input,#appView #messagesPage .composer textarea{min-width:0!important;flex:1 1 120px!important;width:0!important}
 }
+
+/* Fixed RTL calendar parts, independent of Android/Chrome date-input locale. */
+.atta-birth-date{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.45fr) minmax(0,1.1fr);gap:8px;width:100%;min-width:0;direction:rtl}
+.google-profile-overlay .atta-birth-date select,#registerFields .atta-birth-date select{box-sizing:border-box;width:100%;min-width:0;max-width:100%;min-height:48px;padding:12px 6px;margin:0;border:1px solid #6b5429;border-radius:11px;background:#080b0d;color:#fff;font:inherit;font-size:16px;direction:rtl;color-scheme:dark}
+.atta-birth-date select:focus{outline:2px solid #e6b94e;outline-offset:1px}
