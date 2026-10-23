@@ -264,12 +264,12 @@ internal object AttaPush {
         val sender = data["fromName"].orEmpty().trim().take(120).ifBlank { "أحد المستخدمين" }
         val eventId = data["eventId"].orEmpty()
         val allowed = setOf("chat", "friend-request", "friend-accepted", "like",
-            "reaction", "comment", "comment-reply", "follow", "share", "push-test")
+            "reaction", "comment", "comment-reply", "follow", "share", "new-post", "push-test")
         if (type !in allowed || eventId.length !in 8..128 || recipient.isBlank() ||
             recipient != account.getString("username", "")?.lowercase() ||
             account.getString("token", "").isNullOrBlank()) return
         // Foreground already has the WebSocket and in-app notification stream.
-        if (appVisible && type != "push-test") return
+        if (appVisible && type != "push-test" && type != "new-post") return
         if (Build.VERSION.SDK_INT >= 33 &&
             ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS)
                 != PackageManager.PERMISSION_GRANTED) return
@@ -278,6 +278,7 @@ internal object AttaPush {
         val title = when (type) {
             "push-test" -> "اختبار إشعارات تواصل العطا"
             "chat" -> "رسالة جديدة"
+            "new-post" -> "منشور جديد"
             "friend-request" -> "طلب صداقة جديد"
             "friend-accepted" -> "تم قبول طلب الصداقة"
             "like" -> "إعجاب جديد"
@@ -287,7 +288,8 @@ internal object AttaPush {
             else -> "مشاركة جديدة"
         }
         val message = if (type == "push-test") "وصل إشعار Firebase إلى جهازك بنجاح"
-            else if (sender.isNotBlank()) "من $sender على تواصل العطا" else "لديك إشعار جديد في تواصل العطا"
+            else if (type == "new-post") "نشر $sender منشورًا جديدًا • AL-ATTA"
+            else if (sender.isNotBlank()) "من $sender على AL-ATTA" else "لديك إشعار جديد في تواصل العطا"
         val tab = if (type == "chat") "الرسائل" else if (type == "friend-request" ||
             type == "friend-accepted") "الأصدقاء" else "الإشعارات"
         val intent = Intent(context, MainActivity::class.java).apply {
@@ -303,6 +305,7 @@ internal object AttaPush {
                 if (type == "chat") CHAT_CHANNEL else SOCIAL_CHANNEL)
             .setSmallIcon(R.drawable.atta_notification_icon)
             .setLargeIcon(BitmapFactory.decodeResource(context.resources, R.drawable.logo_premium))
+            .setOnlyAlertOnce(true)
             .setContentTitle(title).setContentText(message)
             .setStyle(NotificationCompat.BigTextStyle().bigText(message))
             .setCategory(if (type == "chat") NotificationCompat.CATEGORY_MESSAGE else NotificationCompat.CATEGORY_SOCIAL)
