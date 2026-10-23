@@ -24,9 +24,9 @@ android {
         applicationId = "com.alatta.nativeapp"
         minSdk = 26
         targetSdk = 35
-        // v1.0.160: restore v145 background delivery and foreground ringtone.
-        versionCode = 260
-        versionName = "1.0.160"
+        // v1.0.161: branded, bounded incoming-call notifications; keep v145 delivery.
+        versionCode = 261
+        versionName = "1.0.161"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("boolean", "IS_APPGALLERY", appGalleryBuild.toString())
         val hmsId = (System.getenv("ALATTA_HMS_APP_ID") ?: "").trim().takeIf { it.matches(Regex("[0-9]{1,20}")) } ?: ""

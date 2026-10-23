@@ -1,53 +1,25 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="match_parent"
-    android:layout_height="wrap_content"
-    android:orientation="vertical"
-    android:padding="10dp"
-    android:background="@drawable/atta_call_notification_bg"
-    android:layoutDirection="rtl">
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:minHeight="44dp"
-        android:orientation="horizontal"
-        android:gravity="center_vertical"
-        android:layoutDirection="rtl">
-        <ImageView
-            android:id="@+id/call_logo"
-            android:layout_width="38dp"
-            android:layout_height="38dp"
-            android:src="@drawable/logo_premium"
-            android:contentDescription="شعار تواصل العطا"
-            android:scaleType="fitCenter" />
-        <LinearLayout
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:orientation="vertical"
-            android:paddingEnd="12dp"
-            android:gravity="end">
-            <TextView
-                android:id="@+id/call_kind"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="مكالمة صوتية واردة"
-                android:textSize="13sp"
-                android:textStyle="bold"
-                android:textColor="#E8C766"
-                android:gravity="end"
-                android:maxLines="1"
-                android:ellipsize="end" />
-            <TextView
-                android:id="@+id/call_name"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:textSize="18sp"
-                android:textStyle="bold"
-                android:textColor="#FFFFFF"
-                android:gravity="end"
-                android:maxLines="1"
-                android:ellipsize="end" />
+    android:layout_width="match_parent" android:layout_height="48dp"
+    android:orientation="vertical" android:padding="6dp"
+    android:background="@drawable/atta_call_notification_bg" android:layoutDirection="rtl">
+    <LinearLayout android:layout_width="match_parent" android:layout_height="36dp"
+        android:orientation="horizontal" android:gravity="center_vertical" android:layoutDirection="rtl">
+        <ImageView android:id="@+id/call_logo" android:layout_width="36dp" android:layout_height="36dp"
+            android:layout_marginEnd="8dp" android:src="@drawable/logo_premium"
+            android:contentDescription="شعار العطا" android:scaleType="fitCenter" />
+        <LinearLayout android:layout_width="0dp" android:layout_weight="1" android:layout_height="match_parent"
+            android:orientation="vertical" android:gravity="center_vertical">
+            <TextView android:id="@+id/call_name" android:layout_width="match_parent" android:layout_height="16dp"
+                android:textSize="14sp" android:textStyle="bold" android:textColor="#FFFFFF"
+                android:gravity="start|center_vertical" android:textDirection="locale" android:includeFontPadding="false"
+                android:maxLines="1" android:ellipsize="end" android:autoSizeTextType="uniform"
+                android:autoSizeMinTextSize="10sp" android:autoSizeMaxTextSize="14sp" android:autoSizeStepGranularity="1sp" />
+            <TextView android:id="@+id/call_kind" android:layout_width="match_parent" android:layout_height="14dp"
+                android:text="مكالمة صوتية واردة" android:textSize="11sp" android:textColor="#E8C766"
+                android:gravity="start|center_vertical" android:textDirection="locale" android:includeFontPadding="false"
+                android:maxLines="1" android:ellipsize="end" android:autoSizeTextType="uniform"
+                android:autoSizeMinTextSize="9sp" android:autoSizeMaxTextSize="11sp" android:autoSizeStepGranularity="1sp" />
         </LinearLayout>
     </LinearLayout>
 </LinearLayout>

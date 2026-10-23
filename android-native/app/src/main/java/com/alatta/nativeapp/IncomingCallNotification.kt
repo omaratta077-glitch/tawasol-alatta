@@ -21,6 +21,7 @@ internal fun incomingCallNotification(context: Context, call: PushCall, view: Pe
     }
     return NotificationCompat.Builder(context, AttaPush.CHANNEL)
         .setSmallIcon(R.drawable.atta_notification_icon)
+        .setColor(0xFFD8B451.toInt())
         .setContentTitle(call.displayName.ifBlank { "مستخدم" })
         .setContentText(if (call.type == "video") "مكالمة فيديو واردة" else "مكالمة صوتية واردة")
         .setCustomContentView(layout(R.layout.atta_call_compact))
