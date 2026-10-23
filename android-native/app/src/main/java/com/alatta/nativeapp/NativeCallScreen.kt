@@ -155,7 +155,8 @@ internal data class NativeCallSession(
     val type: String,
     val callId: String,
     val incoming: Boolean,
-    val displayName: String = ""
+    val displayName: String = "",
+    val invitedAt: Long = 0L
 )
 
 private val CallGold = Color(0xFFE6B94E)

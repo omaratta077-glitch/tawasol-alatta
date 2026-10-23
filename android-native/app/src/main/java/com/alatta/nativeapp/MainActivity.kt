@@ -1668,7 +1668,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
             val age = System.currentTimeMillis() - timestamp
             if (age !in 0..45000L || !knownCalls.add(callId)) return
             val invite = NativeCallSession(sender,
-                if (signal.optString("callType") == "video") "video" else "audio", callId, true)
+                if (signal.optString("callType") == "video") "video" else "audio", callId, true, invitedAt = timestamp)
             if (activeCall == null && incomingCall == null && pendingPermissionCall == null) {
                 incomingCall = invite
                 sendCallRinging(invite) // Ringback only after the incoming dialog is created.
@@ -1689,9 +1689,14 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
         val push = incomingPush ?: return@LaunchedEffect
         if (token.isBlank() || myUsername.isBlank()) return@LaunchedEffect
         activity.clearIncomingPush()
-        if (push.to != myUsername.lowercase() ||
-            System.currentTimeMillis() - push.createdAt !in 0..45000L) return@LaunchedEffect
-        val session = NativeCallSession(push.from, push.type, push.callId, incoming = true, displayName = push.displayName)
+        if (push.to != myUsername.lowercase()) return@LaunchedEffect
+        if (System.currentTimeMillis() - push.createdAt !in 0..45000L) {
+            AttaPush.dismiss(ctx, push.callId)
+            featureMessage = "انتهت المكالمة الواردة. يمكنك الاتصال بالشخص من المحادثات."
+            return@LaunchedEffect
+        }
+        val session = NativeCallSession(push.from, push.type, push.callId, incoming = true,
+            displayName = push.displayName, invitedAt = push.createdAt)
         if (push.action == AttaPush.ACTION_ACCEPT) {
             acceptIncomingInvite(session)
         } else if (activeCall?.callId == push.callId ||
@@ -1709,7 +1714,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
     // if the screen was asleep when the cancellation signal arrived.
     LaunchedEffect(incomingCall?.callId) {
         val invitation = incomingCall ?: return@LaunchedEffect
-        delay(45000L)
+        delay(if (invitation.invitedAt > 0L) remainingIncomingCallMillis(invitation.invitedAt) else 45000L)
         if (incomingCall?.callId == invitation.callId) {
             incomingCall = null
             AttaPush.dismiss(ctx, invitation.callId)

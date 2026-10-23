@@ -30,5 +30,8 @@ internal fun incomingCallNotification(context: Context, call: PushCall, view: Pe
         .setSilent(silent).setOnlyAlertOnce(true)
         .setCategory(NotificationCompat.CATEGORY_CALL).setPriority(NotificationCompat.PRIORITY_MAX)
         .setVisibility(NotificationCompat.VISIBILITY_PUBLIC).setOngoing(true)
-        .setContentIntent(view).setTimeoutAfter(45000L).build()
+        .setContentIntent(view).setTimeoutAfter(remainingIncomingCallMillis(call.createdAt).coerceAtLeast(1L)).build()
 }
+
+internal fun remainingIncomingCallMillis(createdAt: Long, now: Long = System.currentTimeMillis()): Long =
+    (45_000L - (now - createdAt).coerceAtLeast(0L)).coerceIn(0L, 45_000L)

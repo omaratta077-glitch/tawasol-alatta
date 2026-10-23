@@ -55,4 +55,10 @@ class CallNotificationStyleTest {
         AttaPush.rememberIncoming(context, call.copy(createdAt = System.currentTimeMillis() - 46000))
         assertNull(AttaPush.pendingIncoming(context))
     }
+    @Test fun openingADelayedInvitationNeverRestartsItsFortyFiveSecondLifetime() {
+        assertEquals(45_000L, remainingIncomingCallMillis(100_000L, 100_000L))
+        assertEquals(5_000L, remainingIncomingCallMillis(100_000L, 140_000L))
+        assertEquals(0L, remainingIncomingCallMillis(100_000L, 145_001L))
+    }
+
 }
