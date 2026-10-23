@@ -935,7 +935,7 @@ function renderProfile(){
   $("meDisplay").textContent=me.displayName||me.username;
   $("meUsername").textContent="@"+me.username;
   $("avatarImg").src=me.avatar||avatarFallback(me.displayName||me.username);
-  if($("headerAvatar"))$("headerAvatar").src="logo-premium.png";
+  if($("headerAvatar"))$("headerAvatar").src="logo-premium.png?v=14.7";
   if($("headerProfileName"))$("headerProfileName").textContent="AL-ATTA";
   if($("headerProfileUsername"))$("headerProfileUsername").textContent="@"+me.username;
   if($("homeAvatar"))$("homeAvatar").src=me.avatar||avatarFallback(me.fullName||me.displayName||me.username);
@@ -3236,7 +3236,7 @@ async function uploadOwnProfileImage(kind,file){
       :{maxWidth:1400,maxHeight:700,maxChars:390000,quality:.82});
     if(isAvatar){
       $("profileAvatarLarge").src=data;
-      if($("headerAvatar"))$("headerAvatar").src="logo-premium.png";
+      if($("headerAvatar"))$("headerAvatar").src="logo-premium.png?v=14.7";
       if($("homeAvatar"))$("homeAvatar").src=data;
     }else{
       const coverImg=$("profileCoverImage");
@@ -4352,7 +4352,7 @@ window.AttaWeb=Object.freeze({
 
   if ("serviceWorker" in navigator) {
     window.addEventListener("load", () => {
-      navigator.serviceWorker.register("/sw.js?v=14.6", { scope: "/" }).catch(() => {});
+      navigator.serviceWorker.register("/sw.js?v=14.7", { scope: "/" }).catch(() => {});
     });
   }
 

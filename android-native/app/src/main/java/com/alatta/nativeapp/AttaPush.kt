@@ -331,7 +331,8 @@ internal object AttaPush {
         }
         val reject = PendingIntent.getBroadcast(context, code + 2, rejectIntent, flags)
         val builder = NotificationCompat.Builder(context, CHANNEL)
-            .setSmallIcon(android.R.drawable.sym_call_incoming)
+            .setSmallIcon(R.drawable.atta_notification_icon)
+            .setLargeIcon(BitmapFactory.decodeResource(context.resources, R.drawable.logo_premium))
             .setContentTitle(if (call.type == "video") "مكالمة فيديو واردة" else "مكالمة صوتية واردة")
             .setContentText("مكالمة واردة من مستخدم تواصل العطا")
             .setCategory(NotificationCompat.CATEGORY_CALL)

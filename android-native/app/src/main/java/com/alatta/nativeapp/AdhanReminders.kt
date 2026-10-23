@@ -1,5 +1,7 @@
 package com.alatta.nativeapp
 
+import android.graphics.BitmapFactory
+
 import android.Manifest
 import android.app.AlarmManager
 import android.app.Notification
@@ -173,7 +175,8 @@ class AdhanPlaybackService : Service() {
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
         val title = if (action == PREVIEW) "تجربة صوت الأذان" else "حان وقت صلاة ${prayerNames[prayer].orEmpty()}"
         val notification = NotificationCompat.Builder(this, AdhanScheduler.CHANNEL)
-            .setSmallIcon(R.drawable.atta_ic_bell).setContentTitle(title)
+            .setSmallIcon(R.drawable.atta_notification_icon)
+            .setLargeIcon(BitmapFactory.decodeResource(resources, R.drawable.logo_premium)).setContentTitle(title)
             .setContentText("${settings.place.name} • اضغط إيقاف لإيقاف الصوت")
             .setContentIntent(open).setDeleteIntent(stop).setOngoing(true).setOnlyAlertOnce(true)
             .setCategory(NotificationCompat.CATEGORY_ALARM).addAction(R.drawable.atta_ic_x, "إيقاف الأذان", stop).build()
