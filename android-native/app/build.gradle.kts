@@ -24,9 +24,9 @@ android {
         applicationId = "com.alatta.nativeapp"
         minSdk = 26
         targetSdk = 35
-        // v1.0.134 release: audited media safety, inbox and Quran performance.
-        versionCode = 258
-        versionName = "1.0.158"
+        // v1.0.159: polished lock-screen incoming-call alerts.
+        versionCode = 259
+        versionName = "1.0.159"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("boolean", "IS_APPGALLERY", appGalleryBuild.toString())
         val hmsId = (System.getenv("ALATTA_HMS_APP_ID") ?: "").trim().takeIf { it.matches(Regex("[0-9]{1,20}")) } ?: ""
