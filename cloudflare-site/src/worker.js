@@ -221,6 +221,50 @@ export class SignalingRoom extends DurableObject {
     return this.resetClosing || state?.phase==="deleting" || this.accountDeleteClosing || !!await this.ctx.storage.get("admin-delete:job");
   }
 
+  async enqueuePostNotifications(post){
+    await this.ctx.storage.put(`post-notify:${post.id}`,{postId:post.id,cursor:""});
+    const due=Date.now()+1000,current=await this.ctx.storage.getAlarm?.();
+    if(!current || current>due)await this.ctx.storage.setAlarm?.(due);
+  }
+
+  async alarm(){
+    if(await this.resetActive()){
+      await this.ctx.storage.setAlarm(Date.now()+5000);return;
+    }
+    return this.trackOperation(async()=>{
+      const pending=await this.ctx.storage.list({prefix:"post-notify:",limit:1});
+      const entry=[...pending][0];if(!entry)return;
+      const [key,job]=entry;
+      const post=await this.ctx.storage.get(`post:${job.postId}`);
+      if(!post || post.archived || !await this.canSeeContent(post.author,post.author)){
+        await this.ctx.storage.delete(key);
+      }else{
+        // Persist a cursor: publishing never waits for all accounts or device pushes.
+        const page=await this.ctx.storage.list({prefix:"user:",limit:25,...(job.cursor?{startAfter:job.cursor}:{})});
+        for(const [userKey,user] of page){
+          const to=user.username;
+          if(!to || to===post.author || user.banned || user.disabled || Number(user.createdAt||0)>post.createdAt ||
+            !await this.canSeeContent(to,post.author))continue;
+          const id=`new-post:${post.id}:${to}`;
+          const list=await this.ctx.storage.get(`notifications:${to}`)||[];
+          if(list.some(n=>n.id===id))continue;
+          const notification={id,type:"new-post",from:post.author,postId:post.id,createdAt:post.createdAt,read:false};
+          await this.ctx.storage.put(`notifications:${to}`,[...list,notification].slice(-300));
+          this.scheduleUserPush(to,{...notification,eventId:id});
+          const target=this.findUser(to);
+          if(target){
+            const author=await this.user(post.author);
+            this.send(target,{...notification,fromName:author?.fullName||author?.displayName||"مستخدم"});
+          }
+        }
+        if(page.size<25)await this.ctx.storage.delete(key);
+        else{job.cursor=[...page.keys()].at(-1);await this.ctx.storage.put(key,job);}
+      }
+      if((await this.ctx.storage.list({prefix:"post-notify:",limit:1})).size)
+        await this.ctx.storage.setAlarm(Date.now()+1000);
+    });
+  }
+
   ownerEmail(){return String(this.env.SUPER_ADMIN_EMAIL||"").trim().toLowerCase();}
 
   ownerRegistrationAllowed(username,email){
@@ -1524,6 +1568,7 @@ export class SignalingRoom extends DurableObject {
       const ids=await this.ctx.storage.get("postIds")||[];
       ids.push(id);
       await this.ctx.storage.put("postIds",ids.slice(-500));
+      await this.enqueuePostNotifications(post);
 
       return j({ok:true,user:await this.publicUser(u.username),postId:id,post});
     }
@@ -1575,6 +1620,7 @@ export class SignalingRoom extends DurableObject {
           await this.ctx.storage.put(`post:${id}`,post);
           ids.push(id);
           createdProfilePostIds.push(id);
+          await this.enqueuePostNotifications(post);
         }
         await this.ctx.storage.put("postIds",ids.slice(-500));
       }
@@ -1879,6 +1925,7 @@ export class SignalingRoom extends DurableObject {
       const ids=await this.ctx.storage.get("postIds")||[];
       ids.push(id);
       await this.ctx.storage.put("postIds",ids.slice(-500));
+      await this.enqueuePostNotifications(post);
 
       return j({ok:true,post});
     }
@@ -2102,6 +2149,10 @@ export class SignalingRoom extends DurableObject {
       const visible=[];
       const nameCache=new Map();
       for(const notification of [...list].reverse()){
+        if(notification.type==="new-post"){
+          const post=await this.ctx.storage.get(`post:${notification.postId}`);
+          if(!post || post.archived || post.author!==notification.from || !await this.canSeeContent(s.username,post.author))continue;
+        }
         const sender=notification.from?await this.user(notification.from):null;
         if(sender?.accountHidden && ["like","reaction","comment","comment-reply"].includes(notification.type)){
           if(sender.banned || sender.disabled || await this.isBlockedBetween(s.username,sender.username))continue;
@@ -2485,6 +2536,7 @@ export class SignalingRoom extends DurableObject {
       const ids=await this.ctx.storage.get("postIds")||[];
       ids.push(id);
       await this.ctx.storage.put("postIds",ids.slice(-500));
+      await this.enqueuePostNotifications(post);
 
       if(source.author!==s.username){
         const list=await this.ctx.storage.get(`notifications:${source.author}`)||[];
@@ -3272,7 +3324,7 @@ export class SignalingRoom extends DurableObject {
               channel_id:'alatta_incoming_call_v2',icon:'atta_notification_icon',
               title:fcmData.callType==='video'?'مكالمة فيديو واردة':'مكالمة صوتية واردة',
               body:'مكالمة واردة من '+String(fcmData.fromName||'مستخدم'),
-              image:'https://tawasol-alatta.omaratta077-4fd.workers.dev/logo-premium.png?v=14.8',
+              image:'https://tawasol-alatta.omaratta077-4fd.workers.dev/logo-premium.png?v=14.9',
               visibility:'PUBLIC',notification_priority:'PRIORITY_MAX',
               tag:'alatta-call-'+String(fcmData.callId||'').slice(0,128)
             };
@@ -3371,11 +3423,16 @@ export class SignalingRoom extends DurableObject {
   scheduleUserPush(to,event){
     if(!this.env.FIREBASE_SERVICE_ACCOUNT_JSON)return;
     if(!['chat','friend-request','friend-accepted','like','reaction','comment',
-      'comment-reply','follow','share'].includes(event.type))return;
+      'comment-reply','follow','share','new-post'].includes(event.type))return;
     this.ctx.waitUntil(this.trackOperation(()=>this.deliverUserPush(to,event)));
   }
 
   async deliverUserPush(to,event){
+    if(event.type==="new-post"){
+      const recipient=await this.user(to),post=await this.ctx.storage.get(`post:${event.postId}`);
+      if(!recipient || recipient.banned || recipient.disabled || !post || post.archived ||
+        post.author!==event.from || !await this.canSeeContent(to,post.author))return;
+    }
     const sender=await this.user(event.from||"");
     const anonymous=!!sender?.accountHidden && ["like","reaction","comment","comment-reply"].includes(event.type);
     if(sender && (sender.banned || sender.disabled || await this.isBlockedBetween(to,event.from)))return;

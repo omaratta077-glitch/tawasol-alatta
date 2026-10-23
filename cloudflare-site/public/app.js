@@ -314,14 +314,16 @@ function showInAppToast(title,body){
   host.appendChild(toast);
   requestAnimationFrame(()=>toast.classList.add("show"));
   setTimeout(()=>{toast.classList.remove("show");setTimeout(()=>toast.remove(),250)},4500);
+  return toast;
 }
 
-function notify(title,body){
+function notify(title,body,target=null){
   // Always show an in-app alert. Browser notifications are only a bonus because
   // Chrome can block permission prompts that were not triggered by a user gesture.
-  showInAppToast(title,body);
+  const toast=showInAppToast(title,body);
+  if(target && toast){toast.style.cursor="pointer";toast.onclick=()=>openNotificationTarget(target);}
   if("Notification" in window && Notification.permission==="granted"){
-    try{new Notification(title,{body})}catch{}
+    try{const notice=new Notification(title,{body,icon:"/logo-premium.png"});if(target)notice.onclick=()=>{window.focus();openNotificationTarget(target);notice.close();};}catch{}
   }
 }
 
@@ -754,6 +756,12 @@ function connect(){
       return;
     }
 
+    if(msg.type==="new-post"){
+      notify("منشور جديد",`نشر ${msg.fromName||"مستخدم"} منشورًا جديدًا`,msg);
+      await loadNotifications().catch(()=>{});
+      return;
+    }
+
     if(msg.type==="chat"){
       if(msg.mediaType==="call-signal" && msg.media){
         try{
@@ -935,7 +943,7 @@ function renderProfile(){
   $("meDisplay").textContent=me.displayName||me.username;
   $("meUsername").textContent="@"+me.username;
   $("avatarImg").src=me.avatar||avatarFallback(me.displayName||me.username);
-  if($("headerAvatar"))$("headerAvatar").src="logo-premium.png?v=14.8";
+  if($("headerAvatar"))$("headerAvatar").src="logo-premium.png?v=14.9";
   if($("headerProfileName"))$("headerProfileName").textContent="AL-ATTA";
   if($("headerProfileUsername"))$("headerProfileUsername").textContent="@"+me.username;
   if($("homeAvatar"))$("homeAvatar").src=me.avatar||avatarFallback(me.fullName||me.displayName||me.username);
@@ -3112,7 +3120,8 @@ async function loadNotifications(){
         follow:`بدأ ${sender} بمتابعتك`,
         "friend-request":`أرسل ${sender} لك طلب صداقة`,
         "friend-accepted":`قبل ${sender} طلب الصداقة`,
-        share:`شارك ${sender} منشورك`
+        share:`شارك ${sender} منشورك`,
+        "new-post":`نشر ${sender} منشورًا جديدًا`
       };
       const label=labels[n.type]||`علّق ${sender} على منشورك${n.text?`: ${esc(n.text)}`:""}`;
       const hint=n.postId?"اضغط لعرض المنشور":(n.type==="friend-request"?"اضغط لعرض طلبات الصداقة":(["friend-accepted","follow"].includes(n.type)?"اضغط لعرض الحساب":""));
@@ -3236,7 +3245,7 @@ async function uploadOwnProfileImage(kind,file){
       :{maxWidth:1400,maxHeight:700,maxChars:390000,quality:.82});
     if(isAvatar){
       $("profileAvatarLarge").src=data;
-      if($("headerAvatar"))$("headerAvatar").src="logo-premium.png?v=14.8";
+      if($("headerAvatar"))$("headerAvatar").src="logo-premium.png?v=14.9";
       if($("homeAvatar"))$("homeAvatar").src=data;
     }else{
       const coverImg=$("profileCoverImage");
@@ -4352,7 +4361,7 @@ window.AttaWeb=Object.freeze({
 
   if ("serviceWorker" in navigator) {
     window.addEventListener("load", () => {
-      navigator.serviceWorker.register("/sw.js?v=14.8", { scope: "/" }).catch(() => {});
+      navigator.serviceWorker.register("/sw.js?v=14.9", { scope: "/" }).catch(() => {});
     });
   }
 

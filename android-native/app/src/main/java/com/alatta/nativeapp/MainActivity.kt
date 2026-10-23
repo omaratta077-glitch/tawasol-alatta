@@ -1671,7 +1671,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
         activity.clearIncomingPush()
         if (push.to != myUsername.lowercase() ||
             System.currentTimeMillis() - push.createdAt !in 0..45000L) return@LaunchedEffect
-        val session = NativeCallSession(push.from, push.type, push.callId, incoming = true)
+        val session = NativeCallSession(push.from, push.type, push.callId, incoming = true, displayName = push.displayName)
         if (push.action == AttaPush.ACTION_ACCEPT) {
             acceptIncomingInvite(session)
         } else if (activeCall?.callId == push.callId ||
@@ -1779,6 +1779,11 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                     } else if (tab == "الرسائل" && chatWith.isBlank()) {
                                         try { load("الرسائل") } catch (_: Exception) { }
                                     }
+                                }
+                            } else if (msg.optString("type") == "new-post") {
+                                scope.launch(Dispatchers.Main) {
+                                    runCatching { notifications = get("/api/notifications").arr("notifications") }
+                                    android.widget.Toast.makeText(ctx, "نشر ${msg.optString("fromName", "مستخدم")} منشورًا جديدًا", android.widget.Toast.LENGTH_LONG).show()
                                 }
                             } else if (msg.optString("type") in setOf("friend-request", "friend-accepted", "friends-changed")) {
                                 scope.launch(Dispatchers.Main) {
@@ -1983,8 +1988,9 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
     )
     incomingCall?.let { invitation ->
         var callerName by remember(invitation.callId) { mutableStateOf(
-            friends.firstOrNull { it.optString("username").equals(invitation.peer, true) }?.name()
-                ?: incomingPush?.takeIf { it.callId == invitation.callId }?.displayName?.ifBlank { "مستخدم" } ?: "مستخدم") }
+            invitation.displayName.ifBlank {
+                friends.firstOrNull { it.optString("username").equals(invitation.peer, true) }?.name() ?: "مستخدم"
+            }) }
         LaunchedEffect(invitation.peer) {
             runCatching { get("/api/profile-public?username=${enc(invitation.peer)}").optJSONObject("user")?.name() }
                 .getOrNull()?.takeIf { it.isNotBlank() }?.let { callerName = it }
@@ -2001,18 +2007,22 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
             title = { Text(if (invitation.type == "video") "مكالمة فيديو واردة" else "مكالمة صوتية واردة", fontWeight = FontWeight.Bold, color = GoldLight) },
             text = { Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Image(painterResource(R.drawable.logo_premium), "AL-ATTA MEDIA", Modifier.size(64.dp).clip(CircleShape))
                 Text("مكالمة واردة من $callerName", color = White, textAlign = TextAlign.Center,
                     modifier = Modifier.fillMaxWidth())
             } },
-            confirmButton = { Button(
-                colors = ButtonDefaults.buttonColors(containerColor = Gold, contentColor = Black),
-                onClick = { acceptIncomingInvite(invitation) }
-            ) { Text("رد", fontWeight = FontWeight.Bold) } },
-            dismissButton = { OutlinedButton(
-                border = BorderStroke(1.dp, Border),
-                onClick = { sendCallResponse(invitation, "rejected"); incomingCall = null }
-            ) { Text("رفض", color = White) } }
+            confirmButton = {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(14.dp),
+                    verticalAlignment = Alignment.CenterVertically) {
+                    Button(modifier = Modifier.weight(1f).heightIn(min = 48.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Gold, contentColor = Black),
+                        onClick = { acceptIncomingInvite(invitation) }) { Text("رد", fontWeight = FontWeight.Bold) }
+                    Button(modifier = Modifier.weight(1f).heightIn(min = 48.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFC83B3B), contentColor = White),
+                        onClick = { sendCallResponse(invitation, "rejected"); incomingCall = null }) {
+                        Text("رفض", fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
         )
     }
     if (featureMessage.isNotBlank()) AlertDialog(
@@ -3414,6 +3424,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                         "friend-accepted" -> "قبل طلب صداقتك"
                                         "follow" -> "بدأ متابعتك"
                                         "share" -> "شارك منشورك"
+                                        "new-post" -> "نشر منشورًا جديدًا"
                                         else -> n.optString("text").ifBlank { "لديك إشعار جديد" }
                                     }
                                     Text(message, color = White, fontSize = 14.sp,
