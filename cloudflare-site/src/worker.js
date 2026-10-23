@@ -3409,8 +3409,9 @@ export class SignalingRoom extends DurableObject {
           if(fcmData.type==='call-request'){
             android.notification={
               channel_id:'alatta_incoming_call_v2',
-              title:fcmData.callType==='video'?'مكالمة فيديو واردة':'مكالمة صوتية واردة',
-              body:'مكالمة واردة من تواصل العطا',
+              title:String(fcmData.fromName||'').replace(/[\r\n\t]+/g,' ').trim().slice(0,120)||'مكالمة واردة',
+              body:fcmData.callType==='video'?'مكالمة فيديو واردة':'مكالمة صوتية واردة',
+              icon:'atta_notification_icon',color:'#D8B451',
               visibility:'PUBLIC',notification_priority:'PRIORITY_MAX',
               tag:'alatta-call-'+String(fcmData.callId||'').slice(0,128)
             };

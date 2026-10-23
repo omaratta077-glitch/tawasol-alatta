@@ -42,8 +42,13 @@ try{
   assert.equal(captured[0].android.notification.notification_priority,'PRIORITY_MAX');
   assert.equal(captured[0].android.notification.tag,'alatta-call-call-abc123');
   assert.equal(captured[0].android.notification.image,undefined,'v145 call delivery has no large image');
-  assert.equal(captured[0].android.notification.title,'مكالمة فيديو واردة');
-  assert.equal(captured[3].android.notification.title,'مكالمة صوتية واردة');
+  assert.equal(captured[0].android.notification.title,'Alice Caller');
+  assert.equal(captured[0].android.notification.body,'مكالمة فيديو واردة');
+  assert.equal(captured[0].android.notification.icon,'atta_notification_icon');
+  assert.equal(captured[0].android.notification.color,'#D8B451');
+  assert.equal(captured[3].android.notification.title,'مكالمة واردة');
+  assert.equal(captured[3].android.notification.body,'مكالمة صوتية واردة');
+  assert.equal(captured[3].android.notification.icon,'atta_notification_icon');
   assert.equal(captured[3].android.notification.tag,'alatta-call-call-audio-abc123');
   assert.equal(captured[4].android.notification,undefined,'hangup must not display a new incoming call');
   assert.equal(captured[1].android.notification,undefined,'ordinary messages stay data-only');
