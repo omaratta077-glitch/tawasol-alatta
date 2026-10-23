@@ -54,7 +54,7 @@ class AttaApplication : Application() {
 
 internal data class PushCall(
     val from: String, val to: String, val callId: String, val type: String,
-    val createdAt: Long, val action: String
+    val createdAt: Long, val action: String, val displayName: String = ""
 ) {
     companion object {
         fun fromIntent(intent: Intent): PushCall? {
@@ -65,7 +65,8 @@ internal data class PushCall(
             return PushCall(from, to, callId,
                 if (intent.getStringExtra("atta_call_type") == "video") "video" else "audio",
                 intent.getLongExtra("atta_call_created", 0L),
-                intent.getStringExtra("atta_call_action") ?: AttaPush.ACTION_VIEW)
+                intent.getStringExtra("atta_call_action") ?: AttaPush.ACTION_VIEW,
+                intent.getStringExtra("atta_call_name").orEmpty())
         }
     }
 }
@@ -222,10 +223,15 @@ internal object AttaPush {
         val to = d["to"].orEmpty().trim().lowercase()
         val created = d["createdAt"]?.toLongOrNull() ?: return
         if (from.isBlank() || to.isBlank() || id.length !in 8..128) return
-        incoming(context, PushCall(from, to, id, if (d["callType"] == "video") "video" else "audio", created, ACTION_VIEW))
+        incoming(context, PushCall(from, to, id, if (d["callType"] == "video") "video" else "audio", created, ACTION_VIEW, d["fromName"].orEmpty()))
     }
 
-    fun dismiss(context: Context, callId: String) {
+    fun markCallAlerted(context: Context, callId: String) {
+        prefs(context).edit().putString("last_call_alert_id", callId).apply()
+    }
+
+    fun dismiss(context: Context, callId: String, ended: Boolean = true) {
+        if (ended) prefs(context).edit().putString("ended_call_alert_id", callId).apply()
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         // Locally posted data-only invitation (foreground).
         manager.cancel(callId.hashCode())
@@ -245,6 +251,7 @@ internal object AttaPush {
             putExtra("atta_call_type", call.type)
             putExtra("atta_call_created", call.createdAt)
             putExtra("atta_call_action", action)
+            putExtra("atta_call_name", call.displayName)
         }
 
     // These are intentionally generic summaries; private message bodies never travel
@@ -306,17 +313,31 @@ internal object AttaPush {
         NotificationManagerCompat.from(context).notify(eventId.hashCode(), notice.build())
     }
 
-    fun incoming(context: Context, call: PushCall) {
+    fun canShowCallNotification(context: Context): Boolean {
+        if (!canNotify(context) || !NotificationManagerCompat.from(context).areNotificationsEnabled()) return false
+        val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        return Build.VERSION.SDK_INT < 26 || manager.getNotificationChannel(CHANNEL)?.importance != NotificationManager.IMPORTANCE_NONE
+    }
+
+    @Synchronized
+    fun incoming(context: Context, call: PushCall, foreground: Boolean = false) {
         if (!validSession(context, call)) return
         if (activeCallId == call.callId) return // Same accepted call, not another incoming call.
         // Foreground calls already have a native dialog + ringtone through the
         // authenticated WebSocket/HTTP path. Never ring the same device twice.
-        if (appVisible && foregroundRingCallId == call.callId) return
+        if (!foreground && appVisible) return
         createChannel(context)
         if (Build.VERSION.SDK_INT >= 33 &&
             ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS)
                 != PackageManager.PERMISSION_GRANTED) return
         if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) return
+        val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        val present = manager.activeNotifications.any {
+            (it.tag == "alatta-call-${call.callId}" && it.id == 0) || it.id == call.callId.hashCode()
+        }
+        val decision = callAlertDecision(call.callId, prefs(context).getString("last_call_alert_id", "").orEmpty(),
+            prefs(context).getString("ended_call_alert_id", "").orEmpty(), present)
+        if (decision == CallAlertDecision.IGNORE || decision == CallAlertDecision.KEEP) return
         val code = call.callId.hashCode()
         val flags = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         val view = PendingIntent.getActivity(context, code, intentFor(context, call, ACTION_VIEW), flags)
@@ -334,7 +355,8 @@ internal object AttaPush {
             .setSmallIcon(R.drawable.atta_notification_icon)
             .setLargeIcon(BitmapFactory.decodeResource(context.resources, R.drawable.logo_premium))
             .setContentTitle(if (call.type == "video") "مكالمة فيديو واردة" else "مكالمة صوتية واردة")
-            .setContentText("مكالمة واردة من مستخدم تواصل العطا")
+            .setContentText("مكالمة واردة من ${call.displayName.ifBlank { "مستخدم" }}")
+            .setSilent(decision == CallAlertDecision.SILENT)
             .setOnlyAlertOnce(true)
             .setCategory(NotificationCompat.CATEGORY_CALL)
             .setPriority(NotificationCompat.PRIORITY_MAX)
@@ -345,7 +367,10 @@ internal object AttaPush {
             .setOngoing(false)
             .addAction(android.R.drawable.sym_action_call, "رد", accept)
             .addAction(android.R.drawable.ic_menu_close_clear_cancel, "رفض", reject)
-        NotificationManagerCompat.from(context).notify(code, builder.build())
+        val notification = builder.build()
+        if (decision == CallAlertDecision.RING) notification.flags = notification.flags or android.app.Notification.FLAG_INSISTENT
+        NotificationManagerCompat.from(context).notify("alatta-call-${call.callId}", 0, notification)
+        markCallAlerted(context, call.callId)
         // The caller should hear ringback only after the phone actually displayed
         // an incoming call notification (or the existing foreground dialog).
         val session = prefs(context).getString("token", "").orEmpty()

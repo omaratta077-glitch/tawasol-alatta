@@ -3271,7 +3271,8 @@ export class SignalingRoom extends DurableObject {
             android.notification={
               channel_id:'alatta_incoming_call_v2',icon:'atta_notification_icon',
               title:fcmData.callType==='video'?'مكالمة فيديو واردة':'مكالمة صوتية واردة',
-              body:'مكالمة واردة من تواصل العطا',
+              body:'مكالمة واردة من '+String(fcmData.fromName||'مستخدم'),
+              image:'https://tawasol-alatta.omaratta077-4fd.workers.dev/logo-premium.png?v=14.8',
               visibility:'PUBLIC',notification_priority:'PRIORITY_MAX',
               tag:'alatta-call-'+String(fcmData.callId||'').slice(0,128)
             };
@@ -3348,8 +3349,10 @@ export class SignalingRoom extends DurableObject {
 
   async deliverCallPush(to,event){
     if(!['call-request','hangup','call-reject'].includes(event.type))return;
+    const caller=await this.user(event.from);
     const result=await this.sendDevicePush(to,{
       type:String(event.type),from:String(event.from),to:String(to),
+      fromName:String(caller?.fullName||caller?.displayName||"مستخدم"),
       callId:String(event.callId),callType:event.callType==='video'?'video':'audio',
       createdAt:String(event.createdAt||Date.now())
     },'45s');

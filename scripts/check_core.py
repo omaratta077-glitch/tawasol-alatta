@@ -52,8 +52,8 @@ check("PushCall visibility compatible", "internal var incomingPush by mutableSta
 ring_screen=read(android+"NativeCallScreen.kt")
 push_source=read(android+"AttaPush.kt")
 check("Incoming call ringtone passes callId", 
-      "IncomingCallRingtone(invitation.callId)" in main and
-      "internal fun IncomingCallRingtone(callId: String)" in ring_screen and
+      "IncomingCallRingtone(PushCall(invitation.peer, myUsername.lowercase(), invitation.callId," in main and
+      "internal fun IncomingCallRingtone(call: PushCall)" in ring_screen and
       not re.search(r"IncomingCallRingtone\(\s*\)", main))
 check("Foreground ring state declared in AttaPush", 
       "@Volatile var foregroundRingCallId" in push_source and
