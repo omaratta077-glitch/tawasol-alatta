@@ -9,6 +9,7 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.foundation.layout.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
@@ -44,7 +45,7 @@ internal fun Modifier.attaGoldShine(enabled: Boolean = true): Modifier =
             ),
             label = "attaGoldShine-translate"
         )
-        drawWithContent {
+        clipToBounds().drawWithContent {
             drawContent()
             if (size.width <= 0f || size.height <= 0f) return@drawWithContent
 

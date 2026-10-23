@@ -128,7 +128,7 @@ internal fun PremiumHeader(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(5.dp)
         ) {
-            Image(painterResource(R.drawable.logo_premium), "شعار العطا", Modifier.size(34.dp).clip(CircleShape))
+            Image(painterResource(R.drawable.logo_premium), "شعار العطا", Modifier.size(34.dp).clip(CircleShape).attaGoldShine())
             Text("AL-ATTA", color = PremiumGoldLight, fontWeight = FontWeight.Bold,
                 fontSize = 12.sp, maxLines = 1, softWrap = false)
         }
@@ -401,7 +401,7 @@ internal fun StoryRing(label: String, url: String, isAdd: Boolean, diameter: Int
             if (isAdd) SiteIcon("plus", size = 28.dp)
             else if (url.endsWith(".mp4", ignoreCase = true)) SiteIcon("video", size = 26.dp)
             else if (url.isNotBlank()) ProfileMediaImage(url, label, Modifier.fillMaxSize().clip(CircleShape), contentScale = ContentScale.Crop)
-            else Image(painterResource(R.drawable.logo_premium), label, Modifier.fillMaxSize().clip(CircleShape))
+            else Image(painterResource(R.drawable.logo_premium), label, Modifier.fillMaxSize().clip(CircleShape).attaGoldShine())
         }
         Spacer(Modifier.height(5.dp))
         Text(label, color = Color.White, fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)

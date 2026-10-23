@@ -335,6 +335,7 @@ internal object AttaPush {
             .setLargeIcon(BitmapFactory.decodeResource(context.resources, R.drawable.logo_premium))
             .setContentTitle(if (call.type == "video") "مكالمة فيديو واردة" else "مكالمة صوتية واردة")
             .setContentText("مكالمة واردة من مستخدم تواصل العطا")
+            .setOnlyAlertOnce(true)
             .setCategory(NotificationCompat.CATEGORY_CALL)
             .setPriority(NotificationCompat.PRIORITY_MAX)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
