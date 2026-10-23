@@ -2133,7 +2133,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
         onDismissRequest = { adminEditUser = ""; adminEditPost = "" }, containerColor = Panel,
         title = { Text(if (adminEditUser.isNotBlank()) "تعديل اسم الحساب" else "تعديل المنشور", color = GoldLight) },
         text = { OutlinedTextField(if (adminEditUser.isNotBlank()) adminEditUserName else adminEditPostText,
-            { if (adminEditUser.isNotBlank()) adminEditUserName = it.take(60) else adminEditPostText = it.take(10000) },
+            { if (adminEditUser.isNotBlank()) adminEditUserName = it.take(60) else adminEditPostText = it.take(50000) },
             modifier = Modifier.fillMaxWidth(), label = { Text("النص الجديد") }) },
         confirmButton = { TextButton(onClick = {
             val username = adminEditUser; val id = adminEditPost; val name = adminEditUserName; val text = adminEditPostText

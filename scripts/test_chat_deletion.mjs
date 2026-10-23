@@ -8,7 +8,7 @@ const data=new Map(),tasks=[],events=[],pushes=[];
 const sockets=['alice','bob'].map(user=>({deserializeAttachment:()=>({user})}));
 const storage={async get(k){return structuredClone(data.get(k))},async put(k,v){data.set(k,structuredClone(v))},async delete(k){data.delete(k)},async setAlarm(){},async list({prefix=''}){return new Map([...data].filter(([k])=>k.startsWith(prefix)).map(([k,v])=>[k,structuredClone(v)]))}};
 const ctx={storage,getWebSockets:()=>sockets,waitUntil(p){tasks.push(p)}};
-function restart(){const r=new SignalingRoom(ctx,{});r.send=(ws,msg)=>{events.push({user:ws.deserializeAttachment().user,...msg});return true};r.sendDevicePush=async(to,payload)=>{pushes.push({to,...payload});return {accepted:1}};return r;}
+function restart(){const r=new SignalingRoom(ctx,{SUPER_ADMIN_USERNAME:"alice"});r.send=(ws,msg)=>{events.push({user:ws.deserializeAttachment().user,...msg});return true};r.sendDevicePush=async(to,payload)=>{pushes.push({to,...payload});return {accepted:1}};return r;}
 let room=restart();
 for(const username of ['alice','bob','eve'])data.set('user:'+username,{username,fullName:username});
 data.set('friends:alice',['bob']);data.set('friends:bob',['alice']);
@@ -50,6 +50,11 @@ data.set('friends:alice',[]);data.set('friends:bob',[]);
 assert.equal((await api('/api/conversation-delete',{with:'bob'})).status,200,'can clear own history after unfriending');
 const long='ذ'.repeat(30000),published=await api('/api/posts',{text:long});
 assert.equal(published.status,200);assert.equal(published.data.post.text,long,'complete group never truncated at legacy 5000 limit');
+const listing=await api('/api/admin/posts');assert.equal(listing.data.posts.find(p=>p.id===published.data.post.id).text,long,'admin editor receives the whole group');
+const edited=long+'\nتم';assert.equal((await api('/api/admin/action',{action:'update_post',postId:published.data.post.id,text:edited})).status,200);
+assert.equal(data.get('post:'+published.data.post.id).text,edited);
+assert.equal((await api('/api/admin/action',{action:'update_post',postId:published.data.post.id,text:'ذ'.repeat(50001)})).status,400);
+assert.equal(data.get('post:'+published.data.post.id).text,edited);
 const before=[...data.keys()].filter(k=>k.startsWith('post:')).length;
 assert.equal((await api('/api/posts',{text:'ذ'.repeat(50001)})).status,400);
 assert.equal([...data.keys()].filter(k=>k.startsWith('post:')).length,before);

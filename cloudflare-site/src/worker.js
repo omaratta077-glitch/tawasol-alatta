@@ -2925,7 +2925,7 @@ export class SignalingRoom extends DurableObject {
       const query=String(url.searchParams.get("q")||"").trim().toLowerCase();
       const posts=(await this.allRecords("post:")).filter(p=>!query || `${p.id} ${p.author} ${p.text||""}`.toLowerCase().includes(query))
         .sort((a,b)=>(b.createdAt||0)-(a.createdAt||0)).slice(0,200)
-        .map(p=>({id:p.id,author:p.author,text:String(p.text||"").slice(0,10000),createdAt:p.createdAt||0,hasImage:!!p.image}));
+        .map(p=>({id:p.id,author:p.author,text:String(p.text||""),createdAt:p.createdAt||0,hasImage:!!p.image}));
       return j({ok:true,posts});
     }
 
@@ -2943,7 +2943,7 @@ export class SignalingRoom extends DurableObject {
       if(action==="update_post"){
         const id=String(body.postId||""),post=await this.ctx.storage.get(`post:${id}`);
         if(!post)return j({ok:false,error:"المنشور غير موجود"},404);
-        if(typeof body.text!=="string" || body.text.length>10000)return j({ok:false,error:"نص المنشور غير صالح"},400);
+        if(typeof body.text!=="string" || body.text.length>50000)return j({ok:false,error:"نص المنشور غير صالح"},400);
         post.text=body.text;post.updatedAt=Date.now();post.editedBy=auth.session.username;
         await this.ctx.storage.put(`post:${id}`,post);return j({ok:true});
       }
