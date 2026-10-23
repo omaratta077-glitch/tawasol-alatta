@@ -325,7 +325,7 @@ internal object AttaPush {
         if (activeCallId == call.callId) return // Same accepted call, not another incoming call.
         // Foreground calls already have a native dialog + ringtone through the
         // authenticated WebSocket/HTTP path. Never ring the same device twice.
-        if (!foreground && appVisible) return
+        if (!foreground && appVisible && foregroundRingCallId == call.callId) return
         createChannel(context)
         if (Build.VERSION.SDK_INT >= 33 &&
             ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS)
