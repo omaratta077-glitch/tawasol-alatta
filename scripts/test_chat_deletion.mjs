@@ -1,0 +1,53 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import {webcrypto} from 'node:crypto';
+globalThis.crypto??=webcrypto;
+const src=fs.readFileSync(new URL('../cloudflare-site/src/worker.js',import.meta.url),'utf8').replace('import { DurableObject } from "cloudflare:workers";','class DurableObject {}');
+const {SignalingRoom}=await import('data:text/javascript;charset=utf-8,'+encodeURIComponent(src));
+const data=new Map(),tasks=[],events=[],pushes=[];
+const sockets=['alice','bob'].map(user=>({deserializeAttachment:()=>({user})}));
+const storage={async get(k){return structuredClone(data.get(k))},async put(k,v){data.set(k,structuredClone(v))},async delete(k){data.delete(k)},async setAlarm(){},async list({prefix=''}){return new Map([...data].filter(([k])=>k.startsWith(prefix)).map(([k,v])=>[k,structuredClone(v)]))}};
+const ctx={storage,getWebSockets:()=>sockets,waitUntil(p){tasks.push(p)}};
+function restart(){const r=new SignalingRoom(ctx,{});r.send=(ws,msg)=>{events.push({user:ws.deserializeAttachment().user,...msg});return true};r.sendDevicePush=async(to,payload)=>{pushes.push({to,...payload});return {accepted:1}};return r;}
+let room=restart();
+for(const username of ['alice','bob','eve'])data.set('user:'+username,{username,fullName:username});
+data.set('friends:alice',['bob']);data.set('friends:bob',['alice']);
+const token={};for(const u of ['alice','bob','eve'])token[u]=await room.createSession(u);
+async function api(path,body,user='alice'){const response=await room.api(new Request('https://unit.test'+path+(body?'':(path.includes('?')?'&':'?')+'token='+token[user]),{method:body?'POST':'GET',...(body?{headers:{'content-type':'application/json'},body:JSON.stringify({token:token[user],...body})}:{})}));return {status:response.status,data:await response.json()};}
+async function chat(user='alice'){return (await api('/api/conversation?with='+(user==='alice'?'bob':'alice'),null,user)).data.messages;}
+const key='messages:alice:bob';
+const msg=(id,from='alice',mediaType='')=>({id,from,to:from==='alice'?'bob':'alice',mediaType,text:'private '+id,media:'/media/alice/test.jpg',ts:Date.now(),read:false});
+data.set(key,[msg('one'),msg('two','bob'),msg('signal','alice','call-signal')]);
+assert.equal((await api('/api/message-delete',{with:'bob',messageId:'two',scope:'everyone'})).status,403);
+assert.equal((await api('/api/message-delete',{with:'bob',messageId:'one',scope:'everyone'},'eve')).status,404);
+assert.equal((await api('/api/message-delete',{with:'bob',messageId:'signal',scope:'me'})).status,404,'RTC is never deleted');
+assert.equal((await api('/api/message-delete',{with:'bob',messageId:'one',scope:'bogus'})).status,400);
+assert.equal((await api('/api/message-delete',{with:'bob',messageId:'two',scope:'me'})).status,200);
+assert.ok(!(await chat()).some(m=>m.id==='two'));assert.ok((await chat('bob')).some(m=>m.id==='two'));
+assert.equal((await api('/api/message-delete',{with:'bob',messageId:'one',scope:'everyone'})).status,200);
+assert.ok(!(await chat()).some(m=>m.id==='one'));assert.ok(!(await chat('bob')).some(m=>m.id==='one'));
+assert.ok(!JSON.stringify(data.get(key).find(m=>m.id==='one')).includes('private'));
+const count=pushes.length;await room.deliverUserPush('bob',{type:'chat',from:'alice',eventId:'one'});assert.equal(pushes.length,count,'delayed push suppressed for deleted content');
+assert.ok(events.some(e=>e.type==='chat-deleted'&&e.user==='bob'&&e.peer==='alice'));
+await Promise.all(tasks.splice(0));assert.ok(pushes.some(p=>p.to==='bob'&&p.messageId==='one'));
+await room.recordCallEvent('alice','bob',{type:'call-request',callId:'call_12345',callType:'video'});
+assert.equal((await api('/api/message-delete',{with:'bob',messageId:'call:call_12345',scope:'everyone'})).status,200);
+await room.recordCallEvent('alice','bob',{type:'call-request',callId:'call_12345'});
+await room.recordCallEvent('alice','bob',{type:'hangup',callId:'call_12345'});
+assert.ok(!(await chat('bob')).some(m=>m.id==='call:call_12345'),'late events do not resurrect call history');
+assert.equal((await api('/api/conversation-delete',{with:'bob'})).status,200);
+room=restart();assert.deepEqual((await chat()).map(m=>m.id),['signal']);
+const inbox=await api('/api/inbox?peers=bob');assert.deepEqual(inbox.data.hiddenPeers,['bob']);assert.equal(inbox.data.summaries.length,0);
+assert.ok((await chat('bob')).some(m=>m.id==='two'),'clearing only affects the owner');
+// Offline delivery respects deletion without dropping active call transport.
+events.length=0;await room.deliverPendingMessages('alice',sockets[0]);assert.ok(!events.some(e=>e.id==='two'));
+const list=data.get(key);list.push(msg('new','bob'));data.set(key,list);
+assert.ok((await chat()).some(m=>m.id==='new'));assert.deepEqual((await api('/api/inbox?peers=bob')).data.hiddenPeers,[]);
+data.set('friends:alice',[]);data.set('friends:bob',[]);
+assert.equal((await api('/api/conversation-delete',{with:'bob'})).status,200,'can clear own history after unfriending');
+const long='ذ'.repeat(30000),published=await api('/api/posts',{text:long});
+assert.equal(published.status,200);assert.equal(published.data.post.text,long,'complete group never truncated at legacy 5000 limit');
+const before=[...data.keys()].filter(k=>k.startsWith('post:')).length;
+assert.equal((await api('/api/posts',{text:'ذ'.repeat(50001)})).status,400);
+assert.equal([...data.keys()].filter(k=>k.startsWith('post:')).length,before);
+console.log('PASS chat deletion: self-only persistent hiding, sender-only unsend, authorization, realtime removal, stripped tombstones, call replay safety, RTC retention, inbox reappearance and full long post preservation');

@@ -9,5 +9,5 @@ internal fun composeHadithPost(currentDraft: String, fullHadithWithSource: Strin
     if (selected.isBlank()) return null
     val previous = currentDraft.trim()
     val composed = if (previous.isBlank()) selected else "$previous\n\n$selected"
-    return composed.takeIf { it.length <= 5000 }
+    return composed.takeIf { it.length <= 50000 }
 }

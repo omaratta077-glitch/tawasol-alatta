@@ -135,11 +135,14 @@ private fun ChatSegment(label: String, selected: Boolean, onClick: () -> Unit) {
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 internal fun MessengerInbox(
     myUsername: String,
     contacts: List<JSONObject>,
     inbox: List<ChatPreview>,
+    hiddenPeers: Set<String>,
+    onDeleteConversation: (String) -> Unit,
     stories: List<JSONObject>,
     onAddStory: () -> Unit,
     onStory: (JSONObject) -> Unit,
@@ -148,6 +151,13 @@ internal fun MessengerInbox(
     onProfile: (String) -> Unit,
     onRefresh: () -> Unit
 ) {
+    var deletePeer by remember { mutableStateOf<ChatPreview?>(null) }
+    deletePeer?.let { peer ->
+        AlertDialog(onDismissRequest = { deletePeer = null }, title = { Text("حذف المحادثة") },
+            text = { Text("حذف محادثة ${contactName(peer.user)} من حسابك؟ ستبقى لدى الطرف الآخر.") },
+            confirmButton = { TextButton(onClick = { deletePeer = null; onDeleteConversation(peer.username) }) { Text("حذف", color = Color.Red) } },
+            dismissButton = { TextButton(onClick = { deletePeer = null }) { Text("إلغاء") } }, containerColor = ChatPanel)
+    }
     var query by remember { mutableStateOf("") }
     var segment by remember { mutableStateOf("الكل") }
     var showNewChat by remember { mutableStateOf(false) }
@@ -176,11 +186,11 @@ internal fun MessengerInbox(
             containerColor = ChatPanel
         )
     }
-    val previews = remember(contacts, inbox) {
+    val previews = remember(contacts, inbox, hiddenPeers) {
         val byUser = inbox.associateBy { it.username.lowercase() }
         // Do not hide an existing chat just because the contact is not yet a friend.
         val allUsers = (inbox.map { it.user } + contacts)
-            .filter { it.optString("username").isNotBlank() }
+            .filter { it.optString("username").isNotBlank() && it.optString("username").lowercase() !in hiddenPeers }
             .distinctBy { it.optString("username").lowercase() }
         allUsers.map { user ->
             byUser[user.optString("username").lowercase()] ?: ChatPreview(user, null)
@@ -258,7 +268,7 @@ internal fun MessengerInbox(
         } else {
             LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(vertical = 7.dp)) {
                 items(visible, key = { it.username }) { preview ->
-                    Row(Modifier.fillMaxWidth().clickable { onOpen(preview.username) }
+                    Row(Modifier.fillMaxWidth().combinedClickable(onClick = { onOpen(preview.username) }, onLongClick = { deletePeer = preview })
                         .padding(horizontal = 17.dp, vertical = 10.dp),
                         verticalAlignment = Alignment.CenterVertically) {
                         ChatAvatar(preview.user, onClick = { onProfile(preview.username) })
@@ -328,14 +338,15 @@ private fun ChatPdfDocument(url: String, mine: Boolean) {
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun ChatBubble(message: JSONObject, mine: Boolean) {
+private fun ChatBubble(message: JSONObject, mine: Boolean, onLongClick: () -> Unit) {
     var videoExpanded by remember(message.optString("id")) { mutableStateOf(false) }
     val body = message.optString("text")
     val mediaUrl = media(message.optString("media"))
     val mediaType = message.optString("mediaType")
     // In RTL layout Start is the RIGHT side: my bubbles appear on the right.
-    Box(Modifier.fillMaxWidth().padding(horizontal = 13.dp, vertical = 4.dp),
+    Box(Modifier.fillMaxWidth().combinedClickable(onClick = {}, onLongClick = onLongClick).padding(horizontal = 13.dp, vertical = 4.dp),
         contentAlignment = if (mine) Alignment.CenterStart else Alignment.CenterEnd) {
         Column(Modifier.widthIn(max = 300.dp)
             .clip(RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp,
@@ -416,9 +427,19 @@ internal fun MessengerThread(
     onProfile: () -> Unit,
     onVoiceCall: () -> Unit,
     onVideoCall: () -> Unit,
+    onDeleteMessage: (String, String) -> Unit,
     onBack: () -> Unit,
     onRefresh: () -> Unit
 ) {
+    var deleteMessage by remember(fallbackUsername) { mutableStateOf<JSONObject?>(null) }
+    deleteMessage?.let { item ->
+        val mine = item.optString("from").equals(myUsername, ignoreCase = true)
+        AlertDialog(onDismissRequest = { deleteMessage = null }, title = { Text("حذف الرسالة") },
+            text = { Column {
+                TextButton(onClick = { deleteMessage = null; onDeleteMessage(item.optString("id"), "me") }) { Text("حذف لديّ", color = ChatGoldBright) }
+                if (mine) TextButton(onClick = { deleteMessage = null; onDeleteMessage(item.optString("id"), "everyone") }) { Text("حذف لدى الطرفين", color = Color.Red) }
+            } }, confirmButton = { TextButton(onClick = { deleteMessage = null }) { Text("إلغاء") } }, containerColor = ChatPanel)
+    }
     val listState = rememberLazyListState()
     var showAttachments by remember(fallbackUsername) { mutableStateOf(false) }
     if (showAttachments) {
@@ -455,7 +476,7 @@ internal fun MessengerThread(
         }
     }
     val visibleMessages = remember(messages) {
-        messages.filter { it.optString("mediaType") != "call-signal" }
+        messages.filter { it.optString("mediaType") != "call-signal" && !it.optBoolean("deletedForEveryone") }
     }
     LaunchedEffect(visibleMessages.size, fallbackUsername) {
         if (visibleMessages.isNotEmpty()) listState.animateScrollToItem(visibleMessages.lastIndex)
@@ -496,7 +517,7 @@ internal fun MessengerThread(
             LazyColumn(Modifier.weight(1f), state = listState,
                 contentPadding = PaddingValues(top = 15.dp, bottom = 12.dp)) {
                 items(visibleMessages, key = { it.optString("id").ifBlank { it.hashCode().toString() } }) { message ->
-                    ChatBubble(message, message.optString("from").equals(myUsername, ignoreCase = true))
+                    ChatBubble(message, message.optString("from").equals(myUsername, ignoreCase = true)) { deleteMessage = message }
                 }
             }
         }

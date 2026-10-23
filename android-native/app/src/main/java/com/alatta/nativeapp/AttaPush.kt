@@ -213,9 +213,19 @@ internal object AttaPush {
         }
     }
 
+    fun cancelMessage(context: Context, id: String) {
+        if (id.isNotBlank()) (context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager).cancel(id.hashCode())
+    }
+
     fun receive(context: Context, d: Map<String, String>) {
         if (!canNotify(context)) return
         val type = d["type"] ?: return
+        if (type == "chat-deleted") {
+            val local = prefs(context)
+            if (d["to"].orEmpty().equals(local.getString("username", ""), ignoreCase = true) && !local.getString("token", "").isNullOrBlank())
+                cancelMessage(context, d["messageId"].orEmpty())
+            return
+        }
         if (type !in setOf("call-request", "hangup", "call-reject")) { notifyActivity(context, d); return }
         val id = d["callId"] ?: return
         if (type == "hangup" || type == "call-reject") { dismiss(context, id); return }

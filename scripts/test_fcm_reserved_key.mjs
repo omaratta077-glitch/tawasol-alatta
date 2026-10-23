@@ -15,6 +15,7 @@ room.fcmAccessToken=async()=> 'test-token';
 const device='A'.repeat(140);
 await ctx.storage.put('fcmTokens:bob',[device]);
 await ctx.storage.put('user:alice',{username:'alice',fullName:'Alice Caller'});
+await ctx.storage.put('messages:alice:bob',[{id:'event-chat-abc123',from:'alice',to:'bob',text:'test'}]);
 const captured=[];
 const fetchBefore=globalThis.fetch;
 globalThis.fetch=async(url,options)=>{

@@ -756,6 +756,12 @@ function connect(){
       return;
     }
 
+    if(msg.type==="chat-deleted"){
+      if(selectedUser===msg.peer && !selectedGroup)await loadConversation(selectedUser,{silent:true}).catch(()=>{});
+      await loadChatContacts().catch(()=>{});
+      return;
+    }
+
     if(msg.type==="new-post"){
       notify("منشور جديد",`نشر ${msg.fromName||"مستخدم"} منشورًا جديدًا`,msg);
       await loadNotifications().catch(()=>{});
@@ -943,7 +949,7 @@ function renderProfile(){
   $("meDisplay").textContent=me.displayName||me.username;
   $("meUsername").textContent="@"+me.username;
   $("avatarImg").src=me.avatar||avatarFallback(me.displayName||me.username);
-  if($("headerAvatar"))$("headerAvatar").src="logo-premium.png?v=14.9";
+  if($("headerAvatar"))$("headerAvatar").src="logo-premium.png?v=14.10";
   if($("headerProfileName"))$("headerProfileName").textContent="AL-ATTA";
   if($("headerProfileUsername"))$("headerProfileUsername").textContent="@"+me.username;
   if($("homeAvatar"))$("homeAvatar").src=me.avatar||avatarFallback(me.fullName||me.displayName||me.username);
@@ -1087,7 +1093,7 @@ function callEventLabel(msg){
 }
 
 function addRichMessage(msg){
-  if(msg?.mediaType==="call-signal")return;
+  if(msg?.mediaType==="call-signal" || msg?.deletedForEveryone)return;
   const mine=msg.from===me?.username;
   const div=document.createElement("div");
 
@@ -3245,7 +3251,7 @@ async function uploadOwnProfileImage(kind,file){
       :{maxWidth:1400,maxHeight:700,maxChars:390000,quality:.82});
     if(isAvatar){
       $("profileAvatarLarge").src=data;
-      if($("headerAvatar"))$("headerAvatar").src="logo-premium.png?v=14.9";
+      if($("headerAvatar"))$("headerAvatar").src="logo-premium.png?v=14.10";
       if($("homeAvatar"))$("homeAvatar").src=data;
     }else{
       const coverImg=$("profileCoverImage");
@@ -4361,7 +4367,7 @@ window.AttaWeb=Object.freeze({
 
   if ("serviceWorker" in navigator) {
     window.addEventListener("load", () => {
-      navigator.serviceWorker.register("/sw.js?v=14.9", { scope: "/" }).catch(() => {});
+      navigator.serviceWorker.register("/sw.js?v=14.10", { scope: "/" }).catch(() => {});
     });
   }
 

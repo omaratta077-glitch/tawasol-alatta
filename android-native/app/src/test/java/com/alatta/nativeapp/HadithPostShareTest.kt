@@ -11,9 +11,9 @@ class HadithPostShareTest {
     }
 
     @Test fun neverSilentlyTruncatesLongHadithOrAnExistingDraft() {
-        assertNotNull(composeHadithPost("", "ح".repeat(5000)))
-        assertNull(composeHadithPost("", "ح".repeat(5001)))
-        assertNull(composeHadithPost("م".repeat(100), "ح".repeat(4900)))
+        assertNotNull(composeHadithPost("", "ح".repeat(50000)))
+        assertNull(composeHadithPost("", "ح".repeat(50001)))
+        assertNull(composeHadithPost("م".repeat(100), "ح".repeat(49900)))
         assertNull(composeHadithPost("", "  "))
     }
 }

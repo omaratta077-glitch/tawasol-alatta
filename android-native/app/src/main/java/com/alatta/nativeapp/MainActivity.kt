@@ -1132,6 +1132,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
     // Remember peers locally so an existing conversation remains visible even
     // before a friend request is accepted. Never store message bodies locally.
     val recentChatPeers = remember { mutableStateListOf<String>() }
+    var hiddenChatPeers by remember { mutableStateOf(emptySet<String>()) }
     var inboxLoading by remember { mutableStateOf(false) }
     var activeChatPerson by remember { mutableStateOf<JSONObject?>(null) }
     var ownPosts by remember { mutableStateOf(emptyList<JSONObject>()) }
@@ -1252,7 +1253,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
         activeCall = null; incomingCall = null; pendingPermissionCall = null
         AttaPush.activeCallId = ""
         NativeRtcCall.clearIceCache()
-        chatWith = ""; messages = emptyList(); inboxPreviews = emptyList(); recentChatPeers.clear()
+        chatWith = ""; messages = emptyList(); inboxPreviews = emptyList(); hiddenChatPeers = emptySet(); recentChatPeers.clear()
         posts = emptyList(); ownPosts = emptyList(); publicPosts = emptyList(); archivedPosts = emptyList()
         notificationTargetPost = null
         notifications = emptyList(); friends = emptyList(); publicFriends = emptyList(); requests = emptyList(); users = emptyList(); groups = emptyList()
@@ -1551,7 +1552,10 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                             .filter { it.isNotBlank() && it != myUsername.lowercase() && !it.startsWith("g_") }
                             .distinct().take(50)
                         inboxPreviews = try {
-                            val summaries = get("/api/inbox?peers=${enc(peerIds.joinToString(","))}").arr("summaries")
+                            val response = get("/api/inbox?peers=${enc(peerIds.joinToString(","))}")
+                            val hidden = response.optJSONArray("hiddenPeers")
+                            hiddenChatPeers = (0 until (hidden?.length() ?: 0)).map { hidden!!.optString(it) }.toSet()
+                            val summaries = response.arr("summaries")
                             summaries.mapNotNull { summary ->
                                 summary.optJSONObject("user")?.let { ChatPreview(it, summary.optJSONObject("lastMessage")) }
                             }
@@ -1779,6 +1783,10 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                     } else if (tab == "الرسائل" && chatWith.isBlank()) {
                                         try { load("الرسائل") } catch (_: Exception) { }
                                     }
+                                }
+                            } else if (msg.optString("type") == "chat-deleted") {
+                                scope.launch(Dispatchers.Main) {
+                                    if (tab == "الرسائل") runCatching { load("الرسائل") }
                                 }
                             } else if (msg.optString("type") == "new-post") {
                                 scope.launch(Dispatchers.Main) {
@@ -2625,7 +2633,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                 val composed = composeHadithPost(draft, hadith)
                                 if (composed == null) {
                                     val kind = if (tab == "الأذكار") "الذكر" else "الحديث"
-                                    featureMessage = "$kind مع نص المنشور يتجاوز 5000 حرف. لن يُختصر النص؛ احذف نصًا من المسودة أولًا."
+                                    featureMessage = "$kind مع نص المنشور يتجاوز 50000 حرف. لن يُختصر النص؛ احذف نصًا من المسودة أولًا."
                                 } else {
                                     draft = composed
                                     openHomeComposer()
@@ -3323,6 +3331,15 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                     myUsername = myUsername,
                                     contacts = friends,
                                     inbox = inboxPreviews,
+                                    hiddenPeers = hiddenChatPeers,
+                                    onDeleteConversation = { peer -> task {
+                                        val result = post("/api/conversation-delete", JSONObject().put("with", peer))
+                                        val removed = result.optJSONArray("removed")
+                                        (0 until (removed?.length() ?: 0)).forEach { AttaPush.cancelMessage(ctx, removed!!.optString(it)) }
+                                        hiddenChatPeers = hiddenChatPeers + peer.lowercase()
+                                        inboxPreviews = inboxPreviews.filterNot { it.username.equals(peer, ignoreCase = true) }
+                                        load("الرسائل")
+                                    } },
                                     stories = stories,
                                     onAddStory = { showStoryComposer = true },
                                     onStory = { selectedStory = it },
@@ -3360,6 +3377,14 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                     onPickAudio = { chatAudioPicker.launch("audio/*") },
                                     onPickDocument = { chatPdfPicker.launch("application/pdf") },
                                     onProfile = { openPublicProfile(chatWith) },
+                                    onDeleteMessage = { id, deleteScope ->
+                                        val peer = chatWith
+                                        task {
+                                            post("/api/message-delete", JSONObject().put("with", peer).put("messageId", id).put("scope", deleteScope))
+                                            AttaPush.cancelMessage(ctx, id)
+                                            if (chatWith == peer) messages = get("/api/conversation?with=${enc(peer)}").arr("messages")
+                                        }
+                                    },
                                     onVoiceCall = { openCall(chatWith, "audio") },
                                     onVideoCall = { openCall(chatWith, "video") },
                                     onBack = { chatWith = ""; activeChatPerson = null; messages = emptyList(); refresh() },
