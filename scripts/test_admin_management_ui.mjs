@@ -3,7 +3,7 @@ const root=new URL('../',import.meta.url),read=p=>fs.readFileSync(new URL(p,root
 const source=read('cloudflare-site/public/app.js'),html=read('cloudflare-site/public/index.html');
 const nodes=new Map([...html.matchAll(/\bid="([^"]+)"/g)].map(m=>[m[1],{value:'',disabled:false,textContent:'',innerHTML:'',insertAdjacentHTML(_,s){this.innerHTML+=s},classList:{toggle(){},add(){},remove(){}}}]));
 const calls=[];let batches=0,confirmed=true;let click;
-const ctx={$:id=>nodes.get(id),JSON,Date,Math,encodeURIComponent,me:{role:'super_admin'},token:'owner',alert(){},confirm:()=>confirmed,prompt:()=>confirmed?'alice':'wrong',avatarFallback:()=>'/fallback.png',document:{addEventListener:(_,fn)=>{click=fn},querySelector:()=>({dataset:{adminTab:'users'}}),querySelectorAll:()=>[]},api:async(path,opts)=>{
+const ctx={$:id=>nodes.get(id),JSON,Date,Math,encodeURIComponent,me:{role:'super_admin'},token:'owner',alert(){},confirm:()=>confirmed,prompt:()=>{throw Error('Deletion must not ask to type the username')},avatarFallback:()=>'/fallback.png',document:{addEventListener:(_,fn)=>{click=fn},querySelector:()=>({dataset:{adminTab:'users'}}),querySelectorAll:()=>[]},api:async(path,opts)=>{
  const body=opts?.body?JSON.parse(opts.body):null;calls.push({path,body});
  if(path.startsWith('/api/admin/summary'))return{role:'super_admin',counts:{users:3,usersToday:1,users7Days:2,posts:5,postsToday:2,posts7Days:4,banned:1,disabled:1},daily:[{date:'2026-10-18',users:1,posts:2}],deletion:null};
  if(path.startsWith('/api/admin/users?'))return{users:[{username:'owner',role:'super_admin'},{username:'alice',displayName:'<unsafe>',disabled:true},{username:'bob'}],nextOffset:null};
@@ -17,7 +17,7 @@ const e=source.indexOf('document.addEventListener("click",async e=>{\n  const ta
 await ctx.loadAdminDashboard();assert.equal(nodes.get('adminUsersCount').textContent,3);assert.equal(nodes.get('adminUsersTodayCount').textContent,1);assert.ok(nodes.get('adminActivityChart').innerHTML.includes('2026-10-18'.slice(5)));
 const users=nodes.get('adminUsersList').innerHTML;assert.ok(users.includes('&lt;unsafe&gt;')&&!users.includes('<unsafe>'));assert.ok(users.includes('data-admin-action="activate"')&&users.includes('data-admin-action="delete_user"')&&users.includes('data-admin-action="suspend"'));
 let button={dataset:{adminAction:'delete_user',user:'alice'},disabled:false};const event={target:{closest:s=>s==='[data-admin-action]'?button:null}};
-confirmed=false;let before=calls.length;await click(event);assert.equal(calls.length,before,'wrong username never invokes deletion');
+confirmed=false;let before=calls.length;await click(event);assert.equal(calls.length,before,'cancelling confirmation never invokes deletion');
 confirmed=true;await click(event);assert.equal(batches,3);assert.ok(calls.filter(c=>c.path==='/api/admin/users/delete').every(c=>c.body.confirmation==='alice'&&c.body.token==='owner'));assert.equal(button.disabled,false);assert.ok(calls.filter(c=>c.path==='/api/admin/users/delete').every(c=>c.body.adminPassword==='test-second-password'));
 button={dataset:{adminAction:'suspend',user:'bob'},disabled:false};await click(event);assert.ok(calls.some(c=>c.body?.action==='suspend'&&c.body?.username==='bob'));
 ctx.me.role='user';before=calls.length;await ctx.loadAdminDashboard();assert.equal(calls.length,before,'nonowner cannot load dashboard');
