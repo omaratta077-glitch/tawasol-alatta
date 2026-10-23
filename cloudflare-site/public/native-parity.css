@@ -342,3 +342,9 @@ body{background:var(--native-bg)!important;color:#f7f8f9!important}
 .atta-birth-date{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.45fr) minmax(0,1.1fr);gap:8px;width:100%;min-width:0;direction:rtl}
 .google-profile-overlay .atta-birth-date select,#registerFields .atta-birth-date select{box-sizing:border-box;width:100%;min-width:0;max-width:100%;min-height:48px;padding:12px 6px;margin:0;border:1px solid #6b5429;border-radius:11px;background:#080b0d;color:#fff;font:inherit;font-size:16px;direction:rtl;color-scheme:dark}
 .atta-birth-date select:focus{outline:2px solid #e6b94e;outline-offset:1px}
+
+.post-text-preview{display:block;width:100%;text-align:start;background:transparent;border:0;color:inherit;font:inherit;cursor:pointer;padding:10px 0;white-space:pre-wrap;overflow-wrap:anywhere}
+.post-text-preview>span{display:-webkit-box;-webkit-line-clamp:6;-webkit-box-orient:vertical;overflow:hidden}
+.post-text-preview>strong{display:block;color:#f6d776;font-size:14px;margin-top:8px}
+.post-reader-text{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.9;font-size:18px;color:white}
+.post-reader-text p{margin:0 0 22px}

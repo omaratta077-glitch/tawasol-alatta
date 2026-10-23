@@ -949,7 +949,7 @@ function renderProfile(){
   $("meDisplay").textContent=me.displayName||me.username;
   $("meUsername").textContent="@"+me.username;
   $("avatarImg").src=me.avatar||avatarFallback(me.displayName||me.username);
-  if($("headerAvatar"))$("headerAvatar").src="logo-premium.png?v=14.11";
+  if($("headerAvatar"))$("headerAvatar").src="logo-premium.png?v=14.12";
   if($("headerProfileName"))$("headerProfileName").textContent="AL-ATTA";
   if($("headerProfileUsername"))$("headerProfileUsername").textContent="@"+me.username;
   if($("homeAvatar"))$("homeAvatar").src=me.avatar||avatarFallback(me.fullName||me.displayName||me.username);
@@ -2459,8 +2459,16 @@ document.addEventListener("fullscreenchange",()=>{
   if(document.fullscreenElement===postMediaUI.root){postMediaUI.wasFullscreen=true;return;}
   if(postMediaUI.wasFullscreen){postMediaUI.wasFullscreen=false;if(postMediaUI.viewerOpen)postMediaBack();}
 });
+function needsPostReader(text){return text.length>500||(text.match(/\n/g)||[]).length>8;}
+function postTextPreview(text){return Array.from(text).slice(0,320).join('').split('\n').slice(0,6).join('\n').trimEnd();}
+function renderPostText(post,classes='post-text reference-post-text'){
+  const text=youtubePostInfo(post.text).text;if(!text)return '';
+  if(!needsPostReader(text))return `<div class="${classes}">${esc(text)}</div>`;
+  return `<button type="button" class="${classes} post-text-preview" data-read-post="${esc(post.id)}"><span>${esc(postTextPreview(text))}…</span><strong>قراءة المنشور كاملًا</strong></button>`;
+}
 function bindPostMedia(posts,scope){
-  for(const post of posts)postMediaUI.catalogue.set(post.id,post);
+  for(const post of posts){postMediaUI.catalogue.set(post.id,post);if(post.sharedPost)postMediaUI.catalogue.set(post.sharedPost.id,post.sharedPost);}
+  scope.querySelectorAll("[data-read-post]").forEach(button=>button.onclick=()=>openPostPanel(button.dataset.readPost,"text"));
   scope.querySelectorAll('[data-open-post-media]').forEach(el=>{
     const open=()=>openPostMedia(el.dataset.openPostMedia,el.dataset.mediaKind||"image",posts);
     el.onclick=open;
@@ -2568,12 +2576,18 @@ async function openPostPanel(id,kind){
   closePostPanel();
   if(!postMediaUI.viewerOpen)postMediaUI.session=Date.now()+":"+Math.random();
   pushMediaHistory({id,kind});
-  const panel=document.createElement('div');panel.className='post-interactions-overlay';panel.setAttribute('role','dialog');panel.setAttribute('aria-modal','true');panel.setAttribute('aria-label',kind==='comments'?'التعليقات':'أصحاب التفاعلات');panel.tabIndex=-1;
-  panel.innerHTML=`<section class="post-interactions-sheet"><div class="post-interactions-title"><strong>${kind==='comments'?'التعليقات':'الأشخاص الذين تفاعلوا'}</strong><button aria-label="إغلاق القائمة">×</button></div><div class="post-interactions-rows"></div><div class="post-interactions-error" role="status"></div><button class="post-interactions-more" hidden>عرض المزيد</button>${kind==='comments'?'<form class="post-interactions-compose"><input maxlength="1000" placeholder="اكتب تعليقًا" aria-label="اكتب تعليقًا" required><button>إرسال</button></form>':''}</section>`;
+  const panel=document.createElement('div');panel.className='post-interactions-overlay';panel.setAttribute('role','dialog');panel.setAttribute('aria-modal','true');panel.setAttribute('aria-label',kind==='text'?'المنشور كاملًا':kind==='comments'?'التعليقات':'أصحاب التفاعلات');panel.tabIndex=-1;
+  panel.innerHTML=`<section class="post-interactions-sheet"><div class="post-interactions-title"><strong>${kind==='text'?'المنشور كاملًا':kind==='comments'?'التعليقات':'الأشخاص الذين تفاعلوا'}</strong><button aria-label="إغلاق القائمة">×</button></div><div class="post-interactions-rows"></div><div class="post-interactions-error" role="status"></div><button class="post-interactions-more" hidden>عرض المزيد</button>${kind==='comments'?'<form class="post-interactions-compose"><input maxlength="1000" placeholder="اكتب تعليقًا" aria-label="اكتب تعليقًا" required><button>إرسال</button></form>':''}</section>`;
   (postMediaUI.viewerOpen?postMediaUI.root:document.body).append(panel);postMediaUI.panel=panel;refreshMediaBody();setMediaControls(true);panel.focus();
   panel.querySelector('.post-interactions-title button').onclick=postMediaBack;
   panel.addEventListener('click',e=>{if(e.target===panel)postMediaBack();});
   panel.addEventListener('keydown',e=>{if(e.key==='Escape'){e.preventDefault();e.stopPropagation();postMediaBack();}});
+  if(kind==='text'){
+    const rows=panel.querySelector('.post-interactions-rows');rows.classList.add('post-reader-text');
+    const text=youtubePostInfo(postMediaUI.catalogue.get(id)?.text||'').text;
+    for(const paragraph of text.split('\n\n')){const p=document.createElement('p');p.textContent=paragraph;rows.append(p);}
+    return;
+  }
   const serial=++postMediaUI.panelSerial;let offset=0,busy=false;
   const rows=panel.querySelector('.post-interactions-rows'),more=panel.querySelector('.post-interactions-more'),error=panel.querySelector('.post-interactions-error');
   async function fetchRows(reset=false){
@@ -2633,11 +2647,11 @@ async function loadProfilePosts(username){
           <img src="${avatar}" alt="">
           <span><strong>${esc(a.fullName||a.displayName||a.username)}</strong><small>@${esc(a.username)} • ${timeAgoAr(post.createdAt)}</small></span>
         </button>
-        ${youtubePostInfo(post.text).text?`<div class="profile-post-text">${esc(youtubePostInfo(post.text).text)}</div>`:""}
+        ${renderPostText(post,"profile-post-text")}
         ${youtubePostFrame(post)}
         ${post.image?`<img class="profile-post-image" data-open-post-media="${esc(post.id)}" data-media-kind="image" loading="lazy" decoding="async" src="${esc(post.image)}" alt="صورة المنشور">`:""}
         ${post.video?`<button class="post-video-preview" data-open-post-media="${esc(post.id)}" data-media-kind="video" aria-label="فتح الفيديو">${uiIcon("play")}</button>`:""}
-        ${post.sharedPost?`<div class="shared-post-box"><div class="shared-post-head">@${esc(post.sharedPost.authorInfo?.username||post.sharedPost.author)}</div>${youtubePostInfo(post.sharedPost.text).text?`<div>${esc(youtubePostInfo(post.sharedPost.text).text)}</div>`:""}
+        ${post.sharedPost?`<div class="shared-post-box"><div class="shared-post-head">@${esc(post.sharedPost.authorInfo?.username||post.sharedPost.author)}</div>${renderPostText(post.sharedPost)}
           ${youtubePostFrame(post.sharedPost)}${post.sharedPost.image?`<img loading="lazy" decoding="async" src="${post.sharedPost.image}" class="shared-post-image" alt="">`:""}</div>`:""}
         <div class="profile-post-footer"><div class="profile-post-stats"><button data-post-people="${esc(post.id)}" aria-label="عرض المعجبين والمتفاعلين">❤️ ${reactionCount} <span>المتفاعلون</span></button><button data-post-comments="${esc(post.id)}" aria-label="عرض أصحاب التعليقات">💬 ${commentCount} <span>التعليقات</span></button></div><button class="profile-post-open" data-profile-post-open="${esc(post.id)}">عرض المنشور</button></div>
       </article>`;
@@ -2812,14 +2826,14 @@ async function loadPosts(){
           </button>
           <button class="post-menu-btn" type="button" aria-label="المزيد">${iconDots()}</button>
         </div>
-        ${youtubePostInfo(post.text).text?`<div class="post-text reference-post-text">${esc(youtubePostInfo(post.text).text)}</div>`:""}
+        ${renderPostText(post)}
         ${youtubePostFrame(post)}
         ${post.image?`<img class="post-image reference-post-image" data-open-post-media="${esc(post.id)}" data-media-kind="image" loading="lazy" decoding="async" src="${esc(post.image)}" alt="صورة المنشور">`:""}
         ${post.video?`<button class="post-video-preview" data-open-post-media="${esc(post.id)}" data-media-kind="video" aria-label="فتح الفيديو">${uiIcon("play")}</button>`:""}
         ${post.sharedPost?`
         <div class="shared-post-box">
           <div class="shared-post-head">@${esc(post.sharedPost.authorInfo?.username||post.sharedPost.author)}</div>
-          ${youtubePostInfo(post.sharedPost.text).text?`<div>${esc(youtubePostInfo(post.sharedPost.text).text)}</div>`:""}
+          ${renderPostText(post.sharedPost)}
           ${youtubePostFrame(post.sharedPost)}
           ${post.sharedPost.image?`<img loading="lazy" decoding="async" src="${post.sharedPost.image}" class="shared-post-image" alt="">`:""}
         </div>`:""}
@@ -3251,7 +3265,7 @@ async function uploadOwnProfileImage(kind,file){
       :{maxWidth:1400,maxHeight:700,maxChars:390000,quality:.82});
     if(isAvatar){
       $("profileAvatarLarge").src=data;
-      if($("headerAvatar"))$("headerAvatar").src="logo-premium.png?v=14.11";
+      if($("headerAvatar"))$("headerAvatar").src="logo-premium.png?v=14.12";
       if($("homeAvatar"))$("homeAvatar").src=data;
     }else{
       const coverImg=$("profileCoverImage");
@@ -4404,7 +4418,7 @@ window.AttaWeb=Object.freeze({
 
   if ("serviceWorker" in navigator) {
     window.addEventListener("load", () => {
-      navigator.serviceWorker.register("/sw.js?v=14.11", { scope: "/" }).catch(() => {});
+      navigator.serviceWorker.register("/sw.js?v=14.12", { scope: "/" }).catch(() => {});
     });
   }
 

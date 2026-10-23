@@ -72,3 +72,4 @@ jobs:
           node scripts/web-tests/youtube-mobile.mjs
           node scripts/web-tests/calls.mjs
           node scripts/web-tests/notifications.mjs
+          node scripts/web-tests/post-reader.mjs
