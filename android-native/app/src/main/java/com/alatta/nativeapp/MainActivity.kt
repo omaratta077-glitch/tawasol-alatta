@@ -659,8 +659,8 @@ private fun SignupLegalConsent(
 @Composable private fun GoldPublishButton(enabled: Boolean, onClick: () -> Unit) {
     Button(onClick = onClick, enabled = enabled,
         colors = ButtonDefaults.buttonColors(
-            containerColor = Gold.copy(alpha = .78f), contentColor = Black,
-            disabledContainerColor = Gold.copy(alpha = .14f), disabledContentColor = Muted),
+            containerColor = Gold, contentColor = Black,
+            disabledContainerColor = Gold.copy(alpha = .65f), disabledContentColor = Black.copy(alpha = .75f)),
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 5.dp),
         shape = RoundedCornerShape(13.dp),
         modifier = Modifier
