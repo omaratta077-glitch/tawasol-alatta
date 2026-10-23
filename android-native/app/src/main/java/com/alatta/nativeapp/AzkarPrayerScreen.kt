@@ -118,7 +118,7 @@ private fun PrayerSymbol(symbol: String, size: Dp = 36.dp, tint: Color = Premium
 }
 
 @Composable
-internal fun AzkarPrayerScreen(query: String, modifier: Modifier = Modifier) {
+internal fun AzkarPrayerScreen(query: String, modifier: Modifier = Modifier, onSharePost: (String) -> Unit) {
     val context = LocalContext.current
     val local = remember { context.getSharedPreferences("alatta_azkar", Context.MODE_PRIVATE) }
     var settings by remember { mutableStateOf(PrayerStore.read(context)) }
@@ -246,9 +246,19 @@ internal fun AzkarPrayerScreen(query: String, modifier: Modifier = Modifier) {
                         Text(entry.text, color = Color.White, fontSize = fontSize.sp, lineHeight = (fontSize * 1.75).sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
                         Text(entry.source, color = PremiumMuted, fontSize = 12.sp)
                         if (entry.note.isNotBlank()) Text(entry.note, color = prayerSoft, fontSize = 12.sp)
+                        val sharedText = listOf(group.title, entry.title, entry.text, entry.source, entry.note)
+                            .filter { it.isNotBlank() }.joinToString("\n\n")
+                        Button(onClick = { onSharePost(sharedText) },
+                            modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(13.dp)).attaGoldShine(),
+                            colors = ButtonDefaults.buttonColors(containerColor = PremiumGold, contentColor = PremiumBackground),
+                            shape = RoundedCornerShape(13.dp)) {
+                            SiteIcon("share", tint = PremiumBackground, size = 20.dp)
+                            Spacer(Modifier.width(8.dp))
+                            Text("مشاركة كمنشور داخل التطبيق", fontWeight = FontWeight.Bold)
+                        }
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                             TextButton(onClick = {
-                                val share = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, "${entry.text}\n${entry.source}")
+                                val share = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, sharedText)
                                 context.startActivity(Intent.createChooser(share, "مشاركة الذكر"))
                             }) { SiteIcon("share", size = 21.dp) }
                             Box(Modifier.size(108.dp).clip(CircleShape).background(prayerTeal).clickable(enabled = count < entry.target) {

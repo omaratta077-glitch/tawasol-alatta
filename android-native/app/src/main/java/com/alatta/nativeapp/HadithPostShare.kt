@@ -1,8 +1,8 @@
 package com.alatta.nativeapp
 
-/** Keep every word and its book reference. The existing Worker limits posts
+/** Keep every word and source when sharing a hadith or dhikr. The existing Worker limits posts
  * to 5,000 characters and silently slices longer input, so refuse rather than
- * publish a truncated or misleading hadith.
+ * publish truncated or misleading religious text.
  */
 internal fun composeHadithPost(currentDraft: String, fullHadithWithSource: String): String? {
     val selected = fullHadithWithSource.trim()

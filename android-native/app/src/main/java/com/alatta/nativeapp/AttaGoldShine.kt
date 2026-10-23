@@ -18,10 +18,10 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.clipRect
 
 /**
- * The same effect as cloudflare-site/public/style.css "attaGoldShine":
+ * Shared gold shine, styled after the website "attaGoldShine":
  * ::after width:24%, height:180%, top:-40%, left:-28%,
  * linear-gradient(90deg, transparent, white .48, transparent),
- * skewX(-22deg), translateX(-180% to 260%) in 55% of 4.6 s,
+ * skewX(-22deg), traversing the complete control in 55% of 4.6 s,
  * then the strip remains beyond the button until the cycle restarts.
  *
  * Draw ONLY on already-present primary/native gold controls. One shared
@@ -50,7 +50,9 @@ internal fun Modifier.attaGoldShine(enabled: Boolean = true): Modifier =
             if (size.width <= 0f || size.height <= 0f) return@drawWithContent
 
             val band = size.width * .24f
-            val left = -size.width * .28f + shift.value * band
+            val progress = ((shift.value + 1.8f) / 4.4f).coerceIn(0f, 1f)
+            val slantMargin = size.height * .40402623f
+            val left = -band - slantMargin + progress * (size.width + band + 2f * slantMargin)
             val top = -size.height * .40f
             val bottom = size.height * 1.40f
             // CSS transform-origin is the strip's center.
