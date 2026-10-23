@@ -62,7 +62,8 @@ internal data class PrayerSettings(
     val enabled: Boolean = false, val method: String = place.method,
     val hanafi: Boolean = false, val prayers: Set<String> = alarmPrayerIds,
     val offsets: Map<String, Int> = emptyMap(), val soundUri: String = "",
-    val voiceId: String = "", val voiceName: String = "", val voiceSha256: String = ""
+    val voiceId: String = "", val voiceName: String = "", val voiceSha256: String = "",
+    val automaticLocation: Boolean = false, val lockScreen: Boolean = true
 )
 
 internal data class PrayerMoment(val id: String, val at: Long) {

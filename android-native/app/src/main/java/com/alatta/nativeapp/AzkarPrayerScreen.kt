@@ -48,6 +48,8 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.repeatOnLifecycle
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.CancellationException
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -149,6 +151,10 @@ internal fun AzkarPrayerScreen(query: String, modifier: Modifier = Modifier, onS
     var pendingEnable by rememberSaveable { mutableStateOf(false) }
     var permissionAction by rememberSaveable { mutableStateOf("") }
     var refresh by remember { mutableIntStateOf(0) }
+    val locationScope = rememberCoroutineScope()
+    var locationJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
+    var locating by remember { mutableStateOf(false) }
+    var enableAfterLocation by rememberSaveable { mutableStateOf(false) }
     var fontSize by remember { mutableIntStateOf(local.getInt("font_size", 23).coerceIn(18, 32)) }
     val counts = remember { mutableStateMapOf<String, Int>() }
     val playing by AdhanPlaybackService.playing.collectAsState()
@@ -211,8 +217,45 @@ internal fun AzkarPrayerScreen(query: String, modifier: Modifier = Modifier, onS
             else message = "اسمح بتنبيهات مواقيت الصلاة من إعدادات أندرويد لتجربة الصوت."
         } else exactSetup()
     }
+    fun locateNow() {
+        locationJob?.cancel()
+        locationJob = locationScope.launch {
+            locating = true
+            try {
+                val place = PrayerLocation.current(context)
+                val latest = PrayerStore.read(context)
+                save(latest.copy(place = place, confirmedPlace = true, automaticLocation = true,
+                    method = if (latest.confirmedPlace) latest.method else place.method))
+                PrayerStore.prefs(context).edit().putLong("location_updated_at", System.currentTimeMillis()).apply()
+                message = "تم تحديد موقعك وحساب المواقيت. تأكد أن المنطقة الزمنية للهاتف صحيحة."
+                if (enableAfterLocation) { enableAfterLocation = false; startAction("enable") }
+            } catch (cancelled: CancellationException) { throw cancelled }
+            catch (error: Exception) { enableAfterLocation = false; message = error.message ?: "تعذر تحديد الموقع؛ اختر المدينة يدويًا" }
+            finally { locating = false }
+        }
+    }
+    val locationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { _ ->
+        if (PrayerLocation.permitted(context)) locateNow()
+        else { enableAfterLocation = false; message = "لم يُسمح بالموقع. يمكنك اختيار المدينة يدويًا، ولن يتغير الأذان الحالي." }
+    }
+    fun automaticLocation(enableAdhan: Boolean = false) {
+        enableAfterLocation = enableAdhan
+        if (PrayerLocation.permitted(context)) locateNow()
+        else locationPermission.launch(arrayOf(Manifest.permission.ACCESS_COARSE_LOCATION, Manifest.permission.ACCESS_FINE_LOCATION))
+    }
+    fun enableAdhan() { if (!settings.confirmedPlace) automaticLocation(true) else startAction("enable") }
+    DisposableEffect(context) {
+        val prefs = PrayerStore.prefs(context)
+        val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+            if (key == "settings") { settings = PrayerStore.read(context); refresh++ }
+        }
+        prefs.registerOnSharedPreferenceChangeListener(listener)
+        onDispose { prefs.unregisterOnSharedPreferenceChangeListener(listener); locationJob?.cancel() }
+    }
     DisposableEffect(lifecycle) {
-        val observer = LifecycleEventObserver { _, event -> if (event == Lifecycle.Event.ON_RESUME) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_STOP) { if (locating) enableAfterLocation = false; locationJob?.cancel() }
+            if (event == Lifecycle.Event.ON_RESUME) {
             settings = PrayerStore.read(context); refresh++; now = System.currentTimeMillis()
             if (pendingEnable) {
                 pendingEnable = false
@@ -308,7 +351,7 @@ internal fun AzkarPrayerScreen(query: String, modifier: Modifier = Modifier, onS
                         Text(date.format(DateTimeFormatter.ofPattern("EEEE، d MMMM", arabic)) + " • " + runCatching { HijrahDate.from(date).format(DateTimeFormatter.ofPattern("d MMMM yyyy", arabic)) + " هـ" }.getOrDefault(""), color = prayerSoft, fontSize = 12.sp)
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(if (active) "الأذان مفعّل" else "الأذان متوقف", Modifier.weight(1f), color = Color.White, fontSize = 13.sp)
-                            Switch(active, onCheckedChange = { if (it) startAction("enable") else save(settings.copy(enabled = false)) })
+                            Switch(active, onCheckedChange = { if (it) enableAdhan() else { enableAfterLocation = false; save(settings.copy(enabled = false)) } })
                         }
                     }
                 }
@@ -356,6 +399,15 @@ internal fun AzkarPrayerScreen(query: String, modifier: Modifier = Modifier, onS
             if (page == "settings") {
                 item { PrayerCard {
                     Text("الموقع والحساب", color = PremiumGoldLight, fontWeight = FontWeight.Bold)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("تحديد موقعي تلقائيًا", Modifier.weight(1f), color = Color.White)
+                        Switch(settings.automaticLocation, enabled = !locating, onCheckedChange = {
+                            if (it) automaticLocation() else { locationJob?.cancel(); save(settings.copy(automaticLocation = false)) }
+                        })
+                    }
+                    Text("بإذنك، يُحدَّد موقعك أثناء استخدام التطبيق ويُحفظ محليًا لحساب المواقيت. يتحدث عند فتح التطبيق، ولا يُرسل إلى خادم العطا. يعمل الموقع التقريبي أيضًا.", color = PremiumMuted, fontSize = 12.sp)
+                    TextButton(onClick = { automaticLocation() }, enabled = !locating) { Text(if (locating) "جارٍ تحديد الموقع…" else "تحديد موقعي الآن", color = PremiumGoldLight) }
+
                     TextButton(onClick = { chooseCity = true }) { Text(if (settings.confirmedPlace) "المدينة: ${settings.place.name}" else "اختيار المدينة", color = Color.White) }
                     Text("${settings.place.zone} • تتبع المنطقة الزمنية والتوقيت الصيفي تلقائيًا", color = PremiumMuted, fontSize = 12.sp)
                     TextButton(onClick = { chooseMethod = true }) { Text("طريقة الحساب: ${prayerMethods[settings.method]}", color = Color.White) }
@@ -368,9 +420,19 @@ internal fun AzkarPrayerScreen(query: String, modifier: Modifier = Modifier, onS
                 item { PrayerCard {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("تفعيل الأذان", Modifier.weight(1f), color = PremiumGoldLight, fontWeight = FontWeight.Bold)
-                        Switch(active, onCheckedChange = { if (it) startAction("enable") else save(settings.copy(enabled = false)) })
+                        Switch(active, onCheckedChange = { if (it) enableAdhan() else { enableAfterLocation = false; save(settings.copy(enabled = false)) } })
                     }
                     Text("اختر الصلوات من صفحة المواقيت. يعمل الأذان محليًا دون إنترنت وبمستوى صوت المنبّه الذي تحدده في الهاتف.", color = PremiumMuted, fontSize = 13.sp)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("عرض الأذان فوق شاشة القفل", Modifier.weight(1f), color = Color.White)
+                        Switch(settings.lockScreen, onCheckedChange = { save(settings.copy(lockScreen = it)) })
+                    }
+                    Text("يظهر عند موعد الصلاة حتى والشاشة مطفّية، حسب أذونات الهاتف. زر الإيقاف متاح على شاشة الأذان وفي التنبيه.", color = PremiumMuted, fontSize = 12.sp)
+                    if (settings.lockScreen && Build.VERSION.SDK_INT >= 34 && !AdhanScheduler.fullScreenAllowed(context)) TextButton(onClick = {
+                        runCatching { context.startActivity(Intent(Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT, Uri.parse("package:${context.packageName}"))) }
+                            .onFailure { message = "افتح إعدادات التطبيق واسمح بتنبيهات ملء الشاشة للأذان" }
+                    }) { Text("السماح بالظهور على شاشة القفل", color = PremiumGoldLight) }
+
                     TextButton(onClick = {
                         context.startActivity(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName))
                     }) { Text("إعدادات التنبيهات في أندرويد", color = PremiumGoldLight) }
@@ -408,10 +470,12 @@ internal fun AzkarPrayerScreen(query: String, modifier: Modifier = Modifier, onS
         }
     }
     if (chooseCity) PrayerCityDialog(onDismiss = { chooseCity = false }, onCustom = { chooseCity = false; customCity = true }) { place ->
-        save(settings.copy(place = place, confirmedPlace = true, method = place.method)); chooseCity = false
+        locationJob?.cancel(); enableAfterLocation = false
+        save(settings.copy(place = place, confirmedPlace = true, method = place.method, automaticLocation = false)); chooseCity = false
     }
     if (customCity) PrayerCustomCityDialog(settings.place, onDismiss = { customCity = false }) { place ->
-        save(settings.copy(place = place, confirmedPlace = true)); customCity = false
+        locationJob?.cancel(); enableAfterLocation = false
+        save(settings.copy(place = place, confirmedPlace = true, automaticLocation = false)); customCity = false
     }
     if (chooseMethod) AlertDialog(onDismissRequest = { chooseMethod = false }, title = { Text("طريقة حساب المواقيت") }, text = {
         Column(Modifier.verticalScroll(rememberScrollState())) { prayerMethods.forEach { (id, title) ->
@@ -419,7 +483,7 @@ internal fun AzkarPrayerScreen(query: String, modifier: Modifier = Modifier, onS
         } }
     }, confirmButton = { TextButton(onClick = { chooseMethod = false }) { Text("رجوع") } })
     if (showCredits) AlertDialog(onDismissRequest = { showCredits = false }, title = { Text("مصادر الحساب والصوت") }, text = {
-        Text("المواقيت: مكتبة Adhan من Batoul Apps بترخيص MIT.\n\nالصوت المضمّن: Beautiful adhan — Adam-synagda، من Wikimedia Commons بترخيص CC0.\n\nتسجيلات المؤذنين بأسمائهم: روابط الاستماع والتنزيل من دار الإسلام، مع رابط المصدر لكل تسجيل. تسجيلات الإدارة تضاف من لوحة المدير. يتم تنزيل الصوت عند اختيارك وحفظه محليًا.\n\nالمدينة والإحداثيات والعدادات والصوت المختار تُحفظ على الجهاز، ولا تُرفع إلى خادم التطبيق.")
+        Text("المواقيت: مكتبة Adhan من Batoul Apps بترخيص MIT.\n\nالصوت المضمّن: Beautiful adhan — Adam-synagda، من Wikimedia Commons بترخيص CC0.\n\nتسجيلات المؤذنين بأسمائهم: روابط الاستماع والتنزيل من دار الإسلام، مع رابط المصدر لكل تسجيل. تسجيلات الإدارة تضاف من لوحة المدير. يتم تنزيل الصوت عند اختيارك وحفظه محليًا.\n\nالموقع التلقائي اختياري ويستخدم إذن موقع الهاتف أثناء الاستخدام فقط؛ لا توجد متابعة دائمة في الخلفية. المدينة والإحداثيات والعدادات والصوت المختار تُحفظ على الجهاز، ولا تُرفع إلى خادم التطبيق.")
     }, confirmButton = { TextButton(onClick = { showCredits = false }) { Text("حسنًا") } })
 }
 
