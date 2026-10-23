@@ -1,11 +1,87 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:padding="2dp" android:background="#202638" android:layoutDirection="rtl"><LinearLayout android:layout_width="match_parent" android:layout_height="40dp" android:orientation="horizontal" android:gravity="center_vertical" android:layoutDirection="rtl">
-<ImageView android:id="@+id/call_logo" android:layout_width="40dp" android:layout_height="40dp" android:src="@drawable/logo_premium" android:contentDescription="AL-ATTA MEDIA" android:scaleType="fitCenter"/>
-<LinearLayout android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:orientation="vertical" android:paddingEnd="10dp">
-<TextView android:id="@+id/call_kind" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="مكالمة صوتية واردة" android:textSize="13sp" android:textColor="#E0E0E0" android:gravity="start" android:maxLines="1" android:ellipsize="end"/>
-<TextView android:id="@+id/call_name" android:layout_width="match_parent" android:layout_height="wrap_content" android:textSize="17sp" android:textStyle="bold" android:textColor="#FFFFFF" android:gravity="start" android:maxLines="1" android:ellipsize="end"/>
-</LinearLayout></LinearLayout><LinearLayout android:layout_width="match_parent" android:layout_height="36dp" android:layout_marginTop="4dp" android:orientation="horizontal" android:layoutDirection="rtl">
-<TextView android:id="@+id/call_answer" android:layout_width="0dp" android:layout_weight="1" android:layout_height="match_parent" android:background="@drawable/atta_call_answer_bg" android:gravity="center" android:text="☎  رد" android:textColor="#FFFFFF" android:textStyle="bold" android:textSize="16sp" android:contentDescription="رد على المكالمة"/>
-<TextView android:layout_width="12dp" android:layout_height="1dp"/>
-<TextView android:id="@+id/call_reject" android:layout_width="0dp" android:layout_weight="1" android:layout_height="match_parent" android:background="@drawable/atta_call_reject_bg" android:gravity="center" android:text="☎  رفض" android:textColor="#FFFFFF" android:textStyle="bold" android:textSize="16sp" android:contentDescription="رفض المكالمة"/>
-</LinearLayout></LinearLayout>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="12dp"
+    android:background="@drawable/atta_call_notification_bg"
+    android:layoutDirection="rtl">
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:minHeight="48dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:layoutDirection="rtl">
+        <ImageView
+            android:id="@+id/call_logo"
+            android:layout_width="42dp"
+            android:layout_height="42dp"
+            android:src="@drawable/logo_premium"
+            android:contentDescription="شعار تواصل العطا"
+            android:scaleType="fitCenter" />
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:paddingEnd="12dp"
+            android:gravity="end">
+            <TextView
+                android:id="@+id/call_kind"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="مكالمة صوتية واردة"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:textColor="#E8C766"
+                android:gravity="end"
+                android:maxLines="1"
+                android:ellipsize="end" />
+            <TextView
+                android:id="@+id/call_name"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textSize="19sp"
+                android:textStyle="bold"
+                android:textColor="#FFFFFF"
+                android:gravity="end"
+                android:maxLines="1"
+                android:ellipsize="end" />
+        </LinearLayout>
+    </LinearLayout>
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="46dp"
+        android:layout_marginTop="10dp"
+        android:orientation="horizontal"
+        android:layoutDirection="rtl">
+        <TextView
+            android:id="@+id/call_answer"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="match_parent"
+            android:background="@drawable/atta_call_answer_bg"
+            android:gravity="center"
+            android:text="☎  رد"
+            android:textColor="#FFFFFF"
+            android:textStyle="bold"
+            android:textSize="16sp"
+            android:contentDescription="رد على المكالمة" />
+        <TextView
+            android:layout_width="10dp"
+            android:layout_height="1dp" />
+        <TextView
+            android:id="@+id/call_reject"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="match_parent"
+            android:background="@drawable/atta_call_reject_bg"
+            android:gravity="center"
+            android:text="☎  رفض"
+            android:textColor="#FFFFFF"
+            android:textStyle="bold"
+            android:textSize="16sp"
+            android:contentDescription="رفض المكالمة" />
+    </LinearLayout>
+</LinearLayout>
