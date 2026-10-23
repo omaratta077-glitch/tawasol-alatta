@@ -95,7 +95,7 @@ internal fun IncomingCallRingtone(call: PushCall) {
         AttaPush.foregroundRingCallId = callId
         // Only use local audio if Android notifications cannot produce an alert.
         // It never runs alongside an OS-owned call notification.
-        val fallback = if (AttaPush.canShowCallNotification(context)) null else ForegroundCallAlertFallback(context.applicationContext)
+        var fallback = if (AttaPush.canShowCallNotification(context)) null else ForegroundCallAlertFallback(context.applicationContext)
         val lifecycle = (context as? LifecycleOwner)?.lifecycle
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
@@ -104,15 +104,18 @@ internal fun IncomingCallRingtone(call: PushCall) {
                 else -> Unit
             }
         }
-        if (fallback == null) AttaPush.incoming(context, call, foreground = true)
-        else {
+        if (fallback == null) {
+            val posted = try { AttaPush.incoming(context, call, foreground = true) } catch (_: RuntimeException) { false }
+            if (!posted) fallback = ForegroundCallAlertFallback(context.applicationContext)
+        }
+        if (fallback != null) {
             lifecycle?.addObserver(observer)
-            if (lifecycle == null || lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) fallback.start()
+            if (lifecycle == null || lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) fallback?.start()
         }
         onDispose {
             lifecycle?.removeObserver(observer)
             fallback?.stop()
-            AttaPush.dismiss(context, callId)
+            AttaPush.dismiss(context, callId, ended = false)
             if (AttaPush.foregroundRingCallId == callId) AttaPush.foregroundRingCallId = ""
         }
     }

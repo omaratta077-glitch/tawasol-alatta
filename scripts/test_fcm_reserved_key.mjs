@@ -35,9 +35,7 @@ try{
     assert.equal(item.android.priority,'HIGH');
     assert.ok(item.android.ttl.endsWith('s'));
   }
-  assert.equal(captured[0].android.notification.channel_id,'alatta_incoming_call_v2');
-  assert.equal(captured[0].android.notification.notification_priority,'PRIORITY_MAX');
-  assert.equal(captured[0].android.notification.tag,'alatta-call-call-abc123');
+  assert.equal(captured[0].android.notification,undefined,'calls must reach the native actionable notification handler');
   assert.equal(captured[1].android.notification,undefined,'ordinary messages stay data-only');
   assert.equal(captured[2].android.notification,undefined,'push test stays data-only');
   const delivery = await ctx.storage.get('lastCallPushResult:bob');
@@ -46,10 +44,10 @@ try{
   assert.equal(delivery.error,'');
   assert.equal(captured[0].data.sender,'alice');
   assert.equal(captured[0].data.fromName,'Alice Caller');
-  assert.ok(captured[0].android.notification.body.includes('Alice Caller'));
-  assert.ok(captured[0].android.notification.image.includes('/logo-premium.png'));
+  assert.equal(captured[0].android.priority,'HIGH');
+  assert.equal(captured[0].android.ttl,'45s');
   assert.equal(captured[0].data.callType,'video');
   assert.equal(captured[1].data.sender,'alice');
   assert.equal(captured[2].data.sender,'');
-  console.log('PASS: call notifications use OS-visible channel, user/test keep data-only, no reserved from key');
+  console.log('PASS: all pushes reach native handlers without automatic image-only cards, no reserved from key');
 }finally{globalThis.fetch=fetchBefore;}
