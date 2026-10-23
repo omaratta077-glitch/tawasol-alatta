@@ -25,13 +25,21 @@ async function sendViaGoogleAppsScript(env,email,code,type,fetcher=fetch){
     });
   }catch{
     const err=new Error("EMAIL_SEND_FAILED");
-    err.providerName="GoogleAppsScript";err.providerStatus=0;throw err;
+    err.providerName="GoogleAppsScript";err.providerStatus=0;err.providerReason="GOOGLE_EMAIL_NETWORK";throw err;
   }
   let result;
   try{result=await response.json();}catch{result=null;}
   if(!response.ok||result?.ok!==true){
     const err=new Error("EMAIL_SEND_FAILED");
-    err.providerName="GoogleAppsScript";err.providerStatus=response.status;throw err;
+    err.providerName="GoogleAppsScript";err.providerStatus=response.status;
+    // Only allowlisted classifications leave the transport; never provider text,
+    // which may contain request details, secret values or verification codes.
+    err.providerReason=result?.error==="Unauthorized"?"GOOGLE_EMAIL_SECRET_MISMATCH":
+      [401,403].includes(response.status)?"GOOGLE_EMAIL_ACCESS_DENIED":
+      !result?"GOOGLE_EMAIL_INVALID_RESPONSE":
+      result.error==="Invalid input"?"GOOGLE_EMAIL_INVALID_INPUT":
+      result.error==="Send failed"?"GOOGLE_EMAIL_SEND_FAILED":"";
+    throw err;
   }
   return true;
 }
@@ -648,6 +656,7 @@ export class SignalingRoom extends DurableObject {
 
   async sendVerificationEmail(email,code,adminSecurity=false){
     const apiKey=String(this.env.RESEND_API_KEY||"").trim();
+    let primaryFailure;
     try{
       if(await this.sendGoogleEmailIfReady(email,code,adminSecurity?"admin":"verify"))return true;
     }catch(error){
@@ -655,6 +664,7 @@ export class SignalingRoom extends DurableObject {
       // transport when the already-configured secondary sender is available.
       // Keep the same code, fixed owner recipient and session-bound proof.
       if(!adminSecurity || !apiKey)throw error;
+      primaryFailure=error;
       console.warn("Admin email primary transport unavailable; trying configured secondary sender");
     }
     const from=String(
@@ -709,6 +719,7 @@ export class SignalingRoom extends DurableObject {
       err.providerStatus=response.status;
       err.providerName=providerName;
       err.providerMessage=providerMessage;
+      if(primaryFailure?.providerReason)err.primaryProviderReason=primaryFailure.providerReason;
       throw err;
     }
 
@@ -1007,12 +1018,21 @@ export class SignalingRoom extends DurableObject {
         const rateLimited=error?.message==="EMAIL_SEND_RATE_LIMITED" || error?.providerStatus===429;
         const notConfigured=error?.message==="EMAIL_PROVIDER_NOT_CONFIGURED";
         const rejected=[401,403].includes(error?.providerStatus);
-        const reason=rateLimited?"وصلت خدمة البريد إلى حد الإرسال؛ حاول لاحقًا":
+        const googleReason=error?.primaryProviderReason||error?.providerReason;
+        const googleReasons={
+          GOOGLE_EMAIL_SECRET_MISMATCH:"مفتاح الربط غير متطابق: اجعل GAS_EMAIL_API_SECRET في Cloudflare مطابقًا لقيمة EMAIL_API_SECRET في خصائص Google Script",
+          GOOGLE_EMAIL_ACCESS_DENIED:"نشر Google Script يمنع الوصول؛ اضبط التنفيذ باسمك والوصول لأي شخص ثم حدّث النشر",
+          GOOGLE_EMAIL_INVALID_RESPONSE:"رابط Google Script لم يُرجع نتيجة صحيحة؛ تأكد من رابط النشر المنتهي بـ /exec وحدّث النشر",
+          GOOGLE_EMAIL_INVALID_INPUT:"نسخة Google Script المنشورة رفضت بيانات الطلب؛ حدّث النشر بالكود الحالي",
+          GOOGLE_EMAIL_SEND_FAILED:"Google Script استقبل الطلب لكنه لم يرسل البريد؛ راجع صلاحية Gmail وسجل التنفيذ ثم حدّث النشر",
+          GOOGLE_EMAIL_NETWORK:"تعذر الاتصال بخدمة Google Script؛ أعد المحاولة لاحقًا"
+        };
+        const reason=googleReasons[googleReason] || (rateLimited?"وصلت خدمة البريد إلى حد الإرسال؛ حاول لاحقًا":
           notConfigured?"خدمة إرسال البريد غير مهيأة في الخادم":
           rejected?"خدمة البريد رفضت الإرسال؛ راجع صلاحية مفتاح الخدمة واعتماد عنوان المرسل":
-          "خدمة البريد لم تقبل الرسالة؛ راجع إعدادها أو حاول لاحقًا";
+          "خدمة البريد لم تقبل الرسالة؛ راجع إعدادها أو حاول لاحقًا");
         return j({ok:false,error:`تعذر إرسال كود حماية الإدارة إلى ${this.maskEmail(this.ownerEmail())}. ${reason}. صلاحية المدير مفعّلة؛ لم تُغيّر كلمة الحماية.`,
-          code:rateLimited?"ADMIN_EMAIL_RATE_LIMITED":notConfigured?"ADMIN_EMAIL_NOT_CONFIGURED":rejected?"ADMIN_EMAIL_REJECTED":"ADMIN_EMAIL_SEND_FAILED"},rateLimited?429:503);
+          code:googleReasons[googleReason]?googleReason:rateLimited?"ADMIN_EMAIL_RATE_LIMITED":notConfigured?"ADMIN_EMAIL_NOT_CONFIGURED":rejected?"ADMIN_EMAIL_REJECTED":"ADMIN_EMAIL_SEND_FAILED"},rateLimited?429:503);
       }
       finally{this.adminEnrollmentBusy=false;}
     }

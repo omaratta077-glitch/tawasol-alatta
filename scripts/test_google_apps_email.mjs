@@ -33,3 +33,15 @@ await assert.rejects(sendViaGoogleAppsScript(env,"person@example.com","123456","
 await assert.rejects(sendViaGoogleAppsScript(env,"person@example.com","123456","verify",async()=>new Response("<html>login</html>",{status:200})),/EMAIL_SEND_FAILED/);
 await assert.rejects(sendViaGoogleAppsScript(env,"person@example.com","123456","verify",async()=>{throw Error("timeout");}),/EMAIL_SEND_FAILED/);
 console.log("PASS: Google Apps Script email transport and failure handling");
+
+for(const [result,status,reason] of [
+ [{ok:false,error:'Unauthorized'},200,'GOOGLE_EMAIL_SECRET_MISMATCH'],
+ [{ok:false,error:'Send failed'},200,'GOOGLE_EMAIL_SEND_FAILED'],
+ [{ok:false,error:'Invalid input'},200,'GOOGLE_EMAIL_INVALID_INPUT'],
+ [null,403,'GOOGLE_EMAIL_ACCESS_DENIED'],[null,200,'GOOGLE_EMAIL_INVALID_RESPONSE']
+]){
+ await assert.rejects(sendViaGoogleAppsScript(env,'person@example.com','123456','admin',async()=>
+  new Response(result?JSON.stringify(result):'<html>login</html>',{status})),error=>{
+   assert.equal(error.providerReason,reason);assert.ok(!JSON.stringify(error).includes('unit-test-secret'));return true;
+  });
+}

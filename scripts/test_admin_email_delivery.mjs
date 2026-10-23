@@ -17,7 +17,7 @@ async function scenario({google='reject',resend='ok',quota=false,secondary=true}
   const payload=JSON.parse(opts.body);requests.push({url:String(url),payload});
   if(String(url)===endpoint){
    if(google==='timeout')throw Error('timeout');
-   return Response.json(google==='ok'?{ok:true}:{ok:false,error:'provider-internal-detail'});
+   return Response.json(google==='ok'?{ok:true}:{ok:false,error:google==='unauthorized'?'Unauthorized':google==='sendfailed'?'Send failed':'provider-internal-detail'});
   }
   assert.equal(String(url),'https://api.resend.com/emails');
   assert.deepEqual(payload.to,['owner@example.test'],'fallback cannot redirect a code to another recipient');
@@ -50,6 +50,12 @@ try{
   assert.equal(r.data.code,mode==='quota'?'ADMIN_EMAIL_RATE_LIMITED':'ADMIN_EMAIL_REJECTED');
   assert.ok(r.data.error.includes('ow***@example.test'));assert.ok(!JSON.stringify(r.data).includes('private-'));assert.ok(!JSON.stringify(r.data).includes('provider-internal-detail'));
   assert.ok(!f.data.has('admin-security-code:owner'),'rejected mail never creates a usable proof');assert.equal(f.data.get('admin-security:owner').hash,'existing-hash');
+ }
+ for(const [mode,expected,fragment] of [['unauthorized','GOOGLE_EMAIL_SECRET_MISMATCH','GAS_EMAIL_API_SECRET'],['sendfailed','GOOGLE_EMAIL_SEND_FAILED','Gmail']]){
+  f=await scenario({google:mode,resend:'reject'});r=await f.api('/api/admin/security/code');
+  assert.equal(r.status,503);assert.equal(r.data.code,expected);assert.ok(r.data.error.includes(fragment));
+  assert.equal(f.requests.length,2);assert.ok(!f.data.has('admin-security-code:owner'));
+  assert.ok(!JSON.stringify(r.data).includes('private-'));assert.ok(!JSON.stringify(r.data).includes(f.requests[0].payload.code));
  }
  f=await scenario({secondary:false});assert.equal((await f.api('/api/admin/security/code')).status,503);assert.equal(f.requests.length,1);
  f=await scenario();await assert.rejects(f.room.sendVerificationEmail('person@example.test','123456'),/EMAIL_SEND_FAILED/);assert.equal(f.requests.length,1,'ordinary signup transport behavior is unchanged');

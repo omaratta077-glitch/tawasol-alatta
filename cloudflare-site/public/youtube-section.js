@@ -31,10 +31,6 @@ const error=overlay.querySelector('.atta-youtube-error');
 const results=overlay.querySelector('.atta-yt-results');
 const more=overlay.querySelector('.atta-yt-more');
 let query='',nextPageToken='',loading=false,loadedOnce=false,seq=0;
-let playlist=[],currentId='',advancing=false;
-const swipe=document.createElement('button');swipe.type='button';swipe.className='native-button atta-yt-next';
-swipe.textContent='اسحب لفوق أو اضغط للفيديو التالي ↑';swipe.hidden=true;
-swipe.style.cssText='width:100%;min-height:44px;touch-action:pan-x;margin:4px 0 12px';
 // One panel and one player serve both mobile inline view and desktop dialog.
 const suggestions=document.createElement('div');suggestions.className='atta-yt-topics atta-yt-readers';
 const topicSuggestions={
@@ -54,12 +50,12 @@ function showSuggestions(topic){
 }
 showSuggestions('قرآن');
 panel.querySelector('.atta-yt-topics').after(suggestions);
-panel.querySelector('.atta-youtube-form').after(frame);frame.after(swipe);
+panel.querySelector('.atta-youtube-form').after(frame);
 placePanel();mobile.addEventListener?.('change',placePanel);
 document.addEventListener('atta:page',event=>{
  activePage=event.detail.pageId;
  if(inlineMode()&&activePage==='youtubePage')ensureLoaded();
- else if(inlineMode()){frame.hidden=true;frame.replaceChildren();swipe.hidden=true;}
+ else if(inlineMode()){frame.hidden=true;frame.replaceChildren();}
 });
 function videoId(value){
  try{const u=new URL(value);const h=u.hostname.toLowerCase();let id='';if(['youtu.be','www.youtu.be'].includes(h))id=u.pathname.split('/')[1]||'';else if(['youtube.com','www.youtube.com','m.youtube.com','music.youtube.com','youtube-nocookie.com','www.youtube-nocookie.com'].includes(h)){if(u.pathname==='/watch')id=u.searchParams.get('v')||'';else if(/^\/(shorts|embed|live)\//.test(u.pathname))id=u.pathname.split('/')[2]||'';}return /^[a-zA-Z0-9_-]{11}$/.test(id)?id:null;}catch{return null;}
@@ -67,13 +63,13 @@ function videoId(value){
 function play(id){
  if(!/^[a-zA-Z0-9_-]{11}$/.test(id))return;
  const iframe=window.AttaYouTubeEmbed.create(id,'مشغّل فيديو يوتيوب');
- currentId=id;frame.hidden=false;frame.replaceChildren(iframe);swipe.hidden=false;
+ frame.hidden=false;frame.replaceChildren(iframe);
  frame.scrollIntoView({behavior:'smooth',block:'start'});
 }
 async function load(append=false){
  if(loading)return;
  loading=true;const requestId=++seq;error.textContent='جاري تحميل الفيديوهات...';more.hidden=true;
- if(!append){playlist=[];currentId='';results.replaceChildren();frame.hidden=true;frame.replaceChildren();swipe.hidden=true;}
+ if(!append){results.replaceChildren();frame.hidden=true;frame.replaceChildren();}
  try{
   const p=new URLSearchParams();if(query)p.set('q',query);if(append&&nextPageToken)p.set('pageToken',nextPageToken);
   const r=await fetch('/api/youtube?'+p.toString());const data=await r.json().catch(()=>({}));
@@ -81,8 +77,6 @@ async function load(append=false){
   if(!r.ok||!data.ok)throw new Error(data.error||'تعذر تحميل الفيديوهات');
   nextPageToken=data.nextPageToken||'';
   for(const v of data.items||[]){
-   if(!/^[A-Za-z0-9_-]{11}$/.test(v.id)||playlist.includes(v.id))continue;
-   playlist.push(v.id);
    const card=document.createElement('button');card.type='button';card.className='atta-yt-card';
    const img=document.createElement('img');img.loading='lazy';img.alt='';img.referrerPolicy='no-referrer';img.src=v.thumbnail||'';
    const info=document.createElement('span');info.className='atta-yt-card-info';
@@ -98,28 +92,7 @@ async function load(append=false){
  }catch(e){if(requestId===seq)error.textContent=e.message||'حدث خطأ أثناء البحث';}
  finally{loading=false;}
 }
-async function nextVideo(){
- if(advancing||frame.hidden)return;
- advancing=true;
- try{
-  let index=playlist.indexOf(currentId);
-  if(index+1>=playlist.length&&nextPageToken)await load(true);
-  const next=playlist[index+1];
-  if(next&&next!==currentId){error.textContent='';play(next);}
-  else error.textContent='لا توجد فيديوهات أخرى في القائمة';
- }finally{advancing=false;}
-}
-swipe.addEventListener('click',nextVideo);
-let swipeStart=null,suppressClick=false;
-swipe.addEventListener('touchstart',e=>{swipeStart=e.touches.length===1?{x:e.touches[0].clientX,y:e.touches[0].clientY}:null;suppressClick=false;},{passive:true});
-swipe.addEventListener('touchcancel',()=>{swipeStart=null;});
-swipe.addEventListener('touchend',e=>{
- const start=swipeStart;swipeStart=null;if(!start||!e.changedTouches.length)return;
- const t=e.changedTouches[0],up=start.y-t.clientY,across=Math.abs(t.clientX-start.x);
- if(up>=40&&up>across*1.5){suppressClick=true;e.preventDefault();nextVideo();}
-},{passive:false});
-swipe.addEventListener('click',e=>{if(suppressClick){e.stopImmediatePropagation();suppressClick=false;}},true);
-function close(){overlay.hidden=true;frame.hidden=true;frame.replaceChildren();swipe.hidden=true;document.body.style.overflow=overlay.dataset.oldOverflow||'';btn.focus();}
+function close(){overlay.hidden=true;frame.hidden=true;frame.replaceChildren();document.body.style.overflow=overlay.dataset.oldOverflow||'';btn.focus();}
 btn.addEventListener('click',()=>{placePanel();if(inlineMode()){window.AttaWeb?.navigate('youtubePage');return;}overlay.dataset.oldOverflow=document.body.style.overflow;document.body.style.overflow='hidden';overlay.hidden=false;ensureLoaded();input.focus();});
 panel.querySelector('.atta-youtube-close').addEventListener('click',close);
 overlay.addEventListener('click',e=>{if(e.target===overlay)close();});

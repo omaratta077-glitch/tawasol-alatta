@@ -33,6 +33,6 @@ let mobileHeaders=0;
 function check(rules,scoped=false){for(const r of rules){if(r.cssRules){check(r.cssRules,scoped||r.conditionText==='(max-width:999px)');continue}if(r.selectorText?.includes('.premium-header')){assert.ok(scoped,'phone header stays in mobile media query');mobileHeaders++}}}
 check(style.sheet.cssRules);assert.ok(mobileHeaders>=2);
 const manifest=JSON.parse(read('manifest.webmanifest'));assert.equal(manifest.display,'standalone');assert.equal(manifest.scope,'/');
-assert.ok(read('sw.js').includes('web14-13'));assert.ok(read('index.html').includes('native-parity.css?v=14.13'));
+assert.ok(read('sw.js').includes('web14-14'));assert.ok(read('index.html').includes('native-parity.css?v=14.14'));
 console.log('PASS PWA install/fallback/dismissal/appinstalled/display transitions, CSS parsing and desktop/mobile chrome isolation');
 w.close();
