@@ -46,7 +46,8 @@ internal object PrayerStore {
             alarmPrayerIds.associateWith { offsets?.optInt(it)?.coerceIn(-30, 30) ?: 0 },
             value.optString("soundUri").takeIf { it.isEmpty() || Uri.parse(it).scheme == "content" }.orEmpty(),
             value.optString("voiceId").take(100), value.optString("voiceName").take(80),
-            value.optString("voiceSha256").takeIf { it.matches(Regex("[a-f0-9]{64}")) }.orEmpty())
+            value.optString("voiceSha256").takeIf { it.matches(Regex("[a-f0-9]{64}")) }.orEmpty(),
+            value.optBoolean("automaticLocation"), value.optBoolean("lockScreen", true))
     }.getOrElse { PrayerSettings() }
 
     fun save(context: Context, value: PrayerSettings) {
@@ -58,6 +59,7 @@ internal object PrayerStore {
             .put("prayers", org.json.JSONArray(value.prayers.toList()))
             .put("offsets", JSONObject(value.offsets)).put("soundUri", value.soundUri)
             .put("voiceId", value.voiceId).put("voiceName", value.voiceName).put("voiceSha256", value.voiceSha256)
+            .put("automaticLocation", value.automaticLocation).put("lockScreen", value.lockScreen)
         prefs(context).edit().putString("settings", json.toString()).apply()
     }
 }
@@ -65,18 +67,26 @@ internal object PrayerStore {
 internal object AdhanScheduler {
     const val ACTION_ALARM = "com.alatta.nativeapp.PRAYER_ALARM"
     const val ACTION_OPEN = "com.alatta.nativeapp.OPEN_PRAYERS"
-    const val CHANNEL = "alatta_adhan_v1"
+    const val CHANNEL = "alatta_adhan_v2"
+    private const val LEGACY_CHANNEL = "alatta_adhan_v1"
+    fun fullScreenAllowed(context: Context) = Build.VERSION.SDK_INT < 34 ||
+        (context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager).canUseFullScreenIntent()
     fun exactAllowed(context: Context) = Build.VERSION.SDK_INT < 31 ||
         (context.getSystemService(Context.ALARM_SERVICE) as AlarmManager).canScheduleExactAlarms()
     fun notificationAllowed(context: Context): Boolean {
         if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) return false
         if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) return false
-        val channel = (context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager).getNotificationChannel(CHANNEL)
+        val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        val channel = manager.getNotificationChannel(CHANNEL) ?: manager.getNotificationChannel(LEGACY_CHANNEL)
         return channel == null || channel.importance != NotificationManager.IMPORTANCE_NONE
     }
     fun createChannel(context: Context) {
-        (context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager).createNotificationChannel(
-            NotificationChannel(CHANNEL, "مواقيت الصلاة والأذان", NotificationManager.IMPORTANCE_DEFAULT).apply {
+        val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        // Preserve an explicit disabled legacy channel when adding lock-screen alarms.
+        if (manager.getNotificationChannel(CHANNEL) == null && manager.getNotificationChannel(LEGACY_CHANNEL)?.importance == NotificationManager.IMPORTANCE_NONE) return
+        manager.createNotificationChannel(
+            NotificationChannel(CHANNEL, "مواقيت الصلاة والأذان", NotificationManager.IMPORTANCE_HIGH).apply {
+                lockscreenVisibility = Notification.VISIBILITY_PUBLIC
                 description = "أذان الصلوات التي تختارها؛ يمكنك إيقاف الصوت من التنبيه"
                 setSound(null, null)
             })
@@ -154,6 +164,7 @@ class AdhanPlaybackService : Service() {
         const val PREVIEW = "com.alatta.nativeapp.PREVIEW_ADHAN"
         const val STOP = "com.alatta.nativeapp.STOP_ADHAN"
         val playing = MutableStateFlow(false)
+        internal val activePrayer = MutableStateFlow("")
         private const val NOTIFICATION_ID = 8311
     }
     private var player: MediaPlayer? = null
@@ -169,17 +180,8 @@ class AdhanPlaybackService : Service() {
             !AdhanScheduler.notificationAllowed(this)) { stopSelf(); return START_NOT_STICKY }
         releasePlayer()
         AdhanScheduler.createChannel(this)
-        val stop = PendingIntent.getService(this, 8312, Intent(this, AdhanPlaybackService::class.java).setAction(STOP),
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
-        val open = PendingIntent.getActivity(this, 8313, Intent(this, MainActivity::class.java).setAction(AdhanScheduler.ACTION_OPEN)
-            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
-        val title = if (action == PREVIEW) "تجربة صوت الأذان" else "حان وقت صلاة ${prayerNames[prayer].orEmpty()}"
-        val notification = NotificationCompat.Builder(this, AdhanScheduler.CHANNEL)
-            .setSmallIcon(R.drawable.atta_notification_icon)
-            .setLargeIcon(BitmapFactory.decodeResource(resources, R.drawable.logo_premium)).setContentTitle(title)
-            .setContentText("${settings.place.name} • اضغط إيقاف لإيقاف الصوت")
-            .setContentIntent(open).setDeleteIntent(stop).setOngoing(true).setOnlyAlertOnce(true)
-            .setCategory(NotificationCompat.CATEGORY_ALARM).addAction(R.drawable.atta_ic_x, "إيقاف الأذان", stop).build()
+        activePrayer.value = if (action == PLAY) prayer else "preview"
+        val notification = adhanNotification(this, settings, prayer, action == PREVIEW)
         startForeground(NOTIFICATION_ID, notification)
         val attributes = AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_ALARM)
             .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build()
@@ -222,7 +224,30 @@ class AdhanPlaybackService : Service() {
         handler.removeCallbacksAndMessages(null)
         player?.run { runCatching { stop() }; release() }; player = null
         focus?.let { (getSystemService(Context.AUDIO_SERVICE) as AudioManager).abandonAudioFocusRequest(it) }
-        focus = null; playing.value = false
+        focus = null; playing.value = false; activePrayer.value = ""
     }
     override fun onDestroy() { releasePlayer(); stopForeground(STOP_FOREGROUND_REMOVE); super.onDestroy() }
+}
+
+internal fun adhanNotification(context: Context, settings: PrayerSettings, prayer: String, preview: Boolean): Notification {
+        val stop = PendingIntent.getService(context, 8312, Intent(context, AdhanPlaybackService::class.java).setAction(AdhanPlaybackService.STOP),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        val open = PendingIntent.getActivity(context, 8313, Intent(context, MainActivity::class.java).setAction(AdhanScheduler.ACTION_OPEN)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        val title = if (preview) "تجربة صوت الأذان" else "حان وقت صلاة ${prayerNames[prayer].orEmpty()}"
+        val notificationBuilder = NotificationCompat.Builder(context, AdhanScheduler.CHANNEL)
+            .setSmallIcon(R.drawable.atta_notification_icon)
+            .setLargeIcon(BitmapFactory.decodeResource(context.resources, R.drawable.logo_premium)).setContentTitle(title)
+            .setContentText("${settings.place.name} • اضغط إيقاف لإيقاف الصوت")
+            .setContentIntent(open).setDeleteIntent(stop).setOngoing(true).setOnlyAlertOnce(true)
+            .setCategory(NotificationCompat.CATEGORY_ALARM).setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .addAction(R.drawable.atta_ic_x, "إيقاف الأذان", stop)
+        if (!preview && settings.enabled && prayer in settings.prayers && prayer in alarmPrayerIds && settings.lockScreen && AdhanScheduler.fullScreenAllowed(context)) {
+            val alarmScreen = PendingIntent.getActivity(context, 8314, Intent(context, AdhanAlarmActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP),
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+            notificationBuilder.setFullScreenIntent(alarmScreen, true)
+        }
+        return notificationBuilder.build()
 }

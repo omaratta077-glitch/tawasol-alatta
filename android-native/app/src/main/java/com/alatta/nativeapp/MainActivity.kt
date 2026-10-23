@@ -550,6 +550,18 @@ class MainActivity : ComponentActivity() {
         setContent { NativeApp() }
     }
 
+    private var prayerLocationJob: kotlinx.coroutines.Job? = null
+
+    override fun onStart() {
+        super.onStart()
+        prayerLocationJob = lifecycleScope.launch { PrayerLocation.refreshIfEnabled(this@MainActivity) }
+    }
+
+    override fun onStop() {
+        prayerLocationJob?.cancel(); prayerLocationJob = null
+        super.onStop()
+    }
+
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
