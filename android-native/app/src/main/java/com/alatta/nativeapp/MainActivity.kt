@@ -1720,6 +1720,18 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
         }
     }
 
+    DisposableEffect(token, myUsername) {
+        val owner = ctx as ComponentActivity
+        var overlayAllowed = CallWindow.enabled(ctx)
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME && overlayAllowed != CallWindow.enabled(ctx)) {
+                overlayAllowed = CallWindow.enabled(ctx)
+                AttaPush.register(ctx.applicationContext, token, myUsername)
+            }
+        }
+        owner.lifecycle.addObserver(observer)
+        onDispose { owner.lifecycle.removeObserver(observer) }
+    }
     val notificationPermission = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { granted -> if (granted) AttaPush.register(ctx.applicationContext, token, myUsername) }
@@ -3069,6 +3081,16 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                     HorizontalDivider(color = Border.copy(alpha = .5f))
                                     PremiumMenuEntry("bell", "الإشعارات") { navigate("الإشعارات") }
                                     HorizontalDivider(color = Border.copy(alpha = .5f))
+                                    PremiumMenuEntry("phone", "ظهور المكالمة فوق التطبيقات") {
+                                        runCatching { ctx.startActivity(CallWindow.settings(ctx)) }
+                                            .onFailure { featureMessage = "افتح إعدادات الهاتف ثم اسمح للعطا بالظهور فوق التطبيقات" }
+                                    }
+                                    PremiumMenuEntry("bell", "إظهار المكالمات والأذان على شاشة القفل") {
+                                        val action = if (android.os.Build.VERSION.SDK_INT >= 34)
+                                            "android.settings.MANAGE_APP_USE_FULL_SCREEN_INTENT" else android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS
+                                        runCatching { ctx.startActivity(Intent(action).setData(android.net.Uri.parse("package:" + ctx.packageName))
+                                            .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, ctx.packageName)) }
+                                    }
                                     PremiumMenuEntry("check", "فحص إشعارات الخلفية") { task {
                                         AttaPush.register(ctx.applicationContext, token, myUsername)
                                         val provider = AttaPush.provider(ctx)

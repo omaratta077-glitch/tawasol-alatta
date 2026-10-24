@@ -189,7 +189,8 @@ internal object AttaPush {
                                 .put("deviceToken", oldDevice).put("provider", oldProvider))
                         }
                         post(context, "/api/push/register", JSONObject()
-                            .put("token", session).put("deviceToken", deviceToken).put("provider", provider))
+                            .put("token", session).put("deviceToken", deviceToken).put("provider", provider)
+                                .put("callWindow", CallWindow.enabled(context)))
                         prefs(context).edit().putLong("push_registered_at", System.currentTimeMillis())
                             .putString("push_registered_user", user.lowercase()).apply()
                     }.onFailure { android.util.Log.w("AttaPush", "Registration failed", it) }
@@ -204,6 +205,7 @@ internal object AttaPush {
             FirebaseMessaging.getInstance().deleteToken()
         } }
         if (provider == "hms") AttaHuaweiPush.stop(context)
+        pendingIncoming(context)?.let { dismiss(context, it.callId) }
         (context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager).cancelAll()
         prefs(context).edit().remove("push_device_token").remove("push_registered_at").remove("push_registered_user").remove("pending_incoming_call").apply()
         if (session.isBlank() || device.isBlank()) return
@@ -260,6 +262,7 @@ internal object AttaPush {
     }
 
     fun dismiss(context: Context, callId: String, ended: Boolean = true) {
+        IncomingCallOverlayService.dismiss(callId)
         if (ended) {
             val local = prefs(context)
             val pendingId = runCatching { JSONObject(local.getString("pending_incoming_call", "").orEmpty()).optString("id") }.getOrDefault("")
@@ -369,6 +372,15 @@ internal object AttaPush {
             prefs(context).getString("ended_call_alert_id", "").orEmpty(), present)
         if (decision == CallAlertDecision.IGNORE || decision == CallAlertDecision.KEEP) return true
         rememberIncoming(context, call)
+        if (CallWindow.enabled(context) && !appVisible && CallWindow.start(context, call)) {
+            markCallAlerted(context, call.callId)
+            return true
+        }
+        return postStandardIncoming(context, call, decision)
+    }
+
+    internal fun postStandardIncoming(context: Context, call: PushCall,
+        decision: CallAlertDecision = CallAlertDecision.RING): Boolean {
         val code = call.callId.hashCode()
         val flags = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         val view = PendingIntent.getActivity(context, code, intentFor(context, call, ACTION_VIEW), flags)

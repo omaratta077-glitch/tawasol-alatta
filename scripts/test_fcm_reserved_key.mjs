@@ -64,5 +64,13 @@ try{
   assert.equal(captured[0].data.callType,'video');
   assert.equal(captured[1].data.sender,'alice');
   assert.equal(captured[2].data.sender,'');
+  await ctx.storage.put('fcmCallWindow:'+device,true);
+  await room.sendFcmToUser('bob',{type:'call-request',to:'bob',from:'alice',callId:'call-overlay-abc123'},'45s');
+  assert.equal(captured.at(-1).android.notification,undefined,'opted-in card must reach the native receiver in background');
+  assert.equal(captured.at(-1).android.priority,'HIGH');
+  assert.equal(captured.at(-1).android.ttl,'45s');
+  await ctx.storage.put('fcmCallWindow:'+device,false);
+  await room.sendFcmToUser('bob',{type:'call-request',to:'bob',from:'alice',callId:'call-legacy-abc123'},'45s');
+  assert.equal(captured.at(-1).android.notification.icon,'atta_notification_icon','disabling overlay restores legacy delivery');
   console.log('PASS: v145 OS call notification restored; other pushes stay data-only; no reserved from key');
 }finally{globalThis.fetch=fetchBefore;}
