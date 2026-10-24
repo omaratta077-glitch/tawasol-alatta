@@ -31,6 +31,8 @@ class CallNotificationStyleTest {
         assertNotNull(notification.fullScreenIntent)
         assertEquals(android.app.Notification.CATEGORY_CALL, notification.category)
         assertEquals(R.drawable.atta_notification_icon, notification.smallIcon.resId)
+        assertNotNull("Incoming calls must use the existing gold app logo as a thumbnail", notification.getLargeIcon())
+        assertNotNull(notification.getLargeIcon().loadDrawable(context))
         assertEquals(0xFFD8B451.toInt(), notification.color)
         val compact = notification.contentView.apply(context, FrameLayout(context))
         val headsUp = notification.headsUpContentView.apply(context, FrameLayout(context))

@@ -3,6 +3,7 @@ package com.alatta.nativeapp
 import android.app.Notification
 import android.app.PendingIntent
 import android.content.Context
+import android.graphics.BitmapFactory
 import android.widget.RemoteViews
 import androidx.core.app.NotificationCompat
 
@@ -21,6 +22,8 @@ internal fun incomingCallNotification(context: Context, call: PushCall, view: Pe
     }
     return NotificationCompat.Builder(context, AttaPush.CHANNEL)
         .setSmallIcon(R.drawable.atta_notification_icon)
+        // Use the application's approved gold artwork for the notification thumbnail.
+        .setLargeIcon(BitmapFactory.decodeResource(context.resources, R.drawable.logo_premium))
         .setColor(0xFFD8B451.toInt())
         .setContentTitle(call.displayName.ifBlank { "مستخدم" })
         .setContentText(if (call.type == "video") "مكالمة فيديو واردة" else "مكالمة صوتية واردة")
