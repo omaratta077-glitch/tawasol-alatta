@@ -1740,9 +1740,13 @@ export class SignalingRoom extends DurableObject {
         }
         await this.ctx.storage.put(key,[...new Set([...prior,deviceToken])].slice(-5));
         await this.ctx.storage.put(ownerKey,s.username);
+        await this.ctx.storage.put(prefix+'CallWindow:'+deviceToken,body.callWindow===true);
       }else{
         await this.ctx.storage.put(key,prior.filter(t=>t!==deviceToken));
-        if(previousOwner===s.username)await this.ctx.storage.put(ownerKey,'');
+        if(previousOwner===s.username){
+          await this.ctx.storage.put(ownerKey,'');
+          await this.ctx.storage.put(prefix+'CallWindow:'+deviceToken,false);
+        }
       }
       return j({ok:true,registered:registering});
     }
@@ -3406,7 +3410,10 @@ export class SignalingRoom extends DurableObject {
           // The service handles this same payload while the app is foregrounded;
           // Android displays the notification itself when it is backgrounded.
           const android={priority:'HIGH',ttl};
-          if(fcmData.type==='call-request'){
+          // Only explicitly opted-in, capable native clients render their own persistent call card.
+          // Legacy clients retain the proven OS notification delivery.
+          const callWindow=await this.ctx.storage.get('fcmCallWindow:'+deviceToken)===true;
+          if(fcmData.type==='call-request' && !callWindow){
             android.notification={
               channel_id:'alatta_incoming_call_v2',
               title:String(fcmData.fromName||'').replace(/[\r\n\t]+/g,' ').trim().slice(0,120)||'مكالمة واردة',

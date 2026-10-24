@@ -1,5 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET"/>
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT"/>
@@ -31,6 +32,8 @@
         <service android:name=".AttaFirebaseMessagingService" android:exported="false">
             <intent-filter><action android:name="com.google.firebase.MESSAGING_EVENT"/></intent-filter>
         </service>
+        <service android:name=".IncomingCallOverlayService" android:exported="false" android:foregroundServiceType="shortService" />
+        <activity android:name=".IncomingCallLockActivity" android:exported="false" android:excludeFromRecents="true" android:launchMode="singleTop" android:showWhenLocked="true" android:turnScreenOn="true" android:theme="@style/IncomingCallWindow" />
         <receiver android:name=".AttaCallRejectReceiver" android:exported="false" />
         <service android:name=".AdhanPlaybackService" android:exported="false" android:foregroundServiceType="mediaPlayback" />
         <receiver android:name=".AdhanAlarmReceiver" android:exported="false" />
