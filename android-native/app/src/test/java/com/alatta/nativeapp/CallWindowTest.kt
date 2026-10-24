@@ -6,6 +6,7 @@ import android.os.Looper
 import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
+import android.graphics.drawable.GradientDrawable
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
@@ -42,6 +43,11 @@ class CallWindowTest {
         val reject = labels.single { it.text.toString() == "رفض" }
         assertEquals(answer.width, reject.width)
         assertTrue(answer.width > 0)
+        assertNotNull(answer.compoundDrawablesRelative[0])
+        assertNotNull(reject.compoundDrawablesRelative[0])
+        val cardBackground = card.background as GradientDrawable
+        assertEquals(0xFFE0B84F.toInt(), cardBackground.color?.defaultColor)
+        assertEquals(0xFFE0B84F.toInt(), cardBackground.strokeColor.defaultColor)
         answer.performClick(); reject.performClick()
         assertEquals(1, answered); assertEquals(1, rejected)
     }

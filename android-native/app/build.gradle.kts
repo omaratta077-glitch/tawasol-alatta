@@ -24,9 +24,9 @@ android {
         applicationId = "com.alatta.nativeapp"
         minSdk = 26
         targetSdk = 35
-        // v1.0.162: opt-in persistent call card above apps and lock-screen controls.
-        versionCode = 262
-        versionName = "1.0.162"
+        // v1.0.163: refine the branded incoming-call card and call controls.
+        versionCode = 263
+        versionName = "1.0.163"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("boolean", "IS_APPGALLERY", appGalleryBuild.toString())
         val hmsId = (System.getenv("ALATTA_HMS_APP_ID") ?: "").trim().takeIf { it.matches(Regex("[0-9]{1,20}")) } ?: ""

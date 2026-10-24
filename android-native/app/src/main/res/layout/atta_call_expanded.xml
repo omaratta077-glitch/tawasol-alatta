@@ -26,12 +26,14 @@
         android:layout_marginTop="6dp" android:orientation="horizontal" android:layoutDirection="rtl">
         <TextView android:id="@+id/call_answer" android:layout_width="0dp" android:layout_weight="1"
             android:layout_height="match_parent" android:background="@drawable/atta_call_answer_bg"
-            android:gravity="center" android:text="☎  رد" android:textColor="#FFFFFF"
+            android:gravity="center" android:text="رد" android:drawableStart="@drawable/atta_ic_phone"
+            android:drawablePadding="6dp" android:textColor="#FFFFFF"
             android:textStyle="bold" android:textSize="14sp" android:contentDescription="رد على المكالمة" />
         <TextView android:layout_width="8dp" android:layout_height="1dp" />
         <TextView android:id="@+id/call_reject" android:layout_width="0dp" android:layout_weight="1"
             android:layout_height="match_parent" android:background="@drawable/atta_call_reject_bg"
-            android:gravity="center" android:text="☎  رفض" android:textColor="#FFFFFF"
+            android:gravity="center" android:text="رفض" android:drawableStart="@drawable/atta_ic_phone_off"
+            android:drawablePadding="6dp" android:textColor="#FFFFFF"
             android:textStyle="bold" android:textSize="14sp" android:contentDescription="رفض المكالمة" />
     </LinearLayout>
 </LinearLayout>
