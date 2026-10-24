@@ -40,8 +40,10 @@ class CallNotificationStyleTest {
         val expanded = notification.bigContentView.apply(context, FrameLayout(context))
         assertEquals("عمر عطا", expanded.findViewById<TextView>(R.id.call_name).text.toString())
         assertNotNull(expanded.findViewById<ImageView>(R.id.call_logo).drawable)
-        assertEquals("☎  رد", expanded.findViewById<TextView>(R.id.call_answer).text.toString())
-        assertEquals("☎  رفض", expanded.findViewById<TextView>(R.id.call_reject).text.toString())
+        assertEquals("رد", expanded.findViewById<TextView>(R.id.call_answer).text.toString())
+        assertEquals("رفض", expanded.findViewById<TextView>(R.id.call_reject).text.toString())
+        assertNotNull(expanded.findViewById<TextView>(R.id.call_answer).compoundDrawablesRelative[0])
+        assertNotNull(expanded.findViewById<TextView>(R.id.call_reject).compoundDrawablesRelative[0])
         assertTrue(expanded.findViewById<TextView>(R.id.call_answer).isClickable)
         assertTrue(expanded.findViewById<TextView>(R.id.call_reject).isClickable)
     }
