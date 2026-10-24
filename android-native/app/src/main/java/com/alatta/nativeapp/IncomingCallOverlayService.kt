@@ -126,6 +126,7 @@ class IncomingCallOverlayService : Service() {
             AttaPush.postStandardIncoming(this, invitation)
             stopSelf(); return START_NOT_STICKY
         }
+        AttaPush.acknowledgeIncoming(this, invitation)
         handler.removeCallbacks(refresh); handler.post(refresh)
         handler.removeCallbacks(expire)
         handler.postDelayed(expire, remainingIncomingCallMillis(invitation.createdAt).coerceAtLeast(1L))

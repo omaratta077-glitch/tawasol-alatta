@@ -403,6 +403,11 @@ internal object AttaPush {
             return false
         }
         markCallAlerted(context, call.callId)
+        acknowledgeIncoming(context, call)
+        return true
+    }
+
+    internal fun acknowledgeIncoming(context: Context, call: PushCall) {
         // The caller should hear ringback only after the phone actually displayed
         // an incoming call notification (or the existing foreground dialog).
         val session = prefs(context).getString("token", "").orEmpty()
@@ -411,7 +416,6 @@ internal object AttaPush {
                 .put("token", session).put("to", call.from)
                 .put("signal", JSONObject().put("type", "call-ringing").put("callId", call.callId))) }
         }
-        return true
     }
 
     fun reject(context: Context, call: PushCall) {
