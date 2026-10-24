@@ -28,13 +28,17 @@ internal object CallWindow {
 /** Same dimensions, colors, logo and RTL action order as the in-app card. */
 internal fun callWindowCard(context: Context, call: PushCall, answer: () -> Unit, reject: () -> Unit): View {
     fun dp(n: Int) = (n * context.resources.displayMetrics.density).toInt()
-    fun shape(color: Int, radius: Int) = GradientDrawable().apply { setColor(color); cornerRadius = dp(radius).toFloat() }
+    fun shape(color: Int, radius: Int, outlined: Boolean = false) = GradientDrawable().apply {
+        setColor(color)
+        cornerRadius = dp(radius).toFloat()
+        if (outlined) setStroke(dp(1), 0xFFE0B84F.toInt())
+    }
     return LinearLayout(context).apply {
         orientation = LinearLayout.VERTICAL
         layoutDirection = View.LAYOUT_DIRECTION_RTL
         setPadding(dp(20), dp(20), dp(20), dp(20))
-        background = shape(0xF2202638.toInt(), 24)
-        elevation = dp(8).toFloat()
+        background = shape(0xF2202638.toInt(), 24, outlined = true)
+        elevation = dp(10).toFloat()
         addView(LinearLayout(context).apply {
             gravity = Gravity.CENTER_VERTICAL
             addView(ImageView(context).apply {
@@ -54,14 +58,17 @@ internal fun callWindowCard(context: Context, call: PushCall, answer: () -> Unit
             }, LinearLayout.LayoutParams(0, -2, 1f).apply { marginStart = dp(12) })
         }, LinearLayout.LayoutParams(-1, -2))
         addView(LinearLayout(context).apply {
-            fun action(label: String, color: Int, click: () -> Unit) = TextView(context).apply {
+            fun action(label: String, color: Int, icon: Int, click: () -> Unit) = TextView(context).apply {
                 text = label; textSize = 16f; setTextColor(Color.WHITE); gravity = Gravity.CENTER
                 minHeight = dp(48); isClickable = true; isFocusable = true
                 background = shape(color, 24); setOnClickListener { click() }
+                setCompoundDrawablesRelativeWithIntrinsicBounds(icon, 0, 0, 0)
+                compoundDrawablePadding = dp(7)
+                setTypeface(typeface, Typeface.BOLD)
             }
-            addView(action("رد", 0xFF239B56.toInt(), answer), LinearLayout.LayoutParams(0, dp(48), 1f))
+            addView(action("رد", 0xFF239B56.toInt(), R.drawable.atta_ic_phone, answer), LinearLayout.LayoutParams(0, dp(50), 1f))
             addView(Space(context), LinearLayout.LayoutParams(dp(12), 1))
-            addView(action("رفض", 0xFFD32F2F.toInt(), reject), LinearLayout.LayoutParams(0, dp(48), 1f))
+            addView(action("رفض", 0xFFD32F2F.toInt(), R.drawable.atta_ic_phone_off, reject), LinearLayout.LayoutParams(0, dp(50), 1f))
         }, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(16) })
     }
 }
