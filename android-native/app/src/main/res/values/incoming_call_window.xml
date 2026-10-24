@@ -1,0 +1,9 @@
+<resources>
+    <style name="IncomingCallWindow" parent="android:style/Theme.Material.NoActionBar">
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:colorAccent">#D8B451</item>
+        <item name="android:backgroundDimAmount">0.15</item>
+        <item name="android:windowDisablePreview">true</item>
+    </style>
+</resources>

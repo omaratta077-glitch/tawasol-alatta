@@ -30,6 +30,7 @@ internal fun incomingCallNotification(context: Context, call: PushCall, view: Pe
         .setFullScreenIntent(view, true)
         .setStyle(NotificationCompat.DecoratedCustomViewStyle())
         .setSilent(silent).setOnlyAlertOnce(true)
+        .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
         .setCategory(NotificationCompat.CATEGORY_CALL).setPriority(NotificationCompat.PRIORITY_MAX)
         .setVisibility(NotificationCompat.VISIBILITY_PUBLIC).setOngoing(true)
         .setContentIntent(view).setTimeoutAfter(remainingIncomingCallMillis(call.createdAt).coerceAtLeast(1L)).build()
