@@ -3088,8 +3088,11 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                     PremiumMenuEntry("bell", "إظهار المكالمات والأذان على شاشة القفل") {
                                         val action = if (android.os.Build.VERSION.SDK_INT >= 34)
                                             "android.settings.MANAGE_APP_USE_FULL_SCREEN_INTENT" else android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS
-                                        runCatching { ctx.startActivity(Intent(action).setData(android.net.Uri.parse("package:" + ctx.packageName))
-                                            .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, ctx.packageName)) }
+                                        runCatching {
+                                            val settings = Intent(action).putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, ctx.packageName)
+                                            if (android.os.Build.VERSION.SDK_INT >= 34) settings.data = android.net.Uri.parse("package:" + ctx.packageName)
+                                            ctx.startActivity(settings)
+                                        }.onFailure { featureMessage = "افتح إعدادات إشعارات العطا واسمح بالظهور على شاشة القفل" }
                                     }
                                     PremiumMenuEntry("check", "فحص إشعارات الخلفية") { task {
                                         AttaPush.register(ctx.applicationContext, token, myUsername)

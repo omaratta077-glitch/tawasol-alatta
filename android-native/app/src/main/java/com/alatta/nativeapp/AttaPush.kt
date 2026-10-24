@@ -355,6 +355,7 @@ internal object AttaPush {
     @Synchronized
     fun incoming(context: Context, call: PushCall): Boolean {
         if (!validSession(context, call)) return true
+        if (IncomingCallOverlayService.owns(call.callId)) return true
         if (activeCallId == call.callId) return true // Same accepted call, not another incoming call.
         // Foreground calls already have a native dialog + ringtone through the
         // authenticated WebSocket/HTTP path. Never ring the same device twice.

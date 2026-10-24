@@ -69,7 +69,7 @@ internal fun callWindowCard(context: Context, call: PushCall, answer: () -> Unit
 class IncomingCallOverlayService : Service() {
     private val handler = Handler(Looper.getMainLooper())
     private var card: View? = null
-    private var call: PushCall? = null
+    @Volatile private var call: PushCall? = null
     private var lockScreenShown = false
     private val refresh = object : Runnable {
         override fun run() {
@@ -93,7 +93,8 @@ class IncomingCallOverlayService : Service() {
     }
     private val expire = Runnable { call?.let { AttaPush.dismiss(this, it.callId) }; stopSelf() }
     companion object {
-        private var current: IncomingCallOverlayService? = null
+        @Volatile private var current: IncomingCallOverlayService? = null
+        fun owns(id: String) = current?.call?.callId == id
         fun dismiss(id: String) { current?.let { service -> service.handler.post {
             if (service.call?.callId == id) { service.removeCard(); service.stopForeground(STOP_FOREGROUND_REMOVE); service.stopSelf() }
         } } }
