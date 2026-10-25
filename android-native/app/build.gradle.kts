@@ -24,9 +24,9 @@ android {
         applicationId = "com.alatta.nativeapp"
         minSdk = 26
         targetSdk = 35
-        // v1.0.165: render background FCM calls with the existing branded native notification.
-        versionCode = 265
-        versionName = "1.0.165"
+        // v1.0.166: keep one gold logo inside the incoming call card without a duplicate thumbnail.
+        versionCode = 266
+        versionName = "1.0.166"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("boolean", "IS_APPGALLERY", appGalleryBuild.toString())
         val hmsId = (System.getenv("ALATTA_HMS_APP_ID") ?: "").trim().takeIf { it.matches(Regex("[0-9]{1,20}")) } ?: ""
