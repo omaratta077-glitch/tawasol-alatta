@@ -24,9 +24,9 @@ android {
         applicationId = "com.alatta.nativeapp"
         minSdk = 26
         targetSdk = 35
-        // v1.0.170: keep the official YouTube player alive across tabs and in Android PiP.
-        versionCode = 270
-        versionName = "1.0.170"
+        // v1.0.171: keep the YouTube mini-player within the measured app viewport while dragging.
+        versionCode = 271
+        versionName = "1.0.171"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("boolean", "IS_APPGALLERY", appGalleryBuild.toString())
         val hmsId = (System.getenv("ALATTA_HMS_APP_ID") ?: "").trim().takeIf { it.matches(Regex("[0-9]{1,20}")) } ?: ""
