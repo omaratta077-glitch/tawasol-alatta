@@ -51,4 +51,16 @@ state=await api(adminPath,{token:owner,revision:6,action:'deleteMatch',id:matchI
 state=await save(7,{format:'youtube',streamUrl:'https://www.youtube.com/live/abcdefghijk'});assert.equal(state.status,200);
 state=await save(8,{format:'external',streamUrl:'https://publisher.example/watch'});assert.equal(state.status,200);
 state=await save(9,{format:'dash',streamUrl:'https://publisher.example/live.mpd'});assert.equal(state.status,200);
+assert.ok((await api(publicPath)).data.playbackTypes.includes('ytv'),'deployed catalog advertises native YTV playback');
+const ytv={name:'قناة المشغّل',provider:'YTV PRO',sourceUrl:'https://play.google.com/store/apps/details?id=com.ytv.pronew',format:'ytv'};
+for(const streamUrl of ['',0,41,'0','-1','+1','1.5','1e3','9223372036854775808','12345678901234567890','intent:#Intent;end','https://example.org/channel/41'])assert.equal((await save(10,{...ytv,streamUrl})).status,400,String(streamUrl));
+assert.equal((await save(10,{...ytv,streamUrl:'41'},alice)).status,403,'YTV additions remain owner-only');
+state=await save(10,{...ytv,streamUrl:'٠٠٤١'});assert.equal(state.status,200);
+const ytvChannel=state.data.channels.find(c=>c.format==='ytv');assert.equal(ytvChannel.streamUrl,'41');
+assert.equal((await save(11,{...ytv,streamUrl:'0041'})).status,409,'same YTV ID cannot be duplicated with different digit formatting');
+state=await save(11,{...ytv,id:ytvChannel.id,streamUrl:'9223372036854775807'});assert.equal(state.status,200);
+assert.equal(state.data.channels.find(c=>c.id===ytvChannel.id).streamUrl,'9223372036854775807','64-bit IDs remain exact strings');
+assert.equal((await api(publicPath)).data.channels.find(c=>c.id===ytvChannel.id).format,'ytv');
+state=await save(12,{...ytv,id:ytvChannel.id,streamUrl:'9223372036854775807',enabled:false});assert.equal(state.status,200);
+assert.ok(!(await api(publicPath)).data.channels.some(c=>c.id===ytvChannel.id),'disabled YTV channels stay out of public lists');
 console.log('PASS football catalog: owner-only CRUD, real source metadata, all playback modes, persistent catalog, streamed request limits, URL validation, zero scores, no duplicates, disable/unlink and concurrent revision protection');

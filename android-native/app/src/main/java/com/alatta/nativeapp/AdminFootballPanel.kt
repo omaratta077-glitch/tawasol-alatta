@@ -114,33 +114,52 @@ internal fun AdminFootballPanel(token: String) {
 }
 
 @Composable
-private fun FootballChannelEditor(item: FootballChannel?, busy: Boolean, message: String,
+internal fun FootballChannelEditor(item: FootballChannel?, busy: Boolean, message: String,
     onDismiss: () -> Unit, onSave: (JSONObject) -> Unit) {
     var name by remember(item?.id) { mutableStateOf(item?.name.orEmpty()) }
     var category by remember(item?.id) { mutableStateOf(item?.category.orEmpty()) }
     var provider by remember(item?.id) { mutableStateOf(item?.provider.orEmpty()) }
     var source by remember(item?.id) { mutableStateOf(item?.sourceUrl.orEmpty()) }
     var stream by remember(item?.id) { mutableStateOf(item?.streamUrl.orEmpty()) }
+    var ytvId by remember(item?.id) { mutableStateOf(if (item?.format == "ytv") item.streamUrl else "") }
     var format by remember(item?.id) { mutableStateOf(item?.format ?: "hls") }
     var enabled by remember(item?.id) { mutableStateOf(item?.enabled ?: true) }
+    var validation by remember(item?.id) { mutableStateOf("") }
     AlertDialog(onDismissRequest = { if (!busy) onDismiss() }, title = { Text(if (item == null) "إضافة قناة" else "تعديل القناة") }, text = {
         Column(Modifier.heightIn(max = 480.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("استخدم رابطًا يتيحه صاحب البث لتطبيقك. يوتيوب يستخدم مشغّل يوتيوب الموجود، وموقع الناشر يفتح لديه.", fontSize = 12.sp)
-            FootballField(name, "اسم القناة", !busy, 80) { name = it }
-            FootballField(category, "القسم / البطولة", !busy, 60) { category = it }
-            FootballField(provider, "اسم الناشر أو مزود البث", !busy, 120) { provider = it }
-            FootballField(source, "رابط صفحة المصدر HTTPS", !busy, 2048, KeyboardType.Uri) { source = it }
-            FootballField(stream, "رابط البث أو المشاهدة HTTPS", !busy, 2048, KeyboardType.Uri) { stream = it }
+            Text("اختر المشغّل. قنوات YTV PRO تفتح في التطبيق المثبّت على الجهاز باستخدام رقم القناة الذي تضيفه هنا.", fontSize = 12.sp)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                listOf("hls" to "HLS", "dash" to "DASH", "youtube" to "يوتيوب", "external" to "موقع الناشر").forEach { (value, label) ->
-                    FilterChip(selected = format == value, enabled = !busy, onClick = { format = value }, label = { Text(label, fontSize = 12.sp) })
+                listOf("hls" to "HLS", "dash" to "DASH", "youtube" to "يوتيوب", "external" to "موقع الناشر", "ytv" to "YTV PRO").forEach { (value, label) ->
+                    FilterChip(selected = format == value, enabled = !busy, onClick = {
+                        format = value; validation = ""
+                        if (value == "ytv") {
+                            if (category.isBlank()) category = "YTV PRO"
+                            if (provider.isBlank()) provider = "YTV PRO"
+                            if (source.isBlank()) source = YtvPlayer.APP_PAGE
+                        }
+                    }, label = { Text(label, fontSize = 12.sp) })
                 }
             }
+            FootballField(name, "اسم القناة", !busy, 80) { name = it }
+            FootballField(category, "القسم / البطولة", !busy, 60) { category = it }
+            if (format != "ytv") {
+                FootballField(provider, "اسم الناشر أو مزود البث", !busy, 120) { provider = it }
+                FootballField(source, "رابط صفحة المصدر HTTPS", !busy, 2048, KeyboardType.Uri) { source = it }
+            }
+            if (format == "ytv") {
+                FootballField(ytvId, "رقم القناة لدى YTV PRO", !busy, 19, KeyboardType.Number) { ytvId = it; validation = "" }
+                Text("استخدم الرقم الحقيقي للقناة لدى المشغّل، وليس ترتيبها في القائمة. تظهر القناة للمستخدمين بعد حفظها.", fontSize = 12.sp)
+            } else FootballField(stream, "رابط البث أو المشاهدة HTTPS", !busy, 2048, KeyboardType.Uri) { stream = it }
             Row(verticalAlignment = Alignment.CenterVertically) { Switch(enabled, onCheckedChange = { enabled = it }, enabled = !busy); Text("إظهار القناة للمستخدمين") }
             if (message.isNotBlank()) Text(message, fontSize = 12.sp)
+            if (validation.isNotBlank()) Text(validation, color = Color(0xFFFFB4A9), fontSize = 12.sp)
             if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
         }
-    }, confirmButton = { TextButton(enabled = !busy, onClick = { onSave(FootballChannel(item?.id.orEmpty(), name.trim(), category.trim(), provider.trim(), source.trim(), stream.trim(), format, enabled).json()) }) { Text("حفظ") } },
+    }, confirmButton = { TextButton(enabled = !busy, onClick = {
+        val target = if (format == "ytv") YtvPlayer.channelId(ytvId) else stream.trim()
+        if (target == null) validation = "أدخل رقم قناة صحيحًا لدى YTV PRO"
+        else onSave(FootballChannel(item?.id.orEmpty(), name.trim(), category.trim(), provider.trim(), source.trim(), target, format, enabled).json())
+    }) { Text("حفظ") } },
         dismissButton = { TextButton(enabled = !busy, onClick = onDismiss) { Text("رجوع") } })
 }
 
