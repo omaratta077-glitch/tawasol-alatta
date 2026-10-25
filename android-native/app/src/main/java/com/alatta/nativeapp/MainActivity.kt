@@ -1228,9 +1228,8 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
     val compactYoutubeLayout = LocalConfiguration.current.screenHeightDp < 480
     val youtubeDisplayHeight = if (compactYoutubeLayout) 200.dp else
         (((LocalConfiguration.current.screenWidthDp-16).dp)*9f/16f).coerceAtLeast(200.dp)
-    // One visible YouTube player survives navigation; PiP keeps the official
-    // embedded player visible when the user leaves the app. Calls keep the screen awake.
-    val keepScreenAwake = activeCall?.type == "video"
+    // Keep the screen awake while a YouTube video or video call is visibly active.
+    val keepScreenAwake = (token.isNotBlank() && youtubePlayRequested) || activeCall?.type == "video"
     DisposableEffect(keepScreenAwake) {
         val window = (ctx as? ComponentActivity)?.window
         if (keepScreenAwake) window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
