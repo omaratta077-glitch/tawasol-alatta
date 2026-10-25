@@ -53,6 +53,14 @@ private suspend fun sportsApi(token: String, payload: JSONObject? = null): JSONO
     attaApi(path, payload?.put("token", token))
 }
 
+private suspend fun sportsIceServers(token: String): List<PeerConnection.IceServer> = withContext(Dispatchers.IO) {
+    try {
+        val encoded = java.net.URLEncoder.encode(token, "UTF-8")
+        parseRtcIceServers(attaApi("/api/turn-credentials?token=$encoded"))
+    } catch (cancelled: CancellationException) { throw cancelled }
+    catch (_: Exception) { fallbackRtcIceServers() }
+}
+
 private suspend fun createSportsDescription(peer: PeerConnection, offer: Boolean): SessionDescription = suspendCancellableCoroutine { cont ->
     val observer = object : SdpObserver {
         override fun onCreateSuccess(sdp: SessionDescription?) { if (sdp != null) cont.resume(sdp) else cont.resumeWithException(IllegalStateException("SDP فارغ")) }
@@ -80,8 +88,8 @@ private object SportsWebRtc {
         return PeerConnectionFactory.builder().setVideoEncoderFactory(DefaultVideoEncoderFactory(egl.eglBaseContext, true, true))
             .setVideoDecoderFactory(DefaultVideoDecoderFactory(egl.eglBaseContext)).createPeerConnectionFactory()
     }
-    fun peer(factory: PeerConnectionFactory, observer: PeerConnection.Observer): PeerConnection {
-        val ice = listOf(PeerConnection.IceServer.builder("stun:stun.cloudflare.com:3478").createIceServer())
+    fun peer(factory: PeerConnectionFactory, observer: PeerConnection.Observer,
+        ice: List<PeerConnection.IceServer> = fallbackRtcIceServers()): PeerConnection {
         return requireNotNull(factory.createPeerConnection(PeerConnection.RTCConfiguration(ice), observer))
     }
 }
@@ -106,6 +114,7 @@ private class SportsLiveViewer(private val context: Context, private val token: 
         if (started) return
         started = true
         scope.launch(Dispatchers.IO) { runCatching {
+            val iceServers = sportsIceServers(token)
             val liveId = live.getString("liveId")
             val result = sportsApi(token, JSONObject().put("action", "watch").put("liveId", liveId))
             viewerSessionId = result.getString("sessionId")
@@ -113,7 +122,11 @@ private class SportsLiveViewer(private val context: Context, private val token: 
             val gathered = CompletableDeferred<Unit>()
             val connection = SportsWebRtc.peer(factory, object : PeerConnection.Observer {
                 override fun onSignalingChange(s: PeerConnection.SignalingState?) {}
-                override fun onIceConnectionChange(s: PeerConnection.IceConnectionState?) { if (s == PeerConnection.IceConnectionState.CONNECTED || s == PeerConnection.IceConnectionState.COMPLETED) onState("متصل بالبث") }
+                override fun onIceConnectionChange(s: PeerConnection.IceConnectionState?) { when (s) {
+                    PeerConnection.IceConnectionState.CONNECTED, PeerConnection.IceConnectionState.COMPLETED -> onState("متصل بالبث")
+                    PeerConnection.IceConnectionState.FAILED -> onState("تعذر اتصال المشاهدة؛ تحقق من الاتصال بالإنترنت")
+                    else -> Unit
+                } }
                 override fun onIceConnectionReceivingChange(b: Boolean) {}
                 override fun onIceGatheringChange(s: PeerConnection.IceGatheringState?) { if (s == PeerConnection.IceGatheringState.COMPLETE) gathered.complete(Unit) }
                 override fun onIceCandidate(c: IceCandidate?) {}
@@ -124,7 +137,7 @@ private class SportsLiveViewer(private val context: Context, private val token: 
                 override fun onRenegotiationNeeded() {}
                 override fun onAddTrack(r: RtpReceiver?, s: Array<out MediaStream>?) { r?.track()?.let { (it as? VideoTrack)?.addSink(view ?: return) } }
                 override fun onTrack(t: RtpTransceiver?) { (t?.receiver?.track() as? VideoTrack)?.addSink(view ?: return) }
-            })
+            }, iceServers)
             peer = connection
             setSportsDescription(connection, SessionDescription(SessionDescription.Type.OFFER, offer.getString("sdp")), false)
             val answer = createSportsDescription(connection, false)
@@ -163,6 +176,7 @@ private class SportsScreenPublisher(
 
     fun start() { scope.launch(Dispatchers.IO) { runCatching { startNow() }.onFailure { onState(it.message ?: "تعذر بدء البث") ; stop(true) } } }
     private suspend fun startNow() {
+        val iceServers = sportsIceServers(token)
         val started = sportsApi(token, JSONObject().put("action", "start").put("title", title))
         liveId = started.getString("liveId")
         val pcFactory = SportsWebRtc.factory(context, egl); factory = pcFactory
@@ -175,7 +189,11 @@ private class SportsScreenPublisher(
         val gathered = CompletableDeferred<Unit>()
         peer = SportsWebRtc.peer(pcFactory, object : PeerConnection.Observer {
             override fun onSignalingChange(s: PeerConnection.SignalingState?) {}
-            override fun onIceConnectionChange(s: PeerConnection.IceConnectionState?) { if (s == PeerConnection.IceConnectionState.CONNECTED || s == PeerConnection.IceConnectionState.COMPLETED) onState("مباشر الآن") }
+            override fun onIceConnectionChange(s: PeerConnection.IceConnectionState?) { when (s) {
+                PeerConnection.IceConnectionState.CONNECTED, PeerConnection.IceConnectionState.COMPLETED -> onState("مباشر الآن")
+                PeerConnection.IceConnectionState.FAILED -> onState("فشل اتصال البث؛ تحقق من الاتصال بالإنترنت")
+                else -> Unit
+            } }
             override fun onIceConnectionReceivingChange(b: Boolean) {}
             override fun onIceGatheringChange(s: PeerConnection.IceGatheringState?) { if (s == PeerConnection.IceGatheringState.COMPLETE) gathered.complete(Unit) }
             override fun onIceCandidate(c: IceCandidate?) {}
@@ -186,7 +204,7 @@ private class SportsScreenPublisher(
             override fun onRenegotiationNeeded() {}
             override fun onAddTrack(r: RtpReceiver?, s: Array<out MediaStream>?) {}
             override fun onTrack(t: RtpTransceiver?) {}
-        })
+        }, iceServers)
         peer!!.addTrack(video, listOf("sports-live"))
         val offer = createSportsDescription(peer!!, true)
         setSportsDescription(peer!!, offer, true)
