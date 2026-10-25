@@ -27,6 +27,7 @@ import java.util.UUID
 import java.util.concurrent.TimeUnit
 import android.os.Bundle
 import android.os.Build
+import android.os.PowerManager
 import android.util.Rational
 import android.util.Base64
 import android.webkit.WebView
@@ -918,7 +919,10 @@ private class AttaYoutubeFullscreenChrome(
         val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
             when (event) {
                 androidx.lifecycle.Lifecycle.Event.ON_STOP -> {
-                    if ((ctx as? MainActivity)?.isInPictureInPictureMode != true) {
+                    val activity = ctx as? MainActivity
+                    val pipVisibleAndInteractive = activity?.isInPictureInPictureMode == true &&
+                        activity.getSystemService(PowerManager::class.java)?.isInteractive == true
+                    if (!pipVisibleAndInteractive) {
                         webView.evaluateJavascript("document.querySelectorAll('iframe').forEach(function(f){f.contentWindow.postMessage(JSON.stringify({event:'command',func:'pauseVideo',args:[]}), 'https://www.youtube-nocookie.com');f.contentWindow.postMessage(JSON.stringify({event:'command',func:'pauseVideo',args:[]}), 'https://www.youtube.com')})", null)
                         webView.onPause()
                     }
@@ -3819,7 +3823,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                 val density = androidx.compose.ui.platform.LocalDensity.current
                 val playerConfiguration = LocalConfiguration.current
                 val maxMiniX = with(density) { (playerConfiguration.screenWidthDp.dp - 256.dp).coerceAtLeast(0.dp).toPx() }
-                val minMiniY = with(density) { -(playerConfiguration.screenHeightDp.dp - 256.dp).coerceAtLeast(0.dp).toPx() }
+                val minMiniY = with(density) { -((playerConfiguration.screenHeightDp.dp - 256.dp).coerceAtLeast(0.dp).toPx()) }
                 val hostModifier = if (youtubePipMode) Modifier.align(Alignment.Center).fillMaxSize()
                     else if (expandedYoutube) Modifier.align(Alignment.TopCenter)
                     .fillMaxWidth().windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top+WindowInsetsSides.Horizontal))
