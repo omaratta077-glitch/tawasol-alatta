@@ -38,7 +38,7 @@ class FirebaseCallRoutingTest {
 
     @Test fun lockedBackgroundNotificationAndDataReachExistingMessageCallbackExactlyOnce() {
         val context = RuntimeEnvironment.getApplication()
-        shadowOf(context.getSystemService(KeyguardManager::class.java)).setIsKeyguardLocked(true)
+        shadowOf(context.getSystemService(KeyguardManager::class.java)).setKeyguardLocked(true)
         val controller = Robolectric.buildService(RecordingCallMessagingService::class.java).create()
         try {
             val service = controller.get()
