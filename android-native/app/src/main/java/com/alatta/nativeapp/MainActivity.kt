@@ -2700,7 +2700,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                     openHomeComposer()
                                 }
                             })
-                        "الرياضة" -> FootballScreen(footballSearch, Modifier.weight(1f), isAdmin = adminRole == "super_admin", token = token,
+                        "الرياضة" -> FootballScreen(footballSearch, Modifier.weight(1f), isAdmin = adminRole == "super_admin", token = token, callInProgress = activeCall != null,
                             onManage = { navigate("الإدارة") }, onBeforePlayback = { youtubePlayRequested = false },
                             onYoutube = { id -> youtubeId = id; youtubePlayRequested = true })
                         "الرئيسية", "استكشاف", "المحفوظات" -> {

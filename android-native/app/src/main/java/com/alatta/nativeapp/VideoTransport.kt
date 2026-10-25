@@ -23,8 +23,10 @@ internal object VideoTransport {
     private var cache: SimpleCache? = null
 
     // Called on IO when the viewer opens, never during startup or composition.
-    fun factory(context: Context, live: Boolean): DataSource.Factory {
+    fun factory(context: Context, live: Boolean, requestHeaders: Map<String, String> = emptyMap()): DataSource.Factory {
         val app = context.applicationContext
+        if (requestHeaders.isNotEmpty()) return DefaultDataSource.Factory(app,
+            OkHttpDataSource.Factory(AttaHttp.mediaClient).setDefaultRequestProperties(requestHeaders.toMap()))
         if (live) return DefaultDataSource.Factory(app, OkHttpDataSource.Factory(AttaHttp.mediaClient))
         return sharedFactory ?: synchronized(this) {
             sharedFactory ?: run {
