@@ -41,7 +41,7 @@ internal fun FootballPanel(modifier: Modifier = Modifier, content: @Composable C
 
 @Composable
 internal fun FootballScreen(query: String, modifier: Modifier = Modifier,
-    isAdmin: Boolean = false, token: String = "", onManage: () -> Unit = {}, onBeforePlayback: () -> Unit,
+    isAdmin: Boolean = false, token: String = "", onManage: () -> Unit = {}, callInProgress: Boolean = false, onBeforePlayback: () -> Unit,
     onYoutube: (String) -> Unit) {
     val context = LocalContext.current
     val preferences = remember { context.getSharedPreferences("alatta_football", Context.MODE_PRIVATE) }
@@ -101,19 +101,21 @@ internal fun FootballScreen(query: String, modifier: Modifier = Modifier,
         SportsLivePanel(token = token, isAdmin = isAdmin)
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Row(Modifier.weight(1f).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                listOf("المباريات", "القنوات", "المفضلة", "آخر مشاهدة").forEach { name ->
+                listOf("المباريات", "القنوات", "ياسين", "المفضلة", "آخر مشاهدة").forEach { name ->
                     FilterChip(selected = tab == name, onClick = { tab = name }, label = { Text(name, fontSize = 12.sp) })
                 }
             }
             IconButton(enabled = !loading, onClick = { reload++ }) { SiteIcon("refresh-cw", tint = PremiumGoldLight, size = 20.dp) }
         }
         if (isAdmin) TextButton(onClick = onManage) { Text("إدارة القنوات وجدول المباريات", color = PremiumGoldLight, fontSize = 12.sp) }
-        if (loading) LinearProgressIndicator(Modifier.fillMaxWidth(), color = PremiumGold)
-        if (error.isNotBlank()) Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        if (loading && tab != "ياسين") LinearProgressIndicator(Modifier.fillMaxWidth(), color = PremiumGold)
+        if (error.isNotBlank() && tab != "ياسين") Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text(error, color = Color(0xFFFFB4A9), fontSize = 12.sp, modifier = Modifier.weight(1f))
             TextButton(enabled = !loading, onClick = { reload++ }) { Text("إعادة المحاولة", color = PremiumGoldLight) }
         }
-        if (tab == "المباريات") {
+        if (tab == "ياسين") {
+            YacineProviderPanel(query, Modifier.weight(1f), callInProgress = callInProgress, onBeforePlayback = onBeforePlayback)
+        } else if (tab == "المباريات") {
             Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf("اليوم", "غدًا", "كل المواعيد").forEachIndexed { index, label -> FilterChip(selected = day == index,
                     onClick = { day = index }, label = { Text(label, fontSize = 12.sp) }) }

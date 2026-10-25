@@ -126,7 +126,10 @@ internal fun AttaPostMediaViewer(
     onShare: (suspend (String) -> Unit)? = null,
     onStats: (String, JSONObject) -> Unit = { _, _ -> },
     onOpenProfile: (String) -> Unit = {},
-    live: LivePlayback? = null
+    live: LivePlayback? = null,
+    sourceMimeType: String? = null,
+    requestHeaders: Map<String, String> = emptyMap(),
+    playbackErrorMessage: String? = null
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -151,8 +154,10 @@ internal fun AttaPostMediaViewer(
     var videoHeights by remember { mutableStateOf(emptyList<Int>()) }
     var qualityCap by remember(id) { mutableIntStateOf(0) }
     var qualityMenu by remember(id) { mutableStateOf(false) }
-    val sources by produceState<androidx.media3.datasource.DataSource.Factory?>(null, isVideo, live != null) {
-        if (isVideo) value = withContext(Dispatchers.IO) { VideoTransport.factory(context, live != null) }
+    val currentPlaybackErrorMessage by rememberUpdatedState(playbackErrorMessage)
+    var sources by remember(isVideo, live != null, requestHeaders) { mutableStateOf<androidx.media3.datasource.DataSource.Factory?>(null) }
+    LaunchedEffect(isVideo, live != null, requestHeaders) {
+        if (isVideo) sources = withContext(Dispatchers.IO) { VideoTransport.factory(context, live != null, requestHeaders) }
     }
     val player = remember(isVideo, sources) {
         if (isVideo && sources != null) ExoPlayer.Builder(context)
@@ -171,7 +176,7 @@ internal fun AttaPostMediaViewer(
         val listener = object : Player.Listener {
             override fun onIsPlayingChanged(value: Boolean) { playing = value }
             override fun onPlaybackStateChanged(state: Int) { buffering = state == Player.STATE_BUFFERING }
-            override fun onPlayerError(error: PlaybackException) { failed = "تعذر تشغيل الفيديو. أعد المحاولة أو تحقق من الاتصال."; controls = true }
+            override fun onPlayerError(error: PlaybackException) { failed = currentPlaybackErrorMessage ?: "تعذر تشغيل الفيديو. أعد المحاولة أو تحقق من الاتصال."; controls = true }
             override fun onTracksChanged(tracks: Tracks) {
                 videoHeights = tracks.groups.filter { it.type == C.TRACK_TYPE_VIDEO }.flatMap { group ->
                     (0 until group.length).filter { group.isTrackSupported(it) }.map { group.getTrackFormat(it).height }
@@ -187,10 +192,10 @@ internal fun AttaPostMediaViewer(
     // Opening the sole full-screen Media3 viewer starts playback; vertical
     // swipes switch tracks without creating a second video player.
     var continuePlayback by remember(isVideo) { mutableStateOf(isVideo) }
-    LaunchedEffect(player, id, url, live?.mimeType) {
+    LaunchedEffect(player, id, url, live?.mimeType, sourceMimeType) {
         videoHeights = emptyList()
         player?.apply {
-            val item = MediaItem.Builder().setUri(url).apply { live?.let { setMimeType(it.mimeType) } }.build()
+            val item = MediaItem.Builder().setUri(url).apply { (sourceMimeType ?: live?.mimeType)?.let { setMimeType(it) } }.build()
             pause(); clearMediaItems(); setMediaItem(item); prepare()
             playWhenReady = continuePlayback
             continuePlayback = false

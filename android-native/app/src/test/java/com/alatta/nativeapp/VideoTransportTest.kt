@@ -60,4 +60,23 @@ class VideoTransportTest {
             assertFalse(VideoTransport.canCache(Uri.parse(url)))
         }
     }
+    @Test fun providerHeadersAreScopedToTheirPlayerAndDoNotEnterTheSharedCache() {
+        val context = RuntimeEnvironment.getApplication()
+        val server = MockWebServer(); server.start()
+        try {
+            val headers = mapOf("User-Agent" to "Provider fixture", "Referer" to "https://publisher.example/watch")
+            val source = VideoTransport.factory(context, live = false, requestHeaders = headers)
+            val plain = VideoTransport.factory(context, live = true)
+            val spec = DataSpec.Builder().setUri(server.url("/stream.mp4").toString()).build()
+            repeat(3) { server.enqueue(MockResponse().setBody("fixture")) }
+            read(source, spec); read(source, spec); read(plain, spec)
+            val first = server.takeRequest(); val second = server.takeRequest(); val third = server.takeRequest()
+            assertEquals("Provider fixture", first.getHeader("User-Agent"))
+            assertEquals(headers["Referer"], first.getHeader("Referer"))
+            assertEquals("Provider fixture", second.getHeader("User-Agent"))
+            assertNull(third.getHeader("Referer"))
+            assertNotEquals("Provider fixture", third.getHeader("User-Agent"))
+            assertEquals(3, server.requestCount)
+        } finally { server.shutdown() }
+    }
 }

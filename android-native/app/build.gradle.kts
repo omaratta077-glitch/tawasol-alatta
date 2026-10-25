@@ -24,9 +24,9 @@ android {
         applicationId = "com.alatta.nativeapp"
         minSdk = 26
         targetSdk = 35
-        // v1.0.172: use the existing authenticated Cloudflare TURN service for sports broadcasts.
-        versionCode = 272
-        versionName = "1.0.172"
+        // v1.0.173: trial provider routes in Sports, with actionable errors and the existing player.
+        versionCode = 273
+        versionName = "1.0.173"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("boolean", "IS_APPGALLERY", appGalleryBuild.toString())
         val hmsId = (System.getenv("ALATTA_HMS_APP_ID") ?: "").trim().takeIf { it.matches(Regex("[0-9]{1,20}")) } ?: ""
