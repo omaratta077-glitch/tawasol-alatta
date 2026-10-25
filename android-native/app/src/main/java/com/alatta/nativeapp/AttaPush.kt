@@ -113,7 +113,11 @@ internal object AttaPush {
                 .setGcmSenderId(BuildConfig.PUSH_SENDER_ID).setProjectId(BuildConfig.PUSH_PROJECT_ID)
                 .setApiKey(BuildConfig.PUSH_API_KEY).build()
             if (FirebaseApp.getApps(context).isEmpty()) FirebaseApp.initializeApp(context, options)
-            FirebaseMessaging.getInstance().isAutoInitEnabled = true
+            FirebaseMessaging.getInstance().apply {
+                // Calls must reach our service so the same branded card is used in the background.
+                setNotificationDelegationEnabled(false)
+                isAutoInitEnabled = true
+            }
         } catch (error: Exception) { android.util.Log.w("AttaPush", "Push initialization unavailable", error) }
     }
 
@@ -447,7 +451,25 @@ class AttaCallRejectReceiver : BroadcastReceiver() {
     }
 }
 
-class AttaFirebaseMessagingService : FirebaseMessagingService() {
+/** Keep SDK acknowledgement and message-ID deduplication while owning call rendering. */
+internal fun brandedIncomingCallIntent(intent: Intent): Intent {
+    if (intent.action !in setOf("com.google.android.c2dm.intent.RECEIVE",
+            "com.google.firebase.messaging.RECEIVE_DIRECT_BOOT") ||
+        intent.getStringExtra("type") != "call-request") return intent
+    val notificationKeys = intent.extras?.keySet().orEmpty().filter {
+        it.startsWith("gcm.n.") || it.startsWith("gcm.notification.")
+    }
+    if (notificationKeys.isEmpty()) return intent
+    // Remove only the local SDK auto-display hints. Retain call data, transport
+    // message ID, original priority and TTL; super.handleIntent still handles the delivery.
+    return Intent(intent).apply { notificationKeys.forEach { removeExtra(it) } }
+}
+
+open class AttaFirebaseMessagingService : FirebaseMessagingService() {
+    override fun handleIntent(intent: Intent) {
+        super.handleIntent(brandedIncomingCallIntent(intent))
+    }
+
     override fun onNewToken(deviceToken: String) {
         super.onNewToken(deviceToken)
         if (!AttaPush.canNotify(this)) return
