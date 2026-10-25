@@ -88,7 +88,9 @@ internal fun YacineProviderPanel(query: String, modifier: Modifier = Modifier, c
     LaunchedEffect(callInProgress) {
         if (callInProgress) { resolveJob?.cancel(); resolving = false; choices = emptyList(); playing = null }
     }
-    LaunchedEffect(resolving, failure) { if (resolving || failure != null) listState.scrollToItem(0) }
+    LaunchedEffect(resolving, failure) {
+        if (resolving || failure != null) listState.scrollToItem(2 + if (callInProgress) 1 else 0)
+    }
     BackHandler(enabled = category != null && playing == null) { category = null }
 
     // Keep actions, status, errors and results in the same bounded scrolling area.
