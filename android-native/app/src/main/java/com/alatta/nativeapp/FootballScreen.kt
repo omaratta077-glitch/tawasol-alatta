@@ -41,7 +41,7 @@ internal fun FootballPanel(modifier: Modifier = Modifier, content: @Composable C
 
 @Composable
 internal fun FootballScreen(query: String, modifier: Modifier = Modifier,
-    isAdmin: Boolean = false, onManage: () -> Unit = {}, onBeforePlayback: () -> Unit,
+    isAdmin: Boolean = false, token: String = "", onManage: () -> Unit = {}, onBeforePlayback: () -> Unit,
     onYoutube: (String) -> Unit) {
     val context = LocalContext.current
     val preferences = remember { context.getSharedPreferences("alatta_football", Context.MODE_PRIVATE) }
@@ -98,6 +98,7 @@ internal fun FootballScreen(query: String, modifier: Modifier = Modifier,
         .sortedWith(if (tab == "آخر مشاهدة") compareBy<FootballChannel> { recent.indexOf(it.id) } else compareBy<FootballChannel> { it.category }.thenBy { it.name })
 
     Column(modifier.fillMaxSize().background(PremiumBackground).padding(horizontal = 10.dp)) {
+        SportsLivePanel(token = token, isAdmin = isAdmin)
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Row(Modifier.weight(1f).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 listOf("المباريات", "القنوات", "المفضلة", "آخر مشاهدة").forEach { name ->

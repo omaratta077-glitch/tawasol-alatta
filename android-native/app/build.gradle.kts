@@ -24,9 +24,9 @@ android {
         applicationId = "com.alatta.nativeapp"
         minSdk = 26
         targetSdk = 35
-        // v1.0.168: route native voice/video calls through connected Bluetooth headsets.
-        versionCode = 268
-        versionName = "1.0.168"
+        // v1.0.169: add permission-gated screen broadcast to the sports page.
+        versionCode = 269
+        versionName = "1.0.169"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("boolean", "IS_APPGALLERY", appGalleryBuild.toString())
         val hmsId = (System.getenv("ALATTA_HMS_APP_ID") ?: "").trim().takeIf { it.matches(Regex("[0-9]{1,20}")) } ?: ""
