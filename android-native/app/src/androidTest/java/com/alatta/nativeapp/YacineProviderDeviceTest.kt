@@ -47,8 +47,10 @@ class YacineProviderDeviceTest {
         compose.onNodeWithText(text).assertIsDisplayed()
     }
 
-    private fun waitForResult() {
-        compose.waitUntil(5_000) { compose.onAllNodes(hasText("تحديث") and isEnabled()).fetchSemanticsNodes().isNotEmpty() }
+    private fun waitForResult(text: String) {
+        // An enabled refresh action may still belong to the previous response.
+        // Wait for the actual result before trying to scroll through its rows.
+        compose.waitUntil(5_000) { compose.onAllNodesWithText(text).fetchSemanticsNodes().isNotEmpty() }
     }
 
     @Test fun loadingFailureRetryAndLongCatalogRemainReachableWithLargeArabicText() {
@@ -85,16 +87,16 @@ class YacineProviderDeviceTest {
             scrollTo("إعادة المحاولة")
             compose.onNodeWithText("إعادة المحاولة").performClick()
             compose.waitUntil(5_000) { attempts.get() == 2 }
-            waitForResult()
+            waitForResult("قسم 1")
             scrollTo("قسم 30")
             compose.onNodeWithText("قسم 30").performClick()
             compose.waitUntil(5_000) { paths.contains("/api/categories/30/channels") }
-            waitForResult()
+            waitForResult("قناة الاختبار")
             scrollTo("قناة الاختبار")
             scrollTo("رجوع للأقسام")
             compose.onNodeWithText("رجوع للأقسام").performClick()
             compose.waitUntil(5_000) { attempts.get() == 3 }
-            waitForResult()
+            waitForResult("قسم 1")
             scrollTo("قسم 1")
         } finally {
             gate.countDown()
@@ -119,14 +121,14 @@ class YacineProviderDeviceTest {
             } }
             compose.waitForIdle()
             assertEquals(0, requests.get())
+            val empty = "لم يرجع المصدر قنوات أو أقسامًا مطابقة حاليًا."
             compose.runOnIdle { refresh.intValue++ }
             compose.waitUntil(5_000) { requests.get() == 1 }
-            waitForResult()
-            val empty = "لم يرجع المصدر قنوات أو أقسامًا مطابقة حاليًا."
+            waitForResult(empty)
             scrollTo(empty)
             compose.runOnIdle { refresh.intValue++ }
             compose.waitUntil(5_000) { requests.get() == 2 }
-            waitForResult()
+            waitForResult(empty)
             scrollTo(empty)
         } finally {
             client.dispatcher.cancelAll()
