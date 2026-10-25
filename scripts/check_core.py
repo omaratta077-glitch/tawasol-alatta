@@ -65,8 +65,9 @@ check("Official version 1.0.170", 'versionCode = 270' in gradle and 'versionName
 check("YouTube player persists across tabs and enters visible PiP",
       'android:supportsPictureInPicture="true"' in read("android-native/app/src/main/AndroidManifest.xml") and
       'setAutoEnterEnabled(active)' in main and
-      'isInPictureInPictureMode != true' in main and
+      'pipVisibleAndInteractive' in main and
       'الفيديو يعمل في المشغّل المصغّر' in main and
+      'detectDragGestures' in main and 'miniYoutubeOffset' in main and
       'if (destination != "الرئيسية") activeYoutubePostId = ""' not in main)
 check("Four additional screens and scrollable navigation", all(x in main for x in ['QuranReaderScreen(', 'KnowledgeScreen(tab', 'FootballScreen(']) and all(x in read(android+"PremiumChrome.kt") for x in ['"القرآن"', '"الأحاديث"', '"الأذكار"', '"الرياضة"', '.horizontalScroll(scroll)']) and (ROOT/(android+"AlattaKnowledgeScreens.kt")).is_file())
 check("Quran-first categories and click-to-play preview", all(x in main for x in [
