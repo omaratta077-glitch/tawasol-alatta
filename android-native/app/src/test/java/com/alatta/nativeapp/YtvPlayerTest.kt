@@ -73,6 +73,7 @@ class YtvPlayerTest {
             .put(record("valid", "9223372036854775807"))
             .put(record("invalid-zero", "0"))
             .put(record("invalid-url", "https://example.org/video.m3u8"))
+            .put(record("invalid-number-type", "41").put("streamUrl", 41))
             .put(record("invalid-source", "41", source = "http://example.org/"))
             .put(record("hls", "https://example.org/video.m3u8", "hls")))
         val channels = FootballRepository.parse(data).channels

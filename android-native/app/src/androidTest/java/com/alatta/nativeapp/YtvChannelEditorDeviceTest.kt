@@ -51,7 +51,7 @@ class YtvChannelEditorDeviceTest {
         val saved = AtomicReference<JSONObject>()
         compose.setContent { Editor { saved.set(it) } }
         compose.onNodeWithText("YTV PRO").performScrollTo().performClick()
-        compose.onNodeWithText("رقم القناة لدى YTV PRO").performScrollTo().performTextInput("0")
+        compose.onNodeWithText("رقم القناة لدى YTV PRO").performScrollTo().performTextInput("12345678901234567890")
         compose.onNodeWithText("حفظ").performClick()
         compose.onNodeWithText("أدخل رقم قناة صحيحًا لدى YTV PRO").performScrollTo().assertIsDisplayed()
         compose.runOnIdle { assertNull(saved.get()) }

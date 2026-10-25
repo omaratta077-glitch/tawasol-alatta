@@ -99,7 +99,7 @@ internal object FootballRepository {
     internal fun parse(json: JSONObject): FootballCatalog {
         val channels = records(json, "channels").mapNotNull { c ->
             val format = c.optString("format")
-            val stream = if (format == "ytv") YtvPlayer.channelId(c.optString("streamUrl"))
+            val stream = if (format == "ytv") (c.opt("streamUrl") as? String)?.let(YtvPlayer::channelId)
                 else footballSafeUrl(c.optString("streamUrl"))
             if (stream == null) return@mapNotNull null
             val source = footballSafeUrl(c.optString("sourceUrl")) ?: return@mapNotNull null

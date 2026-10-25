@@ -147,7 +147,7 @@ internal fun FootballChannelEditor(item: FootballChannel?, busy: Boolean, messag
                 FootballField(source, "رابط صفحة المصدر HTTPS", !busy, 2048, KeyboardType.Uri) { source = it }
             }
             if (format == "ytv") {
-                FootballField(ytvId, "رقم القناة لدى YTV PRO", !busy, 19, KeyboardType.Number) { ytvId = it; validation = "" }
+                FootballField(ytvId, "رقم القناة لدى YTV PRO", !busy, 40, KeyboardType.Number) { ytvId = it; validation = "" }
                 Text("استخدم الرقم الحقيقي للقناة لدى المشغّل، وليس ترتيبها في القائمة. تظهر القناة للمستخدمين بعد حفظها.", fontSize = 12.sp)
             } else FootballField(stream, "رابط البث أو المشاهدة HTTPS", !busy, 2048, KeyboardType.Uri) { stream = it }
             Row(verticalAlignment = Alignment.CenterVertically) { Switch(enabled, onCheckedChange = { enabled = it }, enabled = !busy); Text("إظهار القناة للمستخدمين") }
