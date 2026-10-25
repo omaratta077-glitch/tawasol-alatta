@@ -3,7 +3,12 @@ package com.alatta.nativeapp
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
+import android.media.AudioDeviceCallback
+import android.media.AudioDeviceInfo
 import android.media.AudioManager
+import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
@@ -78,6 +83,8 @@ internal class NativeRtcCall(
     private val localFrame: () -> Unit,
     private val remoteFrame: () -> Unit,
     private val connected: () -> Unit,
+    private val audioRouteChanged: (Boolean) -> Unit,
+    private val bluetoothAvailabilityChanged: (Boolean) -> Unit,
     private val finished: () -> Unit
 ) {
     companion object {
@@ -174,6 +181,13 @@ internal class NativeRtcCall(
     private var pollJob: Job? = null
     private var callTimeoutJob: Job? = null
     private var speaker = session.type == "video"
+    private var routeChosenByUser = false
+    private var audioRouteReady = false
+    private var legacyScoRequested = false
+    private val audioDeviceCallback = object : AudioDeviceCallback() {
+        override fun onAudioDevicesAdded(addedDevices: Array<out AudioDeviceInfo>?) = refreshAudioRoute()
+        override fun onAudioDevicesRemoved(removedDevices: Array<out AudioDeviceInfo>?) = refreshAudioRoute()
+    }
     private var muted = false
     private var cameraOff = false
     private val localFrameProbe = VideoSink {
@@ -279,8 +293,67 @@ internal class NativeRtcCall(
             videoSource?.adaptOutputFormat(640, 360, 20)
         }
         audioManager.mode = AudioManager.MODE_IN_COMMUNICATION
-        @Suppress("DEPRECATION")
-        audioManager.isSpeakerphoneOn = speaker
+        audioRouteReady = true
+        audioManager.registerAudioDeviceCallback(audioDeviceCallback, Handler(Looper.getMainLooper()))
+        refreshAudioRoute()
+    }
+
+    private fun bluetoothOutputPresent(): Boolean = runCatching {
+        audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS).any { device ->
+            device.type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO ||
+                device.type == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP ||
+                (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P &&
+                    device.type == AudioDeviceInfo.TYPE_HEARING_AID) ||
+                (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
+                    device.type == AudioDeviceInfo.TYPE_BLE_HEADSET)
+        }
+    }.getOrDefault(false)
+
+    // Select a two-way communication device, never an A2DP-only media output.
+    // On Android 12+ setCommunicationDevice routes both playback and microphone.
+    @Suppress("DEPRECATION")
+    fun refreshAudioRoute() {
+        if (!audioRouteReady || ended) return
+        bluetoothAvailabilityChanged(bluetoothOutputPresent())
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            val devices = runCatching { audioManager.availableCommunicationDevices }.getOrDefault(emptyList())
+            val bluetooth = devices.firstOrNull {
+                it.type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO ||
+                    it.type == AudioDeviceInfo.TYPE_BLE_HEADSET ||
+                    it.type == AudioDeviceInfo.TYPE_HEARING_AID
+            }
+            if (!routeChosenByUser) speaker = bluetooth == null && session.type == "video"
+            val target = if (speaker) {
+                devices.firstOrNull { it.type == AudioDeviceInfo.TYPE_BUILTIN_SPEAKER }
+            } else {
+                bluetooth ?: devices.firstOrNull {
+                    it.type == AudioDeviceInfo.TYPE_WIRED_HEADSET ||
+                        it.type == AudioDeviceInfo.TYPE_WIRED_HEADPHONES ||
+                        it.type == AudioDeviceInfo.TYPE_USB_HEADSET
+                } ?: devices.firstOrNull { it.type == AudioDeviceInfo.TYPE_BUILTIN_EARPIECE }
+            }
+            val routed = target != null && runCatching {
+                audioManager.setCommunicationDevice(target)
+            }.getOrDefault(false)
+            if (!routed) audioManager.isSpeakerphoneOn = speaker
+        } else {
+            if (!routeChosenByUser) speaker = !bluetoothOutputPresent() && session.type == "video"
+            if (!speaker && bluetoothOutputPresent() && audioManager.isBluetoothScoAvailableOffCall) {
+                if (!legacyScoRequested) {
+                    legacyScoRequested = true
+                    runCatching { audioManager.startBluetoothSco() }
+                }
+                runCatching { audioManager.isBluetoothScoOn = true }
+                audioManager.isSpeakerphoneOn = false
+            } else {
+                if (legacyScoRequested) {
+                    legacyScoRequested = false
+                    runCatching { audioManager.isBluetoothScoOn = false; audioManager.stopBluetoothSco() }
+                }
+                audioManager.isSpeakerphoneOn = speaker
+            }
+        }
+        audioRouteChanged(speaker)
     }
 
     private suspend fun loadIceServers(): List<PeerConnection.IceServer> {
@@ -574,9 +647,9 @@ internal class NativeRtcCall(
         return cameraOff
     }
     fun toggleSpeaker(): Boolean {
+        routeChosenByUser = true
         speaker = !speaker
-        @Suppress("DEPRECATION")
-        audioManager.isSpeakerphoneOn = speaker
+        refreshAudioRoute()
         return speaker
     }
 
@@ -616,6 +689,17 @@ internal class NativeRtcCall(
         runCatching { videoSource?.dispose() }
         runCatching { audioSource?.dispose() }
         runCatching { factory?.dispose() }
+        if (audioRouteReady) {
+            audioRouteReady = false
+            runCatching { audioManager.unregisterAudioDeviceCallback(audioDeviceCallback) }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                runCatching { audioManager.clearCommunicationDevice() }
+            } else if (legacyScoRequested) {
+                @Suppress("DEPRECATION")
+                runCatching { audioManager.isBluetoothScoOn = false; audioManager.stopBluetoothSco() }
+            }
+            legacyScoRequested = false
+        }
         @Suppress("DEPRECATION")
         audioManager.isSpeakerphoneOn = priorSpeaker
         audioManager.mode = priorAudioMode
