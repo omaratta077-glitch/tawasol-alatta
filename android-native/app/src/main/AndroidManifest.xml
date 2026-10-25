@@ -16,6 +16,7 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION"/>
     <uses-permission android:name="android.permission.WAKE_LOCK"/>
     <uses-feature android:name="android.hardware.camera" android:required="false"/>
     <uses-feature android:name="android.hardware.microphone" android:required="false"/>
@@ -39,6 +40,7 @@
         <activity android:name=".IncomingCallLockActivity" android:exported="false" android:excludeFromRecents="true" android:launchMode="singleTop" android:showWhenLocked="true" android:turnScreenOn="true" android:theme="@style/IncomingCallWindow" />
         <receiver android:name=".AttaCallRejectReceiver" android:exported="false" />
         <service android:name=".AdhanPlaybackService" android:exported="false" android:foregroundServiceType="mediaPlayback" />
+        <service android:name=".SportsScreenLiveService" android:exported="false" android:foregroundServiceType="mediaProjection" />
         <receiver android:name=".AdhanAlarmReceiver" android:exported="false" />
         <receiver android:name=".AdhanRestoreReceiver" android:exported="false">
             <intent-filter>

@@ -566,6 +566,161 @@ export class SignalingRoom extends DurableObject {
     return result.catalog?j({ok:true,...result.catalog}):j({ok:false,error:result.error},result.status);
   }
 
+  realtimeConfigured(){
+    return !!String(this.env.CLOUDFLARE_REALTIME_APP_ID||"").trim() &&
+      !!String(this.env.CLOUDFLARE_REALTIME_APP_SECRET||"").trim();
+  }
+
+  async realtimeRequest(path,method="POST",body){
+    const appId=String(this.env.CLOUDFLARE_REALTIME_APP_ID||"").trim();
+    const secret=String(this.env.CLOUDFLARE_REALTIME_APP_SECRET||"").trim();
+    if(!appId || !secret)throw new Error("REALTIME_NOT_CONFIGURED");
+    if(!/^[A-Za-z0-9_-]{6,100}$/.test(appId))throw new Error("REALTIME_NOT_CONFIGURED");
+    const response=await fetch(`https://rtc.live.cloudflare.com/v1/apps/${encodeURIComponent(appId)}${path}`,{
+      method,headers:{authorization:`Bearer ${secret}`,"content-type":"application/json"},
+      ...(body===undefined?{}:{body:JSON.stringify(body)}),signal:AbortSignal.timeout(12000)
+    });
+    const data=await response.json().catch(()=>({}));
+    if(!response.ok)throw new Error(`REALTIME_HTTP_${response.status}`);
+    return data;
+  }
+
+  async sportsBroadcastApi(request,url,body={}){
+    const method=request.method,token=method==="GET"?url.searchParams.get("token"):body.token;
+    const session=await this.session(String(token||""));
+    if(!session)return j({ok:false,error:"الجلسة منتهية"},401);
+    const key="sports:broadcast",now=Date.now();
+    let live=await this.ctx.storage.get(key);
+    if(live?.state==="active" && now-Number(live.lastHeartbeat||0)>90000){
+      await this.ctx.storage.delete(key);live=null;
+    }
+    const publicLive=value=>value?.state==="active"?{
+      live:true,liveId:value.liveId,title:value.title,broadcaster:value.broadcaster,
+      startedAt:value.startedAt,viewerCount:Object.keys(value.viewers||{}).length
+    }:{live:false};
+    if(method==="GET"){
+      const response=j({ok:true,...publicLive(live),isOwner:!!live && live.owner===session.username,configured:this.realtimeConfigured()});
+      response.headers.set("cache-control","no-store");return response;
+    }
+    if(method!=="POST")return j({ok:false,error:"طريقة الطلب غير مدعومة"},405);
+    const action=String(body.action||"");
+    if(action==="start"){
+      const auth=await this.requireAdmin(token);if(auth.error)return auth.error;
+      if(!this.realtimeConfigured())return j({ok:false,error:"إعداد بث الرياضة غير مكتمل على الخادم",code:"SPORTS_BROADCAST_NOT_CONFIGURED"},503);
+      const title=String(body.title||"").trim().replace(/[\r\n\t]+/g," ").slice(0,100);
+      if(title.length<2)return j({ok:false,error:"اكتب عنوانًا قصيرًا للبث"},400);
+      const user=await this.user(session.username);
+      const next={liveId:crypto.randomUUID(),owner:session.username,title,state:"starting",startedAt:now,
+        lastHeartbeat:now,broadcaster:String(user?.displayName||user?.fullName||session.username).slice(0,60),
+        publisherSessionId:"",publisherTracks:[],viewers:{}};
+      const result=await this.ctx.storage.transaction(async storage=>{
+        const current=await storage.get(key);
+        if(current && ["active","starting"].includes(current.state) && now-Number(current.lastHeartbeat||0)<=90000)return {busy:true};
+        await storage.put(key,next);return {value:next};
+      });
+      if(result.busy)return j({ok:false,error:"يوجد بث رياضي مباشر بالفعل",...publicLive(live)},409);
+      return j({ok:true,liveId:next.liveId,title:next.title});
+    }
+    if(action==="publish"){
+      const auth=await this.requireAdmin(token);if(auth.error)return auth.error;
+      live=await this.ctx.storage.get(key);
+      if(!live || live.owner!==session.username || live.liveId!==body.liveId || live.state!=="starting")return j({ok:false,error:"جلسة البث غير صالحة أو انتهت"},409);
+      const description=body.sessionDescription;
+      const tracks=Array.isArray(body.tracks)?body.tracks.slice(0,2):[];
+      if(description?.type!=="offer" || typeof description.sdp!=="string" || description.sdp.length>160000 ||
+        !tracks.length || tracks.some(t=>t?.location!=="local" || !/^\d{1,3}$/.test(String(t.mid||"")) || !["screen","screen-audio"].includes(t.trackName)))
+        return j({ok:false,error:"وصف بث الشاشة غير صالح"},400);
+      let publisherSessionId="";
+      try{
+        const created=await this.realtimeRequest("/sessions/new");
+        const sessionId=String(created.sessionId||"");publisherSessionId=sessionId;
+        if(!sessionId)throw new Error("REALTIME_SESSION_FAILED");
+        const published=await this.realtimeRequest(`/sessions/${encodeURIComponent(sessionId)}/tracks/new`,"POST",{sessionDescription:description,tracks});
+        if(published.sessionDescription?.type!=="answer" || typeof published.sessionDescription?.sdp!=="string")throw new Error("REALTIME_PUBLISH_FAILED");
+        live=await this.ctx.storage.get(key);
+        if(!live || live.liveId!==body.liveId || live.owner!==session.username){
+          await this.realtimeRequest(`/sessions/${encodeURIComponent(sessionId)}/tracks/close`,"PUT",{tracks:tracks.map(t=>({mid:String(t.mid)})),force:true}).catch(()=>{});
+          return j({ok:false,error:"تم إيقاف جلسة البث قبل اكتمال الاتصال"},409);
+        }
+        live.publisherSessionId=sessionId;live.publisherTracks=tracks.map(t=>({mid:String(t.mid),trackName:t.trackName}));
+        live.state="active";live.lastHeartbeat=now;await this.ctx.storage.put(key,live);
+        return j({ok:true,sessionId,sessionDescription:published.sessionDescription,tracks:published.tracks||[]});
+      }catch(error){
+        console.warn("Sports live publish failed",String(error?.message||"unknown").slice(0,60));
+        if(publisherSessionId)await this.realtimeRequest(`/sessions/${encodeURIComponent(publisherSessionId)}/tracks/close`,"PUT",{tracks:[],force:true}).catch(()=>{});
+        const current=await this.ctx.storage.get(key);if(current?.liveId===body.liveId && current.owner===session.username)await this.ctx.storage.delete(key);
+        return j({ok:false,error:error?.message==="REALTIME_NOT_CONFIGURED"?"إعداد بث الرياضة غير مكتمل على الخادم":"تعذر بدء البث المباشر؛ حاول مرة أخرى"},503);
+      }
+    }
+    if(action==="watch"){
+      if(!live || live.state!=="active" || now-Number(live.lastHeartbeat||0)>90000)return j({ok:false,error:"لا يوجد بث مباشر الآن"},404);
+      const requestedLiveId=String(body.liveId||"");
+      if(!requestedLiveId || requestedLiveId!==live.liveId)return j({ok:false,error:"انتهى البث"},409);
+      if(session.username===live.owner)return j({ok:false,error:"أنت صاحب البث"},409);
+      if(Object.keys(live.viewers||{}).length>=200)return j({ok:false,error:"وصل البث للحد الأقصى للمشاهدين"},429);
+      let viewerSessionId="";
+      try{
+        const created=await this.realtimeRequest("/sessions/new");
+        viewerSessionId=String(created.sessionId||"");if(!viewerSessionId)throw new Error("REALTIME_SESSION_FAILED");
+        const subscription=await this.realtimeRequest(`/sessions/${encodeURIComponent(viewerSessionId)}/tracks/new`,"POST",{
+          tracks:live.publisherTracks.map(track=>({location:"remote",sessionId:live.publisherSessionId,trackName:track.trackName}))
+        });
+        if(subscription.sessionDescription?.type!=="offer" || typeof subscription.sessionDescription?.sdp!=="string")throw new Error("REALTIME_SUBSCRIBE_FAILED");
+        const mids=(subscription.tracks||[]).filter(t=>t?.mid!==undefined).map(t=>({mid:String(t.mid)}));
+        live=await this.ctx.storage.get(key);if(!live || live.liveId!==requestedLiveId || live.state!=="active"){
+          await this.realtimeRequest(`/sessions/${encodeURIComponent(viewerSessionId)}/tracks/close`,"PUT",{tracks:mids,force:true}).catch(()=>{});
+          return j({ok:false,error:"انتهى البث"},409);
+        }
+        if(Object.keys(live.viewers||{}).length>=200){
+          await this.realtimeRequest(`/sessions/${encodeURIComponent(viewerSessionId)}/tracks/close`,"PUT",{tracks:mids,force:true}).catch(()=>{});
+          return j({ok:false,error:"وصل البث للحد الأقصى للمشاهدين"},429);
+        }
+        live.viewers=live.viewers||{};live.viewers[viewerSessionId]={username:session.username,mids,createdAt:now};
+        await this.ctx.storage.put(key,live);
+        return j({ok:true,liveId:live.liveId,sessionId:viewerSessionId,sessionDescription:subscription.sessionDescription,
+          tracks:subscription.tracks||[],title:live.title,broadcaster:live.broadcaster});
+      }catch(error){
+        console.warn("Sports live subscribe failed",String(error?.message||"unknown").slice(0,60));
+        if(viewerSessionId)await this.realtimeRequest(`/sessions/${encodeURIComponent(viewerSessionId)}/tracks/close`,"PUT",{tracks:[],force:true}).catch(()=>{});
+        return j({ok:false,error:"تعذر الاتصال بالبث؛ حاول مرة أخرى"},503);
+      }
+    }
+    if(action==="answer"){
+      const viewer=live?.viewers?.[String(body.sessionId||"")];
+      if(!live || live.liveId!==body.liveId || !viewer || viewer.username!==session.username)return j({ok:false,error:"جلسة المشاهدة غير صالحة"},403);
+      const description=body.sessionDescription;
+      if(description?.type!=="answer" || typeof description.sdp!=="string" || description.sdp.length>160000)return j({ok:false,error:"إجابة المشاهدة غير صالحة"},400);
+      try{
+        await this.realtimeRequest(`/sessions/${encodeURIComponent(body.sessionId)}/renegotiate`,"PUT",{sessionDescription:description});
+        return j({ok:true});
+      }catch(error){console.warn("Sports live answer failed",String(error?.message||"unknown").slice(0,60));return j({ok:false,error:"تعذر إكمال اتصال المشاهدة"},502);}
+    }
+    if(action==="heartbeat"){
+      const auth=await this.requireAdmin(token);if(auth.error)return auth.error;
+      if(!live || live.liveId!==body.liveId || live.owner!==session.username || live.state!=="active")return j({ok:false,error:"انتهى البث"},409);
+      live.lastHeartbeat=now;await this.ctx.storage.put(key,live);return j({ok:true});
+    }
+    if(action==="leave"){
+      const id=String(body.sessionId||""),viewer=live?.viewers?.[id];
+      if(!live || live.liveId!==body.liveId || !viewer || viewer.username!==session.username)return j({ok:true});
+      delete live.viewers[id];await this.ctx.storage.put(key,live);
+      if(viewer.mids?.length)await this.realtimeRequest(`/sessions/${encodeURIComponent(id)}/tracks/close`,"PUT",{tracks:viewer.mids,force:true}).catch(()=>{});
+      return j({ok:true});
+    }
+    if(action==="stop"){
+      const auth=await this.requireAdmin(token);if(auth.error)return auth.error;
+      if(!live || live.liveId!==body.liveId || live.owner!==session.username)return j({ok:true});
+      await this.ctx.storage.delete(key);
+      const close=async(id,tracks)=>{if(id && tracks?.length)await this.realtimeRequest(`/sessions/${encodeURIComponent(id)}/tracks/close`,"PUT",{tracks,force:true}).catch(()=>{});};
+      await Promise.all([
+        close(live.publisherSessionId,(live.publisherTracks||[]).map(t=>({mid:t.mid}))),
+        ...Object.entries(live.viewers||{}).map(([id,v])=>close(id,v.mids||[]))
+      ]);
+      return j({ok:true});
+    }
+    return j({ok:false,error:"إجراء البث غير صالح"},400);
+  }
+
   // v1.0.14: calendar date is authoritative; do not trust submitted numeric age.
   birthDateAge(value){
     const raw=String(value||"").trim();
@@ -926,7 +1081,8 @@ export class SignalingRoom extends DurableObject {
           googleAppsEmailSecretConfigured:!!googleEmailSecret,
           activeEmailProvider:googleEmailUrl&&googleEmailSecret?"GoogleAppsScript":resend?"Resend":"none",
           turnKeyIdConfigured:!!turnId,
-          turnKeyApiTokenConfigured:!!turnToken
+          turnKeyApiTokenConfigured:!!turnToken,
+          sportsBroadcastConfigured:this.realtimeConfigured()
         },
         note:"No secret values are exposed by this endpoint."
       });
@@ -997,6 +1153,8 @@ export class SignalingRoom extends DurableObject {
       if(parsed.error)return parsed.error;
       body=parsed.body;
     }
+
+    if(url.pathname==="/api/sports-broadcast")return this.sportsBroadcastApi(request,url,body);
 
     if(url.pathname==="/api/admin/security" && request.method==="GET"){
       const auth=await this.requireAdmin(url.searchParams.get("token"));if(auth.error)return auth.error;
