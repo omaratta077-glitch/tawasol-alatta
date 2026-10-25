@@ -62,6 +62,7 @@ import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.window.DialogWindowProvider
@@ -75,6 +76,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalView
@@ -1218,6 +1220,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
     var youtubePlayRequested by remember { mutableStateOf(false) }
     var youtubeSelectedThumbnail by remember { mutableStateOf("") }
     var miniYoutubeOffset by remember { mutableStateOf(Offset.Zero) }
+    var miniYoutubeViewport by remember { mutableStateOf(IntSize.Zero) }
     val youtubePipMode = (ctx as? MainActivity)?.youtubePipMode == true
     SideEffect {
         (ctx as? MainActivity)?.setYoutubePlaybackActive(
@@ -2388,7 +2391,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
 
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
         MaterialTheme(colorScheme = darkColorScheme(primary = Gold, background = Black, surface = Panel, onSurface = White, onBackground = White)) {
-            Box(Modifier.fillMaxSize().background(Black)) {
+            Box(Modifier.fillMaxSize().background(Black).onSizeChanged { miniYoutubeViewport = it }) {
             Column(if (youtubePipMode) Modifier.size(0.dp) else Modifier.fillMaxSize().background(Black).safeDrawingPadding()) {
                 if (token.isBlank()) {
                     // Scroll only the authentication screen; Android navigation remains unobstructed.
@@ -3820,9 +3823,17 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
             if (token.isNotBlank() && youtubePlayRequested && youtubeId.isNotBlank()) {
                 val expandedYoutube = tab == "يوتيوب" && profilePeer.isBlank()
                 val density = androidx.compose.ui.platform.LocalDensity.current
-                val playerConfiguration = LocalConfiguration.current
-                val maxMiniX = with(density) { (playerConfiguration.screenWidthDp.dp - 256.dp).coerceAtLeast(0.dp).toPx() }
-                val minMiniY = with(density) { -((playerConfiguration.screenHeightDp.dp - 256.dp).coerceAtLeast(0.dp).toPx()) }
+                // Measure the actual app viewport. Configuration.screenWidthDp includes areas
+                // outside this Compose host on some devices, which made the player jump at edges.
+                val viewportWidth = with(density) { miniYoutubeViewport.width.toDp() }
+                val viewportHeight = with(density) { miniYoutubeViewport.height.toDp() }
+                val miniHeight = 28.dp + 240.dp * 9f / 16f
+                val maxMiniX = with(density) { (viewportWidth - 256.dp).coerceAtLeast(0.dp).toPx() }
+                // The player is bottom-anchored with an 86dp nav-bar gap. Keep its top
+                // inside the viewport while preserving that bottom anchor as the origin.
+                val minMiniY = with(density) {
+                    -(viewportHeight - miniHeight - 102.dp).coerceAtLeast(0.dp).toPx()
+                }
                 val hostModifier = if (youtubePipMode) Modifier.align(Alignment.Center).fillMaxSize()
                     else if (expandedYoutube) Modifier.align(Alignment.TopCenter)
                     .fillMaxWidth().windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top+WindowInsetsSides.Horizontal))
@@ -3839,8 +3850,8 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                             verticalAlignment = Alignment.CenterVertically) {
                             Text("يوتيوب", color = GoldLight, fontSize = 10.sp,
                                 modifier = Modifier.weight(1f).clickable { navigate("يوتيوب") })
-                            Text("⠿", color = GoldLight, fontSize = 18.sp, lineHeight = 20.sp,
-                                modifier = Modifier.pointerInput(maxMiniX, minMiniY) {
+                            Box(Modifier.size(width = 42.dp, height = 28.dp)
+                                .pointerInput(maxMiniX, minMiniY) {
                                     detectDragGestures { change, dragAmount ->
                                         change.consume()
                                         miniYoutubeOffset = Offset(
@@ -3848,7 +3859,9 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                             (miniYoutubeOffset.y + dragAmount.y).coerceIn(minMiniY, 0f)
                                         )
                                     }
-                                })
+                                }, contentAlignment = Alignment.Center) {
+                                Text("⠿", color = GoldLight, fontSize = 18.sp, lineHeight = 20.sp)
+                            }
                             IconButton(onClick = { youtubePlayRequested = false; activeYoutubePostId = "" }, modifier = Modifier.size(28.dp)) {
                                 SiteIcon("x", size = 16.dp)
                             }
