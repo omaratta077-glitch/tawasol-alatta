@@ -44,13 +44,19 @@ internal class YacineFailure(val problem: YacineProblem, val stage: YacineStage,
     }
 }
 
-/** Opt-in trial of the APK's catalog/stream routes. No app account or session is sent to the provider. */
+/** Opt-in trial: host and schemes observed in the user's connection log on 2026-10-25.
+ * Paths still come from the APK; live JSON/playback compatibility remains unverified.
+ * No AL-ATTA account or session is sent to the provider.
+ */
 internal class YacineRepository(
-    private val catalogBase: HttpUrl = "https://deft.yacinelive.com/api/".toHttpUrl(),
-    private val playbackBase: HttpUrl = "https://def.yacinelive.com/api/".toHttpUrl(),
+    private val catalogBase: HttpUrl = "https://$PROVIDER_HOST/api/".toHttpUrl(),
+    private val playbackBase: HttpUrl = "http://$PROVIDER_HOST/api/".toHttpUrl(),
     client: OkHttpClient = AttaHttp.apiClient
 ) {
-    companion object { internal const val MAX_RESPONSE_BYTES = 2L * 1024 * 1024 }
+    companion object {
+        private const val PROVIDER_HOST = "def001.ycnapi.com"
+        internal const val MAX_RESPONSE_BYTES = 2L * 1024 * 1024
+    }
     private val client = client.newBuilder().followRedirects(false).followSslRedirects(false)
         .retryOnConnectionFailure(false).callTimeout(12, TimeUnit.SECONDS).build()
 

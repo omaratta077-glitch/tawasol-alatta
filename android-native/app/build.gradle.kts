@@ -24,9 +24,9 @@ android {
         applicationId = "com.alatta.nativeapp"
         minSdk = 26
         targetSdk = 35
-        // v1.0.174: keep provider status and retry reachable in compact Sports layouts.
-        versionCode = 274
-        versionName = "1.0.174"
+        // v1.0.175: use the observed provider host and narrowly scoped player API transport.
+        versionCode = 275
+        versionName = "1.0.175"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("boolean", "IS_APPGALLERY", appGalleryBuild.toString())
         val hmsId = (System.getenv("ALATTA_HMS_APP_ID") ?: "").trim().takeIf { it.matches(Regex("[0-9]{1,20}")) } ?: ""

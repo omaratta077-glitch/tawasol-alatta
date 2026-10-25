@@ -20,7 +20,7 @@
     <uses-permission android:name="android.permission.WAKE_LOCK"/>
     <uses-feature android:name="android.hardware.camera" android:required="false"/>
     <uses-feature android:name="android.hardware.microphone" android:required="false"/>
-    <application android:name=".AttaApplication" android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher_round" android:allowBackup="false" android:label="AL-ATTA" android:theme="@android:style/Theme.Material.NoActionBar" android:usesCleartextTraffic="false" android:supportsRtl="true">
+    <application android:name=".AttaApplication" android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher_round" android:allowBackup="false" android:label="AL-ATTA" android:theme="@android:style/Theme.Material.NoActionBar" android:usesCleartextTraffic="false" android:networkSecurityConfig="@xml/atta_network_security" android:supportsRtl="true">
         <meta-data android:name="com.google.firebase.messaging.default_notification_icon" android:resource="@drawable/atta_notification_icon"/>
         <meta-data android:name="com.google.firebase.messaging.default_notification_color" android:resource="@color/atta_notification_gold"/>
         <meta-data android:name="com.google.firebase.messaging.default_notification_channel_id" android:value="alatta_incoming_call_v2"/>
