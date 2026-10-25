@@ -236,8 +236,10 @@ internal fun NativeCallScreen(
     val bluetoothPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { granted -> if (granted) engine.refreshAudioRoute() }
-    LaunchedEffect(engine, bluetoothConnected) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && bluetoothConnected &&
+    // Bluetooth device enumeration can be empty before BLUETOOTH_CONNECT is granted.
+    // Ask once when entering a native call, then re-evaluate routing on grant.
+    LaunchedEffect(engine) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
             ContextCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_CONNECT) !=
             PackageManager.PERMISSION_GRANTED) {
             bluetoothPermissionLauncher.launch(Manifest.permission.BLUETOOTH_CONNECT)
