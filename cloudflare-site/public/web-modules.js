@@ -117,8 +117,13 @@ function renderFootball(){
  const channels=(football.channels||[]).filter(c=>c.enabled);
  $('footballResults').innerHTML='<h3>المباريات</h3>'+ (matches.map(m=>`<article class="native-card"><h3>${esc(m.home)} — ${esc(m.away)}</h3><p>${esc(m.league)} • ${esc(new Date(m.startsAt).toLocaleString('ar'))}</p><p>${esc(m.homeScore??'–')} : ${esc(m.awayScore??'–')} • ${esc({live:'مباشر',finished:'انتهت',scheduled:'لم تبدأ',postponed:'مؤجلة',cancelled:'ملغاة'}[m.status]||m.status)}</p>${m.channelId&&channels.some(c=>c.id===m.channelId)?`<button class="native-button" data-football-channel="${esc(m.channelId)}">عرض القناة</button>`:''}</article>`).join('')||'<div class="native-card">لا توجد مباريات في هذا الموعد.</div>')+'<h3>القنوات</h3>'+channels.map(c=>`<article class="native-card"><h3>${esc(c.name)}</h3><p class="native-muted">${esc(c.provider)} • ${esc(c.category)}</p><button class="native-button" data-football-channel="${esc(c.id)}">فتح البث</button></article>`).join('')+'<div id="footballPlayer"></div>';
  $('footballResults').querySelectorAll('[data-football-channel]').forEach(b=>b.onclick=()=>{
-  const channel=channels.find(c=>c.id===b.dataset.footballChannel),url=safeUrl(channel?.streamUrl);if(!url)return;
+  const channel=channels.find(c=>c.id===b.dataset.footballChannel);if(!channel)return;
   const host=$('footballPlayer');host.replaceChildren();const title=document.createElement('h3');title.textContent=channel.name;host.append(title);
+  if(channel.format==='ytv'){
+   const note=document.createElement('p');note.textContent='افتح هذه القناة من تطبيق العطا على أندرويد مع تثبيت YTV PRO. التشغيل يتم في مشغّل YTV PRO.';host.append(note);
+   const app=document.createElement('a');app.href='https://play.google.com/store/apps/details?id=com.ytv.pronew';app.target='_blank';app.rel='noopener noreferrer';app.className='native-button';app.textContent='صفحة YTV PRO';host.append(app);host.scrollIntoView({block:'center',behavior:'smooth'});return;
+  }
+  const url=safeUrl(channel.streamUrl);if(!url)return;
   // Use the existing official YouTube section, never a second YouTube player.
   if(channel.format==='youtube'){bridge.navigate('youtubePage');$('attaYouTubeBtn').click();const field=document.querySelector('.atta-youtube-form input');if(field){field.value=url;field.dispatchEvent(new Event('input',{bubbles:true}));}return;}
   if(channel.format==='hls'){const video=document.createElement('video');video.controls=true;video.playsInline=true;video.preload='none';video.src=url;video.style.width='100%';host.append(video);}

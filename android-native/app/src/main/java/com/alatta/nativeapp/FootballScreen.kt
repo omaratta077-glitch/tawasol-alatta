@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.rememberScrollState
@@ -54,11 +55,13 @@ internal fun FootballScreen(query: String, modifier: Modifier = Modifier,
     var category by rememberSaveable { mutableStateOf("") }
     var day by rememberSaveable { mutableIntStateOf(0) }
     var reload by remember { mutableIntStateOf(0) }
-    var yacineRefresh by remember { mutableIntStateOf(0) }
     var loading by remember { mutableStateOf(true) }
     var loaded by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf("") }
     var selected by remember { mutableStateOf<FootballChannel?>(null) }
+    var ytvFailure by remember { mutableStateOf<YtvPlayer.Failure?>(null) }
+
+    LaunchedEffect(Unit) { if (tab == "ياسين") tab = "YTV PRO" }
 
     LaunchedEffect(reload) {
         loading = true; error = ""
@@ -70,7 +73,7 @@ internal fun FootballScreen(query: String, modifier: Modifier = Modifier,
             // Keep the official publisher shortcut accessible if schedules API is offline.
             catalog = FootballRepository.withOfficialChannels(FootballCatalog())
             loaded = true
-            error = "تعذر تحديث جدول المباريات. قناة أون سبورت الرسمية متاحة من تبويب القنوات."
+            error = "تعذر تحديث قائمة القنوات وجدول المباريات. أعد المحاولة."
         }
         finally { loading = false }
     }
@@ -83,6 +86,11 @@ internal fun FootballScreen(query: String, modifier: Modifier = Modifier,
             when (channel.format) {
                 "youtube" -> onYoutube(requireNotNull(footballYoutubeId(channel.streamUrl)))
                 "external" -> context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(channel.streamUrl)))
+                "ytv" -> {
+                    if (callInProgress) { error = "أنهِ المكالمة أولًا لفتح YTV PRO."; return }
+                    val failure = YtvPlayer.open(context, channel.streamUrl, onBeforePlayback)
+                    if (failure != null) { ytvFailure = failure; return }
+                }
                 else -> { onBeforePlayback(); selected = channel }
             }
             recent = footballRecent(recent, channel.id)
@@ -97,29 +105,26 @@ internal fun FootballScreen(query: String, modifier: Modifier = Modifier,
     val categories = catalog.channels.map { it.category }.distinct().sorted()
     LaunchedEffect(categories, loaded) { if (loaded && category.isNotBlank() && category !in categories) category = "" }
     val channels = catalog.channels.filter { c -> terms.all { normalizeHadithSearch("${c.name} ${c.category} ${c.provider}").contains(it) } }
-        .filter { c -> when (tab) { "المفضلة" -> c.id in favorites; "آخر مشاهدة" -> c.id in recent; else -> category.isBlank() || c.category == category } }
+        .filter { c -> when (tab) { "YTV PRO" -> c.format == "ytv"; "المفضلة" -> c.id in favorites; "آخر مشاهدة" -> c.id in recent; else -> category.isBlank() || c.category == category } }
         .sortedWith(if (tab == "آخر مشاهدة") compareBy<FootballChannel> { recent.indexOf(it.id) } else compareBy<FootballChannel> { it.category }.thenBy { it.name })
 
     Column(modifier.fillMaxSize().background(PremiumBackground).padding(horizontal = 10.dp)) {
         SportsLivePanel(token = token, isAdmin = isAdmin)
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Row(Modifier.weight(1f).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                listOf("المباريات", "القنوات", "ياسين", "المفضلة", "آخر مشاهدة").forEach { name ->
+                listOf("المباريات", "القنوات", "YTV PRO", "المفضلة", "آخر مشاهدة").forEach { name ->
                     FilterChip(selected = tab == name, onClick = { tab = name }, label = { Text(name, fontSize = 12.sp) })
                 }
             }
-            IconButton(modifier = Modifier.semantics { contentDescription = "تحديث القسم الحالي" }, enabled = tab == "ياسين" || !loading,
-                onClick = { if (tab == "ياسين") yacineRefresh++ else reload++ }) { SiteIcon("refresh-cw", tint = PremiumGoldLight, size = 20.dp) }
+            IconButton(modifier = Modifier.semantics { contentDescription = "تحديث القسم الحالي" }, enabled = !loading, onClick = { reload++ }) { SiteIcon("refresh-cw", tint = PremiumGoldLight, size = 20.dp) }
         }
-        if (isAdmin && tab != "ياسين") TextButton(onClick = onManage) { Text("إدارة القنوات وجدول المباريات", color = PremiumGoldLight, fontSize = 12.sp) }
-        if (loading && tab != "ياسين") LinearProgressIndicator(Modifier.fillMaxWidth(), color = PremiumGold)
-        if (error.isNotBlank() && tab != "ياسين") Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        if (isAdmin) TextButton(onClick = onManage) { Text("إدارة القنوات وجدول المباريات", color = PremiumGoldLight, fontSize = 12.sp) }
+        if (loading) LinearProgressIndicator(Modifier.fillMaxWidth(), color = PremiumGold)
+        if (error.isNotBlank()) Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text(error, color = Color(0xFFFFB4A9), fontSize = 12.sp, modifier = Modifier.weight(1f))
             TextButton(enabled = !loading, onClick = { reload++ }) { Text("إعادة المحاولة", color = PremiumGoldLight) }
         }
-        if (tab == "ياسين") {
-            YacineProviderPanel(query, Modifier.weight(1f), callInProgress = callInProgress, refreshRequest = yacineRefresh, onBeforePlayback = onBeforePlayback)
-        } else if (tab == "المباريات") {
+        if (tab == "المباريات") {
             Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf("اليوم", "غدًا", "كل المواعيد").forEachIndexed { index, label -> FilterChip(selected = day == index,
                     onClick = { day = index }, label = { Text(label, fontSize = 12.sp) }) }
@@ -148,7 +153,7 @@ internal fun FootballScreen(query: String, modifier: Modifier = Modifier,
                         }
                         if (day == 2) Text(footballDate(match.startsAt).toString(), color = PremiumMuted, fontSize = 12.sp)
                         Text(channel?.let { "القناة الناقلة: ${it.name} • ${it.provider}" } ?: "لم تُضف قناة ناقلة لهذه المباراة", color = PremiumMuted, fontSize = 12.sp)
-                        if (channel != null) OutlinedButton(onClick = { play(channel) }, modifier = Modifier.fillMaxWidth()) { Text("مشاهدة القناة", color = PremiumGoldLight) }
+                        if (channel != null) OutlinedButton(onClick = { play(channel) }, enabled = channel.format != "ytv" || !callInProgress, modifier = Modifier.fillMaxWidth()) { Text(if (channel.format == "ytv") "فتح القناة في YTV PRO" else "مشاهدة القناة", color = PremiumGoldLight) }
                     }
                 }
             }
@@ -156,14 +161,20 @@ internal fun FootballScreen(query: String, modifier: Modifier = Modifier,
             if (tab == "القنوات") Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 (listOf("") + categories).forEach { value -> FilterChip(selected = category == value, onClick = { category = value }, label = { Text(value.ifBlank { "كل الأقسام" }, fontSize = 12.sp) }) }
             }
-            if (loaded && channels.isEmpty()) FootballPanel(Modifier.padding(vertical = 12.dp)) {
-                Text(when (tab) { "المفضلة" -> "لم تحفظ قناة في المفضلة بعد"; "آخر مشاهدة" -> "ستظهر هنا القنوات التي تفتحها"; else -> "لا توجد قنوات متاحة في هذا القسم" }, color = PremiumGoldLight)
-                Text("تظهر القنوات بعد إضافتها من الإدارة. ابحث من الشريط العلوي أو اختر قسمًا آخر.", color = PremiumMuted, fontSize = 12.sp)
-            }
             LazyVerticalGrid(columns = GridCells.Adaptive(145.dp), modifier = Modifier.weight(1f), contentPadding = PaddingValues(vertical = 10.dp),
                 horizontalArrangement = Arrangement.spacedBy(9.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                if (tab == "YTV PRO") item(key = "ytv-info", span = { GridItemSpan(maxLineSpan) }) { FootballPanel {
+                    Text("قنوات YTV PRO", color = PremiumGoldLight, fontWeight = FontWeight.Bold)
+                    Text("اختَر القناة لفتحها في مشغّل YTV PRO المثبّت على جهازك. يضيف المدير القنوات بأرقامها الحقيقية مرة واحدة لتظهر للجميع.", color = PremiumMuted, fontSize = 12.sp)
+                    if (callInProgress) Text("أنهِ المكالمة أولًا لفتح المشغّل.", color = PremiumGoldLight, fontSize = 12.sp)
+                } }
+                if (loaded && channels.isEmpty()) item(key = "empty", span = { GridItemSpan(maxLineSpan) }) { FootballPanel {
+                    Text(when (tab) { "المفضلة" -> "لم تحفظ قناة في المفضلة بعد"; "آخر مشاهدة" -> "ستظهر هنا القنوات التي تفتحها"; "YTV PRO" -> if (query.isBlank()) "لم تُضف قنوات YTV PRO بعد" else "لا توجد قنوات YTV PRO مطابقة للبحث"; else -> "لا توجد قنوات متاحة في هذا القسم" }, color = PremiumGoldLight)
+                    Text(if (tab == "YTV PRO" && isAdmin) "افتح إدارة القنوات، وأضف قناة واختر YTV PRO وأدخل رقمها لدى المشغّل."
+                        else "تظهر القنوات بعد إضافتها من الإدارة. ابحث من الشريط العلوي أو اختر قسمًا آخر.", color = PremiumMuted, fontSize = 12.sp)
+                } }
                 items(channels, key = { it.id }) { channel ->
-                    FootballPanel(Modifier.clickable { play(channel) }) {
+                    FootballPanel(Modifier.clickable(enabled = channel.format != "ytv" || !callInProgress) { play(channel) }) {
                         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                             SiteIcon("play", size = 28.dp, tint = PremiumGoldLight, modifier = Modifier.weight(1f))
                             IconButton(onClick = { favorite(channel.id) }, modifier = Modifier.size(36.dp)) {
@@ -174,6 +185,7 @@ internal fun FootballScreen(query: String, modifier: Modifier = Modifier,
                         Text(channel.category, color = PremiumMuted, fontSize = 12.sp)
                         Text(channel.provider, color = Color.White, fontSize = 12.sp)
                         Text(when {
+                            channel.format == "ytv" -> "فتح القناة في YTV PRO"
                             channel.id.startsWith("official-bein-") -> "فتح beIN CONNECT • اختر القناة باشتراكك"
                             channel.id == FootballRepository.onSportOfficial.id -> "فتح صفحة البث الرسمية على يوتيوب إن توفرت"
                             channel.id.startsWith("official-") -> "مشاهدة القناة عبر موقع الناشر الرسمي"
@@ -188,6 +200,7 @@ internal fun FootballScreen(query: String, modifier: Modifier = Modifier,
             }
         }
     }
+    ytvFailure?.let { YtvPlayerErrorDialog(it, onDismiss = { ytvFailure = null }) }
     selected?.let { channel ->
         val posts = remember(channel) { listOf(JSONObject().put("id", channel.id).put("video", channel.streamUrl)) }
         AttaPostMediaViewer(posts, channel.id, "video", onDismiss = { selected = null },

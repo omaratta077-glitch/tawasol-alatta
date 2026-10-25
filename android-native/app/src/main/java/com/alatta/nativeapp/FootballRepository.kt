@@ -96,12 +96,14 @@ internal object FootballRepository {
         val array = json.optJSONArray(name) ?: return emptyList()
         return (0 until array.length()).mapNotNull(array::optJSONObject)
     }
-    private fun parse(json: JSONObject): FootballCatalog {
+    internal fun parse(json: JSONObject): FootballCatalog {
         val channels = records(json, "channels").mapNotNull { c ->
             val format = c.optString("format")
-            val stream = footballSafeUrl(c.optString("streamUrl")) ?: return@mapNotNull null
+            val stream = if (format == "ytv") (c.opt("streamUrl") as? String)?.let(YtvPlayer::channelId)
+                else footballSafeUrl(c.optString("streamUrl"))
+            if (stream == null) return@mapNotNull null
             val source = footballSafeUrl(c.optString("sourceUrl")) ?: return@mapNotNull null
-            if (format !in setOf("hls", "dash", "youtube", "external") || (format == "youtube" && footballYoutubeId(stream) == null)) return@mapNotNull null
+            if (format !in setOf("hls", "dash", "youtube", "external", "ytv") || (format == "youtube" && footballYoutubeId(stream) == null)) return@mapNotNull null
             FootballChannel(c.getString("id"), c.getString("name"), c.getString("category"), c.getString("provider"), source, stream, format, c.optBoolean("enabled", true))
         }
         val matches = records(json, "matches").map { m -> FootballMatch(m.getString("id"), m.getString("home"), m.getString("away"), m.getString("league"),

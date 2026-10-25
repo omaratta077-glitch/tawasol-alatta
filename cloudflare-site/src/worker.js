@@ -49,6 +49,13 @@ const encoder = new TextEncoder();
 
 // Football is an owner-managed catalog. Streams are played directly by the client,
 // without proxying another service or obtaining its credentials.
+const FOOTBALL_FORMATS=["hls","dash","youtube","external","ytv"];
+function footballYtvId(value){
+  if(typeof value!=="string")return "";
+  const raw=value.trim().replace(/[٠-٩۰-۹]/g,c=>String(c.charCodeAt(0)>0x6ef?c.charCodeAt(0)-0x6f0:c.charCodeAt(0)-0x660));
+  if(!/^\d{1,19}$/.test(raw))return "";
+  const id=BigInt(raw);return id>0n&&id<=9223372036854775807n?id.toString():"";
+}
 function footballHttps(value){
   const raw=typeof value==="string"?value.trim():"";
   if(!raw || raw.length>2048 || /[\s\u0000-\u001f\u007f]/.test(raw))return "";
@@ -77,8 +84,8 @@ function footballChange(current,body){
     const id=channel.id||"",index=next.channels.findIndex(c=>c.id===id);
     if(id && index<0)return {status:404,error:"القناة غير موجودة؛ حدّث القائمة"};
     const name=footballText(channel.name,80),category=footballText(channel.category,60),provider=footballText(channel.provider,120);
-    const sourceUrl=footballHttps(channel.sourceUrl),streamUrl=footballHttps(channel.streamUrl),format=channel.format;
-    if(!name||!category||!provider||!sourceUrl||!streamUrl||!["hls","dash","youtube","external"].includes(format)||typeof channel.enabled!=="boolean" || (format==="youtube"&&!footballYoutube(streamUrl)))return {status:400,error:"أدخل اسم القناة والقسم والناشر وروابط HTTPS صحيحة واختر نوع المشغل"};
+    const format=channel.format,sourceUrl=footballHttps(channel.sourceUrl),streamUrl=format==="ytv"?footballYtvId(channel.streamUrl):footballHttps(channel.streamUrl);
+    if(!name||!category||!provider||!sourceUrl||!streamUrl||!FOOTBALL_FORMATS.includes(format)||typeof channel.enabled!=="boolean" || (format==="youtube"&&!footballYoutube(streamUrl)))return {status:400,error:"راجع اسم القناة والقسم والمصدر ونوع المشغل. قنوات YTV PRO تحتاج رقم قناة صحيحًا؛ المصادر الأخرى تحتاج رابط HTTPS صحيحًا"};
     if(next.channels.some(c=>c.id!==id && c.streamUrl===streamUrl))return {status:409,error:"رابط القناة مضاف بالفعل؛ عدّل القناة الموجودة بدل تكرارها"};
     if(index<0 && next.channels.length>=40)return {status:409,error:"الحد الأقصى 40 قناة؛ أزل قناة قديمة أولًا"};
     const item={id:id||"fc-"+crypto.randomUUID(),name,category,provider,sourceUrl,streamUrl,format,enabled:channel.enabled};
@@ -556,14 +563,14 @@ export class SignalingRoom extends DurableObject {
       const catalog=await this.ctx.storage.get("football:catalog")||empty();
       const channels=admin?catalog.channels:catalog.channels.filter(c=>c.enabled);
       const matches=admin?catalog.matches:catalog.matches.map(m=>channels.some(c=>c.id===m.channelId)?m:{...m,channelId:""});
-      const response=j({ok:true,...catalog,channels,matches});response.headers.set("cache-control","no-store");return response;
+      const response=j({ok:true,...catalog,channels,matches,playbackTypes:FOOTBALL_FORMATS});response.headers.set("cache-control","no-store");return response;
     }
     const result=await this.ctx.storage.transaction(async storage=>{
       const current=await storage.get("football:catalog")||empty(),changed=footballChange(current,body);
       if(changed.catalog)await storage.put("football:catalog",changed.catalog);
       return changed;
     });
-    return result.catalog?j({ok:true,...result.catalog}):j({ok:false,error:result.error},result.status);
+    return result.catalog?j({ok:true,...result.catalog,playbackTypes:FOOTBALL_FORMATS}):j({ok:false,error:result.error},result.status);
   }
 
   realtimeConfigured(){
