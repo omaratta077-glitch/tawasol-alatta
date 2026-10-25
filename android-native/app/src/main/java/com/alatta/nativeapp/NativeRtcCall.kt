@@ -357,34 +357,13 @@ internal class NativeRtcCall(
     }
 
     private suspend fun loadIceServers(): List<PeerConnection.IceServer> {
-        val fallback = listOf(
-            PeerConnection.IceServer.builder("stun:stun.cloudflare.com:3478").createIceServer(),
-            PeerConnection.IceServer.builder("stun:stun.l.google.com:19302").createIceServer()
-        )
         return try {
-            val d = turnCredentials(token)
-            val servers = d.optJSONArray("iceServers") ?: return fallback
-            val result = ArrayList<PeerConnection.IceServer>()
-            for (i in 0 until servers.length()) {
-                val item = servers.optJSONObject(i) ?: continue
-                val urlsField = item.opt("urls")
-                val urls = when (urlsField) {
-                    is String -> listOf(urlsField)
-                    is JSONArray -> (0 until urlsField.length()).mapNotNull { urlsField.optString(it).takeIf(String::isNotBlank) }
-                    else -> emptyList()
-                }
-                if (urls.isEmpty()) continue
-                result += PeerConnection.IceServer.builder(urls)
-                    .setUsername(item.optString("username"))
-                    .setPassword(item.optString("credential"))
-                    .createIceServer()
-            }
-            result.ifEmpty { fallback }
+            parseRtcIceServers(turnCredentials(token))
         } catch (cancelled: CancellationException) { throw cancelled }
         catch (_: Exception) {
             // Direct STUN fallback preserves audio/video on open networks.
             report("TURN غير متاح — جارٍ تجربة STUN")
-            fallback
+            fallbackRtcIceServers()
         }
     }
 
