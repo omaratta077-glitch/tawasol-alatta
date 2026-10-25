@@ -21,6 +21,7 @@
         <meta-data android:name="com.google.firebase.messaging.default_notification_icon" android:resource="@drawable/atta_notification_icon"/>
         <meta-data android:name="com.google.firebase.messaging.default_notification_color" android:resource="@color/atta_notification_gold"/>
         <meta-data android:name="com.google.firebase.messaging.default_notification_channel_id" android:value="alatta_incoming_call_v2"/>
+        <meta-data android:name="firebase_messaging_notification_delegation_enabled" android:value="false"/>
         <meta-data android:name="firebase_messaging_auto_init_enabled" android:value="false"/>
         <meta-data android:name="firebase_analytics_collection_enabled" android:value="false"/>
         <meta-data android:name="push_kit_auto_init_enabled" android:value="false"/>
