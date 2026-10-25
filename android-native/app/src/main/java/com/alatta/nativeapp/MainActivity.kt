@@ -37,6 +37,7 @@ import androidx.lifecycle.repeatOnLifecycle
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.*
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -51,6 +52,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.AbsoluteAlignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.window.Dialog
@@ -68,6 +71,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
@@ -94,6 +98,7 @@ import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
+import kotlin.math.roundToInt
 
                         @Composable
 private fun AttaCommentEntry(entry: JSONObject, nested: Boolean,
@@ -1109,6 +1114,9 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
     var youtubePostDraftId by remember { mutableStateOf("") }
     var youtubePostDraftTitle by remember { mutableStateOf("") }
     var activeYoutubePostId by remember { mutableStateOf("") }
+    // Only the already-existing YouTube WebView moves; never create a second player.
+    var miniYoutubeOffsetX by remember { mutableFloatStateOf(0f) }
+    var miniYoutubeOffsetY by remember { mutableFloatStateOf(0f) }
     // Reload Home without launching scrolling work from an off-screen navigation item.
     var homeRefreshRequest by remember { mutableIntStateOf(0) }
     // Scroll requests are handled only while Home's LazyColumn is composed.
@@ -3769,18 +3777,34 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
             // Only its bounds change between the YouTube page and a visible mini-player.
             if (token.isNotBlank() && youtubePlayRequested && youtubeId.isNotBlank()) {
                 val expandedYoutube = tab == "يوتيوب" && profilePeer.isBlank()
+                val windowConfig = LocalConfiguration.current
+                val density = LocalDensity.current
+                val maxMiniX = with(density) { (windowConfig.screenWidthDp.dp - 256.dp).toPx().coerceAtLeast(0f) }
+                val maxMiniUp = with(density) { (windowConfig.screenHeightDp.dp - 260.dp).toPx().coerceAtLeast(0f) }
                 val hostModifier = if (expandedYoutube) Modifier.align(Alignment.TopCenter)
                     .fillMaxWidth().windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top+WindowInsetsSides.Horizontal))
                     .padding(top = if (compactYoutubeLayout) 0.dp else 47.dp, start = 8.dp, end = 8.dp)
                 else Modifier.align(AbsoluteAlignment.BottomLeft)
                     .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom+WindowInsetsSides.Horizontal))
                     .absolutePadding(left = 8.dp, bottom = 86.dp).width(240.dp)
+                    .offset { IntOffset(miniYoutubeOffsetX.roundToInt(), miniYoutubeOffsetY.roundToInt()) }
                 Column(hostModifier.clip(RoundedCornerShape(10.dp)).background(Black)
                     .border(.7.dp,Border,RoundedCornerShape(10.dp))) {
-                    Row(Modifier.fillMaxWidth().height(28.dp).padding(horizontal = 5.dp),
+                    Row(Modifier.fillMaxWidth().height(if (expandedYoutube) 28.dp else 36.dp)
+                        .padding(horizontal = 5.dp),
                         verticalAlignment = Alignment.CenterVertically) {
-                        Text("يوتيوب", color = GoldLight, fontSize = 10.sp,
-                            modifier = Modifier.weight(1f).clickable { navigate("يوتيوب") })
+                        Text(if (expandedYoutube) "يوتيوب" else "⠿ اسحب لتحريك الفيديو", color = GoldLight,
+                            fontSize = if (expandedYoutube) 10.sp else 12.sp,
+                            modifier = Modifier.weight(1f).then(
+                                if (expandedYoutube) Modifier.clickable { navigate("يوتيوب") }
+                                else Modifier.pointerInput(maxMiniX, maxMiniUp) {
+                                    detectDragGestures { change, drag ->
+                                        change.consume()
+                                        miniYoutubeOffsetX = (miniYoutubeOffsetX + drag.x).coerceIn(0f, maxMiniX)
+                                        miniYoutubeOffsetY = (miniYoutubeOffsetY + drag.y).coerceIn(-maxMiniUp, 0f)
+                                    }
+                                }
+                            ))
                         IconButton(onClick = { youtubePlayRequested = false }, modifier = Modifier.size(28.dp)) {
                             SiteIcon("x", size = 16.dp)
                         }
