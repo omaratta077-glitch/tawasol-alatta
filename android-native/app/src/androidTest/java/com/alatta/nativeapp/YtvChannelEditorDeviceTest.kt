@@ -47,14 +47,21 @@ class YtvChannelEditorDeviceTest {
         }
     }
 
-    @Test fun invalidIdKeepsTheFormOpenAndDoesNotSendAnAdminWrite() {
+    @Test fun invalidIdIsNotSavedAndCanBeCorrectedWithoutLosingTheForm() {
         val saved = AtomicReference<JSONObject>()
         compose.setContent { Editor { saved.set(it) } }
         compose.onNodeWithText("YTV PRO").performScrollTo().performClick()
+        compose.onNodeWithText("اسم القناة").performScrollTo().performTextInput("قناة التصحيح")
         compose.onNodeWithText("رقم القناة لدى YTV PRO").performScrollTo().performTextInput("12345678901234567890")
         compose.onNodeWithText("حفظ").performClick()
         compose.onNodeWithText("أدخل رقم قناة صحيحًا لدى YTV PRO").performScrollTo().assertIsDisplayed()
         compose.runOnIdle { assertNull(saved.get()) }
-        compose.onNodeWithText("إضافة قناة").assertIsDisplayed()
+        compose.onNodeWithText("رقم القناة لدى YTV PRO").performScrollTo().performTextReplacement("41")
+        compose.onNodeWithText("حفظ").performClick()
+        compose.runOnIdle {
+            val channel = requireNotNull(saved.get())
+            assertEquals("41", channel.getString("streamUrl"))
+            assertEquals("قناة التصحيح", channel.getString("name"))
+        }
     }
 }
