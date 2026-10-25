@@ -9,6 +9,8 @@ import android.view.ViewGroup
 import android.view.View
 import android.graphics.Color as AndroidColor
 import android.app.Activity
+import android.app.PictureInPictureParams
+import android.content.res.Configuration
 import android.net.Uri
 import android.Manifest
 import android.content.pm.PackageManager
@@ -24,6 +26,8 @@ import kotlinx.coroutines.isActive
 import java.util.UUID
 import java.util.concurrent.TimeUnit
 import android.os.Bundle
+import android.os.Build
+import android.util.Rational
 import android.util.Base64
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -44,6 +48,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import kotlinx.coroutines.flow.collect
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RectangleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
@@ -53,6 +58,9 @@ import androidx.compose.ui.AbsoluteAlignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.window.DialogWindowProvider
@@ -94,6 +102,7 @@ import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
+import kotlin.math.roundToInt
 
                         @Composable
 private fun AttaCommentEntry(entry: JSONObject, nested: Boolean,
@@ -541,6 +550,36 @@ class MainActivity : ComponentActivity() {
     internal var requestedNotificationEvent by mutableStateOf<String?>(null)
     internal var requestedNotificationTab by mutableStateOf<String?>(null)
         private set
+    internal var youtubePipMode by mutableStateOf(false)
+        private set
+    private var youtubePlaybackActive = false
+
+    internal fun setYoutubePlaybackActive(active: Boolean) {
+        youtubePlaybackActive = active
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val params = PictureInPictureParams.Builder()
+                .setAspectRatio(Rational(16, 9))
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                params.setAutoEnterEnabled(active)
+            }
+            setPictureInPictureParams(params.build())
+        }
+    }
+
+    @Suppress("DEPRECATION")
+    override fun onUserLeaveHint() {
+        super.onUserLeaveHint()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && youtubePlaybackActive && !isInPictureInPictureMode) {
+            enterPictureInPictureMode(
+                PictureInPictureParams.Builder().setAspectRatio(Rational(16, 9)).build()
+            )
+        }
+    }
+
+    override fun onPictureInPictureModeChanged(isInPictureInPictureMode: Boolean, newConfig: Configuration) {
+        super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
+        youtubePipMode = isInPictureInPictureMode
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -879,8 +918,10 @@ private class AttaYoutubeFullscreenChrome(
         val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
             when (event) {
                 androidx.lifecycle.Lifecycle.Event.ON_STOP -> {
-                    webView.evaluateJavascript("document.querySelectorAll('iframe').forEach(function(f){f.contentWindow.postMessage(JSON.stringify({event:'command',func:'pauseVideo',args:[]}), 'https://www.youtube-nocookie.com');f.contentWindow.postMessage(JSON.stringify({event:'command',func:'pauseVideo',args:[]}), 'https://www.youtube.com')})", null)
-                    webView.onPause()
+                    if ((ctx as? MainActivity)?.isInPictureInPictureMode != true) {
+                        webView.evaluateJavascript("document.querySelectorAll('iframe').forEach(function(f){f.contentWindow.postMessage(JSON.stringify({event:'command',func:'pauseVideo',args:[]}), 'https://www.youtube-nocookie.com');f.contentWindow.postMessage(JSON.stringify({event:'command',func:'pauseVideo',args:[]}), 'https://www.youtube.com')})", null)
+                        webView.onPause()
+                    }
                 }
                 androidx.lifecycle.Lifecycle.Event.ON_START -> webView.onResume()
                 else -> Unit
@@ -917,12 +958,14 @@ private class AttaYoutubeFullscreenChrome(
 @Composable
 private fun YoutubePostMedia(videoId: String, playing: Boolean, onPlay: () -> Unit, onStop: () -> Unit) {
     if (playing) {
-        Column(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
+        Column(Modifier.fillMaxWidth().padding(vertical = 6.dp)
+            .clip(RoundedCornerShape(12.dp)).background(Color(0xFF101416))
+            .border(.7.dp, Border.copy(alpha = .7f), RoundedCornerShape(12.dp))
+            .padding(horizontal = 12.dp, vertical = 9.dp)) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text("فيديو يوتيوب", color = GoldLight, fontSize = 12.sp, modifier = Modifier.weight(1f))
-                // Playback stays inline; exiting the feed disposes the player.
+                Text("الفيديو يعمل في المشغّل المصغّر", color = GoldLight, fontSize = 12.sp, modifier = Modifier.weight(1f))
+                TextButton(onClick = onStop) { Text("إيقاف", color = Muted, fontSize = 12.sp) }
             }
-            YouTubePlayer(videoId)
         }
     } else {
         Box(Modifier.fillMaxWidth().aspectRatio(16f / 9f).padding(vertical = 6.dp)
@@ -1170,15 +1213,20 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
     // created ONLY when the user explicitly presses Play in the top preview.
     var youtubePlayRequested by remember { mutableStateOf(false) }
     var youtubeSelectedThumbnail by remember { mutableStateOf("") }
+    var miniYoutubeOffset by remember { mutableStateOf(Offset.Zero) }
+    val youtubePipMode = (ctx as? MainActivity)?.youtubePipMode == true
+    SideEffect {
+        (ctx as? MainActivity)?.setYoutubePlaybackActive(
+            token.isNotBlank() && youtubePlayRequested && youtubeId.isNotBlank()
+        )
+    }
     var youtubeCategory by remember { mutableStateOf("قرآن") }
     val compactYoutubeLayout = LocalConfiguration.current.screenHeightDp < 480
     val youtubeDisplayHeight = if (compactYoutubeLayout) 200.dp else
         (((LocalConfiguration.current.screenWidthDp-16).dp)*9f/16f).coerceAtLeast(200.dp)
-    // One visible player survives navigation; closing it or logging out releases it.
-    // One window-awake policy for the existing YouTube player and video calls.
-    // Both endpoints keep their displays awake while their video call is active,
-    // including when the in-app call banner is minimized. Release on call end.
-    val keepScreenAwake = (token.isNotBlank() && youtubePlayRequested) || activeCall?.type == "video"
+    // One visible YouTube player survives navigation; PiP keeps the official
+    // embedded player visible when the user leaves the app. Calls keep the screen awake.
+    val keepScreenAwake = activeCall?.type == "video"
     DisposableEffect(keepScreenAwake) {
         val window = (ctx as? ComponentActivity)?.window
         if (keepScreenAwake) window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -1899,7 +1947,6 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                 return
             }
         }
-        if (destination != "الرئيسية") activeYoutubePostId = ""
         if (destination == "القائمة" && tab != "القائمة") {
             // Display owner/moderator controls only after /api/me verifies this session.
             adminRole = ""
@@ -2339,7 +2386,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
         MaterialTheme(colorScheme = darkColorScheme(primary = Gold, background = Black, surface = Panel, onSurface = White, onBackground = White)) {
             Box(Modifier.fillMaxSize().background(Black)) {
-            Column(Modifier.fillMaxSize().background(Black).safeDrawingPadding()) {
+            Column(if (youtubePipMode) Modifier.size(0.dp) else Modifier.fillMaxSize().background(Black).safeDrawingPadding()) {
                 if (token.isBlank()) {
                     // Scroll only the authentication screen; Android navigation remains unobstructed.
                     Column(
@@ -2860,8 +2907,8 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                     }
                                     youtubePostId(p.optString("text"))?.let { videoId ->
                                         YoutubePostMedia(videoId, activeYoutubePostId == postId,
-                                            onPlay = { youtubePlayRequested = false; activeYoutubePostId = postId },
-                                            onStop = { activeYoutubePostId = "" })
+                                            onPlay = { youtubeId = videoId; youtubePlayRequested = true; activeYoutubePostId = postId },
+                                            onStop = { activeYoutubePostId = ""; youtubePlayRequested = false })
                                     }
                                     val image = media(p.optString("image")); val video = media(p.optString("video"))
                                     val mushafPages = parseMushafPostAttachment(p.optString("text"), BASE)?.pages
@@ -2918,8 +2965,8 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                         }
                                         youtubePostId(shared.optString("text"))?.let { videoId ->
                                             YoutubePostMedia(videoId, activeYoutubePostId == postId,
-                                                onPlay = { youtubePlayRequested = false; activeYoutubePostId = postId },
-                                                onStop = { activeYoutubePostId = "" })
+                                                onPlay = { youtubeId = videoId; youtubePlayRequested = true; activeYoutubePostId = postId },
+                                                onStop = { activeYoutubePostId = ""; youtubePlayRequested = false })
                                         }
                                     }
                                     HorizontalDivider(color = Border.copy(alpha = .5f), modifier = Modifier.padding(vertical = 7.dp))
@@ -3713,8 +3760,8 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                     youtubePostId(post.optString("text"))?.let { videoId ->
                                         val ownId = "own_" + post.optString("id")
                                         YoutubePostMedia(videoId, activeYoutubePostId == ownId,
-                                            onPlay = { youtubePlayRequested = false; activeYoutubePostId = ownId },
-                                            onStop = { activeYoutubePostId = "" })
+                                            onPlay = { youtubeId = videoId; youtubePlayRequested = true; activeYoutubePostId = ownId },
+                                            onStop = { activeYoutubePostId = ""; youtubePlayRequested = false })
                                     }
                                     val ownMushafPages = parseMushafPostAttachment(post.optString("text"), BASE)?.pages
                                     if (ownMushafPages != null) MushafPostGallery(ownMushafPages, media(post.optString("image")).takeIf { it.isNotBlank() })
@@ -3745,7 +3792,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                 }
 
             }
-            if (profilePeer.isNotBlank() && token.isNotBlank()) {
+            if (!youtubePipMode && profilePeer.isNotBlank() && token.isNotBlank()) {
                 Box(Modifier.fillMaxSize().background(Black).safeDrawingPadding()) {
                     PublicUserProfile(
                         username = profilePeer, profile = publicProfile, recentPosts = publicPosts,
@@ -3769,20 +3816,39 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
             // Only its bounds change between the YouTube page and a visible mini-player.
             if (token.isNotBlank() && youtubePlayRequested && youtubeId.isNotBlank()) {
                 val expandedYoutube = tab == "يوتيوب" && profilePeer.isBlank()
-                val hostModifier = if (expandedYoutube) Modifier.align(Alignment.TopCenter)
+                val density = androidx.compose.ui.platform.LocalDensity.current
+                val playerConfiguration = LocalConfiguration.current
+                val maxMiniX = with(density) { (playerConfiguration.screenWidthDp.dp - 256.dp).coerceAtLeast(0.dp).toPx() }
+                val minMiniY = with(density) { -(playerConfiguration.screenHeightDp.dp - 256.dp).coerceAtLeast(0.dp).toPx() }
+                val hostModifier = if (youtubePipMode) Modifier.align(Alignment.Center).fillMaxSize()
+                    else if (expandedYoutube) Modifier.align(Alignment.TopCenter)
                     .fillMaxWidth().windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top+WindowInsetsSides.Horizontal))
                     .padding(top = if (compactYoutubeLayout) 0.dp else 47.dp, start = 8.dp, end = 8.dp)
                 else Modifier.align(AbsoluteAlignment.BottomLeft)
                     .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom+WindowInsetsSides.Horizontal))
-                    .absolutePadding(left = 8.dp, bottom = 86.dp).width(240.dp)
-                Column(hostModifier.clip(RoundedCornerShape(10.dp)).background(Black)
-                    .border(.7.dp,Border,RoundedCornerShape(10.dp))) {
-                    Row(Modifier.fillMaxWidth().height(28.dp).padding(horizontal = 5.dp),
-                        verticalAlignment = Alignment.CenterVertically) {
-                        Text("يوتيوب", color = GoldLight, fontSize = 10.sp,
-                            modifier = Modifier.weight(1f).clickable { navigate("يوتيوب") })
-                        IconButton(onClick = { youtubePlayRequested = false }, modifier = Modifier.size(28.dp)) {
-                            SiteIcon("x", size = 16.dp)
+                    .absolutePadding(left = 8.dp, bottom = 86.dp)
+                    .offset { IntOffset(miniYoutubeOffset.x.roundToInt(), miniYoutubeOffset.y.roundToInt()) }
+                    .width(240.dp)
+                Column(hostModifier.clip(if (youtubePipMode) RectangleShape else RoundedCornerShape(10.dp)).background(Black)
+                    .then(if (youtubePipMode) Modifier else Modifier.border(.7.dp,Border,RoundedCornerShape(10.dp)))) {
+                    if (!youtubePipMode) {
+                        Row(Modifier.fillMaxWidth().height(28.dp).padding(horizontal = 5.dp),
+                            verticalAlignment = Alignment.CenterVertically) {
+                            Text("يوتيوب", color = GoldLight, fontSize = 10.sp,
+                                modifier = Modifier.weight(1f).clickable { navigate("يوتيوب") })
+                            Text("⠿", color = GoldLight, fontSize = 18.sp, lineHeight = 20.sp,
+                                modifier = Modifier.pointerInput(maxMiniX, minMiniY) {
+                                    detectDragGestures { change, dragAmount ->
+                                        change.consume()
+                                        miniYoutubeOffset = Offset(
+                                            (miniYoutubeOffset.x + dragAmount.x).coerceIn(0f, maxMiniX),
+                                            (miniYoutubeOffset.y + dragAmount.y).coerceIn(minMiniY, 0f)
+                                        )
+                                    }
+                                })
+                            IconButton(onClick = { youtubePlayRequested = false; activeYoutubePostId = "" }, modifier = Modifier.size(28.dp)) {
+                                SiteIcon("x", size = 16.dp)
+                            }
                         }
                     }
                     YouTubePlayer(youtubeId)
