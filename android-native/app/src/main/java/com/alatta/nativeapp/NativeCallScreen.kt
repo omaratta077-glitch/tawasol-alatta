@@ -1,6 +1,8 @@
 package com.alatta.nativeapp
 
+import android.Manifest
 import android.content.Context
+import android.content.pm.PackageManager
 import android.media.AudioManager
 import android.media.Ringtone
 import android.media.RingtoneManager
@@ -12,6 +14,9 @@ import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -206,6 +211,7 @@ internal fun NativeCallScreen(
     var muted by remember(session.callId) { mutableStateOf(false) }
     var cameraOff by remember(session.callId) { mutableStateOf(false) }
     var speakerOn by remember(session.callId) { mutableStateOf(videoCall) }
+    var bluetoothConnected by remember(session.callId) { mutableStateOf(false) }
     var hangingUp by remember(session.callId) { mutableStateOf(false) }
     // Both caller and callee hide the central video labels as soon as media
     // connects; a received frame also covers devices missing CONNECTED callbacks.
@@ -221,8 +227,21 @@ internal fun NativeCallScreen(
             localFrame = { localReady = true },
             remoteFrame = { remoteReady = true },
             connected = { if (connectedAt == 0L) connectedAt = System.currentTimeMillis() },
+            audioRouteChanged = { speakerOn = it },
+            bluetoothAvailabilityChanged = { bluetoothConnected = it },
             finished = { latestClose() }
         )
+    }
+
+    val bluetoothPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted -> if (granted) engine.refreshAudioRoute() }
+    LaunchedEffect(engine, bluetoothConnected) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && bluetoothConnected &&
+            ContextCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_CONNECT) !=
+            PackageManager.PERMISSION_GRANTED) {
+            bluetoothPermissionLauncher.launch(Manifest.permission.BLUETOOTH_CONNECT)
+        }
     }
 
     val localRenderer = remember(engine) { SurfaceViewRenderer(context) }
