@@ -1,4 +1,18 @@
-<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24">
-    <path android:fillColor="#FFFFFFFF" android:pathData="M10,1L14,1L21,16L17,16L14.5,10L9.5,10L7,16L3,16ZM11,7L13,7L12,4Z" android:fillType="evenOdd"/>
-    <path android:fillColor="#FFFFFFFF" android:pathData="M2,18Q7,15 12,18Q17,15 22,18L22,22Q17,19 12,23Q7,19 2,22ZM10.7,13A1.3,1.3 0,1 0,13.3 13A1.3,1.3 0,1 0,10.7 13M7.6,14.7A1,1 0,1 0,9.6 14.7A1,1 0,1 0,7.6 14.7M14.4,14.7A1,1 0,1 0,16.4 14.7A1,1 0,1 0,14.4 14.7"/>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp" android:height="24dp"
+    android:viewportWidth="512" android:viewportHeight="512">
+    <!-- Monochrome A, sweeping ribbon, people and book from the approved app mark.
+         No square background, frame or small lettering: Android tints this alpha mask. -->
+    <group android:scaleX="1.12" android:scaleY="1.12"
+        android:translateX="-30.72" android:translateY="20">
+        <path android:fillColor="#FFFFFFFF" android:pathData="M136,227 L238,71 C247,54 258,50 271,55 C282,59 288,66 294,79 L343,182 C325,190 308,192 285,191 L258,117 C255,108 251,107 247,116 L202,199 C179,205 157,215 136,227 Z"/>
+        <path android:fillColor="#FFFFFFFF" android:pathData="M124,285 C140,276 155,269 171,263 L148,311 C131,317 117,323 103,334 Z"/>
+        <path android:fillColor="#FFFFFFFF" android:pathData="M302,225 C324,224 344,221 361,214 L406,312 C416,329 428,335 441,339 C407,333 380,316 350,314 Z"/>
+        <path android:fillColor="#FFFFFFFF" android:pathData="M368,98 C408,113 414,146 400,174 C386,204 359,214 322,218 C242,222 170,239 126,281 C102,303 86,331 98,348 C105,358 121,364 140,366 C112,364 89,355 83,338 C68,296 112,250 168,224 C220,199 259,199 306,197 C349,195 379,181 390,160 C402,136 394,111 368,98 Z"/>
+        <path android:fillColor="#FFFFFFFF" android:pathData="M88,254 C60,284 50,317 70,341 C81,354 99,362 123,365 C99,359 81,348 77,333 C71,313 76,280 88,254 Z"/>
+        <path android:fillColor="#FFFFFFFF" android:pathData="M107,335 C156,304 207,303 251,343 C294,303 345,304 395,325 C415,333 432,337 447,337 C421,349 391,338 364,331 C319,320 284,333 251,357 C210,323 163,314 107,340 Z"/>
+        <path android:fillColor="#FFFFFFFF" android:pathData="M108,346 C160,325 205,331 251,363 C291,331 338,326 393,342 C344,335 296,347 251,371 C207,344 158,334 108,346 Z"/>
+        <path android:fillColor="#FFFFFFFF" android:pathData="M237,262 a14,14 0,1 0,28,0 a14,14 0,1 0,-28,0 Z M209,276 a9,9 0,1 0,18,0 a9,9 0,1 0,-18,0 Z M277,276 a9,9 0,1 0,18,0 a9,9 0,1 0,-18,0 Z"/>
+        <path android:fillColor="#FFFFFFFF" android:pathData="M226,311 C225,291 235,282 251,282 C267,282 278,291 277,311 C268,315 259,319 251,326 C243,319 234,315 226,311 Z M202,305 C202,290 211,285 221,287 L226,289 C222,296 221,303 222,311 Z M280,289 C292,283 302,290 302,305 L281,311 C282,303 281,296 277,290 Z"/>
+    </group>
 </vector>
