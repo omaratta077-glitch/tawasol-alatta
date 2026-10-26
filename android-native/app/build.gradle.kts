@@ -24,9 +24,9 @@ android {
         applicationId = "com.alatta.nativeapp"
         minSdk = 26
         targetSdk = 35
-        // v1.0.177: collapse Sports screen broadcast controls behind a compact icon.
-        versionCode = 277
-        versionName = "1.0.177"
+        // v1.0.178: show administrator channels without built-in website shortcuts.
+        versionCode = 278
+        versionName = "1.0.178"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("boolean", "IS_APPGALLERY", appGalleryBuild.toString())
         val hmsId = (System.getenv("ALATTA_HMS_APP_ID") ?: "").trim().takeIf { it.matches(Regex("[0-9]{1,20}")) } ?: ""
