@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "channels": [
+    {
+      "id": "your-channel-001",
+      "name": "قناتي المصرح بها",
+      "category": "رياضة",
+      "streamUrl": "https://your-stream-provider.example/live/channel.m3u8",
+      "description": "استبدل المثال برابط مصرح باستخدامه",
+      "enabled": false
+    }
+  ]
+}

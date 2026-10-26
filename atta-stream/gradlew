@@ -1,0 +1,18 @@
+#!/usr/bin/env sh
+set -eu
+APP_HOME=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+WRAPPER="$APP_HOME/gradle/wrapper/gradle-wrapper.jar"
+if [ ! -f "$WRAPPER" ]; then
+  echo 'Bootstrapping official Gradle wrapper (8.13)...'
+  URL='https://raw.githubusercontent.com/gradle/gradle/v8.13.0/gradle/wrapper/gradle-wrapper.jar'
+  if command -v curl >/dev/null 2>&1; then
+    curl --fail --location --silent --show-error "$URL" --output "$WRAPPER"
+  elif command -v wget >/dev/null 2>&1; then
+    wget -q "$URL" -O "$WRAPPER"
+  else
+    echo 'Install curl/wget or place the official gradle-wrapper.jar in gradle/wrapper/.' >&2
+    exit 1
+  fi
+fi
+if [ -n "${JAVA_HOME:-}" ]; then JAVA="$JAVA_HOME/bin/java"; else JAVA=java; fi
+exec "$JAVA" ${JAVA_OPTS:-} ${GRADLE_OPTS:-} -classpath "$WRAPPER" org.gradle.wrapper.GradleWrapperMain "$@"
