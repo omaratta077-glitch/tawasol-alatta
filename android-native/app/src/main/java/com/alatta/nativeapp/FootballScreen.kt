@@ -70,8 +70,7 @@ internal fun FootballScreen(query: String, modifier: Modifier = Modifier,
             if (selected != null && catalog.channels.none { it.id == selected?.id && it.enabled }) selected = null
         } catch (e: CancellationException) { throw e }
         catch (_: Exception) {
-            // Keep the official publisher shortcut accessible if schedules API is offline.
-            catalog = FootballRepository.withOfficialChannels(FootballCatalog())
+            // Keep the last loaded administrator catalog when refresh fails.
             loaded = true
             error = "تعذر تحديث قائمة القنوات وجدول المباريات. أعد المحاولة."
         }
@@ -186,9 +185,6 @@ internal fun FootballScreen(query: String, modifier: Modifier = Modifier,
                         Text(channel.provider, color = Color.White, fontSize = 12.sp)
                         Text(when {
                             channel.format == "ytv" -> "فتح القناة في YTV PRO"
-                            channel.id.startsWith("official-bein-") -> "فتح beIN CONNECT • اختر القناة باشتراكك"
-                            channel.id == FootballRepository.onSportOfficial.id -> "فتح صفحة البث الرسمية على يوتيوب إن توفرت"
-                            channel.id.startsWith("official-") -> "مشاهدة القناة عبر موقع الناشر الرسمي"
                             channel.format == "external" -> "المشاهدة لدى الناشر"
                             else -> "مشاهدة القناة"
                         }, color = PremiumGoldLight, fontSize = 12.sp)
