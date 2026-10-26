@@ -24,9 +24,9 @@ android {
         applicationId = "com.alatta.nativeapp"
         minSdk = 26
         targetSdk = 35
-        // v1.0.176: forward configured channel IDs to the installed YTV PRO player.
-        versionCode = 276
-        versionName = "1.0.176"
+        // v1.0.177: collapse Sports screen broadcast controls behind a compact icon.
+        versionCode = 277
+        versionName = "1.0.177"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("boolean", "IS_APPGALLERY", appGalleryBuild.toString())
         val hmsId = (System.getenv("ALATTA_HMS_APP_ID") ?: "").trim().takeIf { it.matches(Regex("[0-9]{1,20}")) } ?: ""
