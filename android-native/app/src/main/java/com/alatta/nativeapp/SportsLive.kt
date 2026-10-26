@@ -13,6 +13,11 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -237,7 +242,8 @@ internal fun SportsLivePanel(token: String, isAdmin: Boolean) {
     var configured by remember { mutableStateOf(false) }
     var status by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
-    var title by remember { mutableStateOf("") }
+    var title by rememberSaveable { mutableStateOf("") }
+    var expanded by rememberSaveable { mutableStateOf(false) }
     var publisher by remember { mutableStateOf<SportsScreenPublisher?>(null) }
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         if (result.resultCode == Activity.RESULT_OK && result.data != null && title.isNotBlank()) {
@@ -254,34 +260,52 @@ internal fun SportsLivePanel(token: String, isAdmin: Boolean) {
         }
     }
     DisposableEffect(Unit) { onDispose { publisher?.stop(true) } }
-    Surface(color = Color(0xFF201B10), shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
-        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-            Text(if (live != null) "● بث رياضي مباشر" else "بث الشاشة في صفحة الرياضة", color = PremiumGoldLight, fontSize = 15.sp)
-            when {
-                status.isNotBlank() -> Text(status, color = Color.White, fontSize = 12.sp)
-                live != null -> Text("${live?.optString("title")} • ${live?.optString("broadcaster")} • ${live?.optInt("viewerCount")} مشاهد", color = Color.White, fontSize = 12.sp)
-                else -> Text("شاهد البث المباشر من هنا عند بدء المدير له.", color = PremiumMuted, fontSize = 12.sp)
-            }
-            if (isAdmin && live == null && !configured) Text("يتطلب تفعيل البث إضافة CLOUDFLARE_REALTIME_APP_ID وCLOUDFLARE_REALTIME_APP_SECRET كأسرار في إعدادات Worker.", color = Color(0xFFFFD782), fontSize = 12.sp)
-            if (isAdmin && live == null && configured) {
-                OutlinedTextField(title, { title = it.take(100) }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("عنوان البث") })
-                Button(enabled = !busy && title.trim().length >= 2, onClick = {
-                    busy = true
-                    scope.launch {
-                        try {
-                            val manager = context.getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
-                            launcher.launch(manager.createScreenCaptureIntent())
-                        } catch (e: Exception) { status = e.message ?: "تعذر طلب مشاركة الشاشة" }
-                        finally { busy = false }
+    Surface(color = Color(0xFF201B10), shape = RoundedCornerShape(14.dp), modifier = Modifier.padding(vertical = 4.dp).then(if (expanded || live != null) Modifier.fillMaxWidth() else Modifier.wrapContentWidth())) {
+        Column(Modifier.padding(if (expanded) 10.dp else 2.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                IconButton(onClick = { expanded = !expanded }, modifier = Modifier.semantics {
+                    contentDescription = if (expanded) "تصغير لوحة البث" else "فتح لوحة البث"
+                    stateDescription = if (expanded) "مفتوحة" else "مصغرة"
+                }) {
+                    SiteIcon("video", tint = PremiumGoldLight, size = 22.dp)
+                }
+                if (expanded || live != null) {
+                    Text(if (live != null) "● مباشر" else "بث الشاشة", color = PremiumGoldLight, fontSize = 14.sp, modifier = Modifier.weight(1f))
+                }
+                if (expanded) {
+                    IconButton(onClick = { expanded = false }, modifier = Modifier.semantics { contentDescription = "طي أدوات البث" }) {
+                        SiteIcon("chevron-down", tint = PremiumGoldLight, size = 18.dp)
                     }
-                }) { Text("بدء بث الشاشة") }
+                }
             }
-            if (isAdmin && live != null) Button(onClick = {
-                val id = live?.optString("liveId").orEmpty(); busy = true
-                scope.launch(Dispatchers.IO) { runCatching { sportsApi(token, JSONObject().put("action", "stop").put("liveId", id)) }
-                    .onSuccess { withContext(Dispatchers.Main) { publisher?.stop(false); publisher = null; live = null; status = "تم إيقاف البث" } }
-                    .onFailure { withContext(Dispatchers.Main) { status = it.message ?: "تعذر إيقاف البث" } }; busy = false }
-            }) { Text("إيقاف البث") }
+            if (expanded) {
+                when {
+                    status.isNotBlank() -> Text(status, color = Color.White, fontSize = 12.sp)
+                    live != null -> Text("${live?.optString("title")} • ${live?.optString("broadcaster")} • ${live?.optInt("viewerCount")} مشاهد", color = Color.White, fontSize = 12.sp)
+                    else -> Text("شاهد البث المباشر من هنا عند بدء المدير له.", color = PremiumMuted, fontSize = 12.sp)
+                }
+                if (isAdmin && live == null && !configured) Text("يتطلب تفعيل البث إضافة CLOUDFLARE_REALTIME_APP_ID وCLOUDFLARE_REALTIME_APP_SECRET كأسرار في إعدادات Worker.", color = Color(0xFFFFD782), fontSize = 12.sp)
+                if (isAdmin && live == null && configured) {
+                    OutlinedTextField(title, { title = it.take(100) }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("عنوان البث") })
+                    Button(enabled = !busy && title.trim().length >= 2, onClick = {
+                        busy = true
+                        scope.launch {
+                            try {
+                                val manager = context.getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
+                                launcher.launch(manager.createScreenCaptureIntent())
+                            } catch (e: Exception) { status = e.message ?: "تعذر طلب مشاركة الشاشة" }
+                            finally { busy = false }
+                        }
+                    }) { Text("بدء بث الشاشة") }
+                }
+                if (isAdmin && live != null) Button(onClick = {
+                    val id = live?.optString("liveId").orEmpty(); busy = true
+                    scope.launch(Dispatchers.IO) { runCatching { sportsApi(token, JSONObject().put("action", "stop").put("liveId", id)) }
+                        .onSuccess { withContext(Dispatchers.Main) { publisher?.stop(false); publisher = null; live = null; status = "تم إيقاف البث" } }
+                        .onFailure { withContext(Dispatchers.Main) { status = it.message ?: "تعذر إيقاف البث" } }; busy = false }
+                }) { Text("إيقاف البث") }
+            }
+            if (!expanded && status.isNotBlank()) Text(status, color = PremiumMuted, fontSize = 12.sp, modifier = Modifier.widthIn(max = 240.dp))
             if (live != null && !live!!.optBoolean("isOwner")) {
                 val currentLive = live!!
                 val viewer = remember(token, currentLive.optString("liveId")) { SportsLiveViewer(context, token, currentLive) { status = it } }
