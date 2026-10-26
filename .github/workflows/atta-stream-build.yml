@@ -27,7 +27,7 @@ jobs:
           distribution: temurin
           java-version: '17'
       - name: Install Android SDK
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@v4
       - name: Set up Gradle 8.13
         uses: gradle/actions/setup-gradle@v4
         with:
@@ -35,10 +35,10 @@ jobs:
       - name: Build debug APK
         run: gradle --no-daemon --stacktrace :app:assembleDebug
       - name: Copy APK
-        run: cp app/build/outputs/apk/debug/app-debug.apk AttaStream_v1.0.1_debug.apk
+        run: cp app/build/outputs/apk/debug/app-debug.apk AttaStream_v1.0.2_debug.apk
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: AttaStream-v1.0.1-debug-APK
-          path: atta-stream/AttaStream_v1.0.1_debug.apk
+          name: AttaStream-v1.0.2-debug-APK
+          path: atta-stream/AttaStream_v1.0.2_debug.apk
           if-no-files-found: error
