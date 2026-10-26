@@ -152,7 +152,7 @@ class MainActivity : ComponentActivity() {
             setTextColor(white)
             setHintTextColor(muted)
             hint = "⌕  ابحث عن قناة..."
-            singleLine = true
+            setSingleLine(true)
             background = shape(card, 14)
             setPadding(dp(16), dp(12), dp(16), dp(12))
             addTextChangedListener(object : TextWatcher {
@@ -449,7 +449,7 @@ class MainActivity : ComponentActivity() {
 
     private fun edit(hintText: String) = EditText(this).apply {
         hint = hintText
-        singleLine = true
+        setSingleLine(true)
         textSize = 13f
         setPadding(dp(12), dp(10), dp(12), dp(10))
         background = shape(0xFFECECEC.toInt(), 10)
