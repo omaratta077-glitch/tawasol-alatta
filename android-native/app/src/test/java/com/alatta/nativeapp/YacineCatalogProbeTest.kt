@@ -13,6 +13,99 @@ import org.robolectric.annotation.Config
 @Config(sdk = [28])
 class YacineCatalogProbeTest {
     private val path = "categories/1/channels"
+    private val fixtureMask = "test-format-mask".toByteArray(Charsets.US_ASCII)
+    private fun fixture(name: String): String = requireNotNull(javaClass.classLoader?.getResourceAsStream(name))
+        .bufferedReader(Charsets.UTF_8).use { it.readText().trim() }
+    private fun encodedResponse(body: String, time: String? = "1700000000", code: Int = 200): Response {
+        val builder = Response.Builder().request(YacineCatalogProbe.request(YacineCatalogProbe.Kind.CATEGORIES))
+            .protocol(Protocol.HTTP_1_1).code(code).message("synthetic fixture")
+            .header("Content-Type", "application/json").body(body.toResponseBody())
+        if (time != null) builder.header("t", time)
+        return builder.build()
+    }
+
+    @Test fun syntheticResponseDecodesCategoriesWithOnlyExplicitLocalConfiguration() {
+        val body = fixture("catalog-categories-synthetic.base64")
+        encodedResponse(body).use {
+            val result = YacineCatalogProbe.read(it, "categories", 1, responseMask = fixtureMask)
+            assertEquals(YacineCatalogProbe.State.LIST, result.state)
+            assertTrue(result.responseDecoded)
+            assertEquals(1208L, result.bytes)
+            assertEquals((101..113).map { id -> id.toString() }, result.entries.map { row -> row.id })
+            assertEquals("قسم تجريبي 1", result.entries.first().name)
+            assertEquals(20L, result.entries.first { row -> row.id == "107" }.childCount ?: -1L)
+            assertEquals(0L, result.entries.first().childCount ?: -1L)
+            assertEquals("1700000000", result.timeHeader)
+            assertTrue(result.deviceTimeUsed.isEmpty())
+            assertEquals(body, result.responseText)
+            assertTrue(result.report().contains("اسم القسم | رقم القسم"))
+            assertFalse(result.report().contains("test-format-mask"))
+        }
+        encodedResponse(body).use {
+            val result = YacineCatalogProbe.read(it, "categories", 1)
+            assertEquals(YacineCatalogProbe.State.UNREADABLE, result.state)
+            assertTrue(result.entries.isEmpty())
+            assertFalse(result.responseDecoded)
+        }
+    }
+
+    @Test fun encodedChannelFixtureUsesItsFreshTimestampAndPreservesArabicAndLongIds() {
+        val body = fixture("catalog-channels-synthetic.base64")
+        encodedResponse(body, "1700000001").use {
+            val result = YacineCatalogProbe.read(it, path, 1, responseMask = fixtureMask)
+            assertEquals(YacineCatalogProbe.State.LIST, result.state)
+            assertTrue(result.responseDecoded)
+            assertEquals(listOf("9007199254740993", "9223372036854775807"), result.entries.map { row -> row.id })
+            assertEquals("قناة تجريبية", result.entries.last().name)
+            assertEquals("1700000001", result.timeHeader)
+            assertTrue(result.report().contains("اسم القناة | رقم القناة"))
+            assertFalse(result.report().contains("test-format-mask"))
+        }
+    }
+
+    @Test fun absentTimeUsesOneRecordedDeviceTimestampAndNeverFabricatesAResponseHeader() {
+        encodedResponse(fixture("catalog-channels-synthetic.base64"), null).use {
+            val result = YacineCatalogProbe.read(it, path, 1, nowEpochSeconds = 1700000001L, responseMask = fixtureMask)
+            assertEquals(YacineCatalogProbe.State.LIST, result.state)
+            assertTrue(result.responseDecoded)
+            assertFalse(result.hasTimeHeader)
+            assertTrue(result.timeHeader.isEmpty())
+            assertEquals("1700000001", result.deviceTimeUsed)
+            assertFalse(result.report().contains("\nt: "))
+        }
+        encodedResponse(fixture("catalog-channels-synthetic.base64"), "invalid-time").use {
+            val result = YacineCatalogProbe.read(it, path, 1, nowEpochSeconds = 1700000001L, responseMask = fixtureMask)
+            assertEquals(YacineCatalogProbe.State.UNREADABLE, result.state)
+            assertTrue(result.entries.isEmpty())
+            assertTrue(result.deviceTimeUsed.isEmpty())
+        }
+    }
+
+    @Test fun corruptedEncodedBodiesWrongTimeAndHttpErrorsCannotBecomeCatalogs() {
+        val body = fixture("catalog-categories-synthetic.base64")
+        encodedResponse(body, "0000000000").use {
+            val result = YacineCatalogProbe.read(it, "categories", 1, responseMask = fixtureMask)
+            assertNotEquals(YacineCatalogProbe.State.LIST, result.state)
+            assertNotEquals(YacineCatalogProbe.State.EMPTY, result.state)
+            assertTrue(result.entries.isEmpty())
+        }
+        val corrupted = java.util.Base64.getDecoder().decode(body)
+        corrupted[0] = (corrupted[0].toInt() xor 0x80).toByte()
+        for (bad in listOf(body + "!", java.util.Base64.getEncoder().encodeToString(corrupted))) encodedResponse(bad).use {
+            val result = YacineCatalogProbe.read(it, "categories", 1, responseMask = fixtureMask)
+            assertEquals(YacineCatalogProbe.State.UNREADABLE, result.state)
+            assertFalse(result.responseDecoded)
+            assertTrue(result.entries.isEmpty())
+        }
+        encodedResponse(body, code = 403).use {
+            val result = YacineCatalogProbe.read(it, "categories", 1, responseMask = fixtureMask)
+            assertEquals(YacineCatalogProbe.State.HTTP_ERROR, result.state)
+            assertFalse(result.responseDecoded)
+            assertTrue(result.entries.isEmpty())
+            assertTrue(result.responseText.isEmpty())
+        }
+    }
+
     @Test fun onlyFixedHttpsCatalogPathsAreBuiltWithoutAccountCredentials() {
         val root = YacineCatalogProbe.request(YacineCatalogProbe.Kind.CATEGORIES)
         assertEquals("https://def001.ycnapi.com/api/categories", root.url.toString())
