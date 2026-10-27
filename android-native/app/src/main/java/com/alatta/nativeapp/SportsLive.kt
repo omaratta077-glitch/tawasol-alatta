@@ -66,7 +66,7 @@ private suspend fun sportsIceServers(token: String): List<PeerConnection.IceServ
     catch (_: Exception) { fallbackRtcIceServers() }
 }
 
-private suspend fun createSportsDescription(peer: PeerConnection, offer: Boolean): SessionDescription = suspendCancellableCoroutine { cont ->
+internal suspend fun createSportsDescription(peer: PeerConnection, offer: Boolean): SessionDescription = suspendCancellableCoroutine { cont ->
     val observer = object : SdpObserver {
         override fun onCreateSuccess(sdp: SessionDescription?) { if (sdp != null) cont.resume(sdp) else cont.resumeWithException(IllegalStateException("SDP فارغ")) }
         override fun onSetSuccess() {}
@@ -76,7 +76,7 @@ private suspend fun createSportsDescription(peer: PeerConnection, offer: Boolean
     if (offer) peer.createOffer(observer, MediaConstraints()) else peer.createAnswer(observer, MediaConstraints())
 }
 
-private suspend fun setSportsDescription(peer: PeerConnection, value: SessionDescription, local: Boolean) = suspendCancellableCoroutine<Unit> { cont ->
+internal suspend fun setSportsDescription(peer: PeerConnection, value: SessionDescription, local: Boolean) = suspendCancellableCoroutine<Unit> { cont ->
     val observer = object : SdpObserver {
         override fun onCreateSuccess(sdp: SessionDescription?) {}
         override fun onSetSuccess() { if (cont.isActive) cont.resume(Unit) }
@@ -89,9 +89,7 @@ private suspend fun setSportsDescription(peer: PeerConnection, value: SessionDes
 private object SportsWebRtc {
     private val initialized = AtomicBoolean(false)
     fun factory(context: Context, egl: EglBase): PeerConnectionFactory {
-        if (initialized.compareAndSet(false, true)) PeerConnectionFactory.initialize(PeerConnectionFactory.InitializationOptions.builder(context).createInitializationOptions())
-        return PeerConnectionFactory.builder().setVideoEncoderFactory(DefaultVideoEncoderFactory(egl.eglBaseContext, true, true))
-            .setVideoDecoderFactory(DefaultVideoDecoderFactory(egl.eglBaseContext)).createPeerConnectionFactory()
+        return NativeRtcCall.mediaFactory(context, egl)
     }
     fun peer(factory: PeerConnectionFactory, observer: PeerConnection.Observer,
         ice: List<PeerConnection.IceServer> = fallbackRtcIceServers()): PeerConnection {

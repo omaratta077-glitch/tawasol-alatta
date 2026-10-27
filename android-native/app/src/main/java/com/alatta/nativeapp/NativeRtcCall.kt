@@ -103,7 +103,7 @@ internal class NativeRtcCall(
         fun clearIceCache() { cachedIce = null; cachedIceToken = ""; cachedIceExpires = 0L }
         suspend fun prewarmIce(token: String) { try { turnCredentials(token) } catch (e: CancellationException) { throw e } catch (_: Exception) { } }
 
-        private suspend fun turnCredentials(token: String): JSONObject = turnLock.withLock {
+        internal suspend fun turnCredentials(token: String): JSONObject = turnLock.withLock {
             if (cachedIceToken == token && cachedIceExpires > System.currentTimeMillis())
                 return@withLock requireNotNull(cachedIce)
             val result = requestJson("/api/turn-credentials?token=${URLEncoder.encode(token, "UTF-8")}")
@@ -113,7 +113,20 @@ internal class NativeRtcCall(
             result
         }
 
-        private suspend fun requestJson(path: String, post: JSONObject? = null): JSONObject {
+        internal fun initializeRtc(context: Context) {
+            if (factoryInitialized.compareAndSet(false, true)) PeerConnectionFactory.initialize(
+                PeerConnectionFactory.InitializationOptions.builder(context).createInitializationOptions())
+        }
+        internal fun mediaFactory(context: Context, egl: EglBase, audio: org.webrtc.audio.AudioDeviceModule? = null): PeerConnectionFactory {
+            initializeRtc(context)
+            val builder = PeerConnectionFactory.builder()
+                .setVideoEncoderFactory(DefaultVideoEncoderFactory(egl.eglBaseContext, true, true))
+                .setVideoDecoderFactory(DefaultVideoDecoderFactory(egl.eglBaseContext))
+            if (audio != null) builder.setAudioDeviceModule(audio)
+            return builder.createPeerConnectionFactory()
+        }
+
+        internal suspend fun requestJson(path: String, post: JSONObject? = null): JSONObject {
             val request = Request.Builder().url(BASE + path).header("Accept", "application/json").apply {
                 if (post != null) this.post(post.toString().toRequestBody("application/json; charset=utf-8".toMediaType()))
             }.build()
@@ -147,11 +160,7 @@ internal class NativeRtcCall(
     private val egl = run {
         // Renderers are initialized before media capture, so load the JNI
         // library before creating EGL surfaces (not afterwards).
-        if (factoryInitialized.compareAndSet(false, true)) {
-            PeerConnectionFactory.initialize(
-                PeerConnectionFactory.InitializationOptions.builder(context).createInitializationOptions()
-            )
-        }
+        initializeRtc(context)
         EglBase.create()
     }
     private val seen = LinkedHashSet<String>()
@@ -264,10 +273,7 @@ internal class NativeRtcCall(
             (session.type == "video" && ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED)) {
             error("يجب السماح للتطبيق بالكاميرا والميكروفون")
         }
-        factory = PeerConnectionFactory.builder()
-            .setVideoEncoderFactory(DefaultVideoEncoderFactory(egl.eglBaseContext, true, true))
-            .setVideoDecoderFactory(DefaultVideoDecoderFactory(egl.eglBaseContext))
-            .createPeerConnectionFactory()
+        factory = mediaFactory(context, egl)
         val pf = requireNotNull(factory)
         audioSource = pf.createAudioSource(MediaConstraints())
         localAudio = pf.createAudioTrack("atta-audio", audioSource)

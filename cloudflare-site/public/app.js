@@ -12,11 +12,18 @@ function youtubePostFrame(post){
   if(!id)return '';
   return `<div class="atta-youtube-post-media" data-youtube-post="${esc(post.id)}">
     <button class="atta-youtube-post-play" data-youtube-post-play="${esc(post.id)}" data-youtube-id="${id}" type="button" aria-label="تشغيل الفيديو داخل المنشور">
-      <img loading="lazy" decoding="async" alt="معاينة الفيديو" src="https://i.ytimg.com/vi/${id}/hqdefault.jpg">
+      <img loading="lazy" decoding="async" alt="معاينة الفيديو" data-watch-thumbnail="${id}" data-thumb-quality="max" src="https://i.ytimg.com/vi/${id}/maxresdefault.jpg">
       <span aria-hidden="true">▶</span>
     </button>
   </div>`;
 }
+function fitPostThumbnail(event){
+  const image=event.target;
+  if(image?.dataset?.watchThumbnail&&image.dataset.thumbQuality==='max'&&(event.type==='error'||image.naturalWidth<320)){
+    image.dataset.thumbQuality='fallback';image.src='https://i.ytimg.com/vi/'+image.dataset.watchThumbnail+'/mqdefault.jpg';
+  }
+}
+document.addEventListener('load',fitPostThumbnail,true);document.addEventListener('error',fitPostThumbnail,true);
 document.addEventListener('click',event=>{
   const button=event.target.closest?.('[data-youtube-post-play]');
   if(!button)return;
@@ -24,7 +31,7 @@ document.addEventListener('click',event=>{
   if(!/^[A-Za-z0-9_-]{11}$/.test(id)||!window.AttaYouTubeEmbed)return;
   document.querySelectorAll('.atta-youtube-post-media iframe').forEach(frame=>frame.remove());
   const media=button.closest('.atta-youtube-post-media');
-  media.replaceChildren(window.AttaYouTubeEmbed.create(id,'فيديو المنشور'));
+  media.classList.add('is-playing');media.replaceChildren(window.AttaYouTubeEmbed.create(id,'فيديو المنشور'));
 });
 
 
@@ -481,7 +488,7 @@ async function handleCallSignal(msg){
   const msgCallId=msg.callId||msg.signalId||`${msg.from||"peer"}:${msg.createdAt||Date.now()}`;
 
   if(msg.type==="call-request"){
-    if(callState!=="idle"){
+    if(callState!=="idle" || globalThis.AttaWatchRoom?.active){
       if(msgCallId===activeCallId)return true;
 
       await sendCallSignal({
@@ -1521,6 +1528,7 @@ async function ensurePeer(){
   return pc;
 }
 async function requestCall(type){
+  if(window.AttaWatchRoom?.active)return alert("غادر غرفة المشاهدة الحالية أولًا");
   if(!selectedUser)return alert("اختر مستخدمًا أولًا");
 
   if(callState!=="idle"){
@@ -2077,6 +2085,7 @@ if($("mobileHeaderSearchBtn")){
 let logoutInProgress=false;
 
 async function logoutCurrentAccount(){
+  await window.AttaWatchRoom?.leave();
   if(logoutInProgress)return;
   logoutInProgress=true;
 
@@ -4361,6 +4370,9 @@ window.addEventListener("load",setupGoogleSignIn);
 window.AttaWeb=Object.freeze({
   navigate:showPage,
   user:()=>({username:me?.username||"",role:me?.role||""}),
+  callBusy:()=>callState!=="idle",
+  watchRequest:(payload,keepalive=false)=>api("/api/watch-room",{method:"POST",keepalive,body:JSON.stringify({...payload,token})}),
+  async watchIce(){await ensureTurnIceServers();return rtcConfig;},
   preparePost(text,image=""){
     if(image && postImageData)throw new Error("يوجد منشور بصورة قيد التجهيز. انشره أولًا أو احذف صورته قبل مشاركة صفحة جديدة.");
     const current=$("postText").value.trim();
