@@ -24,9 +24,9 @@ android {
         applicationId = "com.alatta.nativeapp"
         minSdk = 26
         targetSdk = 35
-        // v1.0.178: show administrator channels without built-in website shortcuts.
-        versionCode = 278
-        versionName = "1.0.178"
+        // v1.0.179: add an owner-only read-only catalog trial from the phone.
+        versionCode = 279
+        versionName = "1.0.179"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("boolean", "IS_APPGALLERY", appGalleryBuild.toString())
         val hmsId = (System.getenv("ALATTA_HMS_APP_ID") ?: "").trim().takeIf { it.matches(Regex("[0-9]{1,20}")) } ?: ""
