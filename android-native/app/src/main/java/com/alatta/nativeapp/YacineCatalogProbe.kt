@@ -18,7 +18,8 @@ import kotlin.coroutines.resume
 
 /** Explicit, read-only owner diagnostic. Never receives account tokens or edits the catalog. */
 internal object YacineCatalogProbe {
-    const val BASE = "https://deft.yacinelive.com/api/"
+    // Observed in the owner's Yacine captures; the catalog paths remain unverified live.
+    const val BASE = "https://def001.ycnapi.com/api/"
     const val MAX_BYTES = 512 * 1024
     const val MAX_ITEMS = 500
     enum class Kind { CATEGORIES, CHANNELS }
