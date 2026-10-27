@@ -15,13 +15,13 @@ class YacineCatalogProbeTest {
     private val path = "categories/1/channels"
     @Test fun onlyFixedHttpsCatalogPathsAreBuiltWithoutAccountCredentials() {
         val root = YacineCatalogProbe.request(YacineCatalogProbe.Kind.CATEGORIES)
-        assertEquals("https://deft.yacinelive.com/api/categories", root.url.toString())
+        assertEquals("https://def001.ycnapi.com/api/categories", root.url.toString())
         assertEquals("GET", root.method)
         assertEquals(listOf("Accept"), root.headers.names().toList())
         assertNull(root.body)
-        assertEquals("https://deft.yacinelive.com/api/categories/41/channels",
+        assertEquals("https://def001.ycnapi.com/api/categories/41/channels",
             YacineCatalogProbe.request(YacineCatalogProbe.Kind.CHANNELS, "٠٠٤١").url.toString())
-        assertEquals("https://deft.yacinelive.com/api/categories/41",
+        assertEquals("https://def001.ycnapi.com/api/categories/41",
             YacineCatalogProbe.request(YacineCatalogProbe.Kind.CATEGORIES, "41").url.toString())
         for (bad in listOf("https://example.org", "../config", "0", "-1", "1?token=x", "9223372036854775808"))
             assertThrows(IllegalArgumentException::class.java) {

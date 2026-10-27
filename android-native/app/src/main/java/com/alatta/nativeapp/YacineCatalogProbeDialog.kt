@@ -59,7 +59,10 @@ internal fun YacineCatalogProbeDialog(onDismiss: () -> Unit) {
                     color = PremiumMuted, fontSize = 13.sp)
                 Text("هذه التجربة تقرأ JSON فقط؛ معالجة ردود ياسين المرمّزة غير مدمجة بعد.",
                     color = PremiumMuted, fontSize = 12.sp)
-                Text("المصدر: deft.yacinelive.com • HTTPS", color = PremiumMuted, fontSize = 12.sp)
+                Text("المضيف المرصود: " + YacineCatalogProbe.BASE.removePrefix("https://").substringBefore('/') + " • HTTPS",
+                    color = PremiumMuted, fontSize = 12.sp)
+                Text("رُصد في اتصالات ياسين؛ وظيفة مسار القائمة عليه غير مؤكدة حتى تنجح التجربة.",
+                    color = PremiumMuted, fontSize = 12.sp)
                 Button(enabled = !busy, onClick = { load(YacineCatalogProbe.Kind.CATEGORIES) }) {
                     Text("جلب الأقسام")
                 }

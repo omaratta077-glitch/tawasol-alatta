@@ -24,9 +24,9 @@ android {
         applicationId = "com.alatta.nativeapp"
         minSdk = 26
         targetSdk = 35
-        // v1.0.180: drag the mini player from its surface and report bounded service errors.
-        versionCode = 280
-        versionName = "1.0.180"
+        // v1.0.181: test the API host observed in Yacine connection captures.
+        versionCode = 281
+        versionName = "1.0.181"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("boolean", "IS_APPGALLERY", appGalleryBuild.toString())
         val hmsId = (System.getenv("ALATTA_HMS_APP_ID") ?: "").trim().takeIf { it.matches(Regex("[0-9]{1,20}")) } ?: ""
