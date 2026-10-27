@@ -35,7 +35,7 @@ internal object WatchRoomController {
     fun stop(context: Context) { context.stopService(Intent(context, WatchRoomService::class.java)) }
     fun toggleMute() { muted = !muted; engine?.mute(muted) }
     fun toggleCamera() { cameraOff = !cameraOff; engine?.camera(cameraOff) }
-    fun setVolume(value: Float) { volume = value.coerceIn(0f, 1f); engine?.volume(volume) }
+    fun adjustVolume(value: Float) { volume = value.coerceIn(0f, 1f); engine?.volume(volume) }
     fun signal(packet: org.json.JSONObject) { engine?.enqueue(packet) }
 }
 

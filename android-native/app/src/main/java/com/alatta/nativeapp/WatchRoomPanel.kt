@@ -101,7 +101,7 @@ internal fun WatchRoomPanel(token: String, channels: List<FootballChannel>, call
             }
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text("صوت الأصحاب", color = PremiumMuted, fontSize = 11.sp)
-                Slider(WatchRoomController.volume, onValueChange = { WatchRoomController.setVolume(it) }, modifier = Modifier.weight(1f))
+                Slider(WatchRoomController.volume, onValueChange = { WatchRoomController.adjustVolume(it) }, modifier = Modifier.weight(1f))
             }
         } else TextButton(onClick = { WatchRoomController.stop(context) }) { Text("مغادرة", color = Color(0xFFFF9090)) }
     }
