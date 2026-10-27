@@ -80,16 +80,24 @@ function footballText(value,max){
 function footballChange(current,body){
   if(!Number.isSafeInteger(body.revision) || body.revision!==current.revision)return {status:409,error:"القائمة تغيرت؛ حدّثها قبل الحفظ كي لا تضيع تعديلات أخرى"};
   const next=structuredClone(current),channel=body.channel||{},match=body.match||{};
-  if(body.action==="saveChannel"){
+  if(body.action==="saveChannel"||body.action==="saveChannels"){
+    const batch=body.action==="saveChannels",rows=batch?body.channels:[channel],ids=new Set();
+    if(!Array.isArray(rows)||!rows.length||rows.length>40)return {status:400,error:"أرسل قائمة من قناة واحدة إلى 40 قناة"};
+    for(const channel of rows){
+    if(!channel||typeof channel!=="object"||Array.isArray(channel)||(batch&&channel.format!=="ytv"))return {status:400,error:"قائمة القنوات غير صحيحة"};
     const id=channel.id||"",index=next.channels.findIndex(c=>c.id===id);
+    if(id&&ids.has(id))return {status:400,error:"القناة مكررة في التحديث"};
+    if(id)ids.add(id);
     if(id && index<0)return {status:404,error:"القناة غير موجودة؛ حدّث القائمة"};
     const name=footballText(channel.name,80),category=footballText(channel.category,60),provider=footballText(channel.provider,120);
     const format=channel.format,sourceUrl=footballHttps(channel.sourceUrl),streamUrl=format==="ytv"?footballYtvId(channel.streamUrl):footballHttps(channel.streamUrl);
-    if(!name||!category||!provider||!sourceUrl||!streamUrl||!FOOTBALL_FORMATS.includes(format)||typeof channel.enabled!=="boolean" || (format==="youtube"&&!footballYoutube(streamUrl)))return {status:400,error:"راجع اسم القناة والقسم والمصدر ونوع المشغل. قنوات YTV PRO تحتاج رقم قناة صحيحًا؛ المصادر الأخرى تحتاج رابط HTTPS صحيحًا"};
-    if(next.channels.some(c=>c.id!==id && c.streamUrl===streamUrl))return {status:409,error:"رابط القناة مضاف بالفعل؛ عدّل القناة الموجودة بدل تكرارها"};
+    if(!name||!category||!provider||!sourceUrl||!streamUrl||!FOOTBALL_FORMATS.includes(format)||typeof channel.enabled!=="boolean" || (format==="youtube"&&!footballYoutube(streamUrl)))return {status:400,error:"راجع اسم القناة والقسم والمصدر ونوع المشغل ورقم القناة أو رابط HTTPS الصحيح"};
     if(index<0 && next.channels.length>=40)return {status:409,error:"الحد الأقصى 40 قناة؛ أزل قناة قديمة أولًا"};
     const item={id:id||"fc-"+crypto.randomUUID(),name,category,provider,sourceUrl,streamUrl,format,enabled:channel.enabled};
     if(index<0)next.channels.push(item);else next.channels[index]=item;
+    }
+    // Validate the final snapshot, so rotating/swapping IDs cannot leave a partial catalog.
+    if(new Set(next.channels.map(c=>c.streamUrl)).size!==next.channels.length)return {status:409,error:"رقم أو رابط القناة مضاف بالفعل؛ عدّل القناة الموجودة بدل تكرارها"};
   }else if(body.action==="deleteChannel"){
     if(!next.channels.some(c=>c.id===body.id))return {status:404,error:"القناة غير موجودة"};
     next.channels=next.channels.filter(c=>c.id!==body.id);

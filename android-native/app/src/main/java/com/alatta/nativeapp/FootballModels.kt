@@ -16,6 +16,20 @@ internal data class FootballCatalog(val revision: Long = 0, val channels: List<F
     val matches: List<FootballMatch> = emptyList(), val updatedAt: Long = 0)
 internal data class LivePlayback(val title: String, val provider: String, val mimeType: String)
 
+internal fun footballIsBein(name: String) = name.trim().startsWith("beIN", ignoreCase = true)
+internal fun footballQuality(category: String): String = Regex("(?i)(1080|720|360|244)\\s*p?").find(category)?.groupValues?.get(1)?.plus("p").orEmpty()
+internal fun footballChannelCategory(channel: FootballChannel): String =
+    if (channel.category.contains("ytv", ignoreCase = true)) "القنوات" else channel.category
+internal fun footballChannelOrder(): Comparator<FootballChannel> = compareBy<FootballChannel> {
+    when {
+        Regex("(?i)^bein\\s*sports\\s*\\d+$").matches(it.name.trim()) -> 0
+        footballIsBein(it.name) -> 1
+        else -> 2
+    }
+}.thenBy { footballChannelCategory(it) }.thenBy {
+    Regex("\\d+").replace(it.name.lowercase(Locale.ROOT).replace(" ", "")) { match -> match.value.padStart(20, '0') }
+}
+
 internal fun footballSafeUrl(value: String): String? = runCatching {
     require(value.length in 1..2048 && value.none { it.isWhitespace() || it.code < 32 || it.code == 127 })
     val uri = URI(value)

@@ -63,4 +63,28 @@ assert.equal(state.data.channels.find(c=>c.id===ytvChannel.id).streamUrl,'922337
 assert.equal((await api(publicPath)).data.channels.find(c=>c.id===ytvChannel.id).format,'ytv');
 state=await save(12,{...ytv,id:ytvChannel.id,streamUrl:'9223372036854775807',enabled:false});assert.equal(state.status,200);
 assert.ok(!(await api(publicPath)).data.channels.some(c=>c.id===ytvChannel.id),'disabled YTV channels stay out of public lists');
-console.log('PASS football catalog: owner-only CRUD, real source metadata, all playback modes, persistent catalog, streamed request limits, URL validation, zero scores, no duplicates, disable/unlink and concurrent revision protection');
+// Whole-section publication is one owner-only, revision-checked transaction.
+const imported=[1,2].map(n=>({...channel,...ytv,name:'Synthetic Sports '+n,category:'Synthetic 1080',streamUrl:String(9000+n)}));
+const batch=(revision,channels,token=owner)=>api(adminPath,{token,revision,action:'saveChannels',channels});
+const beforeBatch=JSON.stringify(data.get('football:catalog'));
+assert.equal((await batch(13,imported,alice)).status,403);
+assert.equal((await batch(12,imported)).status,409);
+assert.equal(JSON.stringify(data.get('football:catalog')),beforeBatch);
+state=await batch(13,imported);assert.equal(state.status,200);assert.equal(state.data.revision,14);
+const group=state.data.channels.filter(c=>c.name.startsWith('Synthetic Sports'));
+assert.equal(group.length,2);
+state=await saveMatch(14,{channelId:group[0].id});assert.equal(state.status,200);
+const refMatch=state.data.matches[0];
+state=await batch(15,group.map((c,i)=>({...c,streamUrl:group[1-i].streamUrl})));
+assert.equal(state.status,200);assert.equal(state.data.revision,16);
+assert.equal(state.data.matches[0].channelId,refMatch.channelId,'ID rotation preserves match references');
+assert.deepEqual(group.map(c=>state.data.channels.find(x=>x.id===c.id).streamUrl),['9002','9001']);
+const stable=JSON.stringify(data.get('football:catalog'));
+for(const [rows,status] of [[[],400],[[{...imported[0],streamUrl:'9201'},{...imported[1],streamUrl:'0'}],400],
+ [[...group.map(c=>({...c,streamUrl:'9301'}))],409],[[{...group[0]},{...group[0]}],400],
+ [[{...imported[0],format:'external',streamUrl:'https://publisher.example/watch'}],400],
+ [Array.from({length:40},(_,n)=>({...imported[0],name:'Capacity '+n,streamUrl:String(9500+n)})),409]]) {
+ assert.equal((await batch(16,rows)).status,status);
+ assert.equal(JSON.stringify(data.get('football:catalog')),stable,'failed batch cannot change any record or revision');
+}
+console.log('PASS football catalog: owner-only CRUD, real source metadata, all playback modes, persistent catalog, streamed request limits, URL validation, zero scores, no duplicates, disable/unlink concurrent revision protection and atomic whole-section ID rotation');

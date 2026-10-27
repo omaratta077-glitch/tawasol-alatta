@@ -21,7 +21,7 @@ w.fetch=async(url,opts={})=>{
  const target=String(url).split('?')[0];
  if(target.startsWith('/knowledge/'))return new Response(fs.readFileSync(path.join(pub,target)));
  if(target==='/api/posts')return Response.json({ok:true,posts:postFixtures});
- if(target==='/api/football')return Response.json({ok:true,matches:[{home:'<img src=x onerror=boom()>',away:'B',league:'Test',startsAt:1790000000000,status:'scheduled'}],channels:[]});
+ if(target==='/api/football')return Response.json({ok:true,matches:[{home:'<img src=x onerror=boom()>',away:'B',league:'Test',startsAt:1790000000000,status:'scheduled'}],channels:Array.from({length:20},(_,i)=>({id:'sports-'+(i+1),name:'beIN SPORTS '+(i+1),category:'beIN SPORTS (1080P)',provider:'YTV PRO',format:'ytv',enabled:true,streamUrl:String(9001+i)}))});
  return Response.json({ok:true,users:[],friends:[],requests:[],notifications:[],stories:[],voices:[]});
 };
 w.eval(read('icons.js'));
@@ -82,6 +82,17 @@ assert.ok(!requests.some(r=>r.opts.method==='POST'),'share prepares draft, never
 w.AttaWeb.navigate('hadithPage');d.getElementById('hadithSearch').value='الأعمال بالنيات';d.getElementById('hadithSearchBtn').click();await tick();assert.ok(d.querySelectorAll('[data-share-hadith]').length>0,'full-book normalized search returns real hadith');
 w.AttaWeb.navigate('quranPage');assert.equal(d.querySelectorAll('#quranMount iframe').length,1);w.AttaWeb.navigate('homePage');w.AttaWeb.navigate('quranPage');assert.equal(d.querySelectorAll('#quranMount iframe').length,1);
 w.AttaWeb.navigate('sportsPage');await tick();assert.equal(d.querySelectorAll('#footballResults img').length,0,'channel/match text is escaped');
+assert.equal(d.querySelectorAll('.sports-channel-card').length,20,'all synced channels appear');
+assert.equal(d.querySelector('[data-sports-tab]').textContent,'القنوات','channels are the first tab');
+assert.equal(d.querySelector('.sports-tab.selected').textContent,'القنوات');
+assert.ok(!d.querySelector('#footballResults').textContent.includes('YTV'),'legacy provider labels stay out of channel cards');
+assert.deepEqual([...d.querySelectorAll('[data-football-channel]')].slice(0,3).map(b=>b.dataset.footballChannel),['sports-1','sports-2','sports-3'],'channels use numeric ordering');
+d.querySelector('[data-sports-favorite="sports-1"]').click();d.querySelector('[data-sports-tab="المفضلة"]').click();
+assert.equal(d.querySelectorAll('.sports-channel-card').length,1,'favorites filter works');
+d.querySelector('[data-sports-tab="المباريات"]').click();
+assert.equal(d.querySelectorAll('#footballResults img').length,0,'match names remain escaped after selecting matches');
+assert.ok(d.querySelector('#footballResults').textContent.includes('<img src=x onerror=boom()>'));
+
 const generated=path.join(pub,'knowledge/generated');
 const manifest=JSON.parse(read('knowledge/generated/hadith/books.json'));assert.equal(manifest.total,14006);
 let total=0;for(const book of manifest.books){let count=0;for(let page=0;page<Math.ceil(book.count/32);page++)count+=JSON.parse(read(`knowledge/generated/hadith/${book.id}/${page}.json`)).length;assert.equal(count,book.count);total+=count;}assert.equal(total,14006);
