@@ -28,6 +28,7 @@ private fun FootballChannel.json() = JSONObject().put("id", id).put("name", name
 @Composable
 internal fun AdminFootballPanel(token: String) {
     var open by remember { mutableStateOf(false) }
+    var probeOpen by remember { mutableStateOf(false) }
     var catalog by remember { mutableStateOf(FootballCatalog()) }
     var busy by remember { mutableStateOf(false) }
     var loaded by remember { mutableStateOf(false) }
@@ -62,12 +63,12 @@ internal fun AdminFootballPanel(token: String) {
     OutlinedButton(onClick = { open = true }) { Text("إدارة القنوات والمباريات", color = PremiumGoldLight) }
     if (open) {
         LaunchedEffect(Unit) { load() }
-        Dialog(onDismissRequest = { if (!busy) open = false }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        Dialog(onDismissRequest = { if (!busy) { probeOpen = false; open = false } }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
             Surface(Modifier.fillMaxSize().safeDrawingPadding(), color = PremiumBackground) {
                 Column(Modifier.fillMaxSize().padding(12.dp)) {
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                         Text("القنوات وجدول المباريات", Modifier.weight(1f), color = PremiumGoldLight, fontSize = 19.sp)
-                        TextButton(enabled = !busy, onClick = { open = false }) { Text("إغلاق") }
+                        TextButton(enabled = !busy, onClick = { probeOpen = false; open = false }) { Text("إغلاق") }
                     }
                     if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
                     if (message.isNotBlank()) Text(message, color = PremiumGoldLight, fontSize = 12.sp)
@@ -75,6 +76,9 @@ internal fun AdminFootballPanel(token: String) {
                         TextButton(enabled = loaded && !busy, onClick = { channel = null; channelForm = true; message = "" }) { Text("إضافة قناة") }
                         TextButton(enabled = loaded && !busy, onClick = { match = null; matchForm = true; message = "" }) { Text("إضافة مباراة") }
                         TextButton(enabled = !busy, onClick = { load() }) { Text("تحديث") }
+                    }
+                    TextButton(enabled = loaded && !busy, onClick = { probeOpen = true }) {
+                        Text("تجربة قائمة ياسين من الهاتف", color = PremiumGoldLight)
                     }
                     LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         item { Text("القنوات • ${catalog.channels.size}/40", color = PremiumGoldLight) }
@@ -101,6 +105,7 @@ internal fun AdminFootballPanel(token: String) {
                 }
             }
         }
+        if (probeOpen && loaded) YacineCatalogProbeDialog { probeOpen = false }
         if (channelForm) FootballChannelEditor(channel, busy, message, onDismiss = { channelForm = false },
             onSave = { change("saveChannel", JSONObject().put("channel", it)) })
         if (matchForm) FootballMatchEditor(match, catalog.channels, busy, message, onDismiss = { matchForm = false },
