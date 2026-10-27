@@ -20,9 +20,9 @@ internal object YtvPlayer {
     private const val SPLASH = "dev.google.ytvplayer.ui.splash.SplashActivity"
 
     enum class Failure(val explanation: String) {
-        INVALID_ID("رقم القناة لدى YTV PRO غير صحيح. يضيف المدير الرقم الحقيقي للقناة من إدارة القنوات."),
-        UNAVAILABLE("ثبّت تطبيق YTV PRO أو حدّثه، ثم افتح القناة من العطا مرة أخرى. تشغيل القناة يتم في YTV PRO."),
-        NOT_ALLOWED("لم يسمح الجهاز بفتح YTV PRO من العطا. حدّث المشغّل وتحقق من قيود التطبيقات ثم أعد المحاولة.")
+        INVALID_ID("رقم القناة غير صحيح. حدّث قائمة القنوات من الإدارة."),
+        UNAVAILABLE("ثبّت مشغّل القنوات المساعد أو حدّثه، ثم افتح القناة من العطا مرة أخرى."),
+        NOT_ALLOWED("لم يسمح الجهاز بفتح مشغّل القنوات. تحقق من قيود التطبيقات ثم أعد المحاولة.")
     }
 
     fun channelId(value: String): String? {
@@ -59,13 +59,13 @@ internal object YtvPlayer {
 @Composable
 internal fun YtvPlayerErrorDialog(failure: YtvPlayer.Failure, onDismiss: () -> Unit) {
     val context = LocalContext.current
-    AlertDialog(onDismissRequest = onDismiss, title = { Text("تعذر فتح القناة في YTV PRO") },
+    AlertDialog(onDismissRequest = onDismiss, title = { Text("تعذر تشغيل القناة") },
         text = { Text(failure.explanation) },
         confirmButton = { TextButton(onClick = onDismiss) { Text("رجوع") } },
         dismissButton = {
             if (failure != YtvPlayer.Failure.INVALID_ID) TextButton(onClick = {
                 try { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(YtvPlayer.APP_PAGE))) }
-                catch (_: RuntimeException) { Toast.makeText(context, "افتح متجر التطبيقات وابحث عن YTV PRO", Toast.LENGTH_LONG).show() }
-            }) { Text("تثبيت أو تحديث YTV PRO") }
+                catch (_: RuntimeException) { Toast.makeText(context, "تعذر فتح صفحة تثبيت المشغّل", Toast.LENGTH_LONG).show() }
+            }) { Text("تثبيت أو تحديث المشغّل") }
         })
 }

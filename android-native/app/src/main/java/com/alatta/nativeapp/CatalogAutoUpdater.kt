@@ -18,6 +18,8 @@ import org.json.JSONObject
 /** Non-secret bindings only. The response configuration stays in CatalogFormatSettings. */
 internal object CatalogLinkStore {
     private fun prefs(context: Context) = context.getSharedPreferences("alatta_catalog_links_v1", Context.MODE_PRIVATE)
+    fun automatic(context: Context, owner: String) = owner.isNotBlank() && prefs(context).getBoolean("automatic:$owner", true)
+    fun automatic(context: Context, owner: String, enabled: Boolean) = prefs(context).edit().putBoolean("automatic:$owner", enabled).commit()
     fun read(context: Context, owner: String): List<CatalogChannelLink> = runCatching {
         if (owner.isBlank()) return emptyList()
         val rows = JSONArray(prefs(context).getString(owner, "[]"))
@@ -47,6 +49,7 @@ internal object CatalogAutoUpdater {
     var generation by mutableIntStateOf(0)
         private set
     private var messages by mutableStateOf(emptyMap<String, String>())
+    fun configurationChanged() { generation++ }
     fun message(owner: String) = messages[owner].orEmpty()
     private fun service(context: Context, token: String, owner: String) = CatalogChannelSync(
         load = { FootballRepository.load(token) },
@@ -56,17 +59,25 @@ internal object CatalogAutoUpdater {
         },
         save = { catalog, channel -> FootballRepository.change(token, catalog.revision, "saveChannel",
             JSONObject().put("channel", FootballRepository.channelJson(channel))) },
-        rememberLinks = { links -> CatalogLinkStore.write(context, owner, links).also { if (it) generation++ } }
+        rememberLinks = { links -> CatalogLinkStore.write(context, owner, links).also { if (it) generation++ } },
+        saveBatch = { catalog, channels ->
+            val rows = JSONArray(); channels.forEach { rows.put(FootballRepository.channelJson(it)) }
+            FootballRepository.change(token, catalog.revision, "saveChannels", JSONObject().put("channels", rows))
+        }
     )
     suspend fun refresh(context: Context, token: String, owner: String, force: Boolean = false): CatalogSyncResult? =
         withContext(Dispatchers.IO) { mutex.withLock {
             if (owner.isBlank() || token.isBlank()) return@withLock null
             val links = CatalogLinkStore.read(context, owner)
-            if (!force && links.isEmpty()) return@withLock null
+            if (!force && (!CatalogLinkStore.automatic(context, owner) || !CatalogFormatSettings.configured(context))) return@withLock null
             val now = SystemClock.elapsedRealtime()
             if (!force && attempts[owner]?.let { now - it < 5 * 60_000L } == true) return@withLock null
             attempts[owner] = now
-            service(context, token, owner).refresh(links).also { messages = messages + (owner to it.message) }
+            service(context, token, owner).refreshSection(links) {
+                val mask = CatalogFormatSettings.read(context)?.toByteArray(Charsets.US_ASCII)
+                val result = YacineCatalogProbe.fetch(YacineCatalogProbe.Kind.CATEGORIES, responseMask = mask)
+                catalogDefaultSection(result)
+            }.also { messages = messages + (owner to it.message) }
         } }
     suspend fun bind(context: Context, token: String, owner: String, channelId: String,
         categoryId: String, entry: YacineCatalogProbe.Entry): CatalogSyncResult = withContext(Dispatchers.IO) { mutex.withLock {
@@ -77,6 +88,11 @@ internal object CatalogAutoUpdater {
         CatalogLinkStore.write(context, owner, CatalogLinkStore.read(context, owner).filterNot { it.channelId == channelId })
             .also { if (it) { generation++; messages = messages + (owner to "تم إلغاء الربط؛ بقي رقم القناة كما هو.") } }
     } }
+    suspend fun automatic(context: Context, owner: String, enabled: Boolean): Boolean = withContext(Dispatchers.IO) { mutex.withLock {
+        CatalogLinkStore.automatic(context, owner, enabled).also {
+            if (it) { generation++; attempts.remove(owner); messages = messages + (owner to if (enabled) "تم تفعيل تحديث قائمة القنوات تلقائيًا" else "تم إيقاف التحديث التلقائي") }
+        }
+    } }
 }
 
 /** Owner phone publishes cached IDs for everyone; no service configuration leaves the phone. */
@@ -84,6 +100,13 @@ internal object CatalogAutoUpdater {
 internal fun CatalogAutoRefreshEffect(token: String, owner: String, enabled: Boolean) {
     val context = LocalContext.current
     val lifecycle = context.mediaActivity()?.lifecycle
+    val generation = CatalogAutoUpdater.generation
+    LaunchedEffect(token, owner, enabled, generation) {
+        val allowed = enabled && token.isNotBlank() && withContext(Dispatchers.IO) {
+            CatalogLinkStore.automatic(context, owner) && CatalogFormatSettings.configured(context)
+        }
+        CatalogRefreshJob.schedule(context.applicationContext, owner, allowed)
+    }
     LaunchedEffect(token, owner, enabled, lifecycle) {
         if (!enabled || token.isBlank() || owner.isBlank() || lifecycle == null) return@LaunchedEffect
         lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {

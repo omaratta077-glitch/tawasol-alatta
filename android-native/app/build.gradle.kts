@@ -24,9 +24,9 @@ android {
         applicationId = "com.alatta.nativeapp"
         minSdk = 26
         targetSdk = 35
-        // v1.0.184: owner phone refreshes linked YTV channel IDs while the app is open.
-        versionCode = 284
-        versionName = "1.0.184"
+        // v1.0.185: rebuild sports channels with automatic full-section synchronization.
+        versionCode = 285
+        versionName = "1.0.185"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("boolean", "IS_APPGALLERY", appGalleryBuild.toString())
         val hmsId = (System.getenv("ALATTA_HMS_APP_ID") ?: "").trim().takeIf { it.matches(Regex("[0-9]{1,20}")) } ?: ""

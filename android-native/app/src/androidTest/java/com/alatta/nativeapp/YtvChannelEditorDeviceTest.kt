@@ -32,16 +32,16 @@ class YtvChannelEditorDeviceTest {
     @Test fun ytvSelectionSavesTheExactIdAndSharedCatalogMetadata() {
         val saved = AtomicReference<JSONObject>()
         compose.setContent { Editor { saved.set(it) } }
-        compose.onNodeWithText("YTV PRO").performScrollTo().performClick()
+        compose.onNodeWithText("مشغّل القنوات").performScrollTo().performClick()
         compose.onNodeWithText("اسم القناة").performScrollTo().performTextInput("قناة الاختبار")
-        compose.onNodeWithText("رقم القناة لدى YTV PRO").performScrollTo().performTextInput("٤٢٩٤٩٦٧٢٩٦")
+        compose.onNodeWithText("رقم القناة").performScrollTo().performTextInput("٤٢٩٤٩٦٧٢٩٦")
         compose.onAllNodesWithText("رابط البث أو المشاهدة HTTPS").assertCountEquals(0)
         compose.onNodeWithText("حفظ").performClick()
         compose.runOnIdle {
             val channel = requireNotNull(saved.get())
             assertEquals("ytv", channel.getString("format"))
             assertEquals("4294967296", channel.getString("streamUrl"))
-            assertEquals("YTV PRO", channel.getString("provider"))
+            assertEquals("beIN SPORTS", channel.getString("provider"))
             assertEquals(YtvPlayer.APP_PAGE, channel.getString("sourceUrl"))
             assertTrue(channel.getBoolean("enabled"))
         }
@@ -50,13 +50,13 @@ class YtvChannelEditorDeviceTest {
     @Test fun invalidIdIsNotSavedAndCanBeCorrectedWithoutLosingTheForm() {
         val saved = AtomicReference<JSONObject>()
         compose.setContent { Editor { saved.set(it) } }
-        compose.onNodeWithText("YTV PRO").performScrollTo().performClick()
+        compose.onNodeWithText("مشغّل القنوات").performScrollTo().performClick()
         compose.onNodeWithText("اسم القناة").performScrollTo().performTextInput("قناة التصحيح")
-        compose.onNodeWithText("رقم القناة لدى YTV PRO").performScrollTo().performTextInput("12345678901234567890")
+        compose.onNodeWithText("رقم القناة").performScrollTo().performTextInput("12345678901234567890")
         compose.onNodeWithText("حفظ").performClick()
-        compose.onNodeWithText("أدخل رقم قناة صحيحًا لدى YTV PRO").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("أدخل رقم قناة صحيحًا").performScrollTo().assertIsDisplayed()
         compose.runOnIdle { assertNull(saved.get()) }
-        compose.onNodeWithText("رقم القناة لدى YTV PRO").performScrollTo().performTextReplacement("41")
+        compose.onNodeWithText("رقم القناة").performScrollTo().performTextReplacement("41")
         compose.onNodeWithText("حفظ").performClick()
         compose.runOnIdle {
             val channel = requireNotNull(saved.get())

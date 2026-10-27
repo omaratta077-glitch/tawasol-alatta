@@ -42,8 +42,10 @@ internal fun AdminFootballPanel(token: String, owner: String) {
     val scope = rememberCoroutineScope()
     val linkGeneration = CatalogAutoUpdater.generation
     var links by remember { mutableStateOf(emptyList<CatalogChannelLink>()) }
+    var automatic by remember { mutableStateOf(true) }
     LaunchedEffect(owner, catalog.revision, linkGeneration) {
         links = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { CatalogLinkStore.read(context, owner) }
+        automatic = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { CatalogLinkStore.automatic(context, owner) }
     }
     LaunchedEffect(linkGeneration) {
         if (open && loaded && !busy) {
@@ -94,15 +96,23 @@ internal fun AdminFootballPanel(token: String, owner: String) {
                     TextButton(enabled = loaded && !busy, onClick = { probeOpen = true }) {
                         Text("تجربة قائمة ياسين من الهاتف", color = PremiumGoldLight)
                     }
-                    if (links.isNotEmpty()) {
-                        Text("التحديث التلقائي يعمل أثناء فتح العطا على هاتفك، كل خمس دقائق. آخر رقم محفوظ يبقى متاحًا عند انقطاعه.",
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Switch(automatic, enabled = !busy, onCheckedChange = { enabled -> scope.launch {
+                            busy = true
+                            try { if (CatalogAutoUpdater.automatic(context, owner, enabled)) automatic = enabled }
+                            finally { busy = false }
+                        } })
+                        Text("تحديث قائمة beIN تلقائيًا", color = PremiumGoldLight, fontSize = 13.sp)
+                    }
+                    if (automatic || links.isNotEmpty()) {
+                        Text("تُجلب قنوات قسم 1080 كاملة. التحقق كل خمس دقائق أثناء الاستخدام، ودوريًا في الخلفية حسب نظام الهاتف.",
                             color = PremiumMuted, fontSize = 12.sp)
                         TextButton(enabled = !busy, onClick = { scope.launch {
                             busy = true
                             try { CatalogAutoUpdater.refresh(context, token, owner, force = true)?.let {
                                 it.catalog?.let { next -> catalog = next }; message = it.message
                             } } finally { busy = false }
-                        } }) { Text("تحديث الأرقام الآن", color = PremiumGoldLight) }
+                        } }) { Text("تحديث القنوات الآن", color = PremiumGoldLight) }
                     }
                     CatalogAutoUpdater.message(owner).takeIf { it.isNotBlank() }?.let {
                         Text(it, color = PremiumMuted, fontSize = 12.sp)
@@ -112,16 +122,11 @@ internal fun AdminFootballPanel(token: String, owner: String) {
                         if (loaded && catalog.channels.isEmpty()) item { Text("أضف قناة ورابط بث يتيحه الناشر للعرض في التطبيق. لا توجد قنوات مضافة بعد.", color = PremiumMuted, fontSize = 13.sp) }
                         items(catalog.channels, key = { it.id }) { item -> FootballPanel {
                             Text(item.name, color = Color.White)
-                            Text("${item.category} • ${item.provider} • ${if (item.enabled) "مفعلة" else "موقوفة"}", color = PremiumMuted, fontSize = 12.sp)
+                            Text("${footballChannelCategory(item)} • ${if (item.enabled) "مفعلة" else "موقوفة"}", color = PremiumMuted, fontSize = 12.sp)
                             links.firstOrNull { it.channelId == item.id }?.let { link ->
                                 Text("ربط تلقائي: ${link.sourceName} • القسم ${link.categoryId}", color = PremiumGoldLight, fontSize = 12.sp)
                                 if (item.format != "ytv" || item.streamUrl != link.lastPublishedId)
                                     Text("توقف التحديث لهذا الربط بعد التعديل اليدوي. أعد الربط لاستئنافه.", color = PremiumMuted, fontSize = 12.sp)
-                                TextButton(enabled = !busy, onClick = { scope.launch {
-                                    busy = true
-                                    try { message = if (CatalogAutoUpdater.unlink(context, owner, item.id)) "تم إلغاء الربط" else "تعذر إلغاء الربط" }
-                                    finally { busy = false }
-                                } }) { Text("إلغاء الربط") }
                             }
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                                 TextButton(enabled = !busy, onClick = { channel = item; channelForm = true; message = "" }) { Text("تعديل") }
@@ -170,14 +175,14 @@ internal fun FootballChannelEditor(item: FootballChannel?, busy: Boolean, messag
     var validation by remember(item?.id) { mutableStateOf("") }
     AlertDialog(onDismissRequest = { if (!busy) onDismiss() }, title = { Text(if (item == null) "إضافة قناة" else "تعديل القناة") }, text = {
         Column(Modifier.heightIn(max = 480.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("اختر المشغّل. قنوات YTV PRO تفتح في التطبيق المثبّت على الجهاز باستخدام رقم القناة الذي تضيفه هنا.", fontSize = 12.sp)
+            Text("تُحدّث قائمة القنوات تلقائيًا. يمكنك أيضًا تعديل قناة أو إضافة مصدر مشاهدة هنا.", fontSize = 12.sp)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                listOf("hls" to "HLS", "dash" to "DASH", "youtube" to "يوتيوب", "external" to "موقع الناشر", "ytv" to "YTV PRO").forEach { (value, label) ->
+                listOf("hls" to "HLS", "dash" to "DASH", "youtube" to "يوتيوب", "external" to "موقع الناشر", "ytv" to "مشغّل القنوات").forEach { (value, label) ->
                     FilterChip(selected = format == value, enabled = !busy, onClick = {
                         format = value; validation = ""
                         if (value == "ytv") {
-                            if (category.isBlank()) category = "YTV PRO"
-                            if (provider.isBlank()) provider = "YTV PRO"
+                            if (category.isBlank()) category = "القنوات"
+                            if (provider.isBlank()) provider = "beIN SPORTS"
                             if (source.isBlank()) source = YtvPlayer.APP_PAGE
                         }
                     }, label = { Text(label, fontSize = 12.sp) })
@@ -190,7 +195,7 @@ internal fun FootballChannelEditor(item: FootballChannel?, busy: Boolean, messag
                 FootballField(source, "رابط صفحة المصدر HTTPS", !busy, 2048, KeyboardType.Uri) { source = it }
             }
             if (format == "ytv") {
-                FootballField(ytvId, "رقم القناة لدى YTV PRO", !busy, 40, KeyboardType.Number) { ytvId = it; validation = "" }
+                FootballField(ytvId, "رقم القناة", !busy, 40, KeyboardType.Number) { ytvId = it; validation = "" }
                 Text("استخدم الرقم الحقيقي للقناة لدى المشغّل، وليس ترتيبها في القائمة. تظهر القناة للمستخدمين بعد حفظها.", fontSize = 12.sp)
             } else FootballField(stream, "رابط البث أو المشاهدة HTTPS", !busy, 2048, KeyboardType.Uri) { stream = it }
             Row(verticalAlignment = Alignment.CenterVertically) { Switch(enabled, onCheckedChange = { enabled = it }, enabled = !busy); Text("إظهار القناة للمستخدمين") }
@@ -200,7 +205,7 @@ internal fun FootballChannelEditor(item: FootballChannel?, busy: Boolean, messag
         }
     }, confirmButton = { TextButton(enabled = !busy, onClick = {
         val target = if (format == "ytv") YtvPlayer.channelId(ytvId) else stream.trim()
-        if (target == null) validation = "أدخل رقم قناة صحيحًا لدى YTV PRO"
+        if (target == null) validation = "أدخل رقم قناة صحيحًا"
         else onSave(FootballChannel(item?.id.orEmpty(), name.trim(), category.trim(), provider.trim(), source.trim(), target, format, enabled).json())
     }) { Text("حفظ") } },
         dismissButton = { TextButton(enabled = !busy, onClick = onDismiss) { Text("رجوع") } })

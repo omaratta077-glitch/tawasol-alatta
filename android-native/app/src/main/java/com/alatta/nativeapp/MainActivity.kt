@@ -966,14 +966,9 @@ internal fun YoutubePostMedia(videoId: String, playing: Boolean, onPlay: () -> U
     if (playing) {
         val currentStop by rememberUpdatedState(onStop)
         DisposableEffect(videoId) { onDispose { currentStop() } }
-        Column(Modifier.fillMaxWidth().padding(vertical = 6.dp)
-            .clip(RoundedCornerShape(12.dp)).background(Color(0xFF101416))
-            .border(.7.dp, Border.copy(alpha = .7f), RoundedCornerShape(12.dp))
-            .padding(horizontal = 12.dp, vertical = 9.dp)) {
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text("يوتيوب", color = GoldLight, fontSize = 12.sp, modifier = Modifier.weight(1f))
-                TextButton(onClick = onStop) { Text("إيقاف", color = Muted, fontSize = 12.sp) }
-            }
+        Box(Modifier.fillMaxWidth().padding(vertical = 4.dp)
+            .clip(RoundedCornerShape(14.dp)).background(Color.Black)
+            .border(.7.dp, Border.copy(alpha = .7f), RoundedCornerShape(14.dp))) {
             playerContent(videoId)
         }
     } else {
@@ -981,7 +976,7 @@ internal fun YoutubePostMedia(videoId: String, playing: Boolean, onPlay: () -> U
             .clip(RoundedCornerShape(12.dp)).background(Color.Black)
             .clickable(onClick = onPlay), contentAlignment = Alignment.Center) {
             AsyncImage("https://i.ytimg.com/vi/$videoId/hqdefault.jpg", "معاينة فيديو يوتيوب",
-                Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
             Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = .35f)))
             SiteIcon("play-circle", size = 60.dp, tint = GoldLight)
         }

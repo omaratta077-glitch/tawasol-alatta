@@ -196,7 +196,7 @@ internal fun YacineCatalogProbeDialog(channels: List<FootballChannel>, owner: St
                 settingsBusy = true
                 scope.launch {
                     val removed = withContext(Dispatchers.IO) { CatalogFormatSettings.clear(context) }
-                    if (removed) { configured = false; maskInput = ""; result = null; settingsMessage = "تم حذف الإعداد" }
+                    if (removed) { configured = false; maskInput = ""; result = null; settingsMessage = "تم حذف الإعداد"; CatalogAutoUpdater.configurationChanged() }
                     else settingsMessage = "تعذر حذف الإعداد"
                     settingsBusy = false
                 }
@@ -209,7 +209,7 @@ internal fun YacineCatalogProbeDialog(channels: List<FootballChannel>, owner: St
             settingsBusy = true
             scope.launch {
                 val saved = withContext(Dispatchers.IO) { CatalogFormatSettings.save(context, value) }
-                if (saved) { configured = true; maskInput = ""; settingsOpen = false; result = null }
+                if (saved) { configured = true; maskInput = ""; settingsOpen = false; result = null; CatalogAutoUpdater.configurationChanged() }
                 else settingsMessage = "تعذر حفظ الإعداد على الهاتف"
                 settingsBusy = false
             }

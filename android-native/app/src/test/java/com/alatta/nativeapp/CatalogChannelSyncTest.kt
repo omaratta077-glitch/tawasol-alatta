@@ -16,6 +16,7 @@ class CatalogChannelSyncTest {
         val requests = mutableListOf<String>()
         val writes = mutableListOf<Pair<Long, FootballChannel>>()
         val remembered = mutableListOf<List<CatalogChannelLink>>()
+        val batches = mutableListOf<List<FootballChannel>>()
         var reply: (String) -> YacineCatalogProbe.Result = { error("Unexpected request") }
         var failSaveAt = 0
         var denied = false
@@ -31,7 +32,20 @@ class CatalogChannelSyncTest {
                     channels = current.channels.map { if (it.id == next.id) next else it })
                 catalog
             },
-            rememberLinks = { links = it; remembered.add(it.toList()); true }
+            rememberLinks = { links = it; remembered.add(it.toList()); true },
+            saveBatch = { current, rows ->
+                batches.add(rows)
+                if (failSaveAt != 0) error("409 conflict")
+                check(current.revision == catalog.revision)
+                val next = current.channels.toMutableList()
+                rows.forEachIndexed { index, row ->
+                    if (row.id.isBlank()) next.add(row.copy(id = "generated-$index"))
+                    else next[next.indexOfFirst { it.id == row.id }] = row
+                }
+                require(next.map { it.streamUrl }.distinct().size == next.size)
+                catalog = current.copy(revision = current.revision + 1, channels = next)
+                catalog
+            }
         )
     }
 
@@ -145,5 +159,83 @@ class CatalogChannelSyncTest {
         try { f.sync.refresh(f.links) } catch (_: CancellationException) { cancelled = true }
         assertTrue(cancelled)
         assertTrue(f.writes.isEmpty())
+    }
+
+    @Test fun fullSectionAutomaticallyAdoptsExistingNamesAndImportsAllTwentyWithoutDuplicates() = runBlocking {
+        val section = YacineCatalogProbe.Entry("101", "Test Sports (1080P)")
+        val originals = listOf(channel().copy(name = "Test Sports1", category = section.name),
+            channel("two", "9002").copy(name = "Test Sports 2", category = section.name))
+        val f = Fake(FootballCatalog(7, originals), emptyList())
+        f.reply = { list(*(1..20).map { "Test Sports $it" to (9100 + it).toString() }.toTypedArray()) }
+        val first = f.sync.refreshSection(f.links) { section }
+        assertEquals(20, first.checked)
+        assertEquals(20, f.catalog.channels.size)
+        assertEquals(listOf("saved-one", "two"), f.catalog.channels.take(2).map { it.id })
+        assertEquals(originals[0].name, f.catalog.channels[0].name)
+        assertEquals(20, f.links.size)
+        assertEquals(1, f.batches.size)
+        val again = f.sync.refreshSection(f.links) { section }
+        assertEquals(0, again.changed)
+        assertEquals(20, f.catalog.channels.size)
+        assertEquals(1, f.batches.size)
+    }
+
+    @Test fun fullSectionCanRotateIdsInOneAtomicWriteAndRetainsDisabledChannelsAndMatches() = runBlocking {
+        val section = YacineCatalogProbe.Entry("101", "Test Sports (1080P)")
+        val a = channel().copy(name = "Test Sports 1", category = section.name)
+        val b = channel("two", "9002").copy(name = "Test Sports 2", category = section.name)
+        val match = FootballMatch("match", "Home", "Away", "Test", 1700000000000L, "scheduled", a.id, null, null)
+        val f = Fake(FootballCatalog(4, listOf(a, b), listOf(match)), emptyList())
+        f.reply = { list("Test Sports 1" to "9002", "Test Sports 2" to "9001") }
+        assertEquals(2, f.sync.refreshSection(f.links) { section }.changed)
+        assertEquals(listOf("9002", "9001"), f.catalog.channels.map { it.streamUrl })
+        assertEquals(listOf(match), f.catalog.matches)
+        assertEquals(5L, f.catalog.revision)
+    }
+
+    @Test fun invalidFullSectionOrInsufficientCapacityCannotImportAPartialList() = runBlocking {
+        val section = YacineCatalogProbe.Entry("101", "Test Sports (1080P)")
+        val f = Fake(FootballCatalog(1, listOf(channel())), emptyList())
+        for (response in listOf(list("Test Sports 1" to "9101", "Test Sports1" to "9102"),
+            YacineCatalogProbe.Result(YacineCatalogProbe.State.HTTP_ERROR, "", "failure"))) {
+            f.reply = { response }; f.sync.refreshSection(f.links) { section }
+            assertTrue(f.batches.isEmpty()); assertEquals(1, f.catalog.channels.size)
+        }
+        f.catalog = f.catalog.copy(channels = (1..40).map { channel("old-$it", (9500 + it).toString()) })
+        f.reply = { list("New Sports" to "9201") }
+        f.sync.refreshSection(f.links) { section }
+        assertTrue(f.batches.isEmpty()); assertEquals(40, f.catalog.channels.size)
+    }
+
+    @Test fun fullSectionPreservesManualOverridesAndDisabledSavedRecords() = runBlocking {
+        val section = YacineCatalogProbe.Entry("101", "Test Sports (1080P)")
+        val a = channel(stream = "9901").copy(name = "Test Sports 1", category = section.name)
+        val b = channel("two", "9002", enabled = false).copy(name = "Test Sports 2", category = section.name)
+        val f = Fake(FootballCatalog(2, listOf(a, b)), listOf(link()))
+        f.reply = { list("Test Sports 1" to "9101", "Test Sports 2" to "9102") }
+        f.sync.refreshSection(f.links) { section }
+        assertEquals(listOf(a, b), f.catalog.channels)
+        assertEquals("9001", f.links.first { it.channelId == a.id }.lastPublishedId)
+        assertTrue(f.batches.isEmpty())
+    }
+
+    @Test fun automaticSectionDiscoveryUsesNamesAndCurrentIdsRatherThanAnEmbeddedCategoryNumber() {
+        val root = list("beIN SPORTS (720P)" to "107", "beIN SPORTS (1080P)" to "109")
+        assertEquals("109", catalogDefaultSection(root)?.id)
+        assertNull(catalogDefaultSection(root.copy(state = YacineCatalogProbe.State.HTTP_ERROR)))
+        assertNull(catalogDefaultSection(list("beIN SPORTS (1080P)" to "109", "beIN SPORTS 1080" to "110")))
+    }
+
+    @Test fun automaticImportChecksOwnerFirstAndNeverWritesPartOfAConflictingBatch() = runBlocking {
+        val f = Fake(FootballCatalog(1, listOf(channel())), emptyList())
+        f.denied = true
+        var discovered = false
+        f.sync.refreshSection(f.links) { discovered = true; YacineCatalogProbe.Entry("101", "Test Sports (1080P)") }
+        assertFalse(discovered); assertTrue(f.requests.isEmpty()); assertTrue(f.batches.isEmpty())
+        f.denied = false; f.failSaveAt = 1
+        f.reply = { list("New Sports 1" to "9101", "New Sports 2" to "9102") }
+        f.sync.refreshSection(f.links) { YacineCatalogProbe.Entry("101", "Test Sports (1080P)") }
+        assertEquals(1, f.catalog.channels.size); assertEquals(1L, f.catalog.revision)
+        assertTrue(f.links.isEmpty()); assertTrue(f.remembered.isEmpty())
     }
 }

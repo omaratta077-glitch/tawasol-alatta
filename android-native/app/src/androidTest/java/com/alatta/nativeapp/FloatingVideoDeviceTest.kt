@@ -25,29 +25,37 @@ import org.junit.Test
 class FloatingVideoDeviceTest {
     @get:Rule val compose = createComposeRule()
 
-    @Test fun aPostMountsItsPlayerInlineAndReleasesItWhenStoppedOrItsScreenLeaves() {
+    @Test fun aPostFillsTheCardWithoutExtraLabelsAndReleasesItsInlinePlayerWhenLeaving() {
         val visible = mutableStateOf(true)
         var stops = 0
         var disposedPlayers = 0
         compose.setContent {
+            Box(Modifier.width(320.dp).testTag("post-width")) {
             if (visible.value) YoutubePostMedia("dQw4w9WgXcQ", true, onPlay = {},
-                onStop = { if (visible.value) { stops++; visible.value = false } },
+                onStop = { stops++ },
                 playerContent = { id ->
                     androidx.compose.runtime.DisposableEffect(id) {
                         onDispose { disposedPlayers++ }
                     }
-                    Text("inline-player-$id")
+                    Box(Modifier.fillMaxWidth().height(200.dp).testTag("inline-content")) { Text("inline-player-$id") }
                 })
+            }
         }
         compose.onNodeWithText("inline-player-dQw4w9WgXcQ").assertIsDisplayed()
-        compose.onNodeWithText("إيقاف").performClick()
+        compose.onAllNodesWithText("إيقاف").assertCountEquals(0)
+        compose.onAllNodesWithText("يوتيوب").assertCountEquals(0)
+        val card = compose.onNodeWithTag("post-width").fetchSemanticsNode().boundsInRoot
+        val player = compose.onNodeWithTag("inline-content").fetchSemanticsNode().boundsInRoot
+        assertEquals(card.left, player.left, .5f)
+        assertEquals(card.right, player.right, .5f)
+        compose.runOnIdle { visible.value = false }
         compose.onNodeWithText("inline-player-dQw4w9WgXcQ").assertDoesNotExist()
         compose.runOnIdle { assertEquals(1, stops); assertEquals(1, disposedPlayers) }
         compose.runOnIdle { visible.value = true }
         compose.onNodeWithText("inline-player-dQw4w9WgXcQ").assertIsDisplayed()
         compose.runOnIdle { visible.value = false }
         compose.waitForIdle()
-        compose.runOnIdle { assertEquals(2, disposedPlayers) }
+        compose.runOnIdle { assertEquals(2, disposedPlayers); assertEquals(2, stops) }
     }
 
     @Test fun dragAcrossAnEmbeddedViewMovesRightInArabicAndStaysInsideTheViewport() {
