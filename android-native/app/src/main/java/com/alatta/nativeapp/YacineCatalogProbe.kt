@@ -33,12 +33,14 @@ internal object YacineCatalogProbe {
         val bytes: Long = 0,
         val elapsedMs: Long = 0,
         val hasTimeHeader: Boolean = false,
-        val entries: List<Entry> = emptyList()
+        val entries: List<Entry> = emptyList(),
+        val serverMessage: String = ""
     ) {
         fun report(): String = buildString {
             append("تجربة قائمة ياسين من الهاتف\nGET ").append(BASE).append(path)
             append("\nالحالة: ").append(state.name).append("\n").append(message)
             code?.let { append("\nHTTP ").append(it) }
+            if (serverMessage.isNotBlank()) append("\nرسالة الجهة المجيبة: ").append(serverMessage)
             append("\nنوع الرد: ").append(contentType.ifBlank { "غير محدد" })
             append("\nالمقروء من الرد: ").append(bytes).append(" بايت")
             append("\nالمدة: ").append(elapsedMs).append(" ms")
@@ -68,6 +70,7 @@ internal object YacineCatalogProbe {
     internal fun parse(text: String, code: Int, path: String): Result {
         if (code !in 200..299) return Result(State.HTTP_ERROR, path,
             if (code in 300..399) "الخادم أعاد تحويلًا؛ لم يتم اتباعه."
+            else if (code == 436) "جهة الرد أعادت HTTP 436، وهو رمز غير قياسي؛ لم تصل قائمة صالحة والسبب غير محدد."
             else "الخادم أعاد خطأ HTTP؛ لم تصل قائمة صالحة.", code)
         val root = try {
             val tokener = JSONTokener(text)
@@ -116,8 +119,14 @@ internal object YacineCatalogProbe {
     internal fun read(response: Response, path: String, elapsedMs: Long): Result {
         val type = response.header("Content-Type").orEmpty().substringBefore(';').take(80)
         val hasTime = !response.header("t").isNullOrBlank()
-        if (!response.isSuccessful) return parse("", response.code, path)
-            .copy(contentType = type, elapsedMs = elapsedMs, hasTimeHeader = hasTime)
+        if (!response.isSuccessful) {
+            // Read a bounded error preview without retrying, following redirects or
+            // passing an error body to the successful catalog parser.
+            val preview = response.peekBody(4096).use { it.bytes() }
+            return parse("", response.code, path).copy(contentType = type,
+                bytes = preview.size.toLong(), elapsedMs = elapsedMs, hasTimeHeader = hasTime,
+                serverMessage = errorMessage(String(preview, Charsets.UTF_8), type))
+        }
         val source = response.body?.source()
             ?: return Result(State.INVALID, path, "الخادم أعاد استجابة بدون محتوى.", response.code,
                 contentType = type, elapsedMs = elapsedMs, hasTimeHeader = hasTime)
@@ -127,6 +136,20 @@ internal object YacineCatalogProbe {
             response.code, type, size, elapsedMs, hasTime)
         return parse(source.buffer.readUtf8(), response.code, path)
             .copy(contentType = type, bytes = size, elapsedMs = elapsedMs, hasTimeHeader = hasTime)
+    }
+
+    private fun errorMessage(text: String, type: String): String {
+        val raw = if (type.contains("json") || text.trimStart().startsWith("{")) {
+            try {
+                val json = JSONObject(text)
+                listOf("message", "error_description", "detail", "error")
+                    .firstNotNullOfOrNull { key -> (json.opt(key) as? String)?.takeIf { it.isNotBlank() } }.orEmpty()
+            } catch (_: Exception) { "" }
+        } else if (type == "text/plain") text else ""
+        return raw.replace(Regex("https?://\\S+", RegexOption.IGNORE_CASE), "[رابط محذوف]")
+            .replace(Regex("(authorization|token|api[_-]?key|secret|cookie)\\s*[:=]\\s*\\S+", RegexOption.IGNORE_CASE), "$1=[محذوف]")
+            .replace(Regex("Bearer\\s+\\S+", RegexOption.IGNORE_CASE), "Bearer [محذوف]")
+            .replace(Regex("\\s+"), " ").filterNot { Character.isISOControl(it) }.trim().take(360)
     }
 
     suspend fun fetch(kind: Kind, categoryId: String? = null): Result {

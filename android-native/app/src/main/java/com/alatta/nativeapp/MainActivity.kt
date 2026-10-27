@@ -54,15 +54,12 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.AbsoluteAlignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.gestures.detectDragGestures
-import androidx.compose.ui.unit.IntOffset
-import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.window.DialogWindowProvider
@@ -71,12 +68,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.draw.shadow
 import androidx.compose.animation.core.*
 import androidx.compose.ui.draw.drawWithContent
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalView
@@ -105,7 +100,6 @@ import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
-import kotlin.math.roundToInt
 
                         @Composable
 private fun AttaCommentEntry(entry: JSONObject, nested: Boolean,
@@ -810,7 +804,7 @@ private class AttaYoutubeFullscreenChrome(
  * using cloudflare-site/public/youtube-player-shared.js on the HTTPS site origin.
  * The local JS is an interaction/diagnostics bridge and never creates an iframe.
  */
-@Composable private fun YouTubePlayer(id: String) {
+@Composable private fun YouTubePlayer(id: String, onMiniDrag: ((Float, Float) -> Unit)? = null) {
     val safeId = id.takeIf { Regex("[A-Za-z0-9_-]{11}").matches(it) } ?: return
     val ctx = LocalContext.current
     var loading by remember(safeId) { mutableStateOf(true) }
@@ -909,6 +903,11 @@ private class AttaYoutubeFullscreenChrome(
             loadUrl("$BASE/")
         }
     }
+    val touchHost = remember(ctx, safeId) {
+        MiniPlayerTouchHost(ctx).apply {
+            addView(webView, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+        }
+    }
     // An iframe loading is not proof of playback, but a 20-second timeout
     // is not a player error either. Stop the loading spinner quietly and let
     // the site's existing embedded player display its own controls.
@@ -945,9 +944,9 @@ private class AttaYoutubeFullscreenChrome(
     @Composable fun PlayerSurface(modifier: Modifier) {
         Box(modifier.background(Color.Black), contentAlignment = Alignment.Center) {
             AndroidView(factory = {
-                (webView.parent as? ViewGroup)?.removeView(webView)
-                webView
-            }, modifier = Modifier.fillMaxSize())
+                (touchHost.parent as? ViewGroup)?.removeView(touchHost)
+                touchHost
+            }, update = { it.onDrag = onMiniDrag }, modifier = Modifier.fillMaxSize())
             if (loading) CircularProgressIndicator(color = Gold, modifier = Modifier.size(30.dp))
             // Never cover the real YouTube picture with a WebView diagnostic caption.
         }
@@ -1219,8 +1218,6 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
     // created ONLY when the user explicitly presses Play in the top preview.
     var youtubePlayRequested by remember { mutableStateOf(false) }
     var youtubeSelectedThumbnail by remember { mutableStateOf("") }
-    var miniYoutubeOffset by remember { mutableStateOf(Offset.Zero) }
-    var miniYoutubeViewport by remember { mutableStateOf(IntSize.Zero) }
     val youtubePipMode = (ctx as? MainActivity)?.youtubePipMode == true
     SideEffect {
         (ctx as? MainActivity)?.setYoutubePlaybackActive(
@@ -2391,7 +2388,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
 
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
         MaterialTheme(colorScheme = darkColorScheme(primary = Gold, background = Black, surface = Panel, onSurface = White, onBackground = White)) {
-            Box(Modifier.fillMaxSize().background(Black).onSizeChanged { miniYoutubeViewport = it }) {
+            Box(Modifier.fillMaxSize().background(Black)) {
             Column(if (youtubePipMode) Modifier.size(0.dp) else Modifier.fillMaxSize().background(Black).safeDrawingPadding()) {
                 if (token.isBlank()) {
                     // Scroll only the authentication screen; Android navigation remains unobstructed.
@@ -3822,52 +3819,32 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
             // Only its bounds change between the YouTube page and a visible mini-player.
             if (token.isNotBlank() && youtubePlayRequested && youtubeId.isNotBlank()) {
                 val expandedYoutube = tab == "يوتيوب" && profilePeer.isBlank()
-                val density = androidx.compose.ui.platform.LocalDensity.current
-                // Measure the actual app viewport. Configuration.screenWidthDp includes areas
-                // outside this Compose host on some devices, which made the player jump at edges.
-                val viewportWidth = with(density) { miniYoutubeViewport.width.toDp() }
-                val viewportHeight = with(density) { miniYoutubeViewport.height.toDp() }
-                val miniHeight = 28.dp + 240.dp * 9f / 16f
-                val maxMiniX = with(density) { (viewportWidth - 256.dp).coerceAtLeast(0.dp).toPx() }
-                // The player is bottom-anchored with an 86dp nav-bar gap. Keep its top
-                // inside the viewport while preserving that bottom anchor as the origin.
-                val minMiniY = with(density) {
-                    -(viewportHeight - miniHeight - 102.dp).coerceAtLeast(0.dp).toPx()
-                }
-                val hostModifier = if (youtubePipMode) Modifier.align(Alignment.Center).fillMaxSize()
-                    else if (expandedYoutube) Modifier.align(Alignment.TopCenter)
-                    .fillMaxWidth().windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top+WindowInsetsSides.Horizontal))
-                    .padding(top = if (compactYoutubeLayout) 0.dp else 47.dp, start = 8.dp, end = 8.dp)
-                else Modifier.align(AbsoluteAlignment.BottomLeft)
-                    .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom+WindowInsetsSides.Horizontal))
-                    .absolutePadding(left = 8.dp, bottom = 86.dp)
-                    .offset { IntOffset(miniYoutubeOffset.x.roundToInt(), miniYoutubeOffset.y.roundToInt()) }
-                    .width(240.dp)
-                Column(hostModifier.clip(if (youtubePipMode) RectangleShape else RoundedCornerShape(10.dp)).background(Black)
-                    .then(if (youtubePipMode) Modifier else Modifier.border(.7.dp,Border,RoundedCornerShape(10.dp)))) {
-                    if (!youtubePipMode) {
-                        Row(Modifier.fillMaxWidth().height(28.dp).padding(horizontal = 5.dp),
-                            verticalAlignment = Alignment.CenterVertically) {
-                            Text("يوتيوب", color = GoldLight, fontSize = 10.sp,
-                                modifier = Modifier.weight(1f).clickable { navigate("يوتيوب") })
-                            Box(Modifier.size(width = 42.dp, height = 28.dp)
-                                .pointerInput(maxMiniX, minMiniY) {
-                                    detectDragGestures { change, dragAmount ->
-                                        change.consume()
-                                        miniYoutubeOffset = Offset(
-                                            (miniYoutubeOffset.x + dragAmount.x).coerceIn(0f, maxMiniX),
-                                            (miniYoutubeOffset.y + dragAmount.y).coerceIn(minMiniY, 0f)
-                                        )
-                                    }
-                                }, contentAlignment = Alignment.Center) {
-                                Text("⠿", color = GoldLight, fontSize = 18.sp, lineHeight = 20.sp)
-                            }
-                            IconButton(onClick = { youtubePlayRequested = false; activeYoutubePostId = "" }, modifier = Modifier.size(28.dp)) {
-                                SiteIcon("x", size = 16.dp)
+                FloatingVideoContainer(expandedYoutube, youtubePipMode,
+                    if (compactYoutubeLayout) 0.dp else 47.dp) { hostModifier, onMiniDrag ->
+                    val currentMiniDrag by rememberUpdatedState(onMiniDrag)
+                    Column(hostModifier.clip(if (youtubePipMode) RectangleShape else RoundedCornerShape(10.dp)).background(Black)
+                        .then(if (youtubePipMode) Modifier else Modifier.border(.7.dp,Border,RoundedCornerShape(10.dp)))) {
+                        if (!youtubePipMode) {
+                            Row(Modifier.fillMaxWidth().height(28.dp).padding(horizontal = 5.dp),
+                                verticalAlignment = Alignment.CenterVertically) {
+                                Text("يوتيوب", color = GoldLight, fontSize = 10.sp,
+                                    modifier = Modifier.weight(1f).clickable { navigate("يوتيوب") })
+                                if (onMiniDrag != null) Box(Modifier.size(width = 42.dp, height = 28.dp)
+                                    .pointerInput(Unit) {
+                                        detectDragGestures { change, dragAmount ->
+                                            change.consume()
+                                            currentMiniDrag?.invoke(dragAmount.x, dragAmount.y)
+                                        }
+                                    }, contentAlignment = Alignment.Center) {
+                                    Text("⠿", color = GoldLight, fontSize = 18.sp, lineHeight = 20.sp)
+                                }
+                                IconButton(onClick = { youtubePlayRequested = false; activeYoutubePostId = "" }, modifier = Modifier.size(28.dp)) {
+                                    SiteIcon("x", size = 16.dp)
+                                }
                             }
                         }
+                        YouTubePlayer(youtubeId, onMiniDrag = onMiniDrag)
                     }
-                    YouTubePlayer(youtubeId)
                 }
             }
             activeCall?.let { session ->
