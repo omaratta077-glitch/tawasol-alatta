@@ -1147,6 +1147,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
     var adminSearch by remember { mutableStateOf("") }
     var adminNextOffset by remember { mutableStateOf(-1) }
     var adminRole by remember { mutableStateOf("") }
+    CatalogAutoRefreshEffect(token, myUsername, enabled = adminRole == "super_admin")
     var adminUsers by remember { mutableStateOf(emptyList<JSONObject>()) }
     var adminPosts by remember { mutableStateOf(emptyList<JSONObject>()) }
     var archivedPosts by remember { mutableStateOf(emptyList<JSONObject>()) }
@@ -3220,7 +3221,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                             if (adminRole in listOf("super_admin", "moderator")) {
                                 item { if (adminRole == "super_admin") AdminOwnerHero(displayName, myAvatar, adminSummary.optString("owner").ifBlank { myUsername }) else SectionTitle("لوحة المشرف • متابعة البلاغات والحسابات") }
                                 if (adminRole == "super_admin") item { CardBox { AdminAdhanVoicesPanel(token) } }
-                                if (adminRole == "super_admin") item { CardBox { AdminFootballPanel(token) } }
+                                if (adminRole == "super_admin") item { CardBox { AdminFootballPanel(token, owner = myUsername) } }
                                 item {
                                     CardBox {
                                         AdminStatisticsPanel(adminSummary)

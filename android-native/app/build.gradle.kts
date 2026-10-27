@@ -24,9 +24,9 @@ android {
         applicationId = "com.alatta.nativeapp"
         minSdk = 26
         targetSdk = 35
-        // v1.0.183: read encoded catalogs with owner-entered private device configuration.
-        versionCode = 283
-        versionName = "1.0.183"
+        // v1.0.184: owner phone refreshes linked YTV channel IDs while the app is open.
+        versionCode = 284
+        versionName = "1.0.184"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("boolean", "IS_APPGALLERY", appGalleryBuild.toString())
         val hmsId = (System.getenv("ALATTA_HMS_APP_ID") ?: "").trim().takeIf { it.matches(Regex("[0-9]{1,20}")) } ?: ""

@@ -6,6 +6,11 @@ import org.json.JSONObject
 import java.net.URLEncoder
 
 internal object FootballRepository {
+    internal fun channelJson(channel: FootballChannel) = with(channel) {
+        JSONObject().put("id", id).put("name", name).put("category", category)
+            .put("provider", provider).put("sourceUrl", sourceUrl).put("streamUrl", streamUrl)
+            .put("format", format).put("enabled", enabled)
+    }
     private fun records(json: JSONObject, name: String): List<JSONObject> {
         val array = json.optJSONArray(name) ?: return emptyList()
         return (0 until array.length()).mapNotNull(array::optJSONObject)
