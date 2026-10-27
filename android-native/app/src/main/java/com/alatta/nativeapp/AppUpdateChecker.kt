@@ -344,7 +344,7 @@ internal fun AppUpdatePrompt(manualCheckRequest: Int = 0) {
                             )
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    text = "تحديث جديد لتواصل العطا",
+                                    text = "تحديث جديد لـ AL-ATTA Media",
                                     color = Color.White,
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 20.sp,

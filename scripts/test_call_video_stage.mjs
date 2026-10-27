@@ -26,10 +26,10 @@ assert.equal((screen.match(/if \(!videoCall \|\| !videoEstablished\)/g) || []).l
   'name, call type, and timer disappear on both established video endpoints');
 assert.ok(screen.includes('val videoEstablished = connectedAt > 0L || remoteReady'),
   'remote decoded video frame can hide overlay on receiving endpoint');
-assert.ok(main.includes('val keepScreenAwake = (token.isNotBlank() && youtubePlayRequested) || activeCall?.type == "video"') &&
+assert.ok(main.includes('val keepScreenAwake = (token.isNotBlank() && (youtubePlayRequested || activeYoutubePostId.isNotBlank())) || activeCall?.type == "video"') &&
   main.includes('DisposableEffect(keepScreenAwake)') &&
   main.includes('window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)'),
-  'video call keeps display awake until call ends without leaking window flags');
+  'video calls and visible section/post playback keep the display awake without leaking window flags');
 assert.ok(engine.includes('/api/turn-credentials'),'use exactly the same TURN endpoint as the website');
 assert.ok(engine.includes('/api/message-send') && engine.includes('/api/call-media-signals'),'signaling interoperable with site');
 for (const type of ['call-request','call-ringing','call-accept','call-reject','offer','answer','ice','hangup']) {

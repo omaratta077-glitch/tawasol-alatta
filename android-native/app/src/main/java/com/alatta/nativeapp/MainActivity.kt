@@ -959,18 +959,22 @@ private class AttaYoutubeFullscreenChrome(
     }
 }
 
-/** A YouTube video is displayed inline with the official, already-existing site-based player. */
+/** Posts use the same site player inline; only the YouTube section owns a floating host. */
 @Composable
-private fun YoutubePostMedia(videoId: String, playing: Boolean, onPlay: () -> Unit, onStop: () -> Unit) {
+internal fun YoutubePostMedia(videoId: String, playing: Boolean, onPlay: () -> Unit, onStop: () -> Unit,
+    playerContent: @Composable (String) -> Unit = { YouTubePlayer(it) }) {
     if (playing) {
+        val currentStop by rememberUpdatedState(onStop)
+        DisposableEffect(videoId) { onDispose { currentStop() } }
         Column(Modifier.fillMaxWidth().padding(vertical = 6.dp)
             .clip(RoundedCornerShape(12.dp)).background(Color(0xFF101416))
             .border(.7.dp, Border.copy(alpha = .7f), RoundedCornerShape(12.dp))
             .padding(horizontal = 12.dp, vertical = 9.dp)) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text("الفيديو يعمل في المشغّل المصغّر", color = GoldLight, fontSize = 12.sp, modifier = Modifier.weight(1f))
+                Text("يوتيوب", color = GoldLight, fontSize = 12.sp, modifier = Modifier.weight(1f))
                 TextButton(onClick = onStop) { Text("إيقاف", color = Muted, fontSize = 12.sp) }
             }
+            playerContent(videoId)
         }
     } else {
         Box(Modifier.fillMaxWidth().aspectRatio(16f / 9f).padding(vertical = 6.dp)
@@ -1221,7 +1225,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
     val youtubePipMode = (ctx as? MainActivity)?.youtubePipMode == true
     SideEffect {
         (ctx as? MainActivity)?.setYoutubePlaybackActive(
-            token.isNotBlank() && youtubePlayRequested && youtubeId.isNotBlank()
+            token.isNotBlank() && youtubePlayRequested && youtubeId.isNotBlank() && activeYoutubePostId.isBlank()
         )
     }
     var youtubeCategory by remember { mutableStateOf("قرآن") }
@@ -1229,7 +1233,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
     val youtubeDisplayHeight = if (compactYoutubeLayout) 200.dp else
         (((LocalConfiguration.current.screenWidthDp-16).dp)*9f/16f).coerceAtLeast(200.dp)
     // Keep the screen awake while a YouTube video or video call is visibly active.
-    val keepScreenAwake = (token.isNotBlank() && youtubePlayRequested) || activeCall?.type == "video"
+    val keepScreenAwake = (token.isNotBlank() && (youtubePlayRequested || activeYoutubePostId.isNotBlank())) || activeCall?.type == "video"
     DisposableEffect(keepScreenAwake) {
         val window = (ctx as? ComponentActivity)?.window
         if (keepScreenAwake) window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -1242,6 +1246,10 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
             youtubePlayRequested = false
             activeYoutubePostId = ""
         }
+    }
+    LaunchedEffect(tab, profilePeer) {
+        // A post stops when its screen is left or covered by a profile. It never becomes a mini-player.
+        activeYoutubePostId = ""
     }
     val youtubeListState = rememberLazyListState()
     val homeFeedListState = rememberLazyListState()
@@ -2698,8 +2706,11 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                 }
                             })
                         "الرياضة" -> FootballScreen(footballSearch, Modifier.weight(1f), isAdmin = adminRole == "super_admin", token = token, callInProgress = activeCall != null,
-                            onManage = { navigate("الإدارة") }, onBeforePlayback = { youtubePlayRequested = false },
-                            onYoutube = { id -> youtubeId = id; youtubePlayRequested = true })
+                            onManage = { navigate("الإدارة") }, onBeforePlayback = { youtubePlayRequested = false; activeYoutubePostId = "" },
+                            onYoutube = { id ->
+                                activeYoutubePostId = ""; youtubeId = id; youtubePlayRequested = true
+                                navigate("يوتيوب")
+                            })
                         "الرئيسية", "استكشاف", "المحفوظات" -> {
                             PullToRefreshBox(
                                 isRefreshing = screenLoading,
@@ -2910,8 +2921,8 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                     }
                                     youtubePostId(p.optString("text"))?.let { videoId ->
                                         YoutubePostMedia(videoId, activeYoutubePostId == postId,
-                                            onPlay = { youtubeId = videoId; youtubePlayRequested = true; activeYoutubePostId = postId },
-                                            onStop = { activeYoutubePostId = ""; youtubePlayRequested = false })
+                                            onPlay = { youtubePlayRequested = false; activeYoutubePostId = postId },
+                                            onStop = { if (activeYoutubePostId == postId) activeYoutubePostId = "" })
                                     }
                                     val image = media(p.optString("image")); val video = media(p.optString("video"))
                                     val mushafPages = parseMushafPostAttachment(p.optString("text"), BASE)?.pages
@@ -2967,9 +2978,10 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                             MushafPostGallery(attachment.pages, media(shared.optString("image")).takeIf { it.isNotBlank() })
                                         }
                                         youtubePostId(shared.optString("text"))?.let { videoId ->
-                                            YoutubePostMedia(videoId, activeYoutubePostId == postId,
-                                                onPlay = { youtubeId = videoId; youtubePlayRequested = true; activeYoutubePostId = postId },
-                                                onStop = { activeYoutubePostId = ""; youtubePlayRequested = false })
+                                            val sharedYoutubePostId = "shared_" + postId
+                                            YoutubePostMedia(videoId, activeYoutubePostId == sharedYoutubePostId,
+                                                onPlay = { youtubePlayRequested = false; activeYoutubePostId = sharedYoutubePostId },
+                                                onStop = { if (activeYoutubePostId == sharedYoutubePostId) activeYoutubePostId = "" })
                                         }
                                     }
                                     HorizontalDivider(color = Border.copy(alpha = .5f), modifier = Modifier.padding(vertical = 7.dp))
@@ -3559,7 +3571,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                                 Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
                                         }
                                         Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = .38f)))
-                                        GoldButton("▶ تشغيل الفيديو") { youtubePlayRequested = true }
+                                        GoldButton("▶ تشغيل الفيديو") { activeYoutubePostId = ""; youtubePlayRequested = true }
                                     }
                                 }
                             }
@@ -3629,6 +3641,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                     if (id.matches(Regex("[A-Za-z0-9_-]{11}"))) {
                                         youtubeId = id
                                         youtubeSelectedThumbnail = v.optString("thumbnail")
+                                        activeYoutubePostId = ""
                                         youtubePlayRequested = false
                                     }
                                 }
@@ -3763,8 +3776,8 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                     youtubePostId(post.optString("text"))?.let { videoId ->
                                         val ownId = "own_" + post.optString("id")
                                         YoutubePostMedia(videoId, activeYoutubePostId == ownId,
-                                            onPlay = { youtubeId = videoId; youtubePlayRequested = true; activeYoutubePostId = ownId },
-                                            onStop = { activeYoutubePostId = ""; youtubePlayRequested = false })
+                                            onPlay = { youtubePlayRequested = false; activeYoutubePostId = ownId },
+                                            onStop = { if (activeYoutubePostId == ownId) activeYoutubePostId = "" })
                                     }
                                     val ownMushafPages = parseMushafPostAttachment(post.optString("text"), BASE)?.pages
                                     if (ownMushafPages != null) MushafPostGallery(ownMushafPages, media(post.optString("image")).takeIf { it.isNotBlank() })
@@ -3816,8 +3829,9 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                 }
             }
             // Keep the existing site WebView at one stable composition location.
+            // Only section playback reaches this host; post playback stays inside its card.
             // Only its bounds change between the YouTube page and a visible mini-player.
-            if (token.isNotBlank() && youtubePlayRequested && youtubeId.isNotBlank()) {
+            if (token.isNotBlank() && youtubePlayRequested && youtubeId.isNotBlank() && activeYoutubePostId.isBlank()) {
                 val expandedYoutube = tab == "يوتيوب" && profilePeer.isBlank()
                 FloatingVideoContainer(expandedYoutube, youtubePipMode,
                     if (compactYoutubeLayout) 0.dp else 47.dp) { hostModifier, onMiniDrag ->

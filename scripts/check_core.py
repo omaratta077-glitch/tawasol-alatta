@@ -61,12 +61,13 @@ check("Foreground ring state declared in AttaPush",
       "AttaPush.foregroundRingCallId == callId" in ring_screen)
 
 check("Native Google bridge removed", not (ROOT/(android+"GoogleWebBridge.kt")).exists())
-check("Official version 1.0.181", 'versionCode = 281' in gradle and 'versionName = "1.0.181"' in gradle)
+check("Official version 1.0.182", 'versionCode = 282' in gradle and 'versionName = "1.0.182"' in gradle)
 check("YouTube player persists across tabs and enters visible PiP",
       'android:supportsPictureInPicture="true"' in read("android-native/app/src/main/AndroidManifest.xml") and
       'setAutoEnterEnabled(active)' in main and
       'pipVisibleAndInteractive' in main and
-      'الفيديو يعمل في المشغّل المصغّر' in main and
+      'playerContent(videoId)' in main and
+      'youtubeId = videoId; youtubePlayRequested = true' not in main and
       'detectDragGestures' in main and 'FloatingVideoContainer(' in main and
       'MiniPlayerTouchHost(ctx)' in main and '.absoluteOffset' in read(android+"FloatingVideoHost.kt") and
       'if (destination != "الرئيسية") activeYoutubePostId = ""' not in main)
