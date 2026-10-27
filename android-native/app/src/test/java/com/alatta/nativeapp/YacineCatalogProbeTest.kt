@@ -74,4 +74,28 @@ class YacineCatalogProbeTest {
             assertEquals(YacineCatalogProbe.State.HTTP_ERROR, YacineCatalogProbe.read(it, path, 15).state)
         }
     }
+
+    @Test fun serviceErrorsExposeOnlyABoundedMessageAndNeverBecomeCatalogData() {
+        fun response(type: String, body: String) = Response.Builder()
+            .request(YacineCatalogProbe.request(YacineCatalogProbe.Kind.CATEGORIES))
+            .protocol(Protocol.HTTP_1_1).code(436).message("test")
+            .header("Content-Type", type).body(body.toResponseBody()).build()
+        response("application/json", """{"message":"Catalog unavailable","data":[{"id":1,"name":"not a catalog"}]}""").use {
+            val result = YacineCatalogProbe.read(it, path, 1)
+            assertEquals(YacineCatalogProbe.State.HTTP_ERROR, result.state)
+            assertEquals("Catalog unavailable", result.serverMessage)
+            assertTrue(result.entries.isEmpty())
+            assertTrue(result.bytes > 0)
+        }
+        response("text/plain", "token=private-value https://example.invalid/?key=secret " + "x".repeat(9000)).use {
+            val result = YacineCatalogProbe.read(it, path, 1)
+            assertEquals(4096L, result.bytes)
+            assertTrue(result.serverMessage.length <= 360)
+            assertFalse(result.serverMessage.contains("private-value"))
+            assertFalse(result.serverMessage.contains("example.invalid"))
+        }
+        response("text/html", "<html>not catalog data</html>").use {
+            assertTrue(YacineCatalogProbe.read(it, path, 1).serverMessage.isEmpty())
+        }
+    }
 }

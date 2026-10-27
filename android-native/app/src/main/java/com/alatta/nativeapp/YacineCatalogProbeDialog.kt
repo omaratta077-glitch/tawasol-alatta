@@ -76,6 +76,8 @@ internal fun YacineCatalogProbeDialog(onDismiss: () -> Unit) {
                                     YacineCatalogProbe.State.EMPTY)) PremiumGoldLight else Color(0xFFFFB4A9), fontSize = 14.sp)
                                 Text("GET /api/" + current.path, color = PremiumMuted, fontSize = 12.sp)
                                 current.code?.let { Text("HTTP " + it, color = Color.White, fontSize = 13.sp) }
+                                if (current.serverMessage.isNotBlank()) Text("رسالة الجهة المجيبة: " + current.serverMessage,
+                                    color = Color.White, fontSize = 13.sp)
                                 Text("نوع الرد: " + current.contentType.ifBlank { "غير محدد" } +
                                     " • المقروء: " + current.bytes + " بايت • " + current.elapsedMs + " ms",
                                     color = PremiumMuted, fontSize = 12.sp)
