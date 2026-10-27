@@ -16,6 +16,8 @@
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"/>
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CAMERA"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION"/>
     <uses-permission android:name="android.permission.WAKE_LOCK"/>
@@ -41,6 +43,7 @@
         <activity android:name=".IncomingCallLockActivity" android:exported="false" android:excludeFromRecents="true" android:launchMode="singleTop" android:showWhenLocked="true" android:turnScreenOn="true" android:theme="@style/IncomingCallWindow" />
         <receiver android:name=".AttaCallRejectReceiver" android:exported="false" />
         <service android:name=".AdhanPlaybackService" android:exported="false" android:foregroundServiceType="mediaPlayback" />
+        <service android:name=".WatchRoomService" android:exported="false" android:foregroundServiceType="camera|microphone" />
         <service android:name=".SportsScreenLiveService" android:exported="false" android:foregroundServiceType="mediaProjection" />
         <service android:name=".CatalogRefreshJob" android:permission="android.permission.BIND_JOB_SERVICE" android:exported="true" />
         <receiver android:name=".AdhanAlarmReceiver" android:exported="false" />

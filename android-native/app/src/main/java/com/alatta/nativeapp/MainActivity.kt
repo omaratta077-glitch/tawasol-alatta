@@ -553,6 +553,10 @@ class MainActivity : ComponentActivity() {
 
     internal fun setYoutubePlaybackActive(active: Boolean) {
         youtubePlaybackActive = active
+        updatePip(active || WatchRoomController.active)
+    }
+
+    private fun updatePip(active: Boolean) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val params = PictureInPictureParams.Builder()
                 .setAspectRatio(Rational(16, 9))
@@ -566,7 +570,7 @@ class MainActivity : ComponentActivity() {
     @Suppress("DEPRECATION")
     override fun onUserLeaveHint() {
         super.onUserLeaveHint()
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && youtubePlaybackActive && !isInPictureInPictureMode) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && (youtubePlaybackActive || WatchRoomController.active) && !isInPictureInPictureMode) {
             enterPictureInPictureMode(
                 PictureInPictureParams.Builder().setAspectRatio(Rational(16, 9)).build()
             )
@@ -606,6 +610,9 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun consumePushIntent(intent: Intent?) {
+        if (intent?.action == WatchRoomService.ACTION_OPEN) {
+            requestedNotificationTab = "الرياضة"; intent.action = Intent.ACTION_MAIN; return
+        }
         if (intent?.action == AdhanScheduler.ACTION_OPEN) {
             requestedNotificationTab = "الأذكار"
             intent.action = Intent.ACTION_MAIN
@@ -972,13 +979,17 @@ internal fun YoutubePostMedia(videoId: String, playing: Boolean, onPlay: () -> U
             playerContent(videoId)
         }
     } else {
-        Box(Modifier.fillMaxWidth().aspectRatio(16f / 9f).padding(vertical = 6.dp)
-            .clip(RoundedCornerShape(12.dp)).background(Color.Black)
+        Box(Modifier.fillMaxWidth().padding(vertical = 4.dp).aspectRatio(16f / 9f)
+            .clip(RoundedCornerShape(14.dp)).background(Color.Black)
             .clickable(onClick = onPlay), contentAlignment = Alignment.Center) {
-            AsyncImage("https://i.ytimg.com/vi/$videoId/hqdefault.jpg", "معاينة فيديو يوتيوب",
-                Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
-            Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = .35f)))
-            SiteIcon("play-circle", size = 60.dp, tint = GoldLight)
+            var thumbnail by remember(videoId) { mutableStateOf("maxresdefault.jpg") }
+            AsyncImage("https://i.ytimg.com/vi/$videoId/$thumbnail", "معاينة الفيديو",
+                Modifier.fillMaxSize(), contentScale = ContentScale.Crop,
+                onSuccess = { if (thumbnail == "maxresdefault.jpg" && it.result.drawable.intrinsicWidth < 320) thumbnail = "mqdefault.jpg" },
+                onError = { thumbnail = "mqdefault.jpg" })
+            Box(Modifier.size(66.dp).clip(CircleShape).background(Color.Black.copy(alpha = .25f)), contentAlignment = Alignment.Center) {
+                SiteIcon("play-circle", size = 54.dp, tint = GoldLight)
+            }
         }
     }
 }
@@ -1219,6 +1230,12 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
     var youtubePlayRequested by remember { mutableStateOf(false) }
     var youtubeSelectedThumbnail by remember { mutableStateOf("") }
     val youtubePipMode = (ctx as? MainActivity)?.youtubePipMode == true
+    val watchRoomActive = WatchRoomController.active
+    var wasWatching by remember { mutableStateOf(false) }
+    LaunchedEffect(watchRoomActive, youtubePipMode) {
+        if (watchRoomActive) wasWatching = true
+        else if (wasWatching && youtubePipMode && !youtubePlayRequested) (ctx as? MainActivity)?.finish()
+    }
     SideEffect {
         (ctx as? MainActivity)?.setYoutubePlaybackActive(
             token.isNotBlank() && youtubePlayRequested && youtubeId.isNotBlank() && activeYoutubePostId.isBlank()
@@ -1229,7 +1246,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
     val youtubeDisplayHeight = if (compactYoutubeLayout) 200.dp else
         (((LocalConfiguration.current.screenWidthDp-16).dp)*9f/16f).coerceAtLeast(200.dp)
     // Keep the screen awake while a YouTube video or video call is visibly active.
-    val keepScreenAwake = (token.isNotBlank() && (youtubePlayRequested || activeYoutubePostId.isNotBlank())) || activeCall?.type == "video"
+    val keepScreenAwake = (token.isNotBlank() && (youtubePlayRequested || activeYoutubePostId.isNotBlank())) || activeCall?.type == "video" || WatchRoomController.active
     DisposableEffect(keepScreenAwake) {
         val window = (ctx as? ComponentActivity)?.window
         if (keepScreenAwake) window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -1318,6 +1335,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
         onSignedIn()
     }
     fun clearLocalSession() {
+        WatchRoomController.stop(ctx)
         activeCall = null; incomingCall = null; pendingPermissionCall = null
         AttaPush.activeCallId = ""
         NativeRtcCall.clearIceCache()
@@ -1429,7 +1447,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
     }
     fun openCall(peer: String, type: String, incoming: Boolean = false, callId: String = UUID.randomUUID().toString()) {
         if (peer.isBlank() || token.isBlank()) return
-        if (activeCall != null) { featureMessage = "توجد مكالمة جارية"; return }
+        if (activeCall != null || WatchRoomController.active || WatchRoomController.closing) { featureMessage = "غادر المكالمة أو غرفة المشاهدة الحالية أولًا"; return }
         val session = NativeCallSession(peer.lowercase(), type, callId, incoming)
         val permissionNames = if (type == "video")
             arrayOf(Manifest.permission.RECORD_AUDIO, Manifest.permission.CAMERA)
@@ -1505,7 +1523,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
             return
         }
         // A genuinely different active/pending call may still be busy.
-        if (activeCall != null || pendingPermissionCall != null ||
+        if (WatchRoomController.active || WatchRoomController.closing || activeCall != null || pendingPermissionCall != null ||
             (incomingCall != null && incomingCall?.callId != id)) {
             knownCalls.add(id)
             if (incomingCall?.callId == id) incomingCall = null
@@ -1723,7 +1741,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
             if (age !in 0..45000L || !knownCalls.add(callId)) return
             val invite = NativeCallSession(sender,
                 if (signal.optString("callType") == "video") "video" else "audio", callId, true, invitedAt = timestamp)
-            if (activeCall == null && incomingCall == null && pendingPermissionCall == null) {
+            if (!WatchRoomController.active && !WatchRoomController.closing && activeCall == null && incomingCall == null && pendingPermissionCall == null) {
                 incomingCall = invite
                 sendCallRinging(invite) // Ringback only after the incoming dialog is created.
             } else sendCallResponse(invite, "busy")
@@ -1757,6 +1775,9 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
             pendingPermissionCall?.callId == push.callId ||
             incomingCall?.callId == push.callId) {
             knownCalls.add(push.callId) // An existing dialog/session already owns this ID.
+        } else if ((WatchRoomController.active || WatchRoomController.closing) && knownCalls.add(push.callId)) {
+            AttaPush.dismiss(ctx, push.callId)
+            sendCallResponse(session, "busy")
         } else if (activeCall == null && incomingCall == null &&
             pendingPermissionCall == null && knownCalls.add(push.callId)) {
             incomingCall = session
@@ -1838,6 +1859,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                     object : WebSocketListener() {
                         override fun onMessage(webSocket: WebSocket, text: String) {
                             val msg = try { JSONObject(text) } catch (_: Exception) { return }
+                            if (msg.optString("type") == "watch-room-signal") msg.optJSONObject("signal")?.let(WatchRoomController::signal)
                             if (msg.optString("type") in setOf("account-reset", "account-disabled", "account-deleted")) {
                                 scope.launch { clearLocalSession() }
                                 return
@@ -2701,7 +2723,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                     openHomeComposer()
                                 }
                             })
-                        "الرياضة" -> FootballScreen(footballSearch, Modifier.weight(1f), isAdmin = adminRole == "super_admin", token = token, callInProgress = activeCall != null,
+                        "الرياضة" -> FootballScreen(footballSearch, Modifier.weight(1f), isAdmin = adminRole == "super_admin", token = token, callInProgress = activeCall != null || incomingCall != null || pendingPermissionCall != null,
                             onManage = { navigate("الإدارة") }, onBeforePlayback = { youtubePlayRequested = false; activeYoutubePostId = "" },
                             onYoutube = { id ->
                                 activeYoutubePostId = ""; youtubeId = id; youtubePlayRequested = true
@@ -3855,6 +3877,12 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                         }
                         YouTubePlayer(youtubeId, onMiniDrag = onMiniDrag)
                     }
+                }
+            }
+            if (watchRoomActive && token.isNotBlank()) {
+                if (youtubePipMode) WatchRoomController.room?.let { WatchVideoStage(it, WatchRoomController.engine, Modifier.fillMaxSize()) }
+                else if (tab != "الرياضة") Box(Modifier.align(Alignment.BottomCenter).padding(start = 8.dp, end = 8.dp, bottom = 76.dp)) {
+                    WatchRoomOngoingBar { navigate("الرياضة") }
                 }
             }
             activeCall?.let { session ->

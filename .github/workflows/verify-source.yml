@@ -28,6 +28,7 @@ jobs:
           node scripts/test_admin_email_delivery.mjs
           node scripts/test_adhan_voices.mjs
           node scripts/test_football_catalog.mjs
+          node scripts/test_watch_rooms.mjs
           node scripts/test_media_ranges.mjs
           node scripts/test_audit_security.mjs
           node scripts/test_inbox_summary.mjs
@@ -65,6 +66,7 @@ jobs:
         run: |
           npm ci --ignore-scripts --no-audit --no-fund --prefix scripts/web-tests
           node scripts/web-tests/parity.mjs
+          node scripts/web-tests/watch-room.mjs
           node scripts/web-tests/admin-profile.mjs
           node scripts/web-tests/pwa-layout.mjs
           node scripts/web-tests/birthdate.mjs

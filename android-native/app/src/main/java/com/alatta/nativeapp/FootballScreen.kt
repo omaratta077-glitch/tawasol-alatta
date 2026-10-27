@@ -92,7 +92,10 @@ internal fun FootballScreen(query: String, modifier: Modifier = Modifier,
         onFavorite = { id ->
             favorites = if (id in favorites) favorites - id else favorites + id
             preferences.edit().putStringSet("favorites", favorites.toSet()).apply()
-        }, livePanel = { SportsLivePanel(token = token, isAdmin = isAdmin) })
+        }, livePanel = {
+            WatchRoomPanel(token, catalog.channels, callInProgress, onPlay = ::play, onBeforeJoin = onBeforePlayback)
+            SportsLivePanel(token = token, isAdmin = isAdmin)
+        })
     playerFailure?.let { YtvPlayerErrorDialog(it, onDismiss = { playerFailure = null }) }
     selected?.let { channel ->
         val posts = remember(channel) { listOf(JSONObject().put("id", channel.id).put("video", channel.streamUrl)) }
@@ -127,10 +130,10 @@ internal fun FootballContent(catalog: FootballCatalog, query: String, favorites:
                 }
             }
             IconButton(enabled = !loading, onClick = onReload, modifier = Modifier.semantics { contentDescription = "تحديث القنوات والمباريات" }) {
-                SiteIcon("refresh-cw", tint = PremiumGoldLight, size = 19.dp)
+                SiteIcon("repeat", tint = PremiumGoldLight, size = 19.dp)
             }
             if (isAdmin) IconButton(onClick = onManage, modifier = Modifier.semantics { contentDescription = "إدارة القنوات والمباريات" }) {
-                SiteIcon("settings", tint = PremiumGoldLight, size = 19.dp)
+                SiteIcon("menu", tint = PremiumGoldLight, size = 19.dp)
             }
         }
         livePanel()

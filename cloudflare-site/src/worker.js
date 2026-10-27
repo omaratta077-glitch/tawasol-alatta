@@ -227,6 +227,8 @@ export class SignalingRoom extends DurableObject {
     this.accountDeleteBusy=false;
     this.accountDeleteClosing=false;
     this.accountStatusBusy=new Set();
+    this.watchRooms=new Map();this.watchMembers=new Map();this.watchRates=new Map();
+    this.watchLock=Promise.resolve();
   }
 
   trackOperation(fn){
@@ -548,6 +550,111 @@ export class SignalingRoom extends DurableObject {
       }
       if(storedAttempts)await this.ctx.storage.delete(key);return null;
     }finally{this.adminPasswordBusy=false;}
+  }
+
+  // Private, ephemeral watch-room signaling. Media stays in WebRTC; no recording or SDP persistence.
+  async watchRoomApi(request,body){
+    if(request.method!=="POST")return j({ok:false,error:"طريقة الطلب غير مدعومة"},405);
+    const session=await this.session(String(body.token||""));
+    if(!session)return j({ok:false,error:"الجلسة منتهية"},401);
+    const task=this.watchLock.then(()=>this.watchRoomAction(session.username,body));
+    this.watchLock=task.catch(()=>{});return task;
+  }
+  watchRemove(room,peerId){
+    const member=room.members.get(peerId);if(!member)return;
+    if(this.watchMembers.get(member.username)?.peerId===peerId)this.watchMembers.delete(member.username);
+    room.members.delete(peerId);
+    if(!room.members.size)this.watchRooms.delete(room.code);
+    else if(room.host===member.username)room.host=[...room.members.values()][0].username;
+  }
+  watchSweep(){
+    const now=Date.now();
+    for(const room of this.watchRooms.values())for(const member of room.members.values())
+      if(now-member.lastSeen>75000||now-room.createdAt>4*60*60*1000)this.watchRemove(room,member.peerId);
+    for(const [key,rate] of this.watchRates)if(now-rate.start>60000)this.watchRates.delete(key);
+  }
+  watchRate(user,kind,max){
+    const key=user+":"+kind,now=Date.now(),old=this.watchRates.get(key);
+    const rate=old&&now-old.start<60000?old:{start:now,count:0};
+    if(rate.count>=max)return false;rate.count++;this.watchRates.set(key,rate);return true;
+  }
+  watchView(room,self,after=0){
+    self.queue=self.queue.filter(event=>event.seq>after);
+    return {ok:true,code:room.code,myPeerId:self.peerId,host:room.host,channelId:room.channelId,channelName:room.channelName,
+      limit:6,cursor:self.seq,members:[...room.members.values()].map(m=>({peerId:m.peerId,username:m.username,name:m.name,
+      cameraOn:m.cameraOn,micOn:m.micOn})),signals:self.queue};
+  }
+  async watchRoomAction(username,body){
+    this.watchSweep();const action=String(body.action||""),now=Date.now();
+    if(!this.watchRate(username,action==="signal"?"signal":action==="create"||action==="join"?"join":"state",
+      action==="signal"?360:action==="create"||action==="join"?12:100))return j({ok:false,error:"انتظر قليلًا قبل إعادة المحاولة"},429);
+    const clientId=String(body.clientId||"");
+    if(!/^[A-Za-z0-9-]{16,64}$/.test(clientId))return j({ok:false,error:"معرّف الجهاز غير صحيح"},400);
+    const proof=await hashPassword(String(body.token||""));
+    const current=this.watchMembers.get(username);
+    if(action==="leave"){
+      if(current){const room=this.watchRooms.get(current.code),self=room?.members.get(current.peerId);
+        if(self?.clientId!==clientId||self?.proof!==proof)return j({ok:false,error:"الغرفة مفتوحة من جهاز آخر"},409);
+        if(room)this.watchRemove(room,current.peerId);}
+      return j({ok:true,left:true});
+    }
+    if(!["create","join","poll","signal"].includes(action))return j({ok:false,error:"إجراء الغرفة غير صحيح"},400);
+    let code=String(body.code||"").replace(/[\s-]/g,"").toUpperCase(),room=this.watchRooms.get(code);
+    if(action==="create"||action==="join"){
+      if(current){const active=this.watchRooms.get(current.code),self=active?.members.get(current.peerId);
+        if(self?.clientId===clientId&&self?.proof===proof&&(action==="create"||current.code===code))return j(this.watchView(active,self));
+        return j({ok:false,error:"غادر الغرفة الحالية أو أغلقها على الجهاز الآخر أولًا"},409);}
+      if(action==="create"){
+        if(this.watchRooms.size>=32)return j({ok:false,error:"غرف المشاهدة مشغولة الآن؛ حاول لاحقًا"},503);
+        const id=String(body.channelId||""),catalog=await this.ctx.storage.get("football:catalog");
+        const channel=catalog?.channels?.find(c=>c.id===id&&c.enabled);
+        if(id&&!channel)return j({ok:false,error:"القناة لم تعد متاحة؛ حدّث القائمة"},400);
+        do{code=crypto.randomUUID().replace(/-/g,"").slice(0,12).toUpperCase();}while(this.watchRooms.has(code));
+        room={code,host:username,createdAt:now,channelId:id,channelName:channel?.name||"غرفة مشاهدة",members:new Map()};
+      }else{
+        if(!/^[A-F0-9]{12}$/.test(code))return j({ok:false,error:"كود الغرفة غير صحيح"},400);
+        if(!room)return j({ok:false,error:"الغرفة انتهت أو الكود غير صحيح"},404);
+        if(!await this.canCommunicate(username,room.host))return j({ok:false,error:"الدخول متاح لأصدقاء صاحب الغرفة فقط"},403);
+        for(const peer of room.members.values())if(await this.isBlockedBetween(username,peer.username))return j({ok:false,error:"تعذر دخول هذه الغرفة"},403);
+        if(room.members.size>=6)return j({ok:false,error:"الغرفة مكتملة؛ الحد ستة أشخاص"},409);
+      }
+      const user=await this.user(username);if(!user||user.disabled||user.banned)return j({ok:false,error:"الحساب غير متاح"},403);
+      const self={username,name:String(user.fullName||user.displayName||username).slice(0,80),peerId:crypto.randomUUID(),clientId,proof,
+        lastSeen:now,cameraOn:body.cameraOn!==false,micOn:body.micOn!==false,seq:0,queue:[],sent:new Map()};
+      room.members.set(self.peerId,self);this.watchRooms.set(code,room);this.watchMembers.set(username,{code,peerId:self.peerId});
+      return j(this.watchView(room,self));
+    }
+    if(!room)return j({ok:false,error:"انتهت غرفة المشاهدة"},410);
+    const self=room.members.get(String(body.peerId||""));
+    if(!self||self.username!==username||self.clientId!==clientId||self.proof!==proof)return j({ok:false,error:"لست عضوًا في هذه الغرفة"},403);
+    for(const peer of room.members.values())if(peer!==self&&await this.isBlockedBetween(username,peer.username)){
+      this.watchRemove(room,self.peerId);return j({ok:false,error:"تعذر الاستمرار في الغرفة"},403);}
+    self.lastSeen=now;
+    if(typeof body.cameraOn==="boolean")self.cameraOn=body.cameraOn;
+    if(typeof body.micOn==="boolean")self.micOn=body.micOn;
+    if(action==="poll"){
+      const after=body.after??0;if(!Number.isSafeInteger(after)||after<0||after>self.seq)return j({ok:false,error:"مؤشر الإشارات غير صحيح"},400);
+      const response=j(this.watchView(room,self,after));response.headers.set("cache-control","no-store");return response;
+    }
+    const signal=body.signal,kind=signal?.type,target=room.members.get(String(signal?.to||"")),id=String(signal?.signalId||"");
+    if(!target||target===self||!/^[-A-Za-z0-9]{8,80}$/.test(id)||!["offer","answer","ice","restart"].includes(kind))return j({ok:false,error:"إشارة اتصال غير صحيحة"},400);
+    let value={};
+    if(kind==="offer"||kind==="answer"){
+      if(signal.sdp?.type!==kind||typeof signal.sdp.sdp!=="string"||signal.sdp.sdp.length<1||signal.sdp.sdp.length>24000)return j({ok:false,error:"وصف الاتصال غير صحيح"},400);
+      value={sdp:{type:kind,sdp:signal.sdp.sdp}};
+    }else if(kind==="ice"){
+      const c=signal.candidate;
+      if(!c||typeof c.candidate!=="string"||c.candidate.length>4096||!Number.isInteger(c.sdpMLineIndex)||c.sdpMLineIndex<0||c.sdpMLineIndex>32||
+        (c.sdpMid!==null&&c.sdpMid!==undefined&&(typeof c.sdpMid!=="string"||c.sdpMid.length>128)))return j({ok:false,error:"مسار اتصال غير صحيح"},400);
+      value={candidate:{candidate:c.candidate,sdpMid:c.sdpMid??null,sdpMLineIndex:c.sdpMLineIndex}};
+    }
+    for(const [key,time] of self.sent)if(now-time>120000)self.sent.delete(key);
+    if(self.sent.has(id))return j({ok:true,duplicate:true});
+    const event={...value,type:kind,signalId:id,from:self.peerId,to:target.peerId,code,seq:target.seq+1,createdAt:now};
+    if(target.queue.length>=128||encoder.encode(JSON.stringify([...target.queue,event])).length>96*1024)return j({ok:false,error:"انتظر استلام الإشارات ثم أعد المحاولة"},429);
+    target.seq++;target.queue.push(event);self.sent.set(id,now);
+    const socket=this.findUser(target.username);if(socket)this.send(socket,{type:"watch-room-signal",signal:event});
+    return j({ok:true});
   }
 
   async footballApi(request,url){
@@ -1170,6 +1277,7 @@ export class SignalingRoom extends DurableObject {
     }
 
     if(url.pathname==="/api/sports-broadcast")return this.sportsBroadcastApi(request,url,body);
+    if(url.pathname==="/api/watch-room")return this.watchRoomApi(request,body);
 
     if(url.pathname==="/api/admin/security" && request.method==="GET"){
       const auth=await this.requireAdmin(url.searchParams.get("token"));if(auth.error)return auth.error;
@@ -1986,8 +2094,11 @@ export class SignalingRoom extends DurableObject {
 
       if(!to)return j({ok:false,error:"المستخدم المطلوب غير محدد"},400);
       if(!allowed.has(type))return j({ok:false,error:"إشارة مكالمة غير صالحة"},400);
+
       if(!await this.user(to))return j({ok:false,error:"المستخدم غير موجود"},404);
       if(!await this.canCommunicate(s.username,to))return j({ok:false,error:"المكالمات متاحة للأصدقاء فقط"},403);
+      this.watchSweep();
+      if(type==="call-request"&&(this.watchMembers.has(s.username)||this.watchMembers.has(to)))return j({ok:false,error:"المستخدم في غرفة مشاهدة؛ حاول بعد انتهاء المكالمة"},409);
 
       const now=Date.now();
       const event={
@@ -2517,6 +2628,11 @@ export class SignalingRoom extends DurableObject {
 
       const target=this.findUser(to);
       const mediaRaw=String(body.media||"");
+      if(body.mediaType==="call-signal"){
+        let signal;try{signal=JSON.parse(mediaRaw);}catch{}
+        this.watchSweep();
+        if(signal?.type==="call-request"&&(this.watchMembers.has(s.username)||this.watchMembers.has(to)))return j({ok:false,error:"المستخدم في غرفة مشاهدة؛ حاول لاحقًا"},409);
+      }
       if(mediaRaw.length>950000){
         return j({ok:false,error:"حجم المرفق كبير جدًا. اختر صورة أصغر أو دع التطبيق يضغطها تلقائيًا."},413);
       }
@@ -3864,8 +3980,13 @@ export class SignalingRoom extends DurableObject {
 
     if(["offer","answer","ice","call-request","call-ringing","call-accept","call-reject","hangup"].includes(msg.type)){
       const to=String(msg.to||"").trim().toLowerCase();
+
       if(!await this.canCommunicate(from,to)){
         this.send(ws,{type:"error",message:"المكالمات متاحة للأصدقاء فقط"});return;
+      }
+      this.watchSweep();
+      if(msg.type==="call-request"&&(this.watchMembers.has(from)||this.watchMembers.has(to))){
+        this.send(ws,{type:"call-reject",from:to,to:from,callId:String(msg.callId||""),reason:"busy",signalId:crypto.randomUUID(),createdAt:Date.now()});return;
       }
       const target=this.findUser(to);
       // Queue incoming invitations even when the sender could only use WebSocket.
