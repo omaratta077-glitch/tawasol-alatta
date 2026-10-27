@@ -12,6 +12,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.unit.dp
@@ -22,11 +23,11 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import org.json.JSONObject
 
-private fun FootballChannel.json() = JSONObject().put("id", id).put("name", name).put("category", category)
-    .put("provider", provider).put("sourceUrl", sourceUrl).put("streamUrl", streamUrl).put("format", format).put("enabled", enabled)
+private fun FootballChannel.json() = FootballRepository.channelJson(this)
 
 @Composable
-internal fun AdminFootballPanel(token: String) {
+internal fun AdminFootballPanel(token: String, owner: String) {
+    val context = LocalContext.current
     var open by remember { mutableStateOf(false) }
     var probeOpen by remember { mutableStateOf(false) }
     var catalog by remember { mutableStateOf(FootballCatalog()) }
@@ -39,6 +40,18 @@ internal fun AdminFootballPanel(token: String) {
     var match by remember { mutableStateOf<FootballMatch?>(null) }
     var remove by remember { mutableStateOf<Pair<String, String>?>(null) }
     val scope = rememberCoroutineScope()
+    val linkGeneration = CatalogAutoUpdater.generation
+    var links by remember { mutableStateOf(emptyList<CatalogChannelLink>()) }
+    LaunchedEffect(owner, catalog.revision, linkGeneration) {
+        links = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { CatalogLinkStore.read(context, owner) }
+    }
+    LaunchedEffect(linkGeneration) {
+        if (open && loaded && !busy) {
+            try { catalog = FootballRepository.load(token) }
+            catch (cancelled: CancellationException) { throw cancelled }
+            catch (_: Exception) { /* The next explicit refresh can reload the published catalog. */ }
+        }
+    }
     fun load() { scope.launch {
         busy = true
         try { catalog = FootballRepository.load(token); loaded = true; message = "" }
@@ -50,6 +63,7 @@ internal fun AdminFootballPanel(token: String) {
         busy = true; message = ""
         try {
             catalog = FootballRepository.change(token, catalog.revision, action, data)
+            if (action == "deleteChannel") CatalogAutoUpdater.unlink(context, owner, data.optString("id"))
             loaded = true; channelForm = false; matchForm = false; remove = null; message = "تم حفظ التعديل"
         } catch (e: CancellationException) { throw e }
         catch (e: Exception) {
@@ -80,12 +94,35 @@ internal fun AdminFootballPanel(token: String) {
                     TextButton(enabled = loaded && !busy, onClick = { probeOpen = true }) {
                         Text("تجربة قائمة ياسين من الهاتف", color = PremiumGoldLight)
                     }
+                    if (links.isNotEmpty()) {
+                        Text("التحديث التلقائي يعمل أثناء فتح العطا على هاتفك، كل خمس دقائق. آخر رقم محفوظ يبقى متاحًا عند انقطاعه.",
+                            color = PremiumMuted, fontSize = 12.sp)
+                        TextButton(enabled = !busy, onClick = { scope.launch {
+                            busy = true
+                            try { CatalogAutoUpdater.refresh(context, token, owner, force = true)?.let {
+                                it.catalog?.let { next -> catalog = next }; message = it.message
+                            } } finally { busy = false }
+                        } }) { Text("تحديث الأرقام الآن", color = PremiumGoldLight) }
+                    }
+                    CatalogAutoUpdater.message(owner).takeIf { it.isNotBlank() }?.let {
+                        Text(it, color = PremiumMuted, fontSize = 12.sp)
+                    }
                     LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         item { Text("القنوات • ${catalog.channels.size}/40", color = PremiumGoldLight) }
                         if (loaded && catalog.channels.isEmpty()) item { Text("أضف قناة ورابط بث يتيحه الناشر للعرض في التطبيق. لا توجد قنوات مضافة بعد.", color = PremiumMuted, fontSize = 13.sp) }
                         items(catalog.channels, key = { it.id }) { item -> FootballPanel {
                             Text(item.name, color = Color.White)
                             Text("${item.category} • ${item.provider} • ${if (item.enabled) "مفعلة" else "موقوفة"}", color = PremiumMuted, fontSize = 12.sp)
+                            links.firstOrNull { it.channelId == item.id }?.let { link ->
+                                Text("ربط تلقائي: ${link.sourceName} • القسم ${link.categoryId}", color = PremiumGoldLight, fontSize = 12.sp)
+                                if (item.format != "ytv" || item.streamUrl != link.lastPublishedId)
+                                    Text("توقف التحديث لهذا الربط بعد التعديل اليدوي. أعد الربط لاستئنافه.", color = PremiumMuted, fontSize = 12.sp)
+                                TextButton(enabled = !busy, onClick = { scope.launch {
+                                    busy = true
+                                    try { message = if (CatalogAutoUpdater.unlink(context, owner, item.id)) "تم إلغاء الربط" else "تعذر إلغاء الربط" }
+                                    finally { busy = false }
+                                } }) { Text("إلغاء الربط") }
+                            }
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                                 TextButton(enabled = !busy, onClick = { channel = item; channelForm = true; message = "" }) { Text("تعديل") }
                                 TextButton(enabled = !busy, onClick = { change("saveChannel", JSONObject().put("channel", item.copy(enabled = !item.enabled).json())) }) { Text(if (item.enabled) "إيقاف" else "تفعيل") }
@@ -105,7 +142,8 @@ internal fun AdminFootballPanel(token: String) {
                 }
             }
         }
-        if (probeOpen && loaded) YacineCatalogProbeDialog { probeOpen = false }
+        if (probeOpen && loaded) YacineCatalogProbeDialog(catalog.channels, owner, token,
+            onCatalog = { catalog = it }, onDismiss = { probeOpen = false })
         if (channelForm) FootballChannelEditor(channel, busy, message, onDismiss = { channelForm = false },
             onSave = { change("saveChannel", JSONObject().put("channel", it)) })
         if (matchForm) FootballMatchEditor(match, catalog.channels, busy, message, onDismiss = { matchForm = false },

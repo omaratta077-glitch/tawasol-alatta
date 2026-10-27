@@ -2,6 +2,7 @@ package com.alatta.nativeapp
 
 import android.widget.Toast
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -24,7 +25,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 @Composable
-internal fun YacineCatalogProbeDialog(onDismiss: () -> Unit) {
+internal fun YacineCatalogProbeDialog(channels: List<FootballChannel>, owner: String, token: String,
+    onCatalog: (FootballCatalog) -> Unit, onDismiss: () -> Unit) {
     val scope = rememberCoroutineScope()
     val clipboard = LocalClipboardManager.current
     val context = LocalContext.current
@@ -32,6 +34,10 @@ internal fun YacineCatalogProbeDialog(onDismiss: () -> Unit) {
     var result by remember { mutableStateOf<YacineCatalogProbe.Result?>(null) }
     var kind by remember { mutableStateOf(YacineCatalogProbe.Kind.CATEGORIES) }
     var section by remember { mutableStateOf("") }
+    var sectionId by remember { mutableStateOf("") }
+    var bindEntry by remember { mutableStateOf<YacineCatalogProbe.Entry?>(null) }
+    var bindBusy by remember { mutableStateOf(false) }
+    var bindMessage by remember { mutableStateOf("") }
     var configured by remember { mutableStateOf(CatalogFormatSettings.configured(context)) }
     var settingsOpen by remember { mutableStateOf(false) }
     var settingsBusy by remember { mutableStateOf(false) }
@@ -41,6 +47,8 @@ internal fun YacineCatalogProbeDialog(onDismiss: () -> Unit) {
         if (busy) return
         kind = nextKind
         section = entry?.name.orEmpty()
+        sectionId = entry?.id.orEmpty()
+        bindMessage = ""
         result = null
         busy = true
         scope.launch {
@@ -55,12 +63,12 @@ internal fun YacineCatalogProbeDialog(onDismiss: () -> Unit) {
             } finally { busy = false }
         }
     }
-    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+    Dialog(onDismissRequest = { if (!bindBusy) onDismiss() }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Surface(Modifier.fillMaxSize().safeDrawingPadding(), color = PremiumBackground) {
             Column(Modifier.fillMaxSize().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("تجربة قائمة ياسين من الهاتف", color = PremiumGoldLight, fontSize = 19.sp)
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    TextButton(onClick = onDismiss) { Text("إغلاق") }
+                    TextButton(enabled = !bindBusy, onClick = onDismiss) { Text("إغلاق") }
                     TextButton(enabled = result != null && !busy, onClick = {
                         result?.let {
                             clipboard.setText(AnnotatedString(it.report()))
@@ -68,16 +76,8 @@ internal fun YacineCatalogProbeDialog(onDismiss: () -> Unit) {
                         }
                     }) { Text("نسخ النتيجة") }
                 }
-                Text("قراءة تجريبية من إنترنت هذا الهاتف. لا تحفظ أرقامًا ولا تعدّل القنوات المسجّلة.",
+                Text("معاينة القائمة لا تغيّر قنواتك. اختر ربط القناة المحفوظة لتفعيل تحديث رقمها تلقائيًا.",
                     color = PremiumMuted, fontSize = 13.sp)
-                Text("تقرأ الأقسام والقنوات. الردود المرمّزة تحتاج إعداد القراءة المحلي على هذا الهاتف.",
-                    color = PremiumMuted, fontSize = 12.sp)
-                Text("نسخ النتيجة يضم توقيت t ونص الرد من نفس الطلب، حتى 16 ألف حرف، لمشاركته يدويًا.",
-                    color = PremiumMuted, fontSize = 12.sp)
-                Text("المضيف المرصود: " + YacineCatalogProbe.BASE.removePrefix("https://").substringBefore('/') + " • HTTPS",
-                    color = PremiumMuted, fontSize = 12.sp)
-                Text("نجحت قراءة عينة الأقسام من الهاتف؛ جلب قنوات كل قسم يُختبر عند اختياره.",
-                    color = PremiumMuted, fontSize = 12.sp)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(enabled = !busy && !settingsBusy, onClick = { load(YacineCatalogProbe.Kind.CATEGORIES) }) {
                         Text("جلب الأقسام")
@@ -91,11 +91,20 @@ internal fun YacineCatalogProbeDialog(onDismiss: () -> Unit) {
                     Text("جارٍ طلب القائمة…", color = PremiumMuted, fontSize = 13.sp)
                 }
                 if (section.isNotBlank()) Text(section, color = PremiumGoldLight, fontSize = 15.sp)
+                if (bindMessage.isNotBlank()) Text(bindMessage, color = PremiumGoldLight, fontSize = 13.sp)
                 LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    item {
+                        Text("الردود المرمّزة تستخدم إعداد القراءة المحلي. نسخ النتيجة يضم الرد وتوقيته حتى 16 ألف حرف، دون الإعداد.",
+                            color = PremiumMuted, fontSize = 12.sp)
+                        Text("المصدر: " + YacineCatalogProbe.BASE.removePrefix("https://").substringBefore('/') + " • HTTPS",
+                            color = PremiumMuted, fontSize = 12.sp)
+                    }
                     result?.let { current ->
                         item {
                             FootballPanel {
-                                Text(current.message, color = if (current.state in setOf(YacineCatalogProbe.State.LIST,
+                                Text(if (kind == YacineCatalogProbe.Kind.CHANNELS && current.state == YacineCatalogProbe.State.LIST)
+                                    "وصلت قائمة قابلة للقراءة. يمكنك نسخ الرقم أو ربط قناة محفوظة." else current.message,
+                                    color = if (current.state in setOf(YacineCatalogProbe.State.LIST,
                                     YacineCatalogProbe.State.EMPTY)) PremiumGoldLight else Color(0xFFFFB4A9), fontSize = 14.sp)
                                 Text("GET /api/" + current.path, color = PremiumMuted, fontSize = 12.sp)
                                 current.code?.let { Text("HTTP " + it, color = Color.White, fontSize = 13.sp) }
@@ -132,6 +141,9 @@ internal fun YacineCatalogProbeDialog(onDismiss: () -> Unit) {
                                         Text("عرض الأقسام الفرعية")
                                     }
                                 } else {
+                                    if (channels.any { it.format == "ytv" }) OutlinedButton(enabled = !busy && !bindBusy, onClick = {
+                                        bindEntry = entry; bindMessage = ""
+                                    }) { Text("ربط قناة محفوظة") }
                                     TextButton(onClick = {
                                         clipboard.setText(AnnotatedString(entry.id))
                                         Toast.makeText(context, "تم نسخ رقم القناة", Toast.LENGTH_SHORT).show()
@@ -144,6 +156,30 @@ internal fun YacineCatalogProbeDialog(onDismiss: () -> Unit) {
             }
         }
     }
+    bindEntry?.let { entry -> AlertDialog(onDismissRequest = { if (!bindBusy) bindEntry = null },
+        title = { Text("ربط ${entry.name}") }, text = {
+            Column(Modifier.heightIn(max = 360.dp).verticalScroll(androidx.compose.foundation.rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("اختر قناتك المحفوظة. يتغير رقمها فقط، ويُتابع الاسم نفسه في القسم $sectionId. لا تُضاف قنوات أخرى.", fontSize = 13.sp)
+                channels.filter { it.format == "ytv" }.forEach { channel ->
+                    OutlinedButton(enabled = !bindBusy, onClick = {
+                        bindBusy = true
+                        scope.launch {
+                            try {
+                                val outcome = CatalogAutoUpdater.bind(context, token, owner, channel.id, sectionId, entry)
+                                outcome.catalog?.let(onCatalog)
+                                bindMessage = outcome.message
+                                if (outcome.linked) bindEntry = null
+                            } finally { bindBusy = false }
+                        }
+                    }, modifier = Modifier.fillMaxWidth()) { Text("ربط وتحديث: ${channel.name}") }
+                }
+                if (bindMessage.isNotBlank()) Text(bindMessage, fontSize = 12.sp)
+                if (bindBusy) LinearProgressIndicator(Modifier.fillMaxWidth())
+            }
+        }, confirmButton = {}, dismissButton = {
+            TextButton(enabled = !bindBusy, onClick = { bindEntry = null }) { Text("رجوع") }
+        }) }
     if (settingsOpen) AlertDialog(onDismissRequest = {
         if (!settingsBusy) { maskInput = ""; settingsOpen = false }
     }, title = { Text("إعداد قراءة القائمة") }, text = {
