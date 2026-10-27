@@ -22,6 +22,7 @@ internal object YacineCatalogProbe {
     const val BASE = "https://def001.ycnapi.com/api/"
     const val MAX_BYTES = 512 * 1024
     const val MAX_ITEMS = 500
+    const val MAX_REPORT_CHARS = 16 * 1024
     enum class Kind { CATEGORIES, CHANNELS }
     enum class State { LIST, EMPTY, HTTP_ERROR, UNREADABLE, INVALID, TOO_LARGE, NETWORK_ERROR }
     data class Entry(val id: String, val name: String)
@@ -35,7 +36,10 @@ internal object YacineCatalogProbe {
         val elapsedMs: Long = 0,
         val hasTimeHeader: Boolean = false,
         val entries: List<Entry> = emptyList(),
-        val serverMessage: String = ""
+        val serverMessage: String = "",
+        val timeHeader: String = "",
+        val responseText: String = "",
+        val responseTextTruncated: Boolean = false
     ) {
         fun report(): String = buildString {
             append("تجربة قائمة ياسين من الهاتف\nGET ").append(BASE).append(path)
@@ -46,9 +50,17 @@ internal object YacineCatalogProbe {
             append("\nالمقروء من الرد: ").append(bytes).append(" بايت")
             append("\nالمدة: ").append(elapsedMs).append(" ms")
             append("\nوجود ترويسة t: ").append(if (hasTimeHeader) "نعم" else "لا")
+            if (timeHeader.isNotEmpty()) append("\nt: ").append(timeHeader)
+            else if (hasTimeHeader) append("\nلم تُنسخ قيمة t لأنها ليست توقيتًا رقميًا من 10 إلى 13 خانة.")
             if (entries.isNotEmpty()) {
                 append("\nالاسم | المعرّف")
                 entries.forEach { append("\n").append(it.name).append(" | ").append(it.id) }
+            }
+            if (responseText.isNotEmpty()) {
+                append("\n\nنص الرد من نفس الطلب: ")
+                append(if (responseTextTruncated) "مقتطف غير مكتمل؛ أول $MAX_REPORT_CHARS حرفًا فقط" else "كامل")
+                append("\n--- BEGIN RESPONSE BODY ---\n").append(responseText)
+                append("\n--- END RESPONSE BODY ---")
             }
         }
     }
@@ -120,23 +132,31 @@ internal object YacineCatalogProbe {
     internal fun read(response: Response, path: String, elapsedMs: Long): Result {
         val type = response.header("Content-Type").orEmpty().substringBefore(';').take(80)
         val hasTime = !response.header("t").isNullOrBlank()
+        // Export only the numeric response timestamp, never arbitrary headers or credentials.
+        val time = response.header("t").orEmpty().trim()
+            .takeIf { it.length in 10..13 && it.all { char -> char in '0'..'9' } }.orEmpty()
         if (!response.isSuccessful) {
             // Read a bounded error preview without retrying, following redirects or
             // passing an error body to the successful catalog parser.
             val preview = response.peekBody(4096).use { it.bytes() }
             return parse("", response.code, path).copy(contentType = type,
-                bytes = preview.size.toLong(), elapsedMs = elapsedMs, hasTimeHeader = hasTime,
+                bytes = preview.size.toLong(), elapsedMs = elapsedMs, hasTimeHeader = hasTime, timeHeader = time,
                 serverMessage = errorMessage(String(preview, Charsets.UTF_8), type))
         }
         val source = response.body?.source()
             ?: return Result(State.INVALID, path, "الخادم أعاد استجابة بدون محتوى.", response.code,
-                contentType = type, elapsedMs = elapsedMs, hasTimeHeader = hasTime)
+                contentType = type, elapsedMs = elapsedMs, hasTimeHeader = hasTime, timeHeader = time)
         source.request(MAX_BYTES + 1L)
         val size = source.buffer.size
         if (size > MAX_BYTES) return Result(State.TOO_LARGE, path, "الرد يتجاوز حد التجربة الآمن 512 كيلوبايت.",
-            response.code, type, size, elapsedMs, hasTime)
-        return parse(source.buffer.readUtf8(), response.code, path)
-            .copy(contentType = type, bytes = size, elapsedMs = elapsedMs, hasTimeHeader = hasTime)
+            response.code, type, size, elapsedMs, hasTime, timeHeader = time)
+        val text = source.buffer.readUtf8()
+        // Keep a bounded sample in this result only. Copying is an explicit owner action;
+        // nothing is persisted, logged, sent to AL-ATTA or automatically shared.
+        return parse(text, response.code, path)
+            .copy(contentType = type, bytes = size, elapsedMs = elapsedMs, hasTimeHeader = hasTime,
+                timeHeader = time, responseText = text.take(MAX_REPORT_CHARS),
+                responseTextTruncated = text.length > MAX_REPORT_CHARS)
     }
 
     private fun errorMessage(text: String, type: String): String {

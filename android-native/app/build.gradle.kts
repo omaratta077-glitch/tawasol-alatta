@@ -24,9 +24,9 @@ android {
         applicationId = "com.alatta.nativeapp"
         minSdk = 26
         targetSdk = 35
-        // v1.0.181: test the API host observed in Yacine connection captures.
-        versionCode = 281
-        versionName = "1.0.181"
+        // v1.0.182: copy catalog diagnostics on phone; keep post videos inline.
+        versionCode = 282
+        versionName = "1.0.182"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("boolean", "IS_APPGALLERY", appGalleryBuild.toString())
         val hmsId = (System.getenv("ALATTA_HMS_APP_ID") ?: "").trim().takeIf { it.matches(Regex("[0-9]{1,20}")) } ?: ""

@@ -59,6 +59,8 @@ internal fun YacineCatalogProbeDialog(onDismiss: () -> Unit) {
                     color = PremiumMuted, fontSize = 13.sp)
                 Text("هذه التجربة تقرأ JSON فقط؛ معالجة ردود ياسين المرمّزة غير مدمجة بعد.",
                     color = PremiumMuted, fontSize = 12.sp)
+                Text("نسخ النتيجة يضم توقيت t ونص الرد من نفس الطلب، حتى 16 ألف حرف، لمشاركته يدويًا.",
+                    color = PremiumMuted, fontSize = 12.sp)
                 Text("المضيف المرصود: " + YacineCatalogProbe.BASE.removePrefix("https://").substringBefore('/') + " • HTTPS",
                     color = PremiumMuted, fontSize = 12.sp)
                 Text("رُصد في اتصالات ياسين؛ وظيفة مسار القائمة عليه غير مؤكدة حتى تنجح التجربة.",
@@ -85,6 +87,13 @@ internal fun YacineCatalogProbeDialog(onDismiss: () -> Unit) {
                                     " • المقروء: " + current.bytes + " بايت • " + current.elapsedMs + " ms",
                                     color = PremiumMuted, fontSize = 12.sp)
                                 Text("عدد السجلات المقروءة: " + current.entries.size, color = PremiumMuted, fontSize = 12.sp)
+                                Text("ترويسة t: " + current.timeHeader.ifBlank {
+                                    if (current.hasTimeHeader) "موجودة بصيغة غير رقمية؛ لم تُنسخ" else "غير موجودة"
+                                }, color = PremiumMuted, fontSize = 12.sp)
+                                if (current.responseText.isNotEmpty()) Text(
+                                    if (current.responseTextTruncated) "التقرير يضم مقتطفًا غير مكتمل من الرد."
+                                    else "نص الرد كامل مرفق عند الضغط على نسخ النتيجة.",
+                                    color = PremiumMuted, fontSize = 12.sp)
                             }
                         }
                         items(current.entries, key = { it.id }) { entry ->
