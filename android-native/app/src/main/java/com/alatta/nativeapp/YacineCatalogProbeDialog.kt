@@ -1,6 +1,7 @@
 package com.alatta.nativeapp
 
 import android.widget.Toast
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -11,12 +12,16 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 @Composable
 internal fun YacineCatalogProbeDialog(onDismiss: () -> Unit) {
@@ -27,6 +32,11 @@ internal fun YacineCatalogProbeDialog(onDismiss: () -> Unit) {
     var result by remember { mutableStateOf<YacineCatalogProbe.Result?>(null) }
     var kind by remember { mutableStateOf(YacineCatalogProbe.Kind.CATEGORIES) }
     var section by remember { mutableStateOf("") }
+    var configured by remember { mutableStateOf(CatalogFormatSettings.configured(context)) }
+    var settingsOpen by remember { mutableStateOf(false) }
+    var settingsBusy by remember { mutableStateOf(false) }
+    var maskInput by remember { mutableStateOf("") }
+    var settingsMessage by remember { mutableStateOf("") }
     fun load(nextKind: YacineCatalogProbe.Kind, entry: YacineCatalogProbe.Entry? = null) {
         if (busy) return
         kind = nextKind
@@ -34,7 +44,10 @@ internal fun YacineCatalogProbeDialog(onDismiss: () -> Unit) {
         result = null
         busy = true
         scope.launch {
-            try { result = YacineCatalogProbe.fetch(nextKind, entry?.id) }
+            try {
+                val mask = withContext(Dispatchers.IO) { CatalogFormatSettings.read(context) }
+                result = YacineCatalogProbe.fetch(nextKind, entry?.id, mask?.toByteArray(Charsets.US_ASCII))
+            }
             catch (cancelled: CancellationException) { throw cancelled }
             catch (_: Exception) {
                 result = YacineCatalogProbe.Result(YacineCatalogProbe.State.INVALID, "",
@@ -57,16 +70,21 @@ internal fun YacineCatalogProbeDialog(onDismiss: () -> Unit) {
                 }
                 Text("قراءة تجريبية من إنترنت هذا الهاتف. لا تحفظ أرقامًا ولا تعدّل القنوات المسجّلة.",
                     color = PremiumMuted, fontSize = 13.sp)
-                Text("هذه التجربة تقرأ JSON فقط؛ معالجة ردود ياسين المرمّزة غير مدمجة بعد.",
+                Text("تقرأ الأقسام والقنوات. الردود المرمّزة تحتاج إعداد القراءة المحلي على هذا الهاتف.",
                     color = PremiumMuted, fontSize = 12.sp)
                 Text("نسخ النتيجة يضم توقيت t ونص الرد من نفس الطلب، حتى 16 ألف حرف، لمشاركته يدويًا.",
                     color = PremiumMuted, fontSize = 12.sp)
                 Text("المضيف المرصود: " + YacineCatalogProbe.BASE.removePrefix("https://").substringBefore('/') + " • HTTPS",
                     color = PremiumMuted, fontSize = 12.sp)
-                Text("رُصد في اتصالات ياسين؛ وظيفة مسار القائمة عليه غير مؤكدة حتى تنجح التجربة.",
+                Text("نجحت قراءة عينة الأقسام من الهاتف؛ جلب قنوات كل قسم يُختبر عند اختياره.",
                     color = PremiumMuted, fontSize = 12.sp)
-                Button(enabled = !busy, onClick = { load(YacineCatalogProbe.Kind.CATEGORIES) }) {
-                    Text("جلب الأقسام")
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(enabled = !busy && !settingsBusy, onClick = { load(YacineCatalogProbe.Kind.CATEGORIES) }) {
+                        Text("جلب الأقسام")
+                    }
+                    OutlinedButton(enabled = !busy && !settingsBusy, onClick = {
+                        maskInput = ""; settingsMessage = ""; settingsOpen = true
+                    }) { Text(if (configured) "إعداد القراءة" else "ضبط قراءة الرد") }
                 }
                 if (busy) {
                     LinearProgressIndicator(Modifier.fillMaxWidth())
@@ -81,6 +99,8 @@ internal fun YacineCatalogProbeDialog(onDismiss: () -> Unit) {
                                     YacineCatalogProbe.State.EMPTY)) PremiumGoldLight else Color(0xFFFFB4A9), fontSize = 14.sp)
                                 Text("GET /api/" + current.path, color = PremiumMuted, fontSize = 12.sp)
                                 current.code?.let { Text("HTTP " + it, color = Color.White, fontSize = 13.sp) }
+                                if (current.responseDecoded) Text("تم فك ترميز الرد إلى JSON.",
+                                    color = PremiumGoldLight, fontSize = 12.sp)
                                 if (current.serverMessage.isNotBlank()) Text("رسالة الجهة المجيبة: " + current.serverMessage,
                                     color = Color.White, fontSize = 13.sp)
                                 Text("نوع الرد: " + current.contentType.ifBlank { "غير محدد" } +
@@ -90,6 +110,8 @@ internal fun YacineCatalogProbeDialog(onDismiss: () -> Unit) {
                                 Text("ترويسة t: " + current.timeHeader.ifBlank {
                                     if (current.hasTimeHeader) "موجودة بصيغة غير رقمية؛ لم تُنسخ" else "غير موجودة"
                                 }, color = PremiumMuted, fontSize = 12.sp)
+                                if (current.deviceTimeUsed.isNotEmpty()) Text("توقيت الجهاز البديل: " + current.deviceTimeUsed,
+                                    color = PremiumMuted, fontSize = 12.sp)
                                 if (current.responseText.isNotEmpty()) Text(
                                     if (current.responseTextTruncated) "التقرير يضم مقتطفًا غير مكتمل من الرد."
                                     else "نص الرد كامل مرفق عند الضغط على نسخ النتيجة.",
@@ -99,12 +121,14 @@ internal fun YacineCatalogProbeDialog(onDismiss: () -> Unit) {
                         items(current.entries, key = { it.id }) { entry ->
                             FootballPanel {
                                 Text(entry.name, color = Color.White, fontSize = 15.sp)
-                                Text("المعرّف: " + entry.id, color = PremiumGoldLight, fontSize = 13.sp)
+                                Text((if (kind == YacineCatalogProbe.Kind.CATEGORIES) "رقم القسم: " else "رقم القناة: ") + entry.id,
+                                    color = PremiumGoldLight, fontSize = 13.sp)
                                 if (kind == YacineCatalogProbe.Kind.CATEGORIES) {
                                     TextButton(enabled = !busy, onClick = { load(YacineCatalogProbe.Kind.CHANNELS, entry) }) {
                                         Text("جلب قنوات القسم")
                                     }
-                                    TextButton(enabled = !busy, onClick = { load(YacineCatalogProbe.Kind.CATEGORIES, entry) }) {
+                                    if (entry.childCount == null || entry.childCount > 0) TextButton(enabled = !busy,
+                                        onClick = { load(YacineCatalogProbe.Kind.CATEGORIES, entry) }) {
                                         Text("عرض الأقسام الفرعية")
                                     }
                                 } else {
@@ -120,4 +144,41 @@ internal fun YacineCatalogProbeDialog(onDismiss: () -> Unit) {
             }
         }
     }
+    if (settingsOpen) AlertDialog(onDismissRequest = {
+        if (!settingsBusy) { maskInput = ""; settingsOpen = false }
+    }, title = { Text("إعداد قراءة القائمة") }, text = {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(if (configured) "الإعداد محفوظ على هذا الهاتف. يمكنك استبداله أو حذفه."
+                else "الصق إعداد القراءة الخاص بك مرة واحدة على هذا الهاتف.", fontSize = 13.sp)
+            OutlinedTextField(value = maskInput, onValueChange = { maskInput = it.take(128); settingsMessage = "" },
+                enabled = !settingsBusy, singleLine = true, label = { Text("إعداد القراءة") },
+                visualTransformation = PasswordVisualTransformation(), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password))
+            Text("يُحفظ على هذا الهاتف، ولا يظهر ضمن نسخ النتيجة.", fontSize = 12.sp)
+            if (settingsMessage.isNotBlank()) Text(settingsMessage, fontSize = 12.sp)
+            if (settingsBusy) LinearProgressIndicator(Modifier.fillMaxWidth())
+            if (configured) TextButton(enabled = !settingsBusy, onClick = {
+                settingsBusy = true
+                scope.launch {
+                    val removed = withContext(Dispatchers.IO) { CatalogFormatSettings.clear(context) }
+                    if (removed) { configured = false; maskInput = ""; result = null; settingsMessage = "تم حذف الإعداد" }
+                    else settingsMessage = "تعذر حذف الإعداد"
+                    settingsBusy = false
+                }
+            }) { Text("حذف الإعداد من الهاتف") }
+        }
+    }, confirmButton = { TextButton(enabled = !settingsBusy, onClick = {
+        val value = maskInput.trim()
+        if (!CatalogFormatSettings.valid(value)) settingsMessage = "قيمة الإعداد غير صحيحة؛ الصقها كاملة."
+        else {
+            settingsBusy = true
+            scope.launch {
+                val saved = withContext(Dispatchers.IO) { CatalogFormatSettings.save(context, value) }
+                if (saved) { configured = true; maskInput = ""; settingsOpen = false; result = null }
+                else settingsMessage = "تعذر حفظ الإعداد على الهاتف"
+                settingsBusy = false
+            }
+        }
+    }) { Text("حفظ") } }, dismissButton = { TextButton(enabled = !settingsBusy, onClick = {
+        maskInput = ""; settingsOpen = false
+    }) { Text("رجوع") } })
 }

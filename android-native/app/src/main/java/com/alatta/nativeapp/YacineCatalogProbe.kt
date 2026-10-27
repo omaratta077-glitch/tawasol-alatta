@@ -12,20 +12,23 @@ import org.json.JSONTokener
 import java.io.IOException
 import java.net.SocketTimeoutException
 import java.net.UnknownHostException
+import java.nio.ByteBuffer
+import java.nio.charset.CodingErrorAction
+import java.util.Base64
 import java.util.concurrent.TimeUnit
 import javax.net.ssl.SSLException
 import kotlin.coroutines.resume
 
 /** Explicit, read-only owner diagnostic. Never receives account tokens or edits the catalog. */
 internal object YacineCatalogProbe {
-    // Observed in the owner's Yacine captures; the catalog paths remain unverified live.
+    // The owner supplied a successful encoded categories response from this host.
     const val BASE = "https://def001.ycnapi.com/api/"
     const val MAX_BYTES = 512 * 1024
     const val MAX_ITEMS = 500
     const val MAX_REPORT_CHARS = 16 * 1024
     enum class Kind { CATEGORIES, CHANNELS }
     enum class State { LIST, EMPTY, HTTP_ERROR, UNREADABLE, INVALID, TOO_LARGE, NETWORK_ERROR }
-    data class Entry(val id: String, val name: String)
+    data class Entry(val id: String, val name: String, val childCount: Long? = null)
     data class Result(
         val state: State,
         val path: String,
@@ -39,7 +42,9 @@ internal object YacineCatalogProbe {
         val serverMessage: String = "",
         val timeHeader: String = "",
         val responseText: String = "",
-        val responseTextTruncated: Boolean = false
+        val responseTextTruncated: Boolean = false,
+        val responseDecoded: Boolean = false,
+        val deviceTimeUsed: String = ""
     ) {
         fun report(): String = buildString {
             append("تجربة قائمة ياسين من الهاتف\nGET ").append(BASE).append(path)
@@ -52,8 +57,10 @@ internal object YacineCatalogProbe {
             append("\nوجود ترويسة t: ").append(if (hasTimeHeader) "نعم" else "لا")
             if (timeHeader.isNotEmpty()) append("\nt: ").append(timeHeader)
             else if (hasTimeHeader) append("\nلم تُنسخ قيمة t لأنها ليست توقيتًا رقميًا من 10 إلى 13 خانة.")
+            if (responseDecoded) append("\nفك ترميز الرد: تم تحويله إلى JSON")
+            if (deviceTimeUsed.isNotEmpty()) append("\nوقت الجهاز المستخدم بدل ترويسة t الغائبة: ").append(deviceTimeUsed)
             if (entries.isNotEmpty()) {
-                append("\nالاسم | المعرّف")
+                append(if (path.endsWith("/channels")) "\nاسم القناة | رقم القناة" else "\nاسم القسم | رقم القسم")
                 entries.forEach { append("\n").append(it.name).append(" | ").append(it.id) }
             }
             if (responseText.isNotEmpty()) {
@@ -122,14 +129,54 @@ internal object YacineCatalogProbe {
             val name = (row.opt("name") as? String)?.filterNot { Character.isISOControl(it) }?.trim()
             if (id == null || name.isNullOrBlank() || !ids.add(id))
                 return Result(State.INVALID, path, "القائمة تحتوي معرّفًا غير صالح أو مكررًا، أو اسمًا مفقودًا.", code)
-            entries.add(Entry(id, name.take(120)))
+            val children = when (val count = row.opt("child_count")) {
+                is Int -> count.toLong().takeIf { it >= 0 }
+                is Long -> count.takeIf { it >= 0 }
+                else -> null
+            }
+            entries.add(Entry(id, name.take(120), children))
         }
         return Result(if (entries.isEmpty()) State.EMPTY else State.LIST, path,
             if (entries.isEmpty()) "وصلت قائمة فارغة. لم يتم تغيير القنوات المسجّلة."
             else "وصلت قائمة قابلة للقراءة. الأرقام للمعاينة فقط؛ لم تُحفظ تلقائيًا.", code, entries = entries)
     }
 
-    internal fun read(response: Response, path: String, elapsedMs: Long): Result {
+    /** Response-only wire decoding. This does not add request signing or client identity. */
+    private fun parseSuccessfulBody(text: String, code: Int, path: String, headerTime: String?, nowEpochSeconds: Long,
+        responseMask: ByteArray?): Result {
+        val trimmed = text.trim().removePrefix("\uFEFF").trimStart()
+        if (trimmed.startsWith("{") || trimmed.startsWith("[")) return parse(trimmed, code, path)
+        val prefix = responseMask?.takeIf { it.size == 16 && it.all { byte -> byte.toInt() in 32..126 } }
+            ?: return Result(State.UNREADABLE, path,
+                "وصل رد مرمّز؛ اضبط إعداد قراءة القائمة على هذا الهاتف أولًا.", code)
+        val time = headerTime?.trim() ?: nowEpochSeconds.toString().take(10)
+        val deviceTime = if (headerTime == null) time else ""
+        fun unreadable(message: String) = Result(State.UNREADABLE, path, message, code, deviceTimeUsed = deviceTime)
+        if (time.length !in 10..13 || time.any { it !in '0'..'9' })
+            return unreadable("وصل رد مرمّز، لكن توقيت t غير صالح لمعالجة صيغته.")
+        val envelope = trimmed.filterNot { it == '\r' || it == '\n' }
+        if (envelope.isEmpty() || envelope.length % 4 != 0)
+            return unreadable("الرد ليس JSON مباشرًا ولا Base64 مكتملًا؛ لم تُستخرج قائمة.")
+        val decoded = try {
+            val bytes = Base64.getDecoder().decode(envelope)
+            val mask = prefix + time.toByteArray(Charsets.US_ASCII)
+            bytes.indices.forEach { index -> bytes[index] = (bytes[index].toInt() xor mask[index % mask.size].toInt()).toByte() }
+            Charsets.UTF_8.newDecoder().onMalformedInput(CodingErrorAction.REPORT)
+                .onUnmappableCharacter(CodingErrorAction.REPORT).decode(ByteBuffer.wrap(bytes)).toString()
+        } catch (_: IllegalArgumentException) {
+            return unreadable("تعذر قراءة ترميز Base64 للرد؛ لم تُستخرج قائمة.")
+        } catch (_: java.nio.charset.CharacterCodingException) {
+            return unreadable("تعذر تحويل الرد المرمّز إلى نص بالتوقيت الوارد؛ لم تُستخرج قائمة.")
+        }
+        if (!decoded.trimStart().let { it.startsWith("{") || it.startsWith("[") })
+            return unreadable("لم ينتج JSON من معالجة الرد المرمّز؛ قد تكون الصيغة أو التوقيت غير متوافقين.")
+        val result = parse(decoded, code, path)
+        return result.copy(responseDecoded = result.state == State.LIST || result.state == State.EMPTY,
+            deviceTimeUsed = deviceTime)
+    }
+
+    internal fun read(response: Response, path: String, elapsedMs: Long,
+        nowEpochSeconds: Long = System.currentTimeMillis() / 1000L, responseMask: ByteArray? = null): Result {
         val type = response.header("Content-Type").orEmpty().substringBefore(';').take(80)
         val hasTime = !response.header("t").isNullOrBlank()
         // Export only the numeric response timestamp, never arbitrary headers or credentials.
@@ -153,7 +200,7 @@ internal object YacineCatalogProbe {
         val text = source.buffer.readUtf8()
         // Keep a bounded sample in this result only. Copying is an explicit owner action;
         // nothing is persisted, logged, sent to AL-ATTA or automatically shared.
-        return parse(text, response.code, path)
+        return parseSuccessfulBody(text, response.code, path, response.header("t"), nowEpochSeconds, responseMask)
             .copy(contentType = type, bytes = size, elapsedMs = elapsedMs, hasTimeHeader = hasTime,
                 timeHeader = time, responseText = text.take(MAX_REPORT_CHARS),
                 responseTextTruncated = text.length > MAX_REPORT_CHARS)
@@ -173,8 +220,9 @@ internal object YacineCatalogProbe {
             .replace(Regex("\\s+"), " ").filterNot { Character.isISOControl(it) }.trim().take(360)
     }
 
-    suspend fun fetch(kind: Kind, categoryId: String? = null): Result {
+    suspend fun fetch(kind: Kind, categoryId: String? = null, responseMask: ByteArray? = null): Result {
         val request = request(kind, categoryId)
+        val localMask = responseMask?.copyOf()
         val path = request.url.encodedPath.removePrefix("/api/")
         return suspendCancellableCoroutine { continuation ->
             val call = client.newCall(request)
@@ -194,7 +242,7 @@ internal object YacineCatalogProbe {
                 }
                 override fun onResponse(call: Call, response: Response) {
                     response.use {
-                        val result = try { read(it, path, elapsed()).copy(elapsedMs = elapsed()) }
+                        val result = try { read(it, path, elapsed(), responseMask = localMask).copy(elapsedMs = elapsed()) }
                         catch (_: IOException) {
                             Result(State.NETWORK_ERROR, path, "تعذر استلام محتوى الرد بالكامل.", it.code, elapsedMs = elapsed())
                         }
