@@ -42,16 +42,19 @@ class CatalogRefreshJob : JobService() {
 
     companion object {
         internal const val JOB_ID = 48185
+        internal fun definition(context: Context, owner: String): JobInfo {
+            require(owner.isNotBlank())
+            val extras = PersistableBundle().apply { putString("owner", owner) }
+            return JobInfo.Builder(JOB_ID, ComponentName(context, CatalogRefreshJob::class.java))
+                .setExtras(extras).setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY)
+                .setPeriodic(15 * 60_000L).setPersisted(true).build()
+        }
         internal fun schedule(context: Context, owner: String, enabled: Boolean): Boolean = runCatching {
             val scheduler = context.getSystemService(JobScheduler::class.java) ?: return false
             if (!enabled || owner.isBlank()) { scheduler.cancel(JOB_ID); return true }
             val existing = scheduler.getPendingJob(JOB_ID)
             if (existing?.extras?.getString("owner") == owner) return true
-            val extras = PersistableBundle().apply { putString("owner", owner) }
-            val info = JobInfo.Builder(JOB_ID, ComponentName(context, CatalogRefreshJob::class.java))
-                .setExtras(extras).setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY)
-                .setPeriodic(15 * 60_000L).setPersisted(true).build()
-            scheduler.schedule(info) == JobScheduler.RESULT_SUCCESS
+            scheduler.schedule(definition(context, owner)) == JobScheduler.RESULT_SUCCESS
         }.getOrDefault(false)
     }
 }
