@@ -1222,7 +1222,6 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
     var publicProfileLoading by remember { mutableStateOf(false) }
     var youtubeSearch by remember { mutableStateOf("") }
     var knowledgeSearch by remember { mutableStateOf("") }
-    var footballSearch by remember { mutableStateOf("") }
     var youtubeItems by remember { mutableStateOf(emptyList<JSONObject>()) }
     var youtubeId by remember { mutableStateOf("") }
     // Choosing a suggestion only previews it. The trusted v1.0.57 WebView is
@@ -2653,7 +2652,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                             )
                         } // Home uses the search icon in the single-line header; no second search bar.
                     }
-                    if (tab != "الرئيسية" && tab != "الرسائل" && tab != "القرآن" &&
+                    if (tab != "الرئيسية" && tab != "الرسائل" && tab != "القرآن" && tab != "الرياضة" &&
                         !(compactYoutubeLayout && tab == "يوتيوب" && youtubePlayRequested)) {
                         Row(Modifier.fillMaxWidth().height(47.dp)
                             .padding(horizontal = 12.dp, vertical = 3.dp),
@@ -2662,23 +2661,20 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                             val pageTitle = when (tab) {
                                 "القرآن" -> "القرآن الكريم"
                                 "الأحاديث" -> "الأحاديث النبوية"
-                                "الرياضة" -> "كرة القدم"
                                 else -> tab
                             }
                             Text(pageTitle, color = GoldLight, fontWeight = FontWeight.Bold,
                                 fontSize = 15.sp, maxLines = 1,
                                 modifier = Modifier.weight(1f))
-                            if (tab in setOf("القرآن", "الأحاديث", "الأذكار", "يوتيوب", "الأصدقاء", "الرياضة")) {
+                            if (tab in setOf("القرآن", "الأحاديث", "الأذكار", "يوتيوب", "الأصدقاء")) {
                                 val isYoutube = tab == "يوتيوب"
                                 val isFriends = tab == "الأصدقاء"
-                                val isFootball = tab == "الرياضة"
                                 AttaCompactSearch(
-                                    value = if (isYoutube) youtubeSearch else if (isFriends) search else if (isFootball) footballSearch else knowledgeSearch,
+                                    value = if (isYoutube) youtubeSearch else if (isFriends) search else knowledgeSearch,
                                     onValueChange = { value ->
                                         when {
                                             isYoutube -> youtubeSearch = value
                                             isFriends -> search = value
-                                            isFootball -> footballSearch = value
                                             else -> knowledgeSearch = value
                                         }
                                     },
@@ -2723,7 +2719,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                     openHomeComposer()
                                 }
                             })
-                        "الرياضة" -> FootballScreen(footballSearch, Modifier.weight(1f), isAdmin = adminRole == "super_admin", token = token, callInProgress = activeCall != null || incomingCall != null || pendingPermissionCall != null,
+                        "الرياضة" -> FootballScreen("", Modifier.weight(1f), isAdmin = adminRole == "super_admin", token = token, callInProgress = activeCall != null || incomingCall != null || pendingPermissionCall != null,
                             onManage = { navigate("الإدارة") }, onBeforePlayback = { youtubePlayRequested = false; activeYoutubePostId = "" },
                             onYoutube = { id ->
                                 activeYoutubePostId = ""; youtubeId = id; youtubePlayRequested = true
