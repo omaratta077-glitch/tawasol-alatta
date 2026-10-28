@@ -55,6 +55,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.RectangleShape
@@ -540,7 +542,7 @@ private fun uploadChatMedia(context: android.content.Context, token: String, uri
     } finally { conn.disconnect() }
 }
 
-class MainActivity : ComponentActivity() {
+class MainActivity : ComponentActivity(), WatchRoomPipStateHost {
     // Notification taps work for a cold start AND for an existing singleTask Activity.
     internal var incomingPush by mutableStateOf<PushCall?>(null)
         private set
@@ -551,29 +553,37 @@ class MainActivity : ComponentActivity() {
         private set
     private var youtubePlaybackActive = false
 
-    internal fun setYoutubePlaybackActive(active: Boolean) {
+    override fun syncWatchRoomPipState() { youtubePipMode = isInPictureInPictureMode }
+
+    override fun onResume() {
+        super.onResume()
+        syncWatchRoomPipState()
+    }
+
+    internal fun setYoutubePlaybackActive(active: Boolean, watchReady: Boolean) {
         youtubePlaybackActive = active
-        updatePip(active || WatchRoomController.active)
+        updatePip(active || watchReady)
     }
 
     private fun updatePip(active: Boolean) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_PICTURE_IN_PICTURE)) {
             val params = PictureInPictureParams.Builder()
                 .setAspectRatio(Rational(16, 9))
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 params.setAutoEnterEnabled(active)
             }
-            setPictureInPictureParams(params.build())
+            runCatching { setPictureInPictureParams(params.build()) }
         }
     }
 
     @Suppress("DEPRECATION")
     override fun onUserLeaveHint() {
         super.onUserLeaveHint()
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && (youtubePlaybackActive || WatchRoomController.active) && !isInPictureInPictureMode) {
-            enterPictureInPictureMode(
+        if (WatchRoomController.active) { WatchRoomPip.enterNow(this); return }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && youtubePlaybackActive && !isInPictureInPictureMode) {
+            runCatching { enterPictureInPictureMode(
                 PictureInPictureParams.Builder().setAspectRatio(Rational(16, 9)).build()
-            )
+            ) }
         }
     }
 
@@ -1230,6 +1240,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
     var youtubeSelectedThumbnail by remember { mutableStateOf("") }
     val youtubePipMode = (ctx as? MainActivity)?.youtubePipMode == true
     val watchRoomActive = WatchRoomController.active
+    val watchRoomReady = WatchRoomController.ready
     var wasWatching by remember { mutableStateOf(false) }
     LaunchedEffect(watchRoomActive, youtubePipMode) {
         if (watchRoomActive) wasWatching = true
@@ -1237,7 +1248,8 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
     }
     SideEffect {
         (ctx as? MainActivity)?.setYoutubePlaybackActive(
-            token.isNotBlank() && youtubePlayRequested && youtubeId.isNotBlank() && activeYoutubePostId.isBlank()
+            token.isNotBlank() && youtubePlayRequested && youtubeId.isNotBlank() && activeYoutubePostId.isBlank(),
+            watchReady = watchRoomActive && watchRoomReady
         )
     }
     var youtubeCategory by remember { mutableStateOf("قرآن") }
@@ -3664,11 +3676,12 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                         .clip(RoundedCornerShape(14.dp))
                                         .clickable(onClick = pickVideo),
                                     contentScale = ContentScale.Fit)
-                                Text(v.optString("title"), color = GoldLight, fontWeight = FontWeight.Bold,
+                                Text(v.optString("title"), color = GoldLight, fontWeight = FontWeight.SemiBold,
+                                    fontSize = 13.sp, lineHeight = 18.sp, maxLines = 2, overflow = TextOverflow.Ellipsis,
                                     modifier = Modifier.clickable(onClick = pickVideo))
-                                Text(v.optString("channel"), color = Color.LightGray, fontSize = 12.sp)
+                                Text(v.optString("channel"), color = Color.LightGray, fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 if (id.matches(Regex("[A-Za-z0-9_-]{11}"))) {
-                                    TextButton(onClick = {
+                                    IconButton(modifier = Modifier.size(48.dp).semantics { contentDescription = "مشاركة الفيديو كمنشور في الرئيسية" }, onClick = {
                                         youtubePlayRequested = false
                                         activeYoutubePostId = ""
                                         youtubePostDraftId = id
@@ -3677,9 +3690,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                         // The Home feed loads via its composable effect after navigation.
                                         openHomeComposer()
                                     }) {
-                                        SiteIcon("repeat", size = 19.dp)
-                                        Spacer(Modifier.width(6.dp))
-                                        Text("مشاركة كمنشور في الرئيسية", color = GoldLight)
+                                        SiteIcon("share", size = 20.dp)
                                     }
                                 }
                             } }

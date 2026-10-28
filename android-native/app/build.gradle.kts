@@ -24,9 +24,9 @@ android {
         applicationId = "com.alatta.nativeapp"
         minSdk = 26
         targetSdk = 35
-        // v1.0.189: bidirectional watch-room media, draggable call bubbles and chat actions.
-        versionCode = 289
-        versionName = "1.0.189"
+        // v1.0.190: explicit watch-room PiP handoff and compact YouTube result details.
+        versionCode = 290
+        versionName = "1.0.190"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("boolean", "IS_APPGALLERY", appGalleryBuild.toString())
         val hmsId = (System.getenv("ALATTA_HMS_APP_ID") ?: "").trim().takeIf { it.matches(Regex("[0-9]{1,20}")) } ?: ""

@@ -33,6 +33,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import org.json.JSONObject
 import java.time.LocalDate
 import java.time.ZoneId
@@ -49,6 +50,8 @@ internal fun FootballScreen(query: String, modifier: Modifier = Modifier,
     isAdmin: Boolean = false, token: String = "", onManage: () -> Unit = {}, callInProgress: Boolean = false,
     onBeforePlayback: () -> Unit, onYoutube: (String) -> Unit) {
     val context = LocalContext.current
+    val playbackScope = rememberCoroutineScope()
+    var openingChannel by remember { mutableStateOf(false) }
     val preferences = remember { context.getSharedPreferences("alatta_football", Context.MODE_PRIVATE) }
     var favorites by remember { mutableStateOf(preferences.getStringSet("favorites", emptySet()).orEmpty().toSet()) }
     var recent by remember { mutableStateOf(preferences.getString("recent", "").orEmpty().split(',').filter(String::isNotBlank)) }
@@ -75,19 +78,29 @@ internal fun FootballScreen(query: String, modifier: Modifier = Modifier,
         while (true) { delay(CatalogAutoUpdater.FOREGROUND_REFRESH_MS); if (lifecycle?.currentState?.isAtLeast(Lifecycle.State.STARTED) == true) reload++ }
     }
     fun play(channel: FootballChannel) {
+        if (openingChannel) return
+        openingChannel = true
+        playbackScope.launch {
         try {
             when (channel.format) {
                 "youtube" -> onYoutube(requireNotNull(footballYoutubeId(channel.streamUrl)))
-                "external" -> context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(channel.streamUrl)))
+                "external" -> {
+                    WatchRoomPip.enterAndWait(context)?.let { playerFailure = it.playerFailure(); return@launch }
+                    val request = Intent(Intent.ACTION_VIEW, Uri.parse(channel.streamUrl))
+                    context.startActivity(if (WatchRoomController.active) WatchRoomPip.playerIntent(request) else request)
+                }
                 "ytv" -> {
-                    if (callInProgress) { error = "أنهِ المكالمة أولًا لتشغيل القناة."; return }
-                    YtvPlayer.open(context, channel.streamUrl, onBeforePlayback)?.let { playerFailure = it; return }
+                    if (callInProgress) { error = "أنهِ المكالمة أولًا لتشغيل القناة."; return@launch }
+                    YtvPlayer.openWithWatchRoom(context, channel.streamUrl, onBeforePlayback)?.let { playerFailure = it; return@launch }
                 }
                 else -> { onBeforePlayback(); selected = channel }
             }
             recent = footballRecent(recent, channel.id)
             preferences.edit().putString("recent", recent.joinToString(",")).apply()
-        } catch (_: Exception) { error = "تعذر تشغيل القناة. حدّث القائمة وحاول مجددًا." }
+        } catch (cancelled: CancellationException) { throw cancelled }
+        catch (_: Exception) { error = "تعذر تشغيل القناة. حدّث القائمة وحاول مجددًا." }
+        finally { openingChannel = false }
+        }
     }
     FootballContent(catalog, query, favorites, recent, loading, error, isAdmin, callInProgress, modifier,
         onReload = { reload++ }, onManage = onManage, onPlay = ::play,

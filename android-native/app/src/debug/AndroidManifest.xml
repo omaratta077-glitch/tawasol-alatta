@@ -1,1 +1,7 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"><application><activity android:name=".CallDialogTestActivity" android:exported="false" /></application></manifest>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"><application>
+    <activity android:name=".CallDialogTestActivity" android:exported="false" />
+    <activity android:name=".WatchRoomPipTestActivity" android:exported="false" android:supportsPictureInPicture="true"
+        android:resizeableActivity="true" android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout" />
+    <activity android:name=".WatchRoomExternalTestActivity" android:exported="false" android:excludeFromRecents="true"
+        android:taskAffinity="com.alatta.nativeapp.watch.testplayer" />
+</application></manifest>

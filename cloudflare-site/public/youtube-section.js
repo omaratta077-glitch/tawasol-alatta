@@ -84,7 +84,7 @@ async function load(append=false){
    const channel=document.createElement('small');channel.textContent=v.channel||'';
    info.append(title,channel);card.append(img,info);card.addEventListener('click',()=>play(v.id));
    const item=document.createElement('article');item.className='atta-yt-result';item.append(card);
-   const share=document.createElement('button');share.type='button';share.className='native-button atta-yt-share';share.textContent='مشاركة كمنشور';
+   const share=document.createElement('button');share.type='button';share.className='native-button atta-yt-share';share.setAttribute('aria-label','مشاركة الفيديو كمنشور في الرئيسية');share.title='مشاركة الفيديو كمنشور';share.innerHTML=window.AttaIcons?.icon?.('share')||'<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.6 10.5 6.8-4M8.6 13.5l6.8 4"/></svg>';
    share.onclick=()=>window.AttaWeb?.preparePost((v.title||'فيديو يوتيوب')+'\n[[alatta-youtube:'+v.id+']]');
    item.append(share);results.append(item);
   }

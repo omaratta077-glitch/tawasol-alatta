@@ -17,6 +17,18 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28])
 class YtvPlayerTest {
+    @Test fun watchRoomPlayerUsesASeparateTaskAndPreservesTheExactChannelPayload() {
+        val original = requireNotNull(YtvPlayer.channelIntent("9223372036854775807"))
+        val request = WatchRoomPip.playerIntent(original)
+        assertEquals(0, original.flags)
+        assertTrue(request.flags and Intent.FLAG_ACTIVITY_NEW_TASK != 0)
+        assertEquals(original.component, request.component)
+        assertEquals(Intent.ACTION_VIEW, request.action)
+        assertEquals(Long.MAX_VALUE, request.getLongExtra("id", -1))
+        assertEquals(1, request.getIntExtra("type", -1))
+        assertEquals(setOf("id", "type"), request.extras!!.keySet())
+        assertNull(request.data)
+    }
     @Test fun channelHandoffMatchesTheObservedContractAcrossParceling() {
         val intent = requireNotNull(YtvPlayer.channelIntent("9223372036854775807"))
         val parcel = Parcel.obtain()

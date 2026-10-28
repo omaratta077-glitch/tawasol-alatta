@@ -38,11 +38,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import org.webrtc.SurfaceViewRenderer
+import kotlinx.coroutines.launch
 
 @Composable
 internal fun WatchRoomPanel(token: String, channels: List<FootballChannel>, callInProgress: Boolean,
     entryRequest: Int, onPlay: (FootballChannel) -> Unit, onBeforeJoin: () -> Unit) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var pipFailure by remember { mutableStateOf<YtvPlayer.Failure?>(null) }
     val clipboard = LocalClipboardManager.current
     var dialog by remember { mutableStateOf(false) }
     var code by remember { mutableStateOf("") }
@@ -113,6 +116,9 @@ internal fun WatchRoomPanel(token: String, channels: List<FootballChannel>, call
                 WatchAction(if (WatchRoomController.muted) "mic-off" else "mic", "كتم الميكروفون", WatchRoomController.ready) { WatchRoomController.toggleMute() }
                 WatchAction(if (WatchRoomController.cameraOff) "camera-off" else "camera", "إغلاق الكاميرا", WatchRoomController.ready) { WatchRoomController.toggleCamera() }
                 WatchAction("repeat", "تبديل الكاميرا", WatchRoomController.ready && !WatchRoomController.cameraOff) { WatchRoomController.engine?.switchCamera() }
+                WatchAction("video", "إظهار مكالمة الغرفة في نافذة فوق التطبيقات", WatchRoomController.ready) {
+                    scope.launch { pipFailure = WatchRoomPip.enterAndWait(context)?.playerFailure() }
+                }
                 WatchAction("phone-off", "مغادرة الغرفة", true) { WatchRoomController.status = "غادرت غرفة المشاهدة"; WatchRoomController.stop(context) }
             }
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -143,6 +149,7 @@ internal fun WatchRoomPanel(token: String, channels: List<FootballChannel>, call
             if (error.isNotBlank()) Text(error, color = Color(0xFFFF9090), fontSize = 12.sp)
         }
     }, confirmButton = { TextButton(onClick = { dialog = false }) { Text("رجوع") } })
+    pipFailure?.let { YtvPlayerErrorDialog(it, onDismiss = { pipFailure = null }) }
 }
 
 @Composable
