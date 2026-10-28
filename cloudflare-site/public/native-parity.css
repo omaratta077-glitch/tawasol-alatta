@@ -366,3 +366,9 @@ body{background:var(--native-bg)!important;color:#f7f8f9!important}
 .message-copy{font:inherit;font-size:11px;background:transparent;color:inherit;border:1px solid currentColor;border-radius:12px;padding:4px 9px;margin:5px 4px 0;cursor:pointer}
 .chat-call-history{cursor:pointer}
 .chat-call-history:focus-visible,.watch-chat-head:focus-visible{outline:2px solid #f6d776;outline-offset:3px}
+
+/* Compact YouTube result details; preserve the existing post-composer action. */
+#appView .atta-youtube-inline .atta-yt-card-info strong,.atta-youtube-overlay .atta-yt-card-info strong{font-size:13px;line-height:1.4;font-weight:600;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}
+#appView .atta-youtube-inline .atta-yt-card-info small,.atta-youtube-overlay .atta-yt-card-info small{font-size:10px;line-height:1.4}
+.atta-yt-share{display:inline-grid;place-items:center;width:48px;min-width:48px;height:48px;padding:12px}
+.atta-yt-share svg{width:20px;height:20px}
