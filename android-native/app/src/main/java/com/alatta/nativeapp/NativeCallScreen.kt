@@ -322,10 +322,8 @@ internal fun NativeCallScreen(
             Box(Modifier.fillMaxSize().background(CallPanel, CircleShape).border(2.dp, CallGold, CircleShape)
                 .semantics { contentDescription = "العودة لمكالمة $peerDisplayName؛ اسحب لتحريكها" }
                 .clickable { onRestore() }, contentAlignment = Alignment.Center) {
-                run {
-                    if (peerAvatar.isNotBlank()) ProfileMediaImage(peerAvatar, peerDisplayName, Modifier.fillMaxSize().clip(CircleShape))
-                    else Text(peerDisplayName.take(1), color = CallGold, fontSize = 27.sp)
-                }
+                if (peerAvatar.isNotBlank()) ProfileMediaImage(peerAvatar, peerDisplayName, Modifier.fillMaxSize().clip(CircleShape))
+                else Text(peerDisplayName.take(1), color = CallGold, fontSize = 27.sp)
                 Box(Modifier.align(Alignment.BottomEnd).size(22.dp).clip(CircleShape).background(CallGold), contentAlignment = Alignment.Center) {
                     SiteIcon(if (videoCall) "video" else "phone", tint = CallBackground, size = 13.dp)
                 }

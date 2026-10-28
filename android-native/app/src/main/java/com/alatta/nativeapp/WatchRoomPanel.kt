@@ -16,6 +16,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -30,6 +31,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -131,6 +134,7 @@ internal fun WatchRoomPanel(token: String, channels: List<FootballChannel>, call
             Button(enabled = !callInProgress, onClick = { join("create") }, modifier = Modifier.fillMaxWidth()) { Text("إنشاء غرفة") }
             OutlinedTextField(code, onValueChange = { code = it.filter { c -> c in 'A'..'Z' || c in 'a'..'z' }.take(3).uppercase(); error = "" },
                 label = { Text("كود غرفة صاحبك • ABC") }, singleLine = true, modifier = Modifier.fillMaxWidth(),
+                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Characters, keyboardType = KeyboardType.Ascii),
                 trailingIcon = { TextButton(onClick = {
                     val pasted = watchRoomInviteCode(clipboard.getText()?.text.orEmpty())
                     if (pasted == null) error = "انسخ كود الغرفة أو رسالة دعوتها أولًا" else { code = pasted; error = "" }

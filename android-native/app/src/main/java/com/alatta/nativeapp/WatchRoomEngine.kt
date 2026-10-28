@@ -163,14 +163,14 @@ internal class WatchRoomEngine(private val context: Context, private val token: 
     private suspend fun offer(id: String, restart: Boolean = false) {
         val peer = links[id]?.peer ?: return
         if (peer.signalingState() != PeerConnection.SignalingState.STABLE) return
-        try {
+        val sent = watchRoomSignalAttempt {
             if (restart) peer.restartIce()
-            val sdp = withTimeout(12000) { createSportsDescription(peer, true) }
-            withTimeout(12000) { setSportsDescription(peer, sdp, true) }
+            val sdp = createSportsDescription(peer, true)
+            setSportsDescription(peer, sdp, true)
             links[id]?.let(::applyVideoPolicy)
             send(id, "offer", JSONObject().put("sdp", JSONObject().put("type", "offer").put("sdp", sdp.description)))
-        } catch (cancelled: CancellationException) { throw cancelled }
-        catch (_: Exception) { WatchRoomController.status = "تعذر توصيل أحد المشاركين" }
+        }
+        if (!sent) WatchRoomController.status = "تعذر توصيل أحد المشاركين"
     }
     private suspend fun send(to: String, type: String, extra: JSONObject = JSONObject()) {
         val state = room ?: return
@@ -191,7 +191,7 @@ internal class WatchRoomEngine(private val context: Context, private val token: 
         if (state.members.none { it.peerId == from && it.peerId != state.myPeerId }) return@withLock authoritativeRoster
         if (id in seen) return@withLock true
         val link = links[from] ?: createPeer(from)
-        try { withTimeout(12000) { when (packet.optString("type")) {
+        val processed = watchRoomSignalAttempt { when (packet.optString("type")) {
             "offer" -> if (from < state.myPeerId) {
                 val sdp = packet.getJSONObject("sdp")
                 setSportsDescription(link.peer, SessionDescription(SessionDescription.Type.OFFER, sdp.getString("sdp")), false)
@@ -212,8 +212,8 @@ internal class WatchRoomEngine(private val context: Context, private val token: 
                 else if (link.ice.size < 128) link.ice.add(candidate)
             }
             "restart" -> if (state.myPeerId < from) offer(from, true)
-        } } } catch (cancelled: CancellationException) { throw cancelled }
-        catch (_: Exception) { WatchRoomController.status = "جارٍ استعادة اتصال أحد المشاركين"; return@withLock false }
+        } }
+        if (!processed) { WatchRoomController.status = "جارٍ استعادة اتصال أحد المشاركين"; return@withLock false }
         seen.add(id)
         while (seen.size > 512) seen.remove(seen.first())
         true

@@ -30,7 +30,9 @@ internal class WatchAudioRoute(context: Context) {
     private val manager = context.getSystemService(AudioManager::class.java)
     private val previousMode = manager.mode
     private val previousSpeaker = manager.isSpeakerphoneOn
-    private val previousDevice = if (Build.VERSION.SDK_INT >= 31) manager.communicationDevice else null
+    private val previousDevice = if (Build.VERSION.SDK_INT >= 31) runCatching { manager.communicationDevice }.getOrNull() else null
+    private val previousSco = manager.isBluetoothScoOn
+    private var startedSco = false
     private var started = false
     private val callback = object : AudioDeviceCallback() {
         override fun onAudioDevicesAdded(devices: Array<out AudioDeviceInfo>?) { route() }
@@ -48,17 +50,17 @@ internal class WatchAudioRoute(context: Context) {
         if (Build.VERSION.SDK_INT >= 31) {
             val devices = runCatching { manager.availableCommunicationDevices }.getOrDefault(emptyList())
             val preferred = devices.firstOrNull { it.type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO || it.type == AudioDeviceInfo.TYPE_BLE_HEADSET }
-                ?: devices.firstOrNull { it.type == AudioDeviceInfo.TYPE_WIRED_HEADSET || it.type == AudioDeviceInfo.TYPE_USB_HEADSET }
+                ?: devices.firstOrNull { it.type == AudioDeviceInfo.TYPE_WIRED_HEADSET || it.type == AudioDeviceInfo.TYPE_WIRED_HEADPHONES || it.type == AudioDeviceInfo.TYPE_USB_HEADSET }
                 ?: devices.firstOrNull { it.type == AudioDeviceInfo.TYPE_BUILTIN_SPEAKER }
             if (preferred != null) runCatching { manager.setCommunicationDevice(preferred) }
         } else {
             val headset = manager.getDevices(AudioManager.GET_DEVICES_OUTPUTS).any {
-                it.type == AudioDeviceInfo.TYPE_WIRED_HEADSET || it.type == AudioDeviceInfo.TYPE_USB_HEADSET ||
+                it.type == AudioDeviceInfo.TYPE_WIRED_HEADSET || it.type == AudioDeviceInfo.TYPE_WIRED_HEADPHONES || it.type == AudioDeviceInfo.TYPE_USB_HEADSET ||
                     it.type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO || it.type == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP
             }
             manager.isSpeakerphoneOn = !headset
-            if (manager.getDevices(AudioManager.GET_DEVICES_OUTPUTS).any { it.type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO }) {
-                runCatching { manager.startBluetoothSco(); manager.isBluetoothScoOn = true }
+            if (!previousSco && !startedSco && manager.getDevices(AudioManager.GET_DEVICES_OUTPUTS).any { it.type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO }) {
+                runCatching { manager.startBluetoothSco(); manager.isBluetoothScoOn = true; startedSco = true }
             }
         }
     }
@@ -68,7 +70,7 @@ internal class WatchAudioRoute(context: Context) {
         runCatching { manager.unregisterAudioDeviceCallback(callback) }
         if (Build.VERSION.SDK_INT >= 31) runCatching {
             if (previousDevice != null) manager.setCommunicationDevice(previousDevice) else manager.clearCommunicationDevice()
-        } else runCatching { manager.stopBluetoothSco(); manager.isBluetoothScoOn = false }
+        } else if (startedSco) runCatching { manager.stopBluetoothSco(); manager.isBluetoothScoOn = previousSco }
         runCatching { manager.isSpeakerphoneOn = previousSpeaker; manager.mode = previousMode }
     }
 }
