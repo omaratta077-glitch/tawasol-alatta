@@ -59,4 +59,7 @@ internal object WatchRoomPip {
 
     fun settingsIntent(context: Context) = Intent("android.settings.PICTURE_IN_PICTURE_SETTINGS",
         Uri.parse("package:${context.packageName}"))
+
+    /** A channel must not replace the participant Activity inside its pinned task. */
+    fun playerIntent(request: Intent) = Intent(request).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
 }

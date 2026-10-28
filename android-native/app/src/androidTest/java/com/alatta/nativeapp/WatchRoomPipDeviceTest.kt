@@ -6,6 +6,7 @@ import android.os.ParcelFileDescriptor
 import android.os.SystemClock
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import androidx.lifecycle.Lifecycle
 import org.junit.Assert.*
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -50,6 +51,7 @@ class WatchRoomPipDeviceTest {
                     assertNull("Both creator and guest must enter PiP", activity.lastFailure)
                     assertTrue(activity.playerLaunched)
                     assertTrue("The participant window remains in actual Android PiP", activity.isInPictureInPictureMode)
+                    assertTrue("A visible PiP room remains started", activity.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED))
                     assertTrue("The separate player task is visible", WatchRoomExternalTestActivity.visible)
                     assertTrue("Production participant grid has visible bounds", activity.pipWidth > 0 && activity.pipHeight > 0)
                     assertEquals(if (creator) "fixture-owner" else "fixture-guest", WatchRoomController.room?.myPeerId)

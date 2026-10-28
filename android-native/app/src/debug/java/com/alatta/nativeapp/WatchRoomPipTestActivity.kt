@@ -50,8 +50,8 @@ class WatchRoomPipTestActivity : ComponentActivity(), WatchRoomPipStateHost {
             try {
                 lastFailure = WatchRoomPip.enterAndWait(this@WatchRoomPipTestActivity)
                 if (lastFailure == null) {
-                    startActivity(Intent(this@WatchRoomPipTestActivity, WatchRoomExternalTestActivity::class.java)
-                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_NO_USER_ACTION))
+                    startActivity(WatchRoomPip.playerIntent(Intent(this@WatchRoomPipTestActivity, WatchRoomExternalTestActivity::class.java)
+                        .addFlags(Intent.FLAG_ACTIVITY_NO_USER_ACTION)))
                     playerLaunched = true
                 }
             } finally { launchFinished = true }

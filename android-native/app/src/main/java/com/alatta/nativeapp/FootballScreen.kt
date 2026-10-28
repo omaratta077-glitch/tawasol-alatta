@@ -86,7 +86,8 @@ internal fun FootballScreen(query: String, modifier: Modifier = Modifier,
                 "youtube" -> onYoutube(requireNotNull(footballYoutubeId(channel.streamUrl)))
                 "external" -> {
                     WatchRoomPip.enterAndWait(context)?.let { playerFailure = it.playerFailure(); return@launch }
-                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(channel.streamUrl)))
+                    val request = Intent(Intent.ACTION_VIEW, Uri.parse(channel.streamUrl))
+                    context.startActivity(if (WatchRoomController.active) WatchRoomPip.playerIntent(request) else request)
                 }
                 "ytv" -> {
                     if (callInProgress) { error = "أنهِ المكالمة أولًا لتشغيل القناة."; return@launch }

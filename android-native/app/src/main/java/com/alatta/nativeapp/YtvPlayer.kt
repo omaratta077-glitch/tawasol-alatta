@@ -50,6 +50,10 @@ internal object YtvPlayer {
 
     fun open(context: Context, value: String, beforeLaunch: () -> Unit = {}): Failure? {
         val request = channelIntent(value) ?: return Failure.INVALID_ID
+        return launch(context, request, beforeLaunch)
+    }
+
+    private fun launch(context: Context, request: Intent, beforeLaunch: () -> Unit): Failure? {
         if (context !is Activity) request.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         beforeLaunch()
         return try {
@@ -66,7 +70,7 @@ internal object YtvPlayer {
             if (request.resolveActivity(context.packageManager) == null) return Failure.UNAVAILABLE
             WatchRoomPip.enterAndWait(context)?.let { return it.playerFailure() }
         }
-        return open(context, value, beforeLaunch)
+        return launch(context, if (WatchRoomController.active) WatchRoomPip.playerIntent(request) else request, beforeLaunch)
     }
 }
 
