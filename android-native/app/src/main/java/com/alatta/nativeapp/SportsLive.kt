@@ -233,7 +233,7 @@ private class SportsScreenPublisher(
 }
 
 @Composable
-internal fun SportsLivePanel(token: String, isAdmin: Boolean) {
+internal fun SportsLivePanel(token: String, isAdmin: Boolean, expanded: Boolean, onExpandedChange: (Boolean) -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var live by remember { mutableStateOf<JSONObject?>(null) }
@@ -241,7 +241,6 @@ internal fun SportsLivePanel(token: String, isAdmin: Boolean) {
     var status by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
     var title by rememberSaveable { mutableStateOf("") }
-    var expanded by rememberSaveable { mutableStateOf(false) }
     var publisher by remember { mutableStateOf<SportsScreenPublisher?>(null) }
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         if (result.resultCode == Activity.RESULT_OK && result.data != null && title.isNotBlank()) {
@@ -258,20 +257,12 @@ internal fun SportsLivePanel(token: String, isAdmin: Boolean) {
         }
     }
     DisposableEffect(Unit) { onDispose { publisher?.stop(true) } }
-    Surface(color = Color(0xFF201B10), shape = RoundedCornerShape(14.dp), modifier = Modifier.padding(vertical = 4.dp).then(if (expanded || live != null) Modifier.fillMaxWidth() else Modifier.wrapContentWidth())) {
+    if (expanded || live != null) Surface(color = Color(0xFF201B10), shape = RoundedCornerShape(14.dp), modifier = Modifier.padding(vertical = 4.dp).fillMaxWidth()) {
         Column(Modifier.padding(if (expanded) 10.dp else 2.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                IconButton(onClick = { expanded = !expanded }, modifier = Modifier.semantics {
-                    contentDescription = if (expanded) "تصغير لوحة البث" else "فتح لوحة البث"
-                    stateDescription = if (expanded) "مفتوحة" else "مصغرة"
-                }) {
-                    SiteIcon("video", tint = PremiumGoldLight, size = 22.dp)
-                }
-                if (expanded || live != null) {
-                    Text(if (live != null) "● مباشر" else "بث الشاشة", color = PremiumGoldLight, fontSize = 14.sp, modifier = Modifier.weight(1f))
-                }
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(if (live != null) "● مباشر" else "بث الشاشة", color = PremiumGoldLight, fontSize = 14.sp, modifier = Modifier.weight(1f))
                 if (expanded) {
-                    IconButton(onClick = { expanded = false }, modifier = Modifier.semantics { contentDescription = "طي أدوات البث" }) {
+                    IconButton(onClick = { onExpandedChange(false) }, modifier = Modifier.size(32.dp).semantics { contentDescription = "طي أدوات البث" }) {
                         SiteIcon("chevron-down", tint = PremiumGoldLight, size = 18.dp)
                     }
                 }

@@ -32,7 +32,7 @@ import org.webrtc.SurfaceViewRenderer
 
 @Composable
 internal fun WatchRoomPanel(token: String, channels: List<FootballChannel>, callInProgress: Boolean,
-    onPlay: (FootballChannel) -> Unit, onBeforeJoin: () -> Unit) {
+    entryRequest: Int, onPlay: (FootballChannel) -> Unit, onBeforeJoin: () -> Unit) {
     val context = LocalContext.current
     val clipboard = LocalClipboardManager.current
     var dialog by remember { mutableStateOf(false) }
@@ -45,6 +45,15 @@ internal fun WatchRoomPanel(token: String, channels: List<FootballChannel>, call
     val room = WatchRoomController.room
     val active = WatchRoomController.active
     val visibleChannels = channels.filter { it.enabled }
+    LaunchedEffect(entryRequest) {
+        if (entryRequest > 0 && token.isNotBlank()) {
+            if (active) expanded = true
+            else {
+                channelId = visibleChannels.firstOrNull()?.id.orEmpty()
+                error = ""; dialog = true
+            }
+        }
+    }
     fun start() {
         if (callInProgress || active || WatchRoomController.closing) { error = "غادر المكالمة الحالية أولًا"; return }
         val owner = context.getSharedPreferences("alatta_native", Context.MODE_PRIVATE).getString("username", "").orEmpty()
@@ -66,9 +75,6 @@ internal fun WatchRoomPanel(token: String, channels: List<FootballChannel>, call
         if (missing.isEmpty()) start() else permissions.launch(missing.toTypedArray())
     }
     if (!active) {
-        OutlinedButton(enabled = token.isNotBlank() && !callInProgress && !WatchRoomController.closing, onClick = {
-            channelId = visibleChannels.firstOrNull()?.id.orEmpty(); error = ""; dialog = true
-        }) { SiteIcon("users", size = 19.dp); Spacer(Modifier.width(6.dp)); Text("شاهد مع أصحابك", fontSize = 12.sp) }
         if (WatchRoomController.status.isNotBlank()) Text(WatchRoomController.status, color = PremiumMuted, fontSize = 11.sp)
     } else FootballPanel {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {

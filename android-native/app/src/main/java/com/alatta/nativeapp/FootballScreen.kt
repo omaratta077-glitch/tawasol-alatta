@@ -58,6 +58,8 @@ internal fun FootballScreen(query: String, modifier: Modifier = Modifier,
     var error by remember { mutableStateOf("") }
     var selected by remember { mutableStateOf<FootballChannel?>(null) }
     var playerFailure by remember { mutableStateOf<YtvPlayer.Failure?>(null) }
+    var watchEntryRequest by remember { mutableIntStateOf(0) }
+    var broadcastExpanded by rememberSaveable { mutableStateOf(false) }
     val generation = CatalogAutoUpdater.generation
     LaunchedEffect(reload, generation) {
         loading = true; error = ""
@@ -92,9 +94,14 @@ internal fun FootballScreen(query: String, modifier: Modifier = Modifier,
         onFavorite = { id ->
             favorites = if (id in favorites) favorites - id else favorites + id
             preferences.edit().putStringSet("favorites", favorites.toSet()).apply()
-        }, livePanel = {
-            WatchRoomPanel(token, catalog.channels, callInProgress, onPlay = ::play, onBeforeJoin = onBeforePlayback)
-            SportsLivePanel(token = token, isAdmin = isAdmin)
+        }, onWatch = { watchEntryRequest++ },
+        watchEnabled = token.isNotBlank() && !callInProgress && !WatchRoomController.closing,
+        onBroadcast = { broadcastExpanded = !broadcastExpanded }, broadcastExpanded = broadcastExpanded,
+        livePanel = {
+            WatchRoomPanel(token, catalog.channels, callInProgress, entryRequest = watchEntryRequest,
+                onPlay = ::play, onBeforeJoin = onBeforePlayback)
+            SportsLivePanel(token = token, isAdmin = isAdmin, expanded = broadcastExpanded,
+                onExpandedChange = { broadcastExpanded = it })
         })
     playerFailure?.let { YtvPlayerErrorDialog(it, onDismiss = { playerFailure = null }) }
     selected?.let { channel ->
@@ -109,7 +116,8 @@ internal fun FootballScreen(query: String, modifier: Modifier = Modifier,
 internal fun FootballContent(catalog: FootballCatalog, query: String, favorites: Set<String>, recent: List<String>,
     loading: Boolean, error: String, isAdmin: Boolean, callInProgress: Boolean, modifier: Modifier = Modifier,
     onReload: () -> Unit, onManage: () -> Unit, onPlay: (FootballChannel) -> Unit, onFavorite: (String) -> Unit,
-    livePanel: @Composable () -> Unit = {}) {
+    livePanel: @Composable () -> Unit = {}, onWatch: () -> Unit = {}, watchEnabled: Boolean = true,
+    onBroadcast: () -> Unit = {}, broadcastExpanded: Boolean = false) {
     var tab by rememberSaveable { mutableStateOf("القنوات") }
     var category by rememberSaveable { mutableStateOf("") }
     var day by rememberSaveable { mutableIntStateOf(0) }
@@ -121,19 +129,33 @@ internal fun FootballContent(catalog: FootballCatalog, query: String, favorites:
         .filter { c -> when (tab) { "المفضلة" -> c.id in favorites; "آخر مشاهدة" -> c.id in recent; else -> category.isBlank() || footballChannelCategory(c) == category } }
         .sortedWith(if (tab == "آخر مشاهدة") compareBy { recent.indexOf(it.id) } else footballChannelOrder())
     Column(modifier.fillMaxSize().background(PremiumBackground).padding(horizontal = 10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Row(Modifier.weight(1f).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                listOf("القنوات", "المباريات", "المفضلة", "آخر مشاهدة").forEach { name ->
-                    FilterChip(selected = tab == name, onClick = { tab = name }, label = { Text(name, fontSize = 12.sp) },
-                        colors = FilterChipDefaults.filterChipColors(selectedContainerColor = PremiumGold,
-                            selectedLabelColor = Color.Black, labelColor = PremiumGoldLight))
-                }
+        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            listOf("القنوات", "المباريات", "المفضلة", "آخر مشاهدة").forEach { name ->
+                FilterChip(selected = tab == name, onClick = { tab = name }, label = { Text(name, fontSize = 12.sp) },
+                    colors = FilterChipDefaults.filterChipColors(selectedContainerColor = PremiumGold,
+                        selectedLabelColor = Color.Black, labelColor = PremiumGoldLight))
             }
-            IconButton(enabled = !loading, onClick = onReload, modifier = Modifier.semantics { contentDescription = "تحديث القنوات والمباريات" }) {
-                SiteIcon("repeat", tint = PremiumGoldLight, size = 19.dp)
+        }
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+            OutlinedButton(onClick = onWatch, enabled = watchEnabled,
+                modifier = Modifier.weight(1f).height(40.dp).semantics { contentDescription = "شاهد مع أصحابك" },
+                contentPadding = PaddingValues(horizontal = 7.dp, vertical = 4.dp), shape = RoundedCornerShape(12.dp)) {
+                SiteIcon("users", size = 16.dp, tint = PremiumGoldLight)
+                Spacer(Modifier.width(4.dp))
+                Text("شاهد مع أصحابك", color = PremiumGoldLight, fontSize = 11.sp, lineHeight = 14.sp,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
-            if (isAdmin) IconButton(onClick = onManage, modifier = Modifier.semantics { contentDescription = "إدارة القنوات والمباريات" }) {
-                SiteIcon("menu", tint = PremiumGoldLight, size = 19.dp)
+            IconButton(onClick = onBroadcast, modifier = Modifier.size(40.dp)
+                .background(PremiumPanel, RoundedCornerShape(12.dp)).semantics {
+                    contentDescription = if (broadcastExpanded) "تصغير لوحة البث" else "فتح لوحة البث"
+                }) { SiteIcon("video", tint = PremiumGoldLight, size = 18.dp) }
+            IconButton(enabled = !loading, onClick = onReload, modifier = Modifier.size(40.dp)
+                .background(PremiumPanel, RoundedCornerShape(12.dp)).semantics { contentDescription = "تحديث القنوات والمباريات" }) {
+                SiteIcon("repeat", tint = PremiumGoldLight, size = 18.dp)
+            }
+            if (isAdmin) IconButton(onClick = onManage, modifier = Modifier.size(40.dp)
+                .background(PremiumPanel, RoundedCornerShape(12.dp)).semantics { contentDescription = "إدارة القنوات والمباريات" }) {
+                SiteIcon("menu", tint = PremiumGoldLight, size = 18.dp)
             }
         }
         livePanel()
