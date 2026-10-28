@@ -4451,7 +4451,7 @@ window.AttaWeb=Object.freeze({
 
   if ("serviceWorker" in navigator) {
     window.addEventListener("load", () => {
-      navigator.serviceWorker.register("/sw.js?v=14.12", { scope: "/" }).catch(() => {});
+      navigator.serviceWorker.register("/sw.js?v=14.16", { scope: "/" }).catch(() => {});
     });
   }
 
