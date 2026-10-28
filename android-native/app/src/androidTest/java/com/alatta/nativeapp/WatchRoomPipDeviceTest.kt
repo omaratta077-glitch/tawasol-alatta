@@ -28,6 +28,13 @@ class WatchRoomPipDeviceTest {
             .putExtra("creator", creator).putExtra("alone", alone).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) as WatchRoomPipTestActivity
         try {
             instrumentation.waitForIdleSync()
+            var focused = false
+            val focusDeadline = SystemClock.uptimeMillis() + 5000L
+            while (!focused && SystemClock.uptimeMillis() < focusDeadline) {
+                instrumentation.runOnMainSync { focused = activity.hasWindowFocus() && activity.window.decorView.width > 0 }
+                if (!focused) SystemClock.sleep(50)
+            }
+            assertTrue("The user-visible room must be ready before pressing Play", focused)
             instrumentation.runOnMainSync { activity.launchFixturePlayer() }
             val deadline = SystemClock.uptimeMillis() + 8000L
             while (SystemClock.uptimeMillis() < deadline && (!activity.launchFinished ||

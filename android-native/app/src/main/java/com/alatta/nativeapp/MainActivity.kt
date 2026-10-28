@@ -55,6 +55,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.RectangleShape
@@ -540,7 +542,7 @@ private fun uploadChatMedia(context: android.content.Context, token: String, uri
     } finally { conn.disconnect() }
 }
 
-class MainActivity : ComponentActivity() {
+class MainActivity : ComponentActivity(), WatchRoomPipStateHost {
     // Notification taps work for a cold start AND for an existing singleTask Activity.
     internal var incomingPush by mutableStateOf<PushCall?>(null)
         private set
@@ -550,6 +552,13 @@ class MainActivity : ComponentActivity() {
     internal var youtubePipMode by mutableStateOf(false)
         private set
     private var youtubePlaybackActive = false
+
+    override fun syncWatchRoomPipState() { youtubePipMode = isInPictureInPictureMode }
+
+    override fun onResume() {
+        super.onResume()
+        syncWatchRoomPipState()
+    }
 
     internal fun setYoutubePlaybackActive(active: Boolean, watchReady: Boolean) {
         youtubePlaybackActive = active

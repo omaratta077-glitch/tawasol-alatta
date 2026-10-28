@@ -14,6 +14,9 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 
+/** Refresh visible call content after the system confirms PiP, even when an OEM callback is delayed. */
+interface WatchRoomPipStateHost { fun syncWatchRoomPipState() }
+
 /** Explicit user-triggered PiP before opening a channel; independent of room ownership and leave hints. */
 internal object WatchRoomPip {
     enum class Failure { STARTING, PERMISSION, UNAVAILABLE, ROOM_ENDED }
@@ -47,6 +50,7 @@ internal object WatchRoomPip {
         } == true
         if (!WatchRoomController.active) return@withContext Failure.ROOM_ENDED
         if (!entered) return@withContext Failure.UNAVAILABLE
+        (activity as? WatchRoomPipStateHost)?.syncWatchRoomPipState()
         // Let the PiP callback replace the app chrome with the participants before handing off the channel.
         delay(60)
         if (!WatchRoomController.active) Failure.ROOM_ENDED

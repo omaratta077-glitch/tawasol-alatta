@@ -18,7 +18,7 @@ import kotlinx.coroutines.launch
 import java.lang.ref.WeakReference
 
 /** Debug-only system PiP exercise: no accounts, camera, microphone, channel source or network. */
-class WatchRoomPipTestActivity : ComponentActivity() {
+class WatchRoomPipTestActivity : ComponentActivity(), WatchRoomPipStateHost {
     private var pip by mutableStateOf(false)
     @Volatile internal var lastFailure: WatchRoomPip.Failure? = null
     @Volatile internal var launchFinished = false
@@ -59,8 +59,9 @@ class WatchRoomPipTestActivity : ComponentActivity() {
     }
     override fun onPictureInPictureModeChanged(isInPictureInPictureMode: Boolean, newConfig: Configuration) {
         super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
-        pip = isInPictureInPictureMode
+        // Deliberately leave Compose stale: the production handoff must refresh it after system confirmation.
     }
+    override fun syncWatchRoomPipState() { pip = isInPictureInPictureMode }
     override fun onDestroy() {
         WatchRoomController.active = false; WatchRoomController.ready = false; WatchRoomController.room = null
         super.onDestroy()
