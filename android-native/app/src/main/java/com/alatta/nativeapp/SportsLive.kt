@@ -68,9 +68,9 @@ private suspend fun sportsIceServers(token: String): List<PeerConnection.IceServ
 
 internal suspend fun createSportsDescription(peer: PeerConnection, offer: Boolean): SessionDescription = suspendCancellableCoroutine { cont ->
     val observer = object : SdpObserver {
-        override fun onCreateSuccess(sdp: SessionDescription?) { if (sdp != null) cont.resume(sdp) else cont.resumeWithException(IllegalStateException("SDP فارغ")) }
+        override fun onCreateSuccess(sdp: SessionDescription?) { if (cont.isActive) { if (sdp != null) cont.resume(sdp) else cont.resumeWithException(IllegalStateException("SDP فارغ")) } }
         override fun onSetSuccess() {}
-        override fun onCreateFailure(error: String?) { cont.resumeWithException(IllegalStateException(error ?: "تعذر تجهيز الاتصال")) }
+        override fun onCreateFailure(error: String?) { if (cont.isActive) cont.resumeWithException(IllegalStateException(error ?: "تعذر تجهيز الاتصال")) }
         override fun onSetFailure(error: String?) {}
     }
     if (offer) peer.createOffer(observer, MediaConstraints()) else peer.createAnswer(observer, MediaConstraints())

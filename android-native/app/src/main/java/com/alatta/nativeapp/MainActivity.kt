@@ -3877,24 +3877,17 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
             }
             if (watchRoomActive && token.isNotBlank()) {
                 if (youtubePipMode) WatchRoomController.room?.let { WatchVideoStage(it, WatchRoomController.engine, Modifier.fillMaxSize()) }
-                else if (tab != "الرياضة") Box(Modifier.align(Alignment.BottomCenter).padding(start = 8.dp, end = 8.dp, bottom = 76.dp)) {
-                    WatchRoomOngoingBar { navigate("الرياضة") }
+                else if (tab != "الرياضة" || !WatchRoomController.expanded) {
+                    WatchRoomCallBubble { navigate("الرياضة") }
                 }
             }
             activeCall?.let { session ->
                 // Keep the native WebRTC peer and its Compose screen mounted while minimized.
                 // The separate native camera/renderer lifecycle owns the call.
-                NativeCallScreen(
+                FloatingCallBubble(minimized = callMinimized) { callHost -> NativeCallScreen(
                     session = session, token = token, myUsername = myUsername,
                     minimized = callMinimized,
-                    modifier = if (callMinimized) {
-                        // Full-width ongoing-call banner while browsing inside the app.
-                        // Keep the native WebRTC peer mounted so media is not interrupted.
-                        Modifier.align(Alignment.TopCenter)
-                            .fillMaxWidth()
-                            .padding(top = 72.dp, start = 10.dp, end = 10.dp)
-                            .height(86.dp)
-                    } else Modifier.fillMaxSize().safeDrawingPadding(),
+                    modifier = callHost,
                     onMinimize = { callMinimized = true },
                     onRestore = { callMinimized = false },
                     onClose = {
@@ -3904,7 +3897,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                             try { load("الرسائل") } catch (_: Exception) { }
                         }
                     }
-                )
+                ) }
             }
             }
         }

@@ -582,7 +582,7 @@ export class SignalingRoom extends DurableObject {
     self.queue=self.queue.filter(event=>event.seq>after);
     return {ok:true,code:room.code,myPeerId:self.peerId,host:room.host,channelId:room.channelId,channelName:room.channelName,
       limit:6,cursor:self.seq,members:[...room.members.values()].map(m=>({peerId:m.peerId,username:m.username,name:m.name,
-      cameraOn:m.cameraOn,micOn:m.micOn})),signals:self.queue};
+      cameraOn:m.cameraOn,micOn:m.micOn,avatar:m.avatar||""})),signals:self.queue};
   }
   async watchRoomAction(username,body){
     this.watchSweep();const action=String(body.action||""),now=Date.now();
@@ -609,17 +609,21 @@ export class SignalingRoom extends DurableObject {
         const id=String(body.channelId||""),catalog=await this.ctx.storage.get("football:catalog");
         const channel=catalog?.channels?.find(c=>c.id===id&&c.enabled);
         if(id&&!channel)return j({ok:false,error:"القناة لم تعد متاحة؛ حدّث القائمة"},400);
-        do{code=crypto.randomUUID().replace(/-/g,"").slice(0,12).toUpperCase();}while(this.watchRooms.has(code));
+        do{
+          code="";
+          while(code.length<3){const bytes=crypto.getRandomValues(new Uint8Array(6));
+            for(const byte of bytes)if(byte<234&&code.length<3)code+=String.fromCharCode(65+byte%26);}
+        }while(this.watchRooms.has(code));
         room={code,host:username,createdAt:now,channelId:id,channelName:channel?.name||"غرفة مشاهدة",members:new Map()};
       }else{
-        if(!/^[A-F0-9]{12}$/.test(code))return j({ok:false,error:"كود الغرفة غير صحيح"},400);
+        if(!/^[A-Z]{3}$/.test(code))return j({ok:false,error:"كود الغرفة ثلاثة حروف إنجليزية"},400);
         if(!room)return j({ok:false,error:"الغرفة انتهت أو الكود غير صحيح"},404);
         if(!await this.canCommunicate(username,room.host))return j({ok:false,error:"الدخول متاح لأصدقاء صاحب الغرفة فقط"},403);
         for(const peer of room.members.values())if(await this.isBlockedBetween(username,peer.username))return j({ok:false,error:"تعذر دخول هذه الغرفة"},403);
         if(room.members.size>=6)return j({ok:false,error:"الغرفة مكتملة؛ الحد ستة أشخاص"},409);
       }
       const user=await this.user(username);if(!user||user.disabled||user.banned)return j({ok:false,error:"الحساب غير متاح"},403);
-      const self={username,name:String(user.fullName||user.displayName||username).slice(0,80),peerId:crypto.randomUUID(),clientId,proof,
+      const self={username,name:String(user.fullName||user.displayName||username).slice(0,80),avatar:String(user.avatar||"").slice(0,2048),peerId:crypto.randomUUID(),clientId,proof,
         lastSeen:now,cameraOn:body.cameraOn!==false,micOn:body.micOn!==false,seq:0,queue:[],sent:new Map()};
       room.members.set(self.peerId,self);this.watchRooms.set(code,room);this.watchMembers.set(username,{code,peerId:self.peerId});
       return j(this.watchView(room,self));

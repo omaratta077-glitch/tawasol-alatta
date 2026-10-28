@@ -17,7 +17,7 @@ class WatchRoomDeviceTest {
     @get:Rule val compose = createComposeRule()
     @Test fun sixMembersAreVisibleAndTheCameraServiceIsNotExported() {
         val members = (0..5).map { WatchMember("peer-$it", "user$it", "صاحب $it", it % 2 == 0, true) }
-        val room = WatchRoom("A1B2C3D4E5F6", "peer-0", "user0", "saved-test", "Test Sports", members)
+        val room = WatchRoom("ABC", "peer-0", "user0", "saved-test", "Test Sports", members)
         compose.setContent { MaterialTheme { WatchVideoStage(room, null, Modifier.fillMaxWidth().height(240.dp)) } }
         for (member in members) compose.onNodeWithText(member.name).assertIsDisplayed()
         val context = ApplicationProvider.getApplicationContext<Context>()

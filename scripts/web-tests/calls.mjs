@@ -12,7 +12,7 @@ w.fetch=async()=>Response.json({ok:true,users:[],friends:[],requests:[],notifica
 w.HTMLMediaElement.prototype.play=()=>Promise.resolve();
 w.eval(read('icons.js'));
 const app=read('app.js'),end=app.indexOf('})();\n\n\n/* ===== V13.28');
-w.eval(app.slice(0,end)+`window.testCalls={showCallOverlay,hideCallOverlay,setCallState,resetCallState,setup(stream,sender){currentCallType="video";localStream=stream;videoSender=sender;pc={};},audio(){currentCallType="audio"},elapsed(){callConnectedAt=Date.now()-65000}};`+app.slice(end));
+w.eval(app.slice(0,end)+`window.testCalls={showCallOverlay,hideCallOverlay,setCallState,resetCallState,addRichMessage,chatTest(redial){me={username:"owner"};selectedUser="friend";requestCall=redial;},setup(stream,sender){currentCallType="video";localStream=stream;videoSender=sender;pc={};},audio(){currentCallType="audio"},elapsed(){callConnectedAt=Date.now()-65000}};`+app.slice(end));
 const api=w.testCalls;
 let oldStopped=false,newStopped=false,replaced,fail=false,requested;
 const old={enabled:false,getSettings:()=>({facingMode:'user'}),stop(){oldStopped=true}};
@@ -35,5 +35,16 @@ api.resetCallState();assert.equal(timer,null);assert.ok(!d.getElementById('callO
 api.audio();api.showCallOverlay('friend');assert.ok(d.getElementById('cameraBtn').classList.contains('hidden'));
 api.setCallState('connected','friend','audio');api.elapsed();timer();assert.equal(d.getElementById('callPeerState').textContent,'01:05');
 assert.ok(!d.getElementById('callOverlay').classList.contains('video-established'));
-api.resetCallState();dom.window.close();
+api.resetCallState();
+const redials=[],copied=[];api.chatTest(type=>redials.push(type));
+Object.defineProperty(w.navigator,'clipboard',{value:{writeText:async text=>copied.push(text)}});
+for(const type of ['audio','video'])for(const outgoing of [false,true]){
+ api.addRichMessage({id:type+'-'+outgoing,mediaType:'call-event',from:outgoing?'owner':'friend',to:outgoing?'friend':'owner',callType:type,callStatus:'completed',callId:'old-id-not-reused'});
+ d.querySelector('#messages .bubble:last-child').click();
+}
+assert.deepEqual(redials,['audio','audio','video','video'],'incoming and outgoing cards use the same current conversation and their own call type');
+api.addRichMessage({id:'invite',from:'friend',to:'owner',text:'انضم لغرفة المشاهدة في العطا. الكود: ABC'});
+const buttons=d.querySelector('#messages .bubble:last-child').querySelectorAll('.message-copy');buttons[0].click();buttons[1].click();await new Promise(r=>setImmediate(r));
+assert.deepEqual(copied,['انضم لغرفة المشاهدة في العطا. الكود: ABC','ABC']);
+dom.window.close();
 console.log('PASS call control order, front/rear replacement, audio/mute preservation, failed switch recovery, minimize/restore, video identity and audio timer');

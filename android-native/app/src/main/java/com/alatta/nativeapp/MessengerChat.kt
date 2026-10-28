@@ -25,6 +25,9 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.semantics.Role
 import android.content.Intent
 import android.net.Uri
 import androidx.media3.exoplayer.ExoPlayer
@@ -340,13 +343,16 @@ private fun ChatPdfDocument(url: String, mine: Boolean) {
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun ChatBubble(message: JSONObject, mine: Boolean, onLongClick: () -> Unit) {
+private fun ChatBubble(message: JSONObject, mine: Boolean, onCall: (String) -> Unit, onCopyCode: (String) -> Unit, onLongClick: () -> Unit) {
     var videoExpanded by remember(message.optString("id")) { mutableStateOf(false) }
     val body = message.optString("text")
     val mediaUrl = media(message.optString("media"))
     val mediaType = message.optString("mediaType")
     // In RTL layout Start is the RIGHT side: my bubbles appear on the right.
-    Box(Modifier.fillMaxWidth().combinedClickable(onClick = {}, onLongClick = onLongClick).padding(horizontal = 13.dp, vertical = 4.dp),
+    Box(Modifier.fillMaxWidth().combinedClickable(role = if (mediaType == "call-event") Role.Button else null,
+        onClickLabel = if (mediaType == "call-event") "إعادة الاتصال" else null, onClick = {
+        if (mediaType == "call-event") onCall(if (message.optString("callType") == "video") "video" else "audio")
+    }, onLongClick = onLongClick).padding(horizontal = 13.dp, vertical = 4.dp),
         contentAlignment = if (mine) Alignment.CenterStart else Alignment.CenterEnd) {
         Column(Modifier.widthIn(max = 300.dp)
             .clip(RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp,
@@ -365,6 +371,10 @@ private fun ChatBubble(message: JSONObject, mine: Boolean, onLongClick: () -> Un
                 }
             } else if (body.isNotBlank()) Text(body, color = if (mine) Color(0xFF17130B) else ChatText,
                 fontSize = 14.sp, lineHeight = 21.sp)
+            if (body.contains("الكود") || body.contains("كود الغرفة") || body.contains("room code", ignoreCase = true))
+                watchRoomInviteCode(body)?.let { code -> TextButton(onClick = { onCopyCode(code) }) {
+                    Text("نسخ كود الغرفة • $code", color = if (mine) Color(0xFF17130B) else ChatGoldBright, fontSize = 12.sp)
+                } }
             if (mediaUrl.isNotBlank()) {
                 Spacer(Modifier.height(if (body.isNotBlank()) 7.dp else 0.dp))
                 if (mediaType == "image" || mediaType.isBlank()) {
@@ -431,11 +441,18 @@ internal fun MessengerThread(
     onBack: () -> Unit,
     onRefresh: () -> Unit
 ) {
+    val clipboard = LocalClipboardManager.current
     var deleteMessage by remember(fallbackUsername) { mutableStateOf<JSONObject?>(null) }
     deleteMessage?.let { item ->
         val mine = item.optString("from").equals(myUsername, ignoreCase = true)
-        AlertDialog(onDismissRequest = { deleteMessage = null }, title = { Text("حذف الرسالة") },
+        AlertDialog(onDismissRequest = { deleteMessage = null }, title = { Text("خيارات الرسالة") },
             text = { Column {
+                if (item.optString("text").isNotBlank()) TextButton(onClick = {
+                    clipboard.setText(AnnotatedString(item.optString("text"))); deleteMessage = null
+                }) { Text("نسخ", color = ChatGoldBright) }
+                watchRoomInviteCode(item.optString("text"))?.let { code -> TextButton(onClick = {
+                    clipboard.setText(AnnotatedString(code)); deleteMessage = null
+                }) { Text("نسخ كود الغرفة", color = ChatGoldBright) } }
                 TextButton(onClick = { deleteMessage = null; onDeleteMessage(item.optString("id"), "me") }) { Text("حذف لديّ", color = ChatGoldBright) }
                 if (mine) TextButton(onClick = { deleteMessage = null; onDeleteMessage(item.optString("id"), "everyone") }) { Text("حذف لدى الطرفين", color = Color.Red) }
             } }, confirmButton = { TextButton(onClick = { deleteMessage = null }) { Text("إلغاء") } }, containerColor = ChatPanel)
@@ -517,7 +534,9 @@ internal fun MessengerThread(
             LazyColumn(Modifier.weight(1f), state = listState,
                 contentPadding = PaddingValues(top = 15.dp, bottom = 12.dp)) {
                 items(visibleMessages, key = { it.optString("id").ifBlank { it.hashCode().toString() } }) { message ->
-                    ChatBubble(message, message.optString("from").equals(myUsername, ignoreCase = true)) { deleteMessage = message }
+                    ChatBubble(message, message.optString("from").equals(myUsername, ignoreCase = true),
+                        onCall = { type -> if (type == "video") onVideoCall() else onVoiceCall() },
+                        onCopyCode = { clipboard.setText(AnnotatedString(it)) }) { deleteMessage = message }
                 }
             }
         }
