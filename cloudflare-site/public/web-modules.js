@@ -147,7 +147,7 @@ function renderFootball(){
 }
 async function openFootball(quiet=false){if(quiet!==true)loading('footballResults');try{const r=await fetch('/api/football',{cache:'no-store'});if(!r.ok)throw Error('تعذر تحميل القنوات ('+r.status+')');football=await r.json();renderFootball();}catch(e){if(quiet!==true)error('footballResults',e,openFootball);}}
 $('footballSearch').oninput=renderFootball;$('footballDate').onchange=renderFootball;$('footballRefresh').onclick=()=>openFootball();
-setInterval(()=>{const video=$('footballPlayer')?.querySelector('video');if(footballActive&&!document.hidden&&(!video||video.paused))openFootball(true);},60000);
+setInterval(()=>{const video=$('footballPlayer')?.querySelector('video');if(footballActive&&!document.hidden&&(!video||video.paused))openFootball(true);},30000);
 
 document.addEventListener('atta:page',e=>{
  const id=e.detail.pageId;
