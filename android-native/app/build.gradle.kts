@@ -24,9 +24,9 @@ android {
         applicationId = "com.alatta.nativeapp"
         minSdk = 26
         targetSdk = 35
-        // v1.0.187: channels first, with one compact sports actions row and no search header.
-        versionCode = 287
-        versionName = "1.0.187"
+        // v1.0.188: refresh foreground channel IDs and visible catalogs every 30 seconds.
+        versionCode = 288
+        versionName = "1.0.188"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("boolean", "IS_APPGALLERY", appGalleryBuild.toString())
         val hmsId = (System.getenv("ALATTA_HMS_APP_ID") ?: "").trim().takeIf { it.matches(Regex("[0-9]{1,20}")) } ?: ""

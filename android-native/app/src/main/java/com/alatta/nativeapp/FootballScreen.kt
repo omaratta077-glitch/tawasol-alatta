@@ -72,7 +72,7 @@ internal fun FootballScreen(query: String, modifier: Modifier = Modifier,
     }
     LaunchedEffect(Unit) {
         val lifecycle = context.mediaActivity()?.lifecycle
-        while (true) { delay(60_000); if (lifecycle?.currentState?.isAtLeast(Lifecycle.State.STARTED) == true) reload++ }
+        while (true) { delay(CatalogAutoUpdater.FOREGROUND_REFRESH_MS); if (lifecycle?.currentState?.isAtLeast(Lifecycle.State.STARTED) == true) reload++ }
     }
     fun play(channel: FootballChannel) {
         try {
