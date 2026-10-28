@@ -13,7 +13,8 @@ const client=n=>'device-client-'+n+'-0123456789';
 async function api(name,body){const r=await room.api(new Request('https://test.local/api/watch-room',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({token:tokens[name],clientId:client(name),...body})}));return{status:r.status,data:await r.json()};}
 assert.equal((await api('missing',{action:'create'})).status,401);
 let made=await api('alice',{action:'create',channelId:'fc-test'});assert.equal(made.status,200);assert.equal(made.data.members.length,1);assert.equal(made.data.limit,6);
-const code=made.data.code,a=made.data.myPeerId;assert.match(code,/^[A-F0-9]{12}$/);
+const code=made.data.code,a=made.data.myPeerId;assert.match(code,/^[A-Z]{3}$/);
+assert.equal((await api('stranger',{action:'join',code:'ABC1'})).status,400,'codes have exactly three English letters');
 const blockedInvite=await room.api(new Request('https://test.local/api/message-send',{method:'POST',body:JSON.stringify({token:tokens.bob,to:'alice',mediaType:'call-signal',media:JSON.stringify({type:'call-request',callId:'busy-call-123456'})})}));
 assert.equal(blockedInvite.status,409,'a private call cannot steal a watch-room camera');
 

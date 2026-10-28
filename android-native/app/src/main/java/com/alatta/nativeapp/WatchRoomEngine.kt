@@ -1,13 +1,11 @@
 package com.alatta.nativeapp
 
 import android.content.Context
-import android.media.AudioAttributes
 import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import org.json.JSONObject
 import org.webrtc.*
-import org.webrtc.audio.JavaAudioDeviceModule
 import java.util.UUID
 
 /** One camera/microphone feeds bounded native WebRTC peers, using the existing TURN and SDP helpers. */
@@ -15,6 +13,7 @@ internal class WatchRoomEngine(private val context: Context, private val token: 
     private val clientId: String, private val end: () -> Unit) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val egl = run { NativeRtcCall.initializeRtc(context); EglBase.create() }
+    private val audioRoute = WatchAudioRoute(context)
     private var factory: PeerConnectionFactory? = null
     private var audioSource: AudioSource? = null
     private var videoSource: VideoSource? = null
@@ -59,12 +58,14 @@ internal class WatchRoomEngine(private val context: Context, private val token: 
                     val next = WatchRoom.parse(result); room = next; WatchRoomController.room = next
                     reconcile(next)
                     val packets = result.optJSONArray("signals")
-                    if (packets != null) for (i in 0 until packets.length()) enqueue(packets.getJSONObject(i))
+                    // Acknowledge only after SDP/ICE is processed. A failed packet must survive the next poll.
+                    if (packets != null) for (i in 0 until packets.length())
+                        check(receive(packets.getJSONObject(i), authoritativeRoster = true)) { "جارٍ استعادة اتصال الغرفة" }
                     cursor = result.optLong("cursor", cursor); errors = 0
                 } catch (cancelled: CancellationException) { throw cancelled }
                 catch (_: Exception) {
                     errors++; WatchRoomController.status = "تعذر تحديث الاتصال؛ جارٍ المحاولة"
-                    if (errors >= 3) throw IllegalStateException("انتهت الغرفة أو تعذر الاتصال بها")
+                    if (errors >= 10) throw IllegalStateException("انتهت الغرفة أو تعذر الاتصال بها")
                 }
                 delay(1500)
             }
@@ -73,19 +74,19 @@ internal class WatchRoomEngine(private val context: Context, private val token: 
     } }
 
     private fun initializeMedia() {
-        val module = JavaAudioDeviceModule.builder(context).setAudioAttributes(AudioAttributes.Builder()
-            .setUsage(AudioAttributes.USAGE_MEDIA).setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build())
-            .createAudioDeviceModule()
+        audioRoute.start()
+        val module = watchAudioModule(context)
         factory = NativeRtcCall.mediaFactory(context, egl, module); module.release()
         val f = requireNotNull(factory)
-        audioSource = f.createAudioSource(MediaConstraints().apply {
-            mandatory.add(MediaConstraints.KeyValuePair("googEchoCancellation", "true"))
-            mandatory.add(MediaConstraints.KeyValuePair("googNoiseSuppression", "true"))
-        })
-        audio = f.createAudioTrack("watch-audio", audioSource)
+        audioSource = f.createAudioSource(watchMicrophoneConstraints())
+        audio = f.createAudioTrack("watch-audio", audioSource).also { it.setEnabled(!WatchRoomController.muted) }
         val enumerator = if (Camera2Enumerator.isSupported(context)) Camera2Enumerator(context) else Camera1Enumerator(false)
         camera = enumerator.deviceNames.sortedBy { if (enumerator.isFrontFacing(it)) 0 else 1 }
             .firstNotNullOfOrNull { enumerator.createCapturer(it, null) }
+        if (camera == null && enumerator is Camera2Enumerator) {
+            val fallback = Camera1Enumerator(false)
+            camera = fallback.deviceNames.firstNotNullOfOrNull { fallback.createCapturer(it, null) }
+        }
         val capture = requireNotNull(camera) { "الكاميرا غير متاحة" }
         videoSource = f.createVideoSource(false)
         helper = SurfaceTextureHelper.create("AttaWatchCamera", egl.eglBaseContext)
@@ -155,7 +156,7 @@ internal class WatchRoomEngine(private val context: Context, private val token: 
     private fun remoteTrack(id: String, track: MediaStreamTrack?) { scope.launch {
         if (stopped || id !in links) return@launch
         when (track) {
-            is VideoTrack -> bindTrack(id, track)
+            is VideoTrack -> { track.setEnabled(true); bindTrack(id, track) }
             is AudioTrack -> { audioTracks[id] = track; track.setEnabled(true); track.setVolume(WatchRoomController.volume.toDouble()) }
         }
     } }
@@ -179,15 +180,16 @@ internal class WatchRoomEngine(private val context: Context, private val token: 
         } catch (cancelled: CancellationException) { throw cancelled }
         catch (error: Exception) { if (attempt == 2) throw error else delay(350) }
     }
-    fun enqueue(packet: JSONObject) { scope.launch { signals.withLock {
-        val state = room ?: return@withLock
-        if (packet.optString("code") != state.code || packet.optString("to") != state.myPeerId) return@withLock
+    fun enqueue(packet: JSONObject) { scope.launch { receive(packet) } }
+    private suspend fun receive(packet: JSONObject, authoritativeRoster: Boolean = false): Boolean = signals.withLock {
+        val state = room ?: return@withLock false
+        if (packet.optString("code") != state.code || packet.optString("to") != state.myPeerId) return@withLock true
         val id = packet.optString("signalId")
         val from = packet.optString("from")
         // WebSocket can beat the roster poll or local media initialization; the queued HTTP copy will retry it.
-        if (factory == null || state.members.none { it.peerId == from && it.peerId != state.myPeerId }) return@withLock
-        if (!seen.add(id)) return@withLock
-        while (seen.size > 512) seen.remove(seen.first())
+        if (factory == null) return@withLock false
+        if (state.members.none { it.peerId == from && it.peerId != state.myPeerId }) return@withLock authoritativeRoster
+        if (id in seen) return@withLock true
         val link = links[from] ?: createPeer(from)
         try { withTimeout(12000) { when (packet.optString("type")) {
             "offer" -> if (from < state.myPeerId) {
@@ -211,8 +213,11 @@ internal class WatchRoomEngine(private val context: Context, private val token: 
             }
             "restart" -> if (state.myPeerId < from) offer(from, true)
         } } } catch (cancelled: CancellationException) { throw cancelled }
-        catch (_: Exception) { WatchRoomController.status = "جارٍ استعادة اتصال أحد المشاركين" }
-    } } }
+        catch (_: Exception) { WatchRoomController.status = "جارٍ استعادة اتصال أحد المشاركين"; return@withLock false }
+        seen.add(id)
+        while (seen.size > 512) seen.remove(seen.first())
+        true
+    }
     private fun flushIce(link: Link) { link.ice.forEach { link.peer.addIceCandidate(it) }; link.ice.clear() }
     private fun bindTrack(id: String, track: VideoTrack) {
         val old = tracks.put(id, track)
@@ -262,7 +267,7 @@ internal class WatchRoomEngine(private val context: Context, private val token: 
                 runCatching { video?.dispose(); audio?.dispose(); videoSource?.dispose(); audioSource?.dispose() }
                 runCatching { helper?.dispose(); factory?.dispose() }
             }
-            withContext(Dispatchers.Main) { runCatching { egl.release() }; released() }
+            withContext(Dispatchers.Main) { audioRoute.close(); runCatching { egl.release() }; released() }
         }
         CoroutineScope(Dispatchers.IO).launch { withTimeoutOrNull(3000) { runCatching { request(JSONObject().put("action", "leave")) } } }
     }

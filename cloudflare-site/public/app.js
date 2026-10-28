@@ -1130,8 +1130,29 @@ function addRichMessage(msg){
     ${mine?`<div class="message-read-state">${state}</div>`:""}
   `;
 
+  if(msg.mediaType==='call-event'){
+    const peer=msg.from===me?.username?msg.to:msg.from;
+    div.classList.add('chat-call-history');div.tabIndex=0;div.setAttribute('role','button');
+    div.setAttribute('aria-label',callEventLabel(msg)+'؛ إعادة الاتصال');
+    const redial=()=>{if(peer&&peer===selectedUser)requestCall(msg.callType==='video'?'video':'audio');};
+    div.onclick=redial;div.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();redial();}};
+  }
+  if(msg.text){
+    const copy=document.createElement('button');copy.className='message-copy';copy.type='button';copy.textContent='نسخ';
+    copy.onclick=e=>{e.stopPropagation();copyPrivateMessage(msg.text,copy);};div.append(copy);
+    const code=privateRoomInviteCode(msg.text);
+    if(code){const button=document.createElement('button');button.type='button';button.className='message-copy';button.textContent='نسخ كود الغرفة';
+      button.onclick=e=>{e.stopPropagation();copyPrivateMessage(code,button);};div.append(button);}
+  }
+
   $("messages").appendChild(div);
   $("messages").scrollTop=$("messages").scrollHeight;
+}
+
+function privateRoomInviteCode(text){return String(text||'').match(/(?:الكود|كود الغرفة|room code)\s*[:：]\s*([A-Za-z]{3})(?![A-Za-z0-9])/i)?.[1]?.toUpperCase()||'';}
+async function copyPrivateMessage(text,button){
+  try{await navigator.clipboard.writeText(text);const previous=button.textContent;button.textContent='تم النسخ';setTimeout(()=>{if(button.isConnected)button.textContent=previous;},1200);}
+  catch{alert('تعذر النسخ؛ حدّد نص الرسالة وانسخه من قائمة الهاتف');}
 }
 
 function conversationSignature(messages){

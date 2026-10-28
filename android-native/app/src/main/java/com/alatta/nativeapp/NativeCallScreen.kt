@@ -286,7 +286,7 @@ internal fun NativeCallScreen(
     }
 
     BackHandler(enabled = !minimized) { onMinimize() }
-    Box(modifier.clip(if (minimized) RoundedCornerShape(15.dp) else RoundedCornerShape(0.dp))
+    Box(modifier.clip(if (minimized) CircleShape else RoundedCornerShape(0.dp))
         .background(CallBackground)) {
         if (videoCall) {
             // The large view is the remote decoded frames, NOT an iframe/WebView.
@@ -319,25 +319,15 @@ internal fun NativeCallScreen(
         }
 
         if (minimized) {
-            Row(
-                Modifier.fillMaxSize()
-                    .background(CallPanel.copy(alpha = .96f), RoundedCornerShape(15.dp))
-                    .border(1.dp, CallGold.copy(alpha = .65f), RoundedCornerShape(15.dp))
-                    .clickable { onRestore() }
-                    .padding(horizontal = 10.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                SiteIcon(if (videoCall) "video" else "phone", tint = CallGold, size = 24.dp)
-                Spacer(Modifier.width(8.dp))
-                Column(Modifier.weight(1f)) {
-                    Text(peerDisplayName, color = CallWhite, fontSize = 13.sp, maxLines = 1)
-                    Text(if (connectedAt > 0) "مكالمة جارية — عودة" else callStatus,
-                        color = CallGold, fontSize = 10.sp, maxLines = 2)
+            Box(Modifier.fillMaxSize().background(CallPanel, CircleShape).border(2.dp, CallGold, CircleShape)
+                .semantics { contentDescription = "العودة لمكالمة $peerDisplayName؛ اسحب لتحريكها" }
+                .clickable { onRestore() }, contentAlignment = Alignment.Center) {
+                run {
+                    if (peerAvatar.isNotBlank()) ProfileMediaImage(peerAvatar, peerDisplayName, Modifier.fillMaxSize().clip(CircleShape))
+                    else Text(peerDisplayName.take(1), color = CallGold, fontSize = 27.sp)
                 }
-                Box(Modifier.size(42.dp).shadow(6.dp, CircleShape).clip(CircleShape)
-                    .background(Color(0xFFDC2736)).border(1.dp, CallGold, CircleShape)
-                    .clickable { endCall() }, contentAlignment = Alignment.Center) {
-                    SiteIcon("phone", modifier = Modifier.rotate(135f), tint = CallWhite, size = 23.dp)
+                Box(Modifier.align(Alignment.BottomEnd).size(22.dp).clip(CircleShape).background(CallGold), contentAlignment = Alignment.Center) {
+                    SiteIcon(if (videoCall) "video" else "phone", tint = CallBackground, size = 13.dp)
                 }
             }
         } else {

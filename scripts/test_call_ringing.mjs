@@ -103,8 +103,5 @@ assert.ok(!request.includes('playOutgoingRing()'),
 assert.ok(!request.includes('result?.online'),
   'socket delivery is not proof that recipient is ringing');
 
-const native = fs.readFileSync('android-native/app/src/main/java/com/alatta/nativeapp/MainActivity.kt','utf8');
-assert.ok(native.includes('Modifier.align(Alignment.TopCenter)'));
-assert.ok(native.includes('.fillMaxWidth()\n                            .padding(top = 72.dp'));
-console.log('PASS minimized in-app call banner is full-width');
+// Minimized-call movement and media lifecycle are exercised on Android by FloatingCallBubbleDeviceTest.
 console.log('ALL CALL RINGING REGRESSION TESTS PASSED');

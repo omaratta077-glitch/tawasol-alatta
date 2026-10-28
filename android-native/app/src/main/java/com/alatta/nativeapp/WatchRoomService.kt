@@ -22,11 +22,12 @@ internal object WatchRoomController {
     var muted by mutableStateOf(false)
     var cameraOff by mutableStateOf(false)
     var volume by mutableFloatStateOf(1f)
-    var engine: WatchRoomEngine? = null
+    var expanded by mutableStateOf(true)
+    var engine by mutableStateOf<WatchRoomEngine?>(null)
     fun begin(context: Context, owner: String, action: String, code: String, channelId: String) {
         if (active || closing) return
         if (AttaPush.activeCallId.isNotBlank()) { status = "غادر المكالمة الحالية أولًا"; return }
-        active = true; ready = false; status = "جارٍ دخول غرفة المشاهدة"
+        active = true; ready = false; expanded = true; status = "جارٍ دخول غرفة المشاهدة"
         try { ContextCompat.startForegroundService(context, Intent(context, WatchRoomService::class.java)
             .putExtra("owner", owner).putExtra("action", action).putExtra("code", code)
             .putExtra("channel", channelId).putExtra("client", UUID.randomUUID().toString())) }
