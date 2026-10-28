@@ -192,7 +192,7 @@ internal fun WatchRoomCallBubble(onReturn: () -> Unit) {
             if (!person?.avatar.isNullOrBlank()) ProfileMediaImage(media(person!!.avatar), person.name,
                 Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
             else Text(person?.name?.take(1) ?: "ع", color = PremiumGoldLight, fontSize = 27.sp)
-            Box(Modifier.align(Alignment.BottomEnd).size(22.dp).clip(CircleShape).background(PremiumGoldLight), contentAlignment = Alignment.Center) {
+            Box(Modifier.align(Alignment.BottomCenter).size(22.dp).clip(CircleShape).background(PremiumGoldLight), contentAlignment = Alignment.Center) {
                 SiteIcon(if (WatchRoomController.muted) "mic-off" else "video", size = 13.dp, tint = Color.Black)
             }
         }

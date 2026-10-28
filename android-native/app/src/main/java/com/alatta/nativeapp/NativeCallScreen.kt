@@ -324,7 +324,7 @@ internal fun NativeCallScreen(
                 .clickable { onRestore() }, contentAlignment = Alignment.Center) {
                 if (peerAvatar.isNotBlank()) ProfileMediaImage(peerAvatar, peerDisplayName, Modifier.fillMaxSize().clip(CircleShape))
                 else Text(peerDisplayName.take(1), color = CallGold, fontSize = 27.sp)
-                Box(Modifier.align(Alignment.BottomEnd).size(22.dp).clip(CircleShape).background(CallGold), contentAlignment = Alignment.Center) {
+                Box(Modifier.align(Alignment.BottomCenter).size(22.dp).clip(CircleShape).background(CallGold), contentAlignment = Alignment.Center) {
                     SiteIcon(if (videoCall) "video" else "phone", tint = CallBackground, size = 13.dp)
                 }
             }
