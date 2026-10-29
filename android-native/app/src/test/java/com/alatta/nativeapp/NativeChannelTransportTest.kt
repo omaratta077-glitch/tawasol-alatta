@@ -66,4 +66,30 @@ class NativeChannelTransportTest {
             assertTrue(report.isNull("httpStatus")); assertFalse(report.toString().contains("private-"))
         }
     }
+
+    @Test fun dnsFailureReportsTheFailedNameSeparatelyFromTheInitialRequestHost() {
+        val error = java.io.IOException("https://private.example/?token=private-token",
+            java.net.UnknownHostException("""Unable to resolve host "edge.cdn.example": No address associated with hostname"""))
+        val report = MediaLoadTrace("load_error", C.DATA_TYPE_MANIFEST, 0, 10,
+            failure = safeMediaFailure(error), requestHost = "initial.example").json()
+        assertEquals("initial.example", report.getString("requestHost"))
+        assertEquals("edge.cdn.example", report.getString("dnsHost"))
+        assertFalse(report.toString().contains("private")); assertFalse(report.toString().contains("https://"))
+        assertEquals("edge.cdn.example", safeMediaFailure(java.net.UnknownHostException("edge.cdn.example: lookup failed")).dnsHost)
+    }
+
+    @Test fun diagnosticHostFieldsCannotCopyUrlsTokensIpsOrPrivateNames() {
+        for (value in listOf("https://cdn.example/path?token=private-token", "user:password@cdn.example",
+            "cdn.example/path", "cdn.example?token=private-token", "127.0.0.1", "192.168.1.1", "[::1]",
+            "device.local", "worker.internal", "localhost", "cdn.example\r\nAuthorization: secret")) {
+            assertNull(safeMediaHost(value))
+            assertTrue(MediaLoadTrace("load_error", C.DATA_TYPE_MANIFEST, 0, 0,
+                failure = SafeMediaFailure(listOf("DNS"), null, null, value), requestHost = value).json().isNull("dnsHost"))
+            val failed = java.net.UnknownHostException("""Unable to resolve host "$value": lookup failed""")
+            assertNull(safeMediaFailure(failed).dnsHost)
+        }
+        assertEquals("cdn.example", safeMediaHost("CDN.Example."))
+        assertNull(safeMediaFailure(java.net.UnknownHostException("opaque failure with private-token")).dnsHost)
+    }
+
 }

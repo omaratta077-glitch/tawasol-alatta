@@ -76,11 +76,12 @@ class NativeChannelPlaybackDeviceTest {
                     .primaryClip!!.getItemAt(0).text.toString()
             }
             assertFalse(text.contains("private-source")); assertFalse(text.contains("private-agent"))
-            assertFalse(text.contains("fixture.example"))
+            assertFalse(text.contains("https://")); assertFalse(text.contains(".m3u8"))
             return JSONObject(text)
         }
         val initial = copied()
         assertEquals("native-channel-3", initial.getString("test"))
+        assertEquals("fixture.example", initial.getString("sourceHost"))
         assertTrue(initial.getBoolean("playWhenReady"))
         assertTrue(initial.getJSONArray("attempts").length() > 0)
         compose.runOnIdle { refresh.intValue++ }

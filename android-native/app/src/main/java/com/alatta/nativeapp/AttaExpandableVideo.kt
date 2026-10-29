@@ -234,16 +234,18 @@ internal fun AttaPostMediaViewer(
         val loadListener = object : AnalyticsListener {
             override fun onLoadStarted(eventTime: AnalyticsListener.EventTime, loadEventInfo: LoadEventInfo,
                 mediaLoadData: MediaLoadData) {
-                loadCallback?.invoke(MediaLoadTrace("load_started", mediaLoadData.dataType, loadEventInfo.bytesLoaded, loadEventInfo.loadDurationMs))
+                loadCallback?.invoke(MediaLoadTrace("load_started", mediaLoadData.dataType, loadEventInfo.bytesLoaded, loadEventInfo.loadDurationMs,
+                    requestHost = loadEventInfo.uri.host))
             }
             override fun onLoadCompleted(eventTime: AnalyticsListener.EventTime, loadEventInfo: LoadEventInfo,
                 mediaLoadData: MediaLoadData) {
-                loadCallback?.invoke(MediaLoadTrace("load_completed", mediaLoadData.dataType, loadEventInfo.bytesLoaded, loadEventInfo.loadDurationMs))
+                loadCallback?.invoke(MediaLoadTrace("load_completed", mediaLoadData.dataType, loadEventInfo.bytesLoaded, loadEventInfo.loadDurationMs,
+                    requestHost = loadEventInfo.uri.host))
             }
             override fun onLoadError(eventTime: AnalyticsListener.EventTime, loadEventInfo: LoadEventInfo,
                 mediaLoadData: MediaLoadData, error: java.io.IOException, wasCanceled: Boolean) {
                 loadCallback?.invoke(MediaLoadTrace("load_error", mediaLoadData.dataType,
-                    loadEventInfo.bytesLoaded, loadEventInfo.loadDurationMs, wasCanceled, safeMediaFailure(error)))
+                    loadEventInfo.bytesLoaded, loadEventInfo.loadDurationMs, wasCanceled, safeMediaFailure(error), loadEventInfo.uri.host))
             }
         }
         player?.addListener(listener)

@@ -166,6 +166,7 @@ internal class NativePlaybackSession(channel: FootballChannel, initialSources: L
             .put("isLoading", snapshot.isLoading).put("suppressionReason", snapshot.suppressionReason)
             .put("width", snapshot.width).put("height", snapshot.height)
             .put("urlScheme", android.net.Uri.parse(source.url).scheme)
+            .put("sourceHost", safeMediaHost(source.url.toHttpUrlOrNull()?.host) ?: JSONObject.NULL)
             .put("headerNames", JSONArray(source.headers.keys.sorted())).put("dismissalReason", dismissalReason)
             .put("attempts", JSONArray(attempts)).put("events", JSONArray(events))
             .put("loadEvents", JSONArray(loadEvents)).toString(2)
