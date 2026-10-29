@@ -60,8 +60,7 @@ internal fun FootballScreen(query: String, modifier: Modifier = Modifier,
     var loading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf("") }
     var selected by remember { mutableStateOf<FootballChannel?>(null) }
-    var nativeChannel by remember { mutableStateOf<FootballChannel?>(null) }
-    var nativeSources by remember { mutableStateOf(emptyList<NativeChannelSource>()) }
+    var nativeSession by remember { mutableStateOf<NativePlaybackSession?>(null) }
     var playerFailure by remember { mutableStateOf<YtvPlayer.Failure?>(null) }
     var watchEntryRequest by remember { mutableIntStateOf(0) }
     var broadcastExpanded by rememberSaveable { mutableStateOf(false) }
@@ -94,8 +93,8 @@ internal fun FootballScreen(query: String, modifier: Modifier = Modifier,
                 "ytv" -> {
                     if (callInProgress) { error = "أنهِ المكالمة أولًا لتشغيل القناة."; return@launch }
                     if (isAdmin && nativePlayback) {
-                        nativeSources = NativeChannelPlayback.load(token, channel.id)
-                        onBeforePlayback(); nativeChannel = channel
+                        val sources = NativeChannelPlayback.load(token, channel.id)
+                        onBeforePlayback(); nativeSession = NativePlaybackSession(channel, sources)
                     } else YtvPlayer.openWithWatchRoom(context, channel.streamUrl, onBeforePlayback)?.let { playerFailure = it; return@launch }
                 }
                 else -> { onBeforePlayback(); selected = channel }
@@ -123,9 +122,11 @@ internal fun FootballScreen(query: String, modifier: Modifier = Modifier,
                 onExpandedChange = { broadcastExpanded = it })
         })
     playerFailure?.let { YtvPlayerErrorDialog(it, onDismiss = { playerFailure = null }) }
-    nativeChannel?.let { channel ->
-        NativeChannelPlaybackDialog(channel, nativeSources, onDismiss = { nativeChannel = null; nativeSources = emptyList() })
-    }
+    nativeSession?.let { session -> key(session.id) {
+        NativeChannelPlaybackDialog(session, onDismiss = {
+            if (nativeSession?.id == session.id) nativeSession = null
+        })
+    } }
     selected?.let { channel ->
         val posts = remember(channel) { listOf(JSONObject().put("id", channel.id).put("video", channel.streamUrl)) }
         AttaPostMediaViewer(posts, channel.id, "video", onDismiss = { selected = null },

@@ -4,6 +4,11 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.net.Uri
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.test.isDialog
+import androidx.test.espresso.Espresso
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onAllNodesWithText
@@ -19,6 +24,7 @@ import org.junit.Rule
 import org.junit.Test
 import java.io.InterruptedIOException
 import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.atomic.AtomicInteger
 
 class NativeChannelPlaybackDeviceTest {
     @get:Rule val compose = createComposeRule()
@@ -48,9 +54,18 @@ class NativeChannelPlaybackDeviceTest {
             YtvPlayer.APP_PAGE, "123", "ytv", true)
         val sources = listOf("first", "second").mapIndexed { index, name -> NativeChannelSource(index,
             "https://fixture.example/$name.m3u8?token=private-source", mapOf("User-Agent" to "private-agent"), "application/x-mpegURL") }
-        compose.setContent { MaterialTheme { NativeChannelPlaybackDialog(channel, sources, {},
-            attemptTimeoutMs = 5_000, dataSourceFactory = factory) } }
+        val session = NativePlaybackSession(channel, sources)
+        val visible = mutableStateOf(true)
+        val refresh = mutableIntStateOf(0)
+        val dismissals = AtomicInteger(0)
+        compose.setContent { MaterialTheme {
+            Text("القنوات ${refresh.intValue}")
+            if (visible.value) NativeChannelPlaybackDialog(session, onDismiss = {
+                dismissals.incrementAndGet(); visible.value = false
+            }, attemptTimeoutMs = 5_000, dataSourceFactory = factory)
+        } }
         compose.waitUntil(8_000) { factory.opened.contains("/first.m3u8") }
+        val windowNode = compose.onNode(isDialog()).fetchSemanticsNode().id
         fun copied(): JSONObject {
             compose.onNodeWithText("نسخ نتيجة التجربة").performClick()
             var text = ""
@@ -64,20 +79,35 @@ class NativeChannelPlaybackDeviceTest {
             return JSONObject(text)
         }
         val initial = copied()
-        assertEquals("native-channel-2", initial.getString("test"))
+        assertEquals("native-channel-3", initial.getString("test"))
         assertTrue(initial.getBoolean("playWhenReady"))
         assertTrue(initial.getJSONArray("attempts").length() > 0)
+        compose.runOnIdle { refresh.intValue++ }
+        assertEquals(initial.getString("sessionId"), copied().getString("sessionId"))
         compose.waitUntil(8_000) { factory.opened.contains("/second.m3u8") }
+        assertEquals(windowNode, compose.onNode(isDialog()).fetchSemanticsNode().id)
+        assertEquals(0, dismissals.get())
+        val second = copied()
+        assertEquals(1, second.getInt("sourceIndex")); assertTrue(second.getBoolean("playWhenReady"))
         compose.waitUntil(8_000) {
             compose.onAllNodesWithText("خطأ المشغّل:", substring = true).fetchSemanticsNodes().isNotEmpty()
         }
+        compose.onNodeWithText("خيار 2 من 2").assertExists()
+        assertEquals(windowNode, compose.onNode(isDialog()).fetchSemanticsNode().id)
+        assertEquals(0, dismissals.get())
         val final = copied()
         assertEquals(1, final.getInt("sourceIndex")); assertEquals("failed", final.getString("stage"))
         val attempts = final.getJSONArray("attempts")
         val timeouts = (0 until attempts.length()).map { attempts.getJSONObject(it) }.filter { it.optString("event") == "startup_timeout" }
         assertEquals(listOf(0, 1), timeouts.map { it.getInt("sourceIndex") })
         assertFalse(final.getBoolean("playing"))
+        assertEquals(initial.getString("sessionId"), final.getString("sessionId"))
+        assertTrue(final.getLong("attemptElapsedMs") <= final.getLong("elapsedMs"))
+        assertEquals(2, (0 until attempts.length()).count { attempts.getJSONObject(it).optString("event") == "attempt_started" })
         android.os.SystemClock.sleep(150)
         assertTrue(copied().getLong("elapsedMs") > final.getLong("elapsedMs"))
+        Espresso.pressBack()
+        compose.waitUntil(2_000) { dismissals.get() == 1 }
+        compose.onNode(isDialog()).assertDoesNotExist()
     }
 }

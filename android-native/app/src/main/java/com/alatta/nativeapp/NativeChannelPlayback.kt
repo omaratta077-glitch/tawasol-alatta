@@ -57,76 +57,116 @@ internal object NativeChannelPlayback {
     }
 }
 
-/** Bounded retry across returned alternatives, never a refresh loop or an external player. */
-@Composable
-internal fun NativeChannelPlaybackDialog(channel: FootballChannel, sources: List<NativeChannelSource>, onDismiss: () -> Unit,
-    attemptTimeoutMs: Long = 20_000, dataSourceFactory: androidx.media3.datasource.DataSource.Factory? = null) {
-    var position by remember(channel.id, sources) { mutableIntStateOf(0) }
-    var attempts by remember(channel.id, sources) { mutableStateOf(emptyList<JSONObject>()) }
-    var events by remember(channel.id, sources) { mutableStateOf(emptyList<JSONObject>()) }
-    val sessionStarted = remember(channel.id, sources) { android.os.SystemClock.elapsedRealtime() }
-    var started by remember(position) { mutableStateOf(false) }
-    var handled by remember(position) { mutableStateOf(false) }
-    var lastError by remember(position) { mutableStateOf<String?>(null) }
-    var snapshot by remember(position) { mutableStateOf(MediaPlaybackSnapshot("selected")) }
-    val attemptPosition = position
-    val source = sources[position]
-    val attemptStarted = remember(position) { android.os.SystemClock.elapsedRealtime() }
-    fun elapsed() = (android.os.SystemClock.elapsedRealtime() - attemptStarted).coerceAtLeast(0)
-    fun fail(error: PlaybackException) {
-        if (position != attemptPosition || handled) return
-        handled = true
+/** One immutable source selection and one clock for the lifetime of the open viewer.
+ * Main-thread callbacks carry an attempt token so a released player cannot alter its successor.
+ */
+internal class NativePlaybackSession(channel: FootballChannel, initialSources: List<NativeChannelSource>,
+    private val clock: () -> Long = android.os.SystemClock::elapsedRealtime) {
+    val id: String = java.util.UUID.randomUUID().toString()
+    val channel = channel.copy()
+    private val sources = initialSources.map { it.copy(headers = it.headers.toMap()) }
+    private val createdAt = clock()
+    private var attemptStartedAt = createdAt
+    var position by mutableIntStateOf(0)
+        private set
+    var started by mutableStateOf(false)
+        private set
+    var terminal by mutableStateOf(false)
+        private set
+    var lastError by mutableStateOf<String?>(null)
+        private set
+    private var snapshot = MediaPlaybackSnapshot("selected")
+    private val attempts = mutableListOf<JSONObject>()
+    private var events = emptyList<JSONObject>()
+    val attemptToken: Int get() = position
+    val source: NativeChannelSource get() = sources[position]
+    val sourceCount: Int get() = sources.size
+
+    init {
+        require(sources.isNotEmpty())
+        recordAttempt("attempt_started", createdAt)
+    }
+
+    fun attemptElapsedMs(): Long = (clock() - attemptStartedAt).coerceAtLeast(0)
+    private fun recordAttempt(event: String, now: Long): JSONObject = JSONObject()
+        .put("sourceIndex", source.index).put("event", event)
+        .put("elapsedMs", (now - attemptStartedAt).coerceAtLeast(0))
+        .put("sessionElapsedMs", (now - createdAt).coerceAtLeast(0))
+        .also { attempts.add(it) }
+
+    fun onSnapshot(token: Int, value: MediaPlaybackSnapshot) {
+        if (token != attemptToken || snapshot == value) return
+        snapshot = value
+        val now = clock()
+        events = (events + JSONObject().put("sourceIndex", source.index).put("event", value.stage)
+            .put("elapsedMs", (now - attemptStartedAt).coerceAtLeast(0))
+            .put("sessionElapsedMs", (now - createdAt).coerceAtLeast(0))
+            .put("playerState", value.state).put("playWhenReady", value.playWhenReady)
+            .put("isLoading", value.isLoading).put("isPlaying", value.isPlaying)
+            .put("width", value.width).put("height", value.height)).takeLast(30)
+    }
+
+    fun onStarted(token: Int) {
+        if (token != attemptToken || terminal || started) return
+        started = true
+        recordAttempt("playing", clock())
+    }
+
+    fun fail(token: Int, error: PlaybackException) {
+        if (token != attemptToken || terminal) return
+        val now = clock()
         val (code, http) = NativeChannelPlayback.failure(error)
-        attempts = attempts + JSONObject().put("sourceIndex", source.index)
-            .put("event", if (code == PlaybackException.ERROR_CODE_TIMEOUT) "startup_timeout" else "error")
-            .put("errorCode", code).put("httpStatus", http ?: JSONObject.NULL).put("elapsedMs", elapsed())
-        if (position + 1 < sources.size) position++
-        else {
-            started = false
+        recordAttempt(if (code == PlaybackException.ERROR_CODE_TIMEOUT) "startup_timeout" else "error", now)
+            .put("errorCode", code).put("httpStatus", http ?: JSONObject.NULL)
+        started = false
+        if (position + 1 < sources.size) {
+            position++
+            attemptStartedAt = now
+            snapshot = MediaPlaybackSnapshot("selected")
+            recordAttempt("attempt_started", now)
+        } else {
+            terminal = true
             lastError = "تعذر تشغيل الخيارات المتاحة. " + (http?.let { "HTTP $it • " } ?: "") + "خطأ المشغّل: $code"
         }
     }
-    // The deadline covers transport/player setup as well as network loading.
-    // It does not restart when a player or its data-source factory is recreated.
-    LaunchedEffect(attemptPosition) {
-        attempts = attempts + JSONObject().put("sourceIndex", source.index).put("event", "attempt_started").put("elapsedMs", 0)
-        delay(attemptTimeoutMs.coerceIn(1, 20_000))
-        if (!started && !handled) fail(PlaybackException("Startup timeout", null, PlaybackException.ERROR_CODE_TIMEOUT))
+
+    fun report(): String {
+        val now = clock()
+        return JSONObject().put("test", "native-channel-3").put("version", BuildConfig.VERSION_NAME)
+            .put("sessionId", id).put("channel", channel.name).put("engine", "Media3")
+            .put("sourceIndex", source.index).put("attemptNumber", position + 1).put("sourceCount", sources.size)
+            .put("playing", !terminal && snapshot.isPlaying)
+            .put("elapsedMs", (now - createdAt).coerceAtLeast(0))
+            .put("attemptElapsedMs", (now - attemptStartedAt).coerceAtLeast(0))
+            .put("stage", if (terminal) "failed" else snapshot.stage)
+            .put("playerState", snapshot.state).put("playWhenReady", snapshot.playWhenReady)
+            .put("isLoading", snapshot.isLoading).put("suppressionReason", snapshot.suppressionReason)
+            .put("width", snapshot.width).put("height", snapshot.height)
+            .put("urlScheme", android.net.Uri.parse(source.url).scheme)
+            .put("headerNames", JSONArray(source.headers.keys.sorted()))
+            .put("attempts", JSONArray(attempts)).put("events", JSONArray(events)).toString(2)
     }
-    fun report() = JSONObject().put("test", "native-channel-2").put("version", BuildConfig.VERSION_NAME)
-        .put("channel", channel.name).put("engine", "Media3").put("sourceIndex", source.index)
-        .put("sourceCount", sources.size).put("playing", !handled && snapshot.isPlaying)
-        .put("elapsedMs", (android.os.SystemClock.elapsedRealtime() - sessionStarted).coerceAtLeast(0))
-        .put("attemptElapsedMs", elapsed()).put("stage", if (handled) "failed" else snapshot.stage)
-        .put("playerState", snapshot.state).put("playWhenReady", snapshot.playWhenReady)
-        .put("isLoading", snapshot.isLoading).put("suppressionReason", snapshot.suppressionReason)
-        .put("width", snapshot.width).put("height", snapshot.height)
-        .put("urlScheme", android.net.Uri.parse(source.url).scheme)
-        .put("headerNames", JSONArray(source.headers.keys.sorted()))
-        .put("attempts", JSONArray(attempts)).put("events", JSONArray(events)).toString(2)
-    key(position) {
-        val posts = remember(source) { listOf(JSONObject().put("id", channel.id).put("video", source.url)) }
-        AttaPostMediaViewer(posts, channel.id, "video", onDismiss,
-            live = LivePlayback(channel.name, "خيار ${position + 1} من ${sources.size}", source.mimeType ?: ""),
-            requestHeaders = source.headers, sourceMimeType = source.mimeType,
-            playbackErrorMessage = lastError, stopPlayback = handled && lastError != null,
-            dataSourceFactory = dataSourceFactory,
-            onPlaybackSnapshot = { value ->
-                if (position == attemptPosition) {
-                    snapshot = value
-                    events = (events + JSONObject().put("sourceIndex", source.index).put("event", value.stage)
-                        .put("elapsedMs", elapsed()).put("playerState", value.state).put("playWhenReady", value.playWhenReady)
-                        .put("isLoading", value.isLoading).put("isPlaying", value.isPlaying)
-                        .put("width", value.width).put("height", value.height)).takeLast(30)
-                }
-            },
-            onPlaybackStarted = {
-                if (position == attemptPosition && !handled && !started) {
-                    started = true; handled = false; lastError = null
-                    attempts = attempts + JSONObject().put("sourceIndex", source.index).put("event", "playing")
-                        .put("elapsedMs", android.os.SystemClock.elapsedRealtime() - attemptStarted)
-                }
-            },
-            onPlaybackFailure = ::fail, diagnosticReport = ::report)
+}
+
+/** Source changes reset the transport/player inside a single fullscreen window. */
+@Composable
+internal fun NativeChannelPlaybackDialog(session: NativePlaybackSession, onDismiss: () -> Unit,
+    attemptTimeoutMs: Long = 20_000, dataSourceFactory: androidx.media3.datasource.DataSource.Factory? = null) {
+    val token = session.attemptToken
+    val source = session.source
+    LaunchedEffect(session.id, token) {
+        delay((attemptTimeoutMs.coerceIn(1, 20_000) - session.attemptElapsedMs()).coerceAtLeast(0))
+        if (!session.started && !session.terminal)
+            session.fail(token, PlaybackException("Startup timeout", null, PlaybackException.ERROR_CODE_TIMEOUT))
     }
+    val posts = remember(session.id, token) { listOf(JSONObject().put("id", session.channel.id).put("video", source.url)) }
+    AttaPostMediaViewer(posts, session.channel.id, "video", onDismiss,
+        playbackKey = "${session.id}:$token",
+        live = LivePlayback(session.channel.name, "خيار ${session.position + 1} من ${session.sourceCount}", source.mimeType ?: ""),
+        requestHeaders = source.headers, sourceMimeType = source.mimeType,
+        playbackErrorMessage = session.lastError, stopPlayback = session.terminal,
+        dataSourceFactory = dataSourceFactory,
+        onPlaybackSnapshot = { session.onSnapshot(token, it) },
+        onPlaybackStarted = { session.onStarted(token) },
+        onPlaybackFailure = { session.fail(token, it) }, diagnosticReport = session::report)
 }
