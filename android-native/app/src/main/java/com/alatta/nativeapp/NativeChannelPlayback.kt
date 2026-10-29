@@ -60,7 +60,8 @@ internal object NativeChannelPlayback {
 /** Bounded retry across returned alternatives, never a refresh loop or an external player. */
 @Composable
 internal fun NativeChannelPlaybackDialog(channel: FootballChannel, sources: List<NativeChannelSource>, onDismiss: () -> Unit,
-    attemptTimeoutMs: Long = 20_000, dataSourceFactory: androidx.media3.datasource.DataSource.Factory? = null) {
+    attemptTimeoutMs: Long = 20_000, dataSourceFactory: androidx.media3.datasource.DataSource.Factory? = null,
+    onFinalReport: (String) -> Unit = {}) {
     var position by remember(channel.id, sources) { mutableIntStateOf(0) }
     var attempts by remember(channel.id, sources) { mutableStateOf(emptyList<JSONObject>()) }
     var events by remember(channel.id, sources) { mutableStateOf(emptyList<JSONObject>()) }
@@ -115,7 +116,7 @@ internal fun NativeChannelPlaybackDialog(channel: FootballChannel, sources: List
         .put("loadEvents", JSONArray(loadEvents)).toString(2)
     key(position) {
         val posts = remember(source) { listOf(JSONObject().put("id", channel.id).put("video", source.url)) }
-        AttaPostMediaViewer(posts, channel.id, "video", onDismiss,
+        AttaPostMediaViewer(posts, channel.id, "video", { onFinalReport(report()); onDismiss() },
             live = LivePlayback(channel.name, "خيار ${position + 1} من ${sources.size}", source.mimeType ?: ""),
             requestHeaders = source.headers, sourceMimeType = source.mimeType,
             playbackErrorMessage = lastError, stopPlayback = handled && lastError != null,
