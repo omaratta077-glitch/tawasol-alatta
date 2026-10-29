@@ -190,6 +190,7 @@ internal fun NativeChannelPlaybackDialog(session: NativePlaybackSession, onDismi
     val posts = remember(session.id, token) { listOf(JSONObject().put("id", session.channel.id).put("video", source.url)) }
     AttaPostMediaViewer(posts, session.channel.id, "video", { onFinalReport(session.report()); onDismiss() },
         playbackKey = "${session.id}:$token",
+        validatedChannelUrl = source.url,
         live = LivePlayback(session.channel.name, "خيار ${session.position + 1} من ${session.sourceCount}", source.mimeType ?: ""),
         requestHeaders = source.headers, sourceMimeType = source.mimeType,
         playbackErrorMessage = session.lastError, stopPlayback = session.terminal,
