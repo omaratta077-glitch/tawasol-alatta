@@ -250,7 +250,7 @@ async function readLimited(stream, limit) {
 }
 
 export default {
-  async fetch(request, env, saveCatalog, nativePlayback = false) {
+  async fetch(request, env, saveCatalog, nativePlayback = false, channelSelector = null) {
     if (new URL(request.url).pathname !== "/api/internal/catalog-check") return respond({ message: "المسار غير موجود." }, 404);
     if (request.method === "GET") {
       return new Response(PAGE, {
@@ -316,7 +316,7 @@ export default {
         discoveredCategory = matches[0];
         sourceURL = SOURCE_URL + "/" + discoveredCategory.id + "/channels";
       }
-      const response = await fetch(sourceURL, {
+      let response = await fetch(sourceURL, {
         method: "GET",
         headers: { Accept: "application/json", "User-Agent": "okhttp/4.12.0" },
         redirect: "manual",
@@ -324,8 +324,56 @@ export default {
       });
       playbackHTTP = response.status;
       playbackStage = 'PLAYBACK_API_BODY';
-      const body = await readLimited(response.body, MAX_RESPONSE_BYTES);
-      const text = new TextDecoder().decode(body.bytes).replace(/^\uFEFF/, "").trim();
+      let body = await readLimited(response.body, MAX_RESPONSE_BYTES);
+      let text = new TextDecoder().decode(body.bytes).replace(/^\uFEFF/, "").trim();
+      let effectiveChannel = channel;
+      let idRefreshed = false;
+      // A 404 may be an expired source ID. Refresh by exact catalog labels once;
+      // do not guess IDs, change endpoints or retry an unchanged ID.
+      if (nativePlayback && response.status === 404 &&
+          !/(?:error\s*code\s*:?|error\s+)\s*(10\d{2}|11\d{2})\b/i.test(text) &&
+          typeof channelSelector?.name === 'string' && channelSelector.name.length <= 120 &&
+          typeof channelSelector?.category === 'string' && channelSelector.category.length <= 120) {
+        const canonical = value => value.replace(/\s+/g, '').toLowerCase();
+        const categoryName = canonical(channelSelector.category), channelName = canonical(channelSelector.name);
+        if (categoryName && channelName) {
+          const readList = async (url, stage) => {
+            playbackStage = stage;
+            const result = await fetch(url, { method: 'GET',
+              headers: { Accept: 'application/json', 'User-Agent': 'okhttp/4.12.0' },
+              redirect: 'manual', signal: controller.signal });
+            playbackHTTP = result.status;
+            const bytes = await readLimited(result.body, MAX_RESPONSE_BYTES);
+            const list = result.ok && !bytes.truncated
+              ? readCatalog(new TextDecoder().decode(bytes.bytes), result.headers.get('t'), env.RESPONSE_MASK) : null;
+            return { http: result.status, entries: list?.state === 'LIST' ? list.entries : null };
+          };
+          const refreshFailure = (stage, code, http) => respond({ ok: false, stage, code,
+            sourceHTTP: http, initialSourceHTTP: 404,
+            error: `تعذر تحديث رقم القناة من المصدر (HTTP ${http}؛ ${stage}؛ ${code}).` }, 502);
+          const sections = await readList(SOURCE_URL, 'CHANNEL_REFRESH_CATEGORIES');
+          if (!sections.entries) return refreshFailure('CHANNEL_REFRESH_CATEGORIES', 'REFRESH_LIST_UNAVAILABLE', sections.http);
+          const section = sections.entries.filter(entry => canonical(entry.name) === categoryName);
+          if (section.length !== 1) return refreshFailure('CHANNEL_REFRESH_CATEGORY', 'CATEGORY_NOT_UNIQUE', sections.http);
+          const channels = await readList(SOURCE_URL + '/' + section[0].id + '/channels', 'CHANNEL_REFRESH_CHANNELS');
+          if (!channels.entries) return refreshFailure('CHANNEL_REFRESH_CHANNELS', 'REFRESH_LIST_UNAVAILABLE', channels.http);
+          const matches = channels.entries.filter(entry => canonical(entry.name) === channelName);
+          if (matches.length !== 1) return refreshFailure('CHANNEL_REFRESH_MATCH', 'CHANNEL_NOT_UNIQUE', channels.http);
+          if (matches[0].id === channel) return respond({ ok: false, code: 'FRESH_ID_UNCHANGED',
+            stage: 'PLAYBACK_API_HTTP', sourceHTTP: 404, idRefreshed: false,
+            error: 'المصدر أعاد HTTP 404، ورقم القناة في قائمته الحالية لم يتغير (FRESH_ID_UNCHANGED).' }, 502);
+          effectiveChannel = matches[0].id;
+          sourceURL = SOURCE_URL.replace(/categories$/, 'channel/') + effectiveChannel;
+          playbackStage = 'PLAYBACK_API_RETRY'; playbackHTTP = null;
+          response = await fetch(sourceURL, { method: 'GET',
+            headers: { Accept: 'application/json', 'User-Agent': 'okhttp/4.12.0' },
+            redirect: 'manual', signal: controller.signal });
+          playbackHTTP = response.status; playbackStage = 'PLAYBACK_API_BODY';
+          body = await readLimited(response.body, MAX_RESPONSE_BYTES);
+          text = new TextDecoder().decode(body.bytes).replace(/^\uFEFF/, '').trim();
+          idRefreshed = true;
+        }
+      }
       let isJSON = false;
       let listRows = null;
       let declaresFailure = false;
@@ -378,12 +426,12 @@ export default {
           // v192 already displays error; put the safe status/stage in that field too.
           // This is a resolver failure before any video is loaded by the phone.
           return respond({ ok: false,
-            error: `تعذر جلب بيانات تشغيل القناة (HTTP ${response.status}؛ ${stage}${platformCode ? '؛ ' + platformCode : ''}؛ ${code}).`,
-            code, stage, platformCode, sourceHTTP: response.status }, 502);
+            error: `تعذر جلب بيانات تشغيل القناة (HTTP ${response.status}؛ ${stage}${platformCode ? '؛ ' + platformCode : ''}${idRefreshed ? '؛ ID_REFRESHED' : ''}؛ ${code}).`,
+            code, stage, platformCode, sourceHTTP: response.status, idRefreshed }, 502);
         }
         if (!resolvedSources.length) return respond({ ok: false, code: 'NO_SUPPORTED_NATIVE_SOURCE',
           error: 'لم يصل رابط مباشر بإعدادات يدعمها اختبار العطا. قد يحتاج الرابط معالجة إضافية.', sourceHTTP: response.status }, 422);
-        return respond({ ok: true, channelId: channel, sourceHTTP: response.status,
+        return respond({ ok: true, channelId: effectiveChannel, sourceHTTP: response.status, idRefreshed,
           sources: resolvedSources, skipped: catalog.streamCount - resolvedSources.length });
       }
       if (videoTest && candidate) return renderPlaybackTest(candidate, channel);

@@ -66,6 +66,40 @@ test('native path caps alternatives and keeps upstream order',async()=>{
  const {data}=await resolve(Array.from({length:15},(_,i)=>({url:`https://cdn.example/${i}.m3u8`})));
  assert.equal(data.sources.length,10);assert.equal(data.skipped,5);assert.deepEqual(data.sources.map(x=>x.index),[0,1,2,3,4,5,6,7,8,9]);
 });
+async function rotatedPlayback({freshId='4973946197000000002',initialStatus=404,retryStatus=200,duplicate=false,platform=false}={}) {
+ const urls=[];const category='652497361000000001';
+ globalThis.fetch=async(url,options)=>{
+  urls.push(url);assert.equal(options.redirect,'manual');assert.ok(options.signal);
+  assert.equal(new Headers(options.headers).has('authorization'),false);
+  if(url.endsWith('/channel/'+channel))return new Response(platform?'error code: 1042':'missing',{status:initialStatus});
+  if(url.endsWith('/categories'))return Response.json({data:[{id:category,name:'beIN SPORTS (1080P)'}]});
+  if(url.endsWith('/categories/'+category+'/channels'))return Response.json({data:[
+   {id:freshId,name:'beIN SPORTS 1'},...(duplicate?[{id:'4973946197000000003',name:'bein sports1'}]:[])]});
+  assert.ok(url.endsWith('/channel/'+freshId));return Response.json({data:fixtures},{status:retryStatus});
+ };
+ try {const response=await probe.fetch(request(),env,null,true,{name:'beIN SPORTS 1',category:'beIN SPORTS (1080P)'});
+  return {data:await response.json(),status:response.status,urls};
+ }finally{globalThis.fetch=async()=>{throw Error('No real network');};}
+}
+test('404 resolves current section and channel by exact labels then retries the new ID once',async()=>{
+ const {data,status,urls}=await rotatedPlayback();assert.equal(status,200);assert.equal(data.ok,true);assert.equal(data.idRefreshed,true);
+ assert.equal(data.channelId,'4973946197000000002');assert.equal(data.sources.length,2);assert.equal(urls.length,4);
+ assert.equal(urls.filter(x=>x.endsWith('/channel/'+channel)).length,1);
+});
+test('a current unchanged ID is not retried and is reported distinctly',async()=>{
+ const {data,urls}=await rotatedPlayback({freshId:channel});assert.equal(data.code,'FRESH_ID_UNCHANGED');assert.equal(urls.length,3);assert.equal(data.sourceHTTP,404);
+});
+test('another 404 after ID refresh stops without a loop',async()=>{
+ const {data,urls}=await rotatedPlayback({retryStatus:404});assert.equal(urls.length,4);assert.equal(data.sourceHTTP,404);
+ assert.equal(data.idRefreshed,true);assert.match(data.error,/ID_REFRESHED/);assert.equal(data.sources,undefined);
+});
+test('ambiguous names do not choose an arbitrary source ID',async()=>{
+ const {data,urls}=await rotatedPlayback({duplicate:true});assert.equal(data.code,'CHANNEL_NOT_UNIQUE');assert.equal(urls.length,3);assert.equal(data.sources,undefined);
+});
+test('403 and Cloudflare platform rejection do not trigger an ID recovery',async()=>{
+ assert.equal((await rotatedPlayback({initialStatus:403})).urls.length,1);
+ const cf=await rotatedPlayback({platform:true});assert.equal(cf.urls.length,1);assert.equal(cf.data.platformCode,'CLOUDFLARE_1042');
+});
 test('app endpoint authenticates first, resolves current stable catalog ID and never persists media data',async()=>{
  const source=(await readFile(new URL('../../cloudflare-site/src/worker.js',import.meta.url),'utf8')).replace('import { DurableObject } from "cloudflare:workers";','class DurableObject {}');
  const {SignalingRoom}=await import('data:text/javascript,'+encodeURIComponent(source));
