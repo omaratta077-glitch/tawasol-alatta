@@ -1,0 +1,83 @@
+package com.alatta.nativeapp
+
+import android.content.ClipboardManager
+import android.content.Context
+import android.net.Uri
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.performClick
+import androidx.media3.common.C
+import androidx.media3.datasource.DataSource
+import androidx.media3.datasource.DataSpec
+import androidx.media3.datasource.TransferListener
+import androidx.test.platform.app.InstrumentationRegistry
+import org.json.JSONObject
+import org.junit.Assert.*
+import org.junit.Rule
+import org.junit.Test
+import java.io.InterruptedIOException
+import java.util.concurrent.CopyOnWriteArrayList
+
+class NativeChannelPlaybackDeviceTest {
+    @get:Rule val compose = createComposeRule()
+
+    /** Stalls inside Media3's real loader; never opens a socket or requests a live source. */
+    private class StalledTransport : DataSource.Factory {
+        val opened = CopyOnWriteArrayList<String>()
+        override fun createDataSource(): DataSource = object : DataSource {
+            private var uri: Uri? = null
+            override fun addTransferListener(listener: TransferListener) = Unit
+            override fun open(dataSpec: DataSpec): Long {
+                uri = dataSpec.uri; opened.add(dataSpec.uri.path.orEmpty())
+                return C.LENGTH_UNSET.toLong()
+            }
+            override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
+                try { Thread.sleep(30_000) } catch (_: InterruptedException) { throw InterruptedIOException("Fixture cancelled") }
+                return C.RESULT_END_OF_INPUT
+            }
+            override fun getUri(): Uri? = uri
+            override fun close() = Unit
+        }
+    }
+
+    @Test fun stalledLoadAutoplaysThenTriesBothSourcesAndCopiesFreshRedactedState() {
+        val factory = StalledTransport()
+        val channel = FootballChannel("fixture", "beIN SPORTS 1", "1080p", "fixture",
+            YtvPlayer.APP_PAGE, "123", "ytv", true)
+        val sources = listOf("first", "second").mapIndexed { index, name -> NativeChannelSource(index,
+            "https://fixture.example/$name.m3u8?token=private-source", mapOf("User-Agent" to "private-agent"), "application/x-mpegURL") }
+        compose.setContent { MaterialTheme { NativeChannelPlaybackDialog(channel, sources, {},
+            attemptTimeoutMs = 5_000, dataSourceFactory = factory) } }
+        compose.waitUntil(8_000) { factory.opened.contains("/first.m3u8") }
+        fun copied(): JSONObject {
+            compose.onNodeWithText("نسخ نتيجة التجربة").performClick()
+            var text = ""
+            compose.runOnIdle {
+                val context = InstrumentationRegistry.getInstrumentation().targetContext
+                text = (context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager)
+                    .primaryClip!!.getItemAt(0).text.toString()
+            }
+            assertFalse(text.contains("private-source")); assertFalse(text.contains("private-agent"))
+            assertFalse(text.contains("fixture.example"))
+            return JSONObject(text)
+        }
+        val initial = copied()
+        assertEquals("native-channel-2", initial.getString("test"))
+        assertTrue(initial.getBoolean("playWhenReady"))
+        assertTrue(initial.getJSONArray("attempts").length() > 0)
+        compose.waitUntil(8_000) { factory.opened.contains("/second.m3u8") }
+        compose.waitUntil(8_000) {
+            compose.onAllNodesWithText("خطأ المشغّل:", substring = true).fetchSemanticsNodes().isNotEmpty()
+        }
+        val final = copied()
+        assertEquals(1, final.getInt("sourceIndex")); assertEquals("failed", final.getString("stage"))
+        val attempts = final.getJSONArray("attempts")
+        val timeouts = (0 until attempts.length()).map { attempts.getJSONObject(it) }.filter { it.optString("event") == "startup_timeout" }
+        assertEquals(listOf(0, 1), timeouts.map { it.getInt("sourceIndex") })
+        assertFalse(final.getBoolean("playing"))
+        android.os.SystemClock.sleep(150)
+        assertTrue(copied().getLong("elapsedMs") > final.getLong("elapsedMs"))
+    }
+}

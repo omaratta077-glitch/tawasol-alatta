@@ -116,6 +116,14 @@ internal fun AttaExpandableVideo(url: String, posterUrl: String? = null, onOpen:
 }
 
 /** One fullscreen viewer and, for its whole video playlist, exactly one Media3 player. */
+internal data class MediaPlaybackSnapshot(val stage: String, val state: Int = Player.STATE_IDLE,
+    val playWhenReady: Boolean = false, val isLoading: Boolean = false, val isPlaying: Boolean = false,
+    val suppressionReason: Int = 0, val width: Int = 0, val height: Int = 0)
+
+private fun mediaPlaybackSnapshot(stage: String, player: Player) = MediaPlaybackSnapshot(stage,
+    player.playbackState, player.playWhenReady, player.isLoading, player.isPlaying,
+    player.playbackSuppressionReason, player.videoSize.width, player.videoSize.height)
+
 @Composable
 internal fun AttaPostMediaViewer(
     posts: List<JSONObject>, startId: String, kind: String,
@@ -132,8 +140,10 @@ internal fun AttaPostMediaViewer(
     playbackErrorMessage: String? = null,
     onPlaybackFailure: ((PlaybackException) -> Unit)? = null,
     onPlaybackStarted: (() -> Unit)? = null,
-    startupTimeoutMs: Long? = null,
-    diagnosticReport: String? = null
+    onPlaybackSnapshot: ((MediaPlaybackSnapshot) -> Unit)? = null,
+    diagnosticReport: (() -> String)? = null,
+    stopPlayback: Boolean = false,
+    dataSourceFactory: androidx.media3.datasource.DataSource.Factory? = null
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -161,10 +171,22 @@ internal fun AttaPostMediaViewer(
     val currentPlaybackErrorMessage by rememberUpdatedState(playbackErrorMessage)
     val currentPlaybackFailure by rememberUpdatedState(onPlaybackFailure)
     val currentPlaybackStarted by rememberUpdatedState(onPlaybackStarted)
+    val currentPlaybackSnapshot by rememberUpdatedState(onPlaybackSnapshot)
+    val currentDiagnosticReport by rememberUpdatedState(diagnosticReport)
     var playbackEverStarted by remember(url) { mutableStateOf(false) }
-    var sources by remember(isVideo, live != null, requestHeaders) { mutableStateOf<androidx.media3.datasource.DataSource.Factory?>(null) }
-    LaunchedEffect(isVideo, live != null, requestHeaders) {
-        if (isVideo) sources = withContext(Dispatchers.IO) { VideoTransport.factory(context, live != null, requestHeaders) }
+    var sources by remember(isVideo, live != null, requestHeaders, dataSourceFactory) { mutableStateOf<androidx.media3.datasource.DataSource.Factory?>(null) }
+    LaunchedEffect(isVideo, live != null, requestHeaders, dataSourceFactory) {
+        if (isVideo) {
+            currentPlaybackSnapshot?.invoke(MediaPlaybackSnapshot("transport_initializing"))
+            try {
+                sources = withContext(Dispatchers.IO) { dataSourceFactory ?: VideoTransport.factory(context, live != null, requestHeaders) }
+                currentPlaybackSnapshot?.invoke(MediaPlaybackSnapshot("transport_ready"))
+            } catch (cancelled: CancellationException) { throw cancelled }
+            catch (_: Exception) {
+                failed = "تعذر تجهيز اتصال الفيديو."; controls = true
+                currentPlaybackFailure?.invoke(PlaybackException("Transport setup failed", null, PlaybackException.ERROR_CODE_IO_UNSPECIFIED))
+            }
+        }
     }
     val player = remember(isVideo, sources) {
         if (isVideo && sources != null) ExoPlayer.Builder(context)
@@ -181,6 +203,9 @@ internal fun AttaPostMediaViewer(
     }
     DisposableEffect(player) {
         val listener = object : Player.Listener {
+            override fun onEvents(player: Player, events: Player.Events) {
+                currentPlaybackSnapshot?.invoke(mediaPlaybackSnapshot("player_event", player))
+            }
             override fun onIsPlayingChanged(value: Boolean) {
                 playing = value
                 if (value) failed = ""
@@ -198,6 +223,7 @@ internal fun AttaPostMediaViewer(
             }
         }
         player?.addListener(listener)
+        player?.let { currentPlaybackSnapshot?.invoke(mediaPlaybackSnapshot("player_created", it)) }
         val activity = context.mediaActivity()
         val lifecycleListener = LifecycleEventObserver { _, event -> if (event == Lifecycle.Event.ON_STOP) player?.pause() }
         activity?.lifecycle?.addObserver(lifecycleListener)
@@ -206,22 +232,18 @@ internal fun AttaPostMediaViewer(
     // Opening the sole full-screen Media3 viewer starts playback; vertical
     // swipes switch tracks without creating a second video player.
     var continuePlayback by remember(isVideo) { mutableStateOf(isVideo) }
-    LaunchedEffect(player, url, startupTimeoutMs) {
-        if (player != null && startupTimeoutMs != null) {
-            delay(startupTimeoutMs)
-            if (!playbackEverStarted && player.playerError == null) {
-                player.stop(); failed = "لم يبدأ التشغيل خلال المهلة المحددة."; controls = true
-                currentPlaybackFailure?.invoke(PlaybackException("Startup timeout", null, PlaybackException.ERROR_CODE_TIMEOUT))
-            }
-        }
+    LaunchedEffect(player, stopPlayback) {
+        if (stopPlayback) { player?.stop(); failed = currentPlaybackErrorMessage ?: "انتهت محاولة التشغيل."; controls = true }
     }
     LaunchedEffect(player, id, url, live?.mimeType, sourceMimeType) {
         videoHeights = emptyList()
-        player?.apply {
+        player?.takeUnless { stopPlayback }?.apply {
             val item = MediaItem.Builder().setUri(url).apply { (sourceMimeType ?: live?.mimeType)?.takeIf { it.isNotBlank() }?.let { setMimeType(it) } }.build()
             pause(); clearMediaItems(); setMediaItem(item); prepare()
             playWhenReady = continuePlayback
+            if (continuePlayback) play()
             continuePlayback = false
+            currentPlaybackSnapshot?.invoke(mediaPlaybackSnapshot("prepared", this))
         }
         if (loadInteractions != null) {
             try { updateStats(id, loadInteractions(id, "reactions", 0)) }
@@ -289,7 +311,7 @@ internal fun AttaPostMediaViewer(
                             onVerticalDrag = { change, amount -> change.consume(); drag += amount }
                         ) })
                     // Use the SINGLE central play/pause button in the controls row below.
-                } else AttaZoomableImage(url, "صورة المنشور", onTap = { controls = !controls })
+                } else if (!isVideo) AttaZoomableImage(url, "صورة المنشور", onTap = { controls = !controls })
                 if (live != null && controls) Row(Modifier.align(Alignment.TopCenter).fillMaxWidth()
                     .background(Color(0xBB000000)).padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
@@ -340,7 +362,7 @@ internal fun AttaPostMediaViewer(
                     }
                 }
                 // Playback controls auto-hide; the vertical social rail remains visible.
-                if (player != null && controls) Column(
+                if ((player != null || diagnosticReport != null) && controls) Column(
                     Modifier.align(Alignment.BottomCenter).fillMaxWidth()
                         .padding(bottom = 72.dp) // Lift playback controls without resizing video.
                         .background(Brush.verticalGradient(listOf(Color.Transparent, Color(0xAA000000))))
@@ -349,16 +371,16 @@ internal fun AttaPostMediaViewer(
                 ) {
                     if (failed.isNotBlank()) {
                         Text(playbackErrorMessage ?: failed, color = Color(0xFFFFB5B5), fontSize = 13.sp)
-                        if (player.playerError != null) TextButton(onClick = {
+                        if (player != null && player.playerError != null && !stopPlayback) TextButton(onClick = {
                             failed = ""; player.prepare(); player.play()
                         }) { Text("إعادة المحاولة", color = Color(0xFFE6B94E)) }
                     }
                     if (diagnosticReport != null) TextButton(onClick = {
                         val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-                        clipboard.setPrimaryClip(android.content.ClipData.newPlainText("تقرير تشغيل القناة", diagnosticReport))
+                        clipboard.setPrimaryClip(android.content.ClipData.newPlainText("تقرير تشغيل القناة", currentDiagnosticReport?.invoke().orEmpty()))
                         android.widget.Toast.makeText(context, "تم نسخ تقرير التشغيل", android.widget.Toast.LENGTH_SHORT).show()
                     }) { Text("نسخ نتيجة التجربة", color = Color(0xFFE6B94E)) }
-                    if (duration > 0 && live == null) {
+                    if (player != null && duration > 0 && live == null) {
                         // One slim seek line. Keep a comfortable 24dp invisible touch target,
                         // but draw only a 3dp track and a small gold thumb.
                         Canvas(Modifier.fillMaxWidth().height(24.dp)
@@ -401,15 +423,15 @@ internal fun AttaPostMediaViewer(
                             color = Color.White, fontSize = 11.sp,
                             fontWeight = FontWeight.Light, lineHeight = 13.sp)
                     }
-                    Row(Modifier.fillMaxWidth(),
+                    if (player != null) Row(Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceEvenly,
                         verticalAlignment = Alignment.CenterVertically) {
-                        if (live != null) TextButton(onClick = { player.seekToDefaultPosition(); player.play() }) {
+                        if (live != null) TextButton(enabled = !stopPlayback, onClick = { player.seekToDefaultPosition(); player.play() }) {
                             Text("للمباشر", color = Color(0xFFF6D776), fontSize = 12.sp)
                         } else IconButton(onClick = {
                             changeVideo(-1)
                         }) { SiteIcon("skip-back", size = 20.dp, tint = Color.White) }
-                        IconButton(onClick = {
+                        IconButton(enabled = !stopPlayback, onClick = {
                             if (playing) player.pause() else {
                                 if (player.playbackState == Player.STATE_ENDED) {
                                     if (live != null) player.seekToDefaultPosition() else player.seekTo(0)
