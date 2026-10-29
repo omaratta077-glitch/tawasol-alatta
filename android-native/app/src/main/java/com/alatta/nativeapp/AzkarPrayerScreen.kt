@@ -120,7 +120,7 @@ private fun PrayerSymbol(symbol: String, size: Dp = 36.dp, tint: Color = Premium
 }
 
 @Composable
-internal fun AzkarPrayerScreen(query: String, modifier: Modifier = Modifier, onSharePost: (String) -> Unit) {
+internal fun AzkarPrayerScreen(modifier: Modifier = Modifier, onSharePost: (String) -> Unit) {
     val context = LocalContext.current
     val local = remember { context.getSharedPreferences("alatta_azkar", Context.MODE_PRIVATE) }
     var settings by remember { mutableStateOf(PrayerStore.read(context)) }
@@ -128,14 +128,11 @@ internal fun AzkarPrayerScreen(query: String, modifier: Modifier = Modifier, onS
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
     var message by remember { mutableStateOf("") }
     var shareChoice by remember { mutableStateOf<Pair<DhikrGroup, Dhikr>?>(null) }
-    var externalShare by remember { mutableStateOf(false) }
     shareChoice?.let { (selectedGroup, selectedEntry) ->
         fun share(wholeGroup: Boolean) {
             val text = formatDhikrShare(selectedGroup, if (wholeGroup) null else selectedEntry)
             shareChoice = null
-            if (externalShare) context.startActivity(Intent.createChooser(
-                Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, text), "مشاركة الأذكار"))
-            else onSharePost(text)
+            onSharePost(text)
         }
         AlertDialog(onDismissRequest = { shareChoice = null },
             title = { Text("مشاركة الأذكار") },
@@ -269,13 +266,12 @@ internal fun AzkarPrayerScreen(query: String, modifier: Modifier = Modifier, onS
     BackHandler(enabled = page != "home") { page = "home" }
     val active = remember(settings, refresh) { settings.enabled && AdhanScheduler.exactAllowed(context) && AdhanScheduler.notificationAllowed(context) && PrayerStore.prefs(context).getLong("scheduled_at", 0L) > now }
     val group = dhikrGroups.find { it.id == page }
-    val filteredGroups = dhikrGroups.filter { matchesDhikrQuery(it.title, query) || it.entries.any { e -> matchesDhikrQuery(e.title, query) || matchesDhikrQuery(e.text, query) } }
     Column(modifier.fillMaxSize().background(PremiumBackground)) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
             if (page != "home") IconButton(onClick = { page = "home" }) { SiteIcon("arrow-left", size = 22.dp) }
             Text(group?.title ?: when (page) { "times" -> "مواقيت الصلاة"; "settings" -> "إعدادات الأذان"; else -> "الأذكار والعبادات" },
-                Modifier.weight(1f), color = PremiumGoldLight, fontWeight = FontWeight.Bold, fontSize = 19.sp)
-            IconButton(onClick = { page = if (page == "settings") "home" else "settings" }) { SiteIcon("bell", size = 23.dp) }
+                Modifier.weight(1f), color = PremiumGoldLight, fontWeight = FontWeight.Bold, fontSize = 19.sp,
+                maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
         }
         if (message.isNotBlank()) Row(Modifier.fillMaxWidth().background(prayerTeal).padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(message, Modifier.weight(1f), color = Color.White, fontSize = 13.sp)
@@ -286,7 +282,7 @@ internal fun AzkarPrayerScreen(query: String, modifier: Modifier = Modifier, onS
             TextButton(onClick = { context.stopService(Intent(context, AdhanPlaybackService::class.java)) }) { Text("إيقاف الأذان", color = PremiumGoldLight) }
         }
         if (group != null) {
-            val entries = group.entries.filter { matchesDhikrQuery(it.title, query) || matchesDhikrQuery(it.text, query) || matchesDhikrQuery(group.title, query) }
+            val entries = group.entries
             LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(14.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 item {
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -306,18 +302,8 @@ internal fun AzkarPrayerScreen(query: String, modifier: Modifier = Modifier, onS
                         Text(entry.text, color = Color.White, fontSize = fontSize.sp, lineHeight = (fontSize * 1.75).sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
                         Text(entry.source, color = PremiumMuted, fontSize = 12.sp)
                         if (entry.note.isNotBlank()) Text(entry.note, color = prayerSoft, fontSize = 12.sp)
-                        Button(onClick = { externalShare = false; shareChoice = group to entry },
-                            modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(13.dp)).attaGoldShine(),
-                            colors = ButtonDefaults.buttonColors(containerColor = PremiumGold, contentColor = PremiumBackground),
-                            shape = RoundedCornerShape(13.dp)) {
-                            SiteIcon("share", tint = PremiumBackground, size = 20.dp)
-                            Spacer(Modifier.width(8.dp))
-                            Text("مشاركة كمنشور داخل التطبيق", fontWeight = FontWeight.Bold)
-                        }
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                            TextButton(onClick = {
-                                externalShare = true; shareChoice = group to entry
-                            }) { SiteIcon("share", size = 21.dp) }
+                            TextButton(onClick = { shareChoice = group to entry }) { SiteIcon("share", size = 21.dp) }
                             Box(Modifier.size(108.dp).clip(CircleShape).background(prayerTeal).clickable(enabled = count < entry.target) {
                                 val nextCount = (count + 1).coerceAtMost(entry.target)
                                 counts[key] = nextCount; local.edit().putInt(key, nextCount).apply()
@@ -332,7 +318,6 @@ internal fun AzkarPrayerScreen(query: String, modifier: Modifier = Modifier, onS
                         }
                     }
                 }
-                if (entries.isEmpty()) item { Text("لا توجد أذكار تطابق البحث", color = PremiumMuted) }
             }
         } else LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(14.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             if (page == "home" || page == "times") {
@@ -365,7 +350,7 @@ internal fun AzkarPrayerScreen(query: String, modifier: Modifier = Modifier, onS
                     }
                 }
                 item { Text("أذكارك اليومية", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold) }
-                items(filteredGroups.chunked(2)) { row ->
+                items(dhikrGroups.chunked(2)) { row ->
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         row.forEach { category ->
                             Column(Modifier.weight(1f).clip(prayerShape).background(PremiumPanel)
@@ -378,7 +363,6 @@ internal fun AzkarPrayerScreen(query: String, modifier: Modifier = Modifier, onS
                         if (row.size == 1) Spacer(Modifier.weight(1f))
                     }
                 }
-                if (filteredGroups.isEmpty()) item { Text("لا توجد نتائج تطابق البحث", color = PremiumMuted) }
             }
             if (page == "times") {
                 item { TextButton(onClick = { chooseCity = true }) { Text("تغيير المدينة • ${settings.place.zone}", color = PremiumGoldLight) } }

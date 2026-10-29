@@ -101,6 +101,17 @@ class PrayerCalculationTest {
         }
     }
 
+    @Test fun morningAndEveningStartWithRequestedVersesAndSalawatPrecedesTawhid() {
+        for (id in listOf("morning", "evening")) {
+            val entries = dhikrGroups.first { it.id == id }.entries
+            assertEquals(listOf("fatiha", "kursi", "baqarah-ending"), entries.take(3).map { it.id })
+            val salawat = entries.first { it.id == "salawat-ten" }
+            assertEquals(10, salawat.target)
+            assertTrue(salawat.text.contains("صَلِّ وَسَلِّمْ وَبَارِكْ عَلَى سَيِّدِنَا مُحَمَّدٍ"))
+            assertTrue(entries.indexOf(salawat) < entries.indexOfFirst { it.id == "kingdom" })
+        }
+    }
+
     @Test fun ArabicSearchFindsUnvowelledAndHamzaVariants() {
         assertTrue(matchesDhikrQuery("أَسْتَغْفِرُ اللَّهَ", "استغفر"))
         assertTrue(matchesDhikrQuery("سُبْحَانَ اللَّهِ وَبِحَمْدِهِ", "سبحان الله"))
