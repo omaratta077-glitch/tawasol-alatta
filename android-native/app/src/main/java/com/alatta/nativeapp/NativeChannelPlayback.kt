@@ -64,6 +64,7 @@ internal fun NativeChannelPlaybackDialog(channel: FootballChannel, sources: List
     var position by remember(channel.id, sources) { mutableIntStateOf(0) }
     var attempts by remember(channel.id, sources) { mutableStateOf(emptyList<JSONObject>()) }
     var events by remember(channel.id, sources) { mutableStateOf(emptyList<JSONObject>()) }
+    var loadEvents by remember(channel.id, sources) { mutableStateOf(emptyList<JSONObject>()) }
     val sessionStarted = remember(channel.id, sources) { android.os.SystemClock.elapsedRealtime() }
     var started by remember(position) { mutableStateOf(false) }
     var handled by remember(position) { mutableStateOf(false) }
@@ -72,6 +73,12 @@ internal fun NativeChannelPlaybackDialog(channel: FootballChannel, sources: List
     val attemptPosition = position
     val source = sources[position]
     val attemptStarted = remember(position) { android.os.SystemClock.elapsedRealtime() }
+    var dismissalReason by remember(channel.id, sources) { mutableStateOf("active") }
+    fun appendLoadEvent(stage: String, type: Int, status: Int?) {
+        loadEvents = (loadEvents + JSONObject().put("sourceIndex", source.index).put("event", stage)
+            .put("dataType", type).put("httpStatus", status ?: JSONObject.NULL)
+            .put("elapsedMs", (android.os.SystemClock.elapsedRealtime() - attemptStarted).coerceAtLeast(0))).takeLast(40)
+    }
     fun elapsed() = (android.os.SystemClock.elapsedRealtime() - attemptStarted).coerceAtLeast(0)
     fun fail(error: PlaybackException) {
         if (position != attemptPosition || handled) return
@@ -103,7 +110,9 @@ internal fun NativeChannelPlaybackDialog(channel: FootballChannel, sources: List
         .put("width", snapshot.width).put("height", snapshot.height)
         .put("urlScheme", android.net.Uri.parse(source.url).scheme)
         .put("headerNames", JSONArray(source.headers.keys.sorted()))
-        .put("attempts", JSONArray(attempts)).put("events", JSONArray(events)).toString(2)
+        .put("dismissalReason", dismissalReason)
+        .put("attempts", JSONArray(attempts)).put("events", JSONArray(events))
+        .put("loadEvents", JSONArray(loadEvents)).toString(2)
     key(position) {
         val posts = remember(source) { listOf(JSONObject().put("id", channel.id).put("video", source.url)) }
         AttaPostMediaViewer(posts, channel.id, "video", onDismiss,
@@ -127,6 +136,9 @@ internal fun NativeChannelPlaybackDialog(channel: FootballChannel, sources: List
                         .put("elapsedMs", android.os.SystemClock.elapsedRealtime() - attemptStarted)
                 }
             },
-            onPlaybackFailure = ::fail, diagnosticReport = ::report)
+            onPlaybackFailure = ::fail,
+            onPlaybackLoadEvent = ::appendLoadEvent,
+            onViewerDismissReason = { reason -> dismissalReason = reason },
+            diagnosticReport = ::report)
     }
 }
