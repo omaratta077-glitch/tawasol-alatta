@@ -51,6 +51,10 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.C
 import androidx.media3.common.Tracks
 import androidx.media3.common.PlaybackException
+import androidx.media3.datasource.HttpDataSource
+import androidx.media3.exoplayer.analytics.AnalyticsListener
+import androidx.media3.exoplayer.source.LoadEventInfo
+import androidx.media3.exoplayer.source.MediaLoadData
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.AspectRatioFrameLayout
@@ -141,6 +145,8 @@ internal fun AttaPostMediaViewer(
     onPlaybackFailure: ((PlaybackException) -> Unit)? = null,
     onPlaybackStarted: (() -> Unit)? = null,
     onPlaybackSnapshot: ((MediaPlaybackSnapshot) -> Unit)? = null,
+    onPlaybackLoadEvent: ((String, Int, Int?) -> Unit)? = null,
+    onViewerDismissReason: ((String) -> Unit)? = null,
     diagnosticReport: (() -> String)? = null,
     stopPlayback: Boolean = false,
     dataSourceFactory: androidx.media3.datasource.DataSource.Factory? = null
@@ -172,6 +178,7 @@ internal fun AttaPostMediaViewer(
     val currentPlaybackFailure by rememberUpdatedState(onPlaybackFailure)
     val currentPlaybackStarted by rememberUpdatedState(onPlaybackStarted)
     val currentPlaybackSnapshot by rememberUpdatedState(onPlaybackSnapshot)
+    val currentPlaybackLoadEvent by rememberUpdatedState(onPlaybackLoadEvent)
     val currentDiagnosticReport by rememberUpdatedState(diagnosticReport)
     var playbackEverStarted by remember(url) { mutableStateOf(false) }
     var sources by remember(isVideo, live != null, requestHeaders, dataSourceFactory) { mutableStateOf<androidx.media3.datasource.DataSource.Factory?>(null) }
@@ -222,12 +229,35 @@ internal fun AttaPostMediaViewer(
                 }.filter { it > 0 }.distinct().sorted()
             }
         }
+        // Network-only diagnostics: never copy stream URLs, query tokens or header values.
+        val loadListener = object : AnalyticsListener {
+            override fun onLoadStarted(eventTime: AnalyticsListener.EventTime, loadEventInfo: LoadEventInfo,
+                mediaLoadData: MediaLoadData) {
+                currentPlaybackLoadEvent?.invoke("load_started", mediaLoadData.dataType, null)
+            }
+            override fun onLoadCompleted(eventTime: AnalyticsListener.EventTime, loadEventInfo: LoadEventInfo,
+                mediaLoadData: MediaLoadData) {
+                currentPlaybackLoadEvent?.invoke("load_completed", mediaLoadData.dataType, null)
+            }
+            override fun onLoadError(eventTime: AnalyticsListener.EventTime, loadEventInfo: LoadEventInfo,
+                mediaLoadData: MediaLoadData, error: java.io.IOException, wasCanceled: Boolean) {
+                var cause: Throwable? = error
+                var httpStatus: Int? = null
+                repeat(8) {
+                    if (cause is HttpDataSource.InvalidResponseCodeException && httpStatus == null)
+                        httpStatus = (cause as HttpDataSource.InvalidResponseCodeException).responseCode
+                    cause = cause?.cause
+                }
+                currentPlaybackLoadEvent?.invoke("load_error", mediaLoadData.dataType, httpStatus)
+            }
+        }
         player?.addListener(listener)
+        player?.addAnalyticsListener(loadListener)
         player?.let { currentPlaybackSnapshot?.invoke(mediaPlaybackSnapshot("player_created", it)) }
         val activity = context.mediaActivity()
         val lifecycleListener = LifecycleEventObserver { _, event -> if (event == Lifecycle.Event.ON_STOP) player?.pause() }
         activity?.lifecycle?.addObserver(lifecycleListener)
-        onDispose { activity?.lifecycle?.removeObserver(lifecycleListener); player?.removeListener(listener); player?.release() }
+        onDispose { activity?.lifecycle?.removeObserver(lifecycleListener); player?.removeListener(listener); player?.removeAnalyticsListener(loadListener); player?.release() }
     }
     // Opening the sole full-screen Media3 viewer starts playback; vertical
     // swipes switch tracks without creating a second video player.
@@ -276,7 +306,8 @@ internal fun AttaPostMediaViewer(
             finally { reacting = false }
         }
     }
-    Dialog(onDismissRequest = { if (sheet != null) sheet = null else onDismiss() },
+    fun dismissViewer(reason: String) { onViewerDismissReason?.invoke(reason); onDismiss() }
+    Dialog(onDismissRequest = { if (sheet != null) sheet = null else dismissViewer("dialog_dismiss") },
         properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false,
             dismissOnClickOutside = live == null)) {
         val view = LocalView.current
@@ -293,7 +324,7 @@ internal fun AttaPostMediaViewer(
             }
             onDispose { window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) }
         }
-        BackHandler { if (sheet != null) sheet = null else onDismiss() }
+        BackHandler { if (sheet != null) sheet = null else dismissViewer("system_back") }
         // The video uses the full safe viewport; social actions live in one rail.
         Column(Modifier.fillMaxSize().background(Color.Black).safeDrawingPadding()) {
             Box(Modifier.weight(1f).fillMaxWidth().clipToBounds()) {
@@ -319,7 +350,7 @@ internal fun AttaPostMediaViewer(
                         Text(live.title, color = Color(0xFFF6D776), fontSize = 16.sp, fontWeight = FontWeight.Bold)
                         Text(live.provider, color = Color.White, fontSize = 12.sp)
                     }
-                    IconButton(onClick = onDismiss) { SiteIcon("x", tint = Color.White, size = 22.dp) }
+                    IconButton(onClick = { dismissViewer("close_button") }) { SiteIcon("x", tint = Color.White, size = 22.dp) }
                 }
                 // Physical right edge in both RTL and LTR; one vertical social rail.
                 if (player != null && (sendReaction != null || onShare != null)) {
