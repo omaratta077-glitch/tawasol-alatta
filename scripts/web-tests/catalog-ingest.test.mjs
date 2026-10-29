@@ -59,3 +59,14 @@ test("production bundle matches the tested module",async()=>{
  const module=await readFile(new URL("../../cloudflare-site/src/catalog-ingest.mjs",import.meta.url),"utf8");
  assert.ok(source.includes("const catalogIngest = (() => {\n"+module.replaceAll("export function ","function ").replaceAll("export async function ","async function ")+"\nreturn catalogIngest;"));
 });
+
+test("rotated section and 19-digit channel IDs remain exact strings",async()=>{
+ const storage=store(),env={CATALOG_SYNC_KEY:secret};
+ const categoryId="652497361000000001",channelId="4973946197000000001";
+ const result=await catalogIngest(request(secret,{categoryId,categoryName:"beIN SPORTS (1080P)",entries:[{name:"beIN SPORTS 1",id:channelId}]}),storage,env);
+ assert.equal(result.status,200);
+ assert.equal(storage.data.get("football:catalog").channels[0].streamUrl,channelId);
+ assert.equal(storage.data.get("football:source-sync").categoryId,categoryId);
+ for(const extra of [{categoryId,categoryName:"beIN SPORTS (720P)"},{categoryId:Number(categoryId),categoryName:"beIN SPORTS (1080P)"}])
+  assert.equal((await catalogIngest(request(secret,extra),store(),env)).status,400);
+});
