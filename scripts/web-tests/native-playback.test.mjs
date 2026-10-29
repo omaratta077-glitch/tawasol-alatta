@@ -37,7 +37,8 @@ test('unsupported protected, transformed, unsafe or unknown-header sources are n
   {url:'https://cdn.example/x',headers:{Authorization:'private-credential'}},{url:'http://other.example/live.m3u8'},
   {url:'https://127.0.0.1/x'},{url:'https://user:pass@cdn.example/x'},
   {url:'https://cdn.example/x',headers:{'User-Agent':'x\r\nHost: bad'}},{url:'https://cdn.example/x',headers:{Host:'bad'}},
-  {url:'opaque-value'},{url:'https://cdn.example:8443/x'}];
+  {url:'opaque-value'},{url:'https://cdn.example:8443/x'},
+  {url:'https://cdn.example/x',headers:{constructor:'not a supported header'}}];
  const {response,data}=await resolve(bad);assert.equal(response.status,422);assert.equal(data.code,'NO_SUPPORTED_NATIVE_SOURCE');
  assert.ok(!JSON.stringify(data).includes('private-credential'));
 });

@@ -73,12 +73,12 @@ internal fun NativeChannelPlaybackDialog(channel: FootballChannel, sources: List
     key(position) {
         val posts = remember(source) { listOf(JSONObject().put("id", channel.id).put("video", source.url)) }
         AttaPostMediaViewer(posts, channel.id, "video", onDismiss,
-            live = LivePlayback(channel.name, "خيار ${position + 1} من ${sources.size}", source.mimeType),
+            live = LivePlayback(channel.name, "خيار ${position + 1} من ${sources.size}", source.mimeType ?: ""),
             requestHeaders = source.headers, sourceMimeType = source.mimeType,
             playbackErrorMessage = lastError, startupTimeoutMs = 20_000,
             onPlaybackStarted = {
                 if (!started) {
-                    started = true
+                    started = true; handled = false; lastError = null
                     attempts = attempts + JSONObject().put("sourceIndex", source.index).put("event", "playing")
                         .put("elapsedMs", android.os.SystemClock.elapsedRealtime() - attemptStarted)
                 }

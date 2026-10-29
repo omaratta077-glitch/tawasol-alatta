@@ -183,6 +183,7 @@ internal fun AttaPostMediaViewer(
         val listener = object : Player.Listener {
             override fun onIsPlayingChanged(value: Boolean) {
                 playing = value
+                if (value) failed = ""
                 if (value && !playbackEverStarted) { playbackEverStarted = true; currentPlaybackStarted?.invoke() }
             }
             override fun onPlaybackStateChanged(state: Int) { buffering = state == Player.STATE_BUFFERING }
@@ -217,7 +218,7 @@ internal fun AttaPostMediaViewer(
     LaunchedEffect(player, id, url, live?.mimeType, sourceMimeType) {
         videoHeights = emptyList()
         player?.apply {
-            val item = MediaItem.Builder().setUri(url).apply { (sourceMimeType ?: live?.mimeType)?.let { setMimeType(it) } }.build()
+            val item = MediaItem.Builder().setUri(url).apply { (sourceMimeType ?: live?.mimeType)?.takeIf { it.isNotBlank() }?.let { setMimeType(it) } }.build()
             pause(); clearMediaItems(); setMediaItem(item); prepare()
             playWhenReady = continuePlayback
             continuePlayback = false

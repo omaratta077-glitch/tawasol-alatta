@@ -121,7 +121,7 @@ function nativeSources(rows) {
   const sources = [];
   for (const [index, row] of rows.entries()) {
     if (sources.length === 10) break;
-    if (!row || typeof row.url !== 'string' || row.url.length > 8192 || row.drm != null ||
+    if (!row || typeof row.url !== 'string' || row.url.length > 8192 || /[\x00-\x20\x7f]/.test(row.url) || row.drm != null ||
         (row.urlType != null && row.urlType !== 0)) continue;
     let u;
     try { u = new URL(row.url); } catch { continue; }
@@ -136,7 +136,7 @@ function nativeSources(rows) {
     let supported = true;
     for (const [name, value] of Object.entries(row.headers || {})) {
       const canonical = {'user-agent': 'User-Agent', referer: 'Referer', origin: 'Origin'}[name.toLowerCase()];
-      if (!canonical || typeof value !== 'string' || !/^[\x20-\x7e]{1,2048}$/.test(value) || Object.hasOwn(headers, canonical)) { supported = false; break; }
+      if (typeof canonical !== 'string' || typeof value !== 'string' || !/^[\x20-\x7e]{1,2048}$/.test(value) || Object.hasOwn(headers, canonical)) { supported = false; break; }
       headers[canonical] = value;
     }
     if (!supported) continue;
@@ -146,7 +146,7 @@ function nativeSources(rows) {
       headers['User-Agent'] = row.userAgent;
     }
     const mimeType = /\.m3u8$/i.test(u.pathname) ? 'application/x-mpegURL' : /\.mpd$/i.test(u.pathname) ? 'application/dash+xml' : null;
-    sources.push({ index, url: u.href, headers, mimeType });
+    sources.push({ index, url: row.url, headers, mimeType });
   }
   return sources;
 }
