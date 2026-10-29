@@ -32,7 +32,7 @@ class AdhanAudioIntegrityTest {
     @Test fun morningAndEveningHaveTheExpandedCollectionAndKeepExistingIds() {
         val morning = dhikrGroups.first { it.id == "morning" }.entries
         val evening = dhikrGroups.first { it.id == "evening" }.entries
-        assertEquals(34, morning.size); assertEquals(30, evening.size)
+        assertEquals(35, morning.size); assertEquals(31, evening.size)
         for ((id, entries) in listOf("morning" to morning, "evening" to evening)) {
             assertTrue(entries.map { it.id }.containsAll(listOf("kursi", "ikhlas", "falaq", "nas", "sayyid", "protection", id, "tasbih")))
             assertEquals(4, entries.first { it.id == "witness" }.target)

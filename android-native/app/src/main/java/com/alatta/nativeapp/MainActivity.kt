@@ -2664,7 +2664,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                             )
                         } // Home uses the search icon in the single-line header; no second search bar.
                     }
-                    if (tab != "الرئيسية" && tab != "الرسائل" && tab != "القرآن" && tab != "الرياضة" &&
+                    if (tab != "الرئيسية" && tab != "الرسائل" && tab != "القرآن" && tab != "الأذكار" && tab != "الرياضة" &&
                         !(compactYoutubeLayout && tab == "يوتيوب" && youtubePlayRequested)) {
                         Row(Modifier.fillMaxWidth().height(47.dp)
                             .padding(horizontal = 12.dp, vertical = 3.dp),

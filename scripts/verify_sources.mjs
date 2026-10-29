@@ -61,6 +61,22 @@ assert.ok(knowledge.includes('onShareHadithPost') &&
     native.includes('composeHadithPost(draft, hadith)') &&
     native.includes('openHomeComposer()'),
     'Hadith share uses the existing Home post flow, without a separate publisher');
+const azkarScreen=fs.readFileSync('android-native/app/src/main/java/com/alatta/nativeapp/AzkarPrayerScreen.kt','utf8');
+const azkarCatalog=fs.readFileSync('android-native/app/src/main/java/com/alatta/nativeapp/AzkarCatalog.kt','utf8');
+assert.ok(!azkarScreen.includes('مشاركة كمنشور داخل التطبيق') &&
+  !azkarScreen.includes('بحث في الأذكار') && !azkarScreen.includes('onQueryChange') &&
+  native.includes('tab != "الأذكار" &&') &&
+  azkarScreen.includes('TextButton(onClick = { shareChoice = group to entry })'),
+  'Azkar screen has no search UI and keeps in-app sharing in the compact icon');
+for (const groupId of ['morning', 'evening']) {
+  const groupStart=azkarCatalog.indexOf(`DhikrGroup("${groupId}"`);
+  const nextGroup=azkarCatalog.indexOf('DhikrGroup(', groupStart+10);
+  const groupBlock=azkarCatalog.slice(groupStart, nextGroup < 0 ? undefined : nextGroup);
+  assert.ok(groupBlock.includes('dailyAdhkar('), `${groupId} uses the daily catalog`);
+}
+assert.ok(azkarCatalog.indexOf('fatiha, ayatKursi, baqarahEnding') < azkarCatalog.indexOf('Dhikr("salawat-ten"') &&
+  azkarCatalog.indexOf('Dhikr("salawat-ten"') < azkarCatalog.indexOf('Dhikr("kingdom"'),
+  'Morning and evening order begins with the requested verses and places ten salawat before tawhid');
 const hadith=fs.readFileSync('android-native/app/src/main/java/com/alatta/nativeapp/HadithLibrary.kt','utf8');
 assert.ok(hadith.includes('verifiedCopy(target, expectedBytes, hash)'), 'Hadith copy verified by actual SHA-256');
 assert.ok(!hadith.includes('PRAGMA quick_check", null') && !hadith.includes('require(db.version == 1)'),
