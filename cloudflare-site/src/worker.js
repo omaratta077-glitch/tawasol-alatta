@@ -420,6 +420,8 @@ return {
     const started = Date.now();
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 20_000);
+    let playbackHTTP = null;
+    let playbackStage = 'PLAYBACK_API_FETCH';
     try {
       let discoveredCategory = null;
       if (publish) {
@@ -447,6 +449,8 @@ return {
         redirect: "manual",
         signal: controller.signal,
       });
+      playbackHTTP = response.status;
+      playbackStage = 'PLAYBACK_API_BODY';
       const body = await readLimited(response.body, MAX_RESPONSE_BYTES);
       const text = new TextDecoder().decode(body.bytes).replace(/^\uFEFF/, "").trim();
       let isJSON = false;
@@ -493,8 +497,17 @@ return {
         state: body.truncated ? "TOO_LARGE" : "HTTP_ERROR", message, entries: [], responseDecoded: false,
       };
       if (nativePlayback) {
-        if (catalog.state !== 'PLAYBACK_METADATA') return respond({ ok: false, error: catalog.message,
-          code: catalog.state, sourceHTTP: response.status }, 502);
+        if (catalog.state !== 'PLAYBACK_METADATA') {
+          const stage = !response.ok ? 'PLAYBACK_API_HTTP' : body.truncated ? 'PLAYBACK_API_BODY' : 'PLAYBACK_API_DECODE';
+          const platform = !response.ok && text.match(/(?:error\s*code\s*:?|error\s+)\s*(10\d{2}|11\d{2})\b/i);
+          const platformCode = platform ? 'CLOUDFLARE_' + platform[1] : null;
+          const code = !response.ok ? 'SOURCE_HTTP_ERROR' : catalog.state;
+          // v192 already displays error; put the safe status/stage in that field too.
+          // This is a resolver failure before any video is loaded by the phone.
+          return respond({ ok: false,
+            error: `تعذر جلب بيانات تشغيل القناة (HTTP ${response.status}؛ ${stage}${platformCode ? '؛ ' + platformCode : ''}؛ ${code}).`,
+            code, stage, platformCode, sourceHTTP: response.status }, 502);
+        }
         if (!resolvedSources.length) return respond({ ok: false, code: 'NO_SUPPORTED_NATIVE_SOURCE',
           error: 'لم يصل رابط مباشر بإعدادات يدعمها اختبار العطا. قد يحتاج الرابط معالجة إضافية.', sourceHTTP: response.status }, 422);
         return respond({ ok: true, channelId: channel, sourceHTTP: response.status,
@@ -576,6 +589,12 @@ return {
         publishResult,
       });
     } catch (error) {
+      if (nativePlayback) {
+        const code = controller.signal.aborted ? 'SOURCE_TIMEOUT' : 'SOURCE_NETWORK_ERROR';
+        return respond({ ok: false,
+          error: `تعذر استلام بيانات تشغيل القناة (${playbackHTTP === null ? 'لم يصل رد HTTP' : 'HTTP ' + playbackHTTP}؛ ${playbackStage}؛ ${code}).`,
+          code, stage: playbackStage, sourceHTTP: playbackHTTP, elapsedMs: Date.now() - started }, 502);
+      }
       return respond({
         message: controller.signal.aborted
           ? "انتهت مهلة الاختبار بعد 20 ثانية؛ لم تُثبت نتيجة HTTP من المصدر."
@@ -1330,6 +1349,7 @@ export class SignalingRoom extends DurableObject {
     const result=await response.json();
     if(result.ok!==true){
       const failed=j({ok:false,error:result.error||result.message||"تعذر جلب بيانات التشغيل",code:result.code||"RESOLVE_FAILED",
+        stage:result.stage||"RESOLVE",platformCode:result.platformCode??null,
         sourceHTTP:result.sourceHTTP??null},response.ok?502:response.status);
       failed.headers.set('cache-control','private, no-store');return failed;
     }
