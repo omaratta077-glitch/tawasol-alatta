@@ -25,7 +25,8 @@ small{display:block;color:#aeb5ba;line-height:1.7;margin-top:20px}
 <input id="channel" name="channel_id" inputmode="numeric" pattern="[1-9][0-9]{0,18}" maxlength="19" placeholder="اختياري لفحص التشغيل">
 <label for="key">مفتاح التجربة</label>
 <input id="key" name="probe_key" type="password" autocomplete="off" minlength="24" maxlength="256" required>
-<button type="submit">إرسال طلب واحد</button></form>
+<button type="submit">إرسال طلب واحد</button>
+<button type="submit" name="playback_video" value="yes">تجربة تشغيل HTTPS للقناة</button></form>
 <small>الحفظ يعمل عند اختيار خانته فقط، ويحتاج Secret باسم CATALOG_SYNC_KEY في مشروع العطا الأساسي. لا يبدأ تحديث دوري.</small>
 </section></html>`;
 
@@ -113,6 +114,47 @@ function inspectPlayback(text, decoded) {
   }
   return { state: streams.length ? "PLAYBACK_METADATA" : "EMPTY", message: streams.length ? "وصلت بيانات التشغيل. المعروض وصف الحقول فقط؛ لم يُختبر تشغيل الفيديو ولم تُعرض الروابط أو القيم السرية." : "وصلت قائمة تشغيل فارغة.",
     responseDecoded: decoded, entries: [], streams, streamCount: streams.length };
+}
+
+function chooseDirectHttps(rows) {
+  for (const row of rows) {
+    if (!row || typeof row.url !== 'string' || row.url.length > 8192 || row.drm != null ||
+        (row.userAgent != null && row.userAgent !== '') ||
+        (row.headers != null && (typeof row.headers !== 'object' || Array.isArray(row.headers) || Object.keys(row.headers).length))) continue;
+    try {
+      const u = new URL(row.url), host = u.hostname.toLowerCase();
+      if (u.protocol !== 'https:' || u.username || u.password || u.port || !host.includes('.') ||
+          /^[\d.]+$/.test(host) || host.includes(':') || /(^|\.)(localhost|local|internal|invalid|test)$/.test(host)) continue;
+      return u.href;
+    } catch { /* Opaque or malformed links need their own processing, never guess. */ }
+  }
+  return null;
+}
+
+function renderPlaybackTest(url, channelId) {
+  const nonce = crypto.randomUUID().replaceAll('-', '');
+  const config = JSON.stringify({url,channelId}).replaceAll('<', '\\u003c').replaceAll('>', '\\u003e').replaceAll('&', '\\u0026');
+  const html = `<!doctype html><html lang="ar" dir="rtl"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>تجربة تشغيل القناة</title>
+<style nonce="${nonce}">body{background:#080b0d;color:#f3d57d;font:17px system-ui;max-width:900px;margin:30px auto;padding:18px}video{width:100%;max-height:65vh;background:#000;border-radius:18px}button{font:inherit;background:#e8bd52;color:#171307;border:0;border-radius:12px;padding:14px;margin:12px 0}p{line-height:1.8}textarea{width:100%;box-sizing:border-box;min-height:220px;background:#101719;color:#eee;border:1px solid #7b6737;border-radius:12px;padding:12px;direction:ltr;font:14px monospace}</style>
+<h1>تجربة تشغيل القناة</h1><p>اضغط تشغيل لبدء تحميل خيار HTTPS من هاتفك. النتيجة تخص مشغل المتصفح؛ اختبار أندرويد مستقل.</p><video id="video" controls playsinline preload="none" referrerpolicy="no-referrer"></video>
+<button id="play">تشغيل HTTPS</button><button id="stop">إيقاف</button><p id="status" role="status">جاهز. لم يبدأ تحميل الفيديو.</p><p>لو فشل التشغيل اضغط نسخ تقرير المشغّل وأرسله. التقرير لا يحتوي رابط البث.</p><button id="copy">نسخ تقرير المشغّل</button><textarea id="report" readonly aria-label="تقرير المشغّل"></textarea>
+<script nonce="${nonce}">
+'use strict';
+const settings=${config};
+const video=document.getElementById('video'),statusText=document.getElementById('status'),output=document.getElementById('report');
+const report={test:'browser-https-1',channelId:settings.channelId,engine:'HTMLVideo',hlsCapability:video.canPlayType('application/vnd.apple.mpegurl'),events:[],playing:false,mediaErrorCode:null};
+let active=false,startedAt=0,watchdog;
+function update(event){report.events.push({event,elapsedMs:startedAt?Date.now()-startedAt:0});report.events=report.events.slice(-30);report.readyState=video.readyState;report.networkState=video.networkState;report.currentTime=Number.isFinite(video.currentTime)?Math.floor(video.currentTime):0;report.width=video.videoWidth;report.height=video.videoHeight;output.value=JSON.stringify(report,null,2);}
+for(const event of ['loadstart','loadedmetadata','canplay','playing','waiting','stalled','ended'])video.addEventListener(event,()=>{if(!active)return;if(event==='playing'){report.playing=true;clearTimeout(watchdog);statusText.textContent='الفيديو بدأ التشغيل في المتصفح.';}update(event);});
+video.addEventListener('error',()=>{if(!active)return;clearTimeout(watchdog);report.mediaErrorCode=video.error?video.error.code:null;report.playing=false;statusText.textContent=report.mediaErrorCode===4?'المصدر أو الصيغة غير مناسبين لمشغل المتصفح. هذا لا يحدد وحده سبب المشكلة أو نتيجة مشغل أندرويد.':'تعذر تحميل أو تشغيل الفيديو. انسخ تقرير المشغّل.';update('error');});
+document.getElementById('play').onclick=async()=>{clearTimeout(watchdog);active=true;startedAt=Date.now();report.playing=false;report.mediaErrorCode=null;report.playRequestError=null;report.events=[];video.src=settings.url;video.load();statusText.textContent='جارٍ تحميل الفيديو…';update('requested');watchdog=setTimeout(()=>{if(active&&!report.playing){statusText.textContent='لم يبدأ التشغيل خلال 20 ثانية. انسخ التقرير.';update('timeout');}},20000);try{await video.play();}catch(error){if(!active)return;report.playRequestError=['NotAllowedError','NotSupportedError','AbortError'].includes(error.name)?error.name:'PLAY_REQUEST_FAILED';statusText.textContent='لم يبدأ التشغيل. اضغط زر الفيديو أو انسخ التقرير.';update('playRejected');}};
+document.getElementById('stop').onclick=()=>{active=false;clearTimeout(watchdog);video.pause();video.removeAttribute('src');video.load();report.playing=false;update('stopped');statusText.textContent='تم إيقاف الفيديو.';};
+document.getElementById('copy').onclick=async()=>{try{await navigator.clipboard.writeText(output.value);statusText.textContent='تم نسخ تقرير المشغّل.';}catch{output.focus();output.select();statusText.textContent='التقرير محدد؛ انسخه من مربع النص.';}};
+window.addEventListener('pagehide',()=>{active=false;clearTimeout(watchdog);video.pause();video.removeAttribute('src');video.load();});
+update('ready');
+</script></html>`;
+  return new Response(html,{headers:{'Content-Type':'text/html;charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Referrer-Policy':'no-referrer',
+    'Content-Security-Policy':"default-src 'none'; script-src 'nonce-"+nonce+"'; style-src 'nonce-"+nonce+"'; media-src https: blob:; connect-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"}});
 }
 
 function readCatalog(text, headerTime, responseMask, parse = parseCatalog) {
@@ -203,6 +245,8 @@ export default {
     if (category && !validId(category)) return respond({ message: "رقم القسم غير صالح." }, 400);
     const channel = (form.get("channel_id") || "").trim();
     if (channel && !validId(channel)) return respond({ message: "رقم القناة غير صالح." }, 400);
+    const videoTest = form.get("playback_video") === "yes";
+    if (videoTest && !channel) return respond({ message: "اكتب رقم القناة لتجربة تشغيلها." }, 400);
     const publish = form.get("publish") === "yes";
     if (channel && (publish || category)) return respond({ message: "فحص التشغيل منفصل: اترك القسم فارغًا وأزل علامة الحفظ." }, 400);
     if (publish && (typeof env.CATALOG_SYNC_KEY !== "string" || env.CATALOG_SYNC_KEY.length < 32 || env.CATALOG_SYNC_KEY.length > 256))
@@ -267,9 +311,24 @@ export default {
         message = "وصل رد HTTP ناجح؛ لم تُثبت قائمة صالحة بعد. قد يحتاج الرد معالجة صيغته.";
       }
       const time = (response.headers.get("t") || "").trim();
-      const catalog = response.ok && !body.truncated ? readCatalog(text, response.headers.get("t"), env.RESPONSE_MASK, channel ? inspectPlayback : parseCatalog) : {
+      let candidate = null;
+      const playbackParser = (plain, decoded) => {
+        const metadata = inspectPlayback(plain, decoded);
+        if (videoTest && metadata.state === "PLAYBACK_METADATA") {
+          const root = JSON.parse(plain), rows = Array.isArray(root) ? root : root.data;
+          candidate = chooseDirectHttps(rows);
+        }
+        return metadata;
+      };
+      const catalog = response.ok && !body.truncated ? readCatalog(text, response.headers.get("t"), env.RESPONSE_MASK, channel ? playbackParser : parseCatalog) : {
         state: body.truncated ? "TOO_LARGE" : "HTTP_ERROR", message, entries: [], responseDecoded: false,
       };
+      if (videoTest && candidate) return renderPlaybackTest(candidate, channel);
+      if (videoTest && catalog.state === "PLAYBACK_METADATA") return respond({
+        state: "NO_DIRECT_HTTPS", sourceHTTP: response.status,
+        message: "لم يوجد خيار HTTPS مباشر بلا إعدادات إضافية. لم تُرسل روابط HTTP أو بيانات ترخيص للمشغّل.",
+        channelId: channel, streams: catalog.streams, published: false,
+      });
       let publishResult = null;
       if (publish && catalog.state === "LIST" && /^\d{10}$/.test(time)) {
         publishResult = { ok: false, status: null, stage: "CONNECT", errorCode: null };
