@@ -66,7 +66,8 @@ test('native path caps alternatives and keeps upstream order',async()=>{
  const {data}=await resolve(Array.from({length:15},(_,i)=>({url:`https://cdn.example/${i}.m3u8`})));
  assert.equal(data.sources.length,10);assert.equal(data.skipped,5);assert.deepEqual(data.sources.map(x=>x.index),[0,1,2,3,4,5,6,7,8,9]);
 });
-async function rotatedPlayback({freshId='4973946197000000002',initialStatus=404,retryStatus=200,duplicate=false,platform=false}={}) {
+async function rotatedPlayback({freshId='4973946197000000002',initialStatus=404,retryStatus=200,duplicate=false,platform=false,
+ storedCategory='beIN SPORTS (1080P)',storedCategoryId=null}={}) {
  const urls=[];const category='652497361000000001';
  globalThis.fetch=async(url,options)=>{
   urls.push(url);assert.equal(options.redirect,'manual');assert.ok(options.signal);
@@ -77,7 +78,7 @@ async function rotatedPlayback({freshId='4973946197000000002',initialStatus=404,
    {id:freshId,name:'beIN SPORTS 1'},...(duplicate?[{id:'4973946197000000003',name:'bein sports1'}]:[])]});
   assert.ok(url.endsWith('/channel/'+freshId));return Response.json({data:fixtures},{status:retryStatus});
  };
- try {const response=await probe.fetch(request(),env,null,true,{name:'beIN SPORTS 1',category:'beIN SPORTS (1080P)'});
+ try {const response=await probe.fetch(request(),env,null,true,{name:'beIN SPORTS 1',category:storedCategory,categoryId:storedCategoryId});
   return {data:await response.json(),status:response.status,urls};
  }finally{globalThis.fetch=async()=>{throw Error('No real network');};}
 }
@@ -94,11 +95,44 @@ test('another 404 after ID refresh stops without a loop',async()=>{
  assert.equal(data.idRefreshed,true);assert.match(data.error,/ID_REFRESHED/);assert.equal(data.sources,undefined);
 });
 test('ambiguous names do not choose an arbitrary source ID',async()=>{
- const {data,urls}=await rotatedPlayback({duplicate:true});assert.equal(data.code,'CHANNEL_NOT_UNIQUE');assert.equal(urls.length,3);assert.equal(data.sources,undefined);
+ const {data,urls}=await rotatedPlayback({duplicate:true});assert.equal(data.code,'CHANNEL_AMBIGUOUS');assert.equal(urls.length,3);assert.equal(data.sources,undefined);
+});
+test('category matching ignores display brackets/bidi marks while retaining quality',async()=>{
+ const good=await rotatedPlayback({storedCategory:'\u200fbeIN SPORTS ) (1080P)\u200e'});assert.equal(good.data.ok,true);assert.equal(good.urls.length,4);
+ const different=await rotatedPlayback({storedCategory:'beIN SPORTS (720P)'});assert.equal(different.data.code,'CATEGORY_NOT_FOUND');assert.equal(different.urls.length,2);
+});
+test('source category ID takes priority over a local display label only when present in the fresh list',async()=>{
+ assert.equal((await rotatedPlayback({storedCategory:'local display label',storedCategoryId:'652497361000000001'})).data.ok,true);
+ assert.equal((await rotatedPlayback({storedCategory:'local display label',storedCategoryId:'652497361000000099'})).data.code,'CATEGORY_NOT_FOUND');
 });
 test('403 and Cloudflare platform rejection do not trigger an ID recovery',async()=>{
  assert.equal((await rotatedPlayback({initialStatus:403})).urls.length,1);
  const cf=await rotatedPlayback({platform:true});assert.equal(cf.urls.length,1);assert.equal(cf.data.platformCode,'CLOUDFLARE_1042');
+});
+test('owner endpoint uses synchronized section identity and ignores it after a manual source override',async()=>{
+ const source=(await readFile(new URL('../../cloudflare-site/src/worker.js',import.meta.url),'utf8')).replace('import { DurableObject } from "cloudflare:workers";','class DurableObject {}');
+ const {SignalingRoom}=await import('data:text/javascript,'+encodeURIComponent(source));
+ const category='652497361000000001',fresh='4973946197000000002';
+ for(const bound of [true,false]) {
+  const channelRecord={id:'stable',name:'beIN SPORTS 1',category:'local display',streamUrl:channel,format:'ytv',enabled:true};
+  const sync={categoryId:category,categoryName:'original source label',bindings:{stable:bound?channel:'999'}};
+  const map=new Map([['football:catalog',{channels:[channelRecord]}],['football:source-sync',sync]]);
+  const storage={async get(k){return structuredClone(map.get(k));},async put(k,v){map.set(k,structuredClone(v));}};
+  const room=new SignalingRoom({storage,getWebSockets:()=>[]},env);room.requireAdmin=async()=>({});
+  let calls=0;globalThis.fetch=async url=>{calls++;
+   if(url.endsWith('/channel/'+channel))return new Response('missing',{status:404});
+   if(url.endsWith('/categories'))return Response.json({data:[{id:category,name:'renamed source label'}]});
+   if(url.endsWith('/categories/'+category+'/channels'))return Response.json({data:[{id:fresh,name:'beIN SPORTS 1'}]});
+   assert.ok(url.endsWith('/channel/'+fresh));return Response.json({data:fixtures});
+  };
+  try {
+   const response=await room.footballPlaybackTest(new Request('https://owned.example/api/admin/football/playback-test',{method:'POST'}),
+    {token:'owner',channelId:'stable',categoryId:category,category:'renamed source label'});
+   const result=await response.json();assert.equal(response.status,bound?200:502);assert.equal(calls,bound?4:2);
+   if(bound)assert.equal(result.channelId,fresh);else assert.equal(result.code,'CATEGORY_NOT_FOUND');
+   assert.deepEqual(map.get('football:source-sync'),sync);assert.deepEqual(map.get('football:catalog').channels,[channelRecord]);
+  } finally {globalThis.fetch=async()=>{throw Error('No real network');};}
+ }
 });
 test('app endpoint authenticates first, resolves current stable catalog ID and never persists media data',async()=>{
  const source=(await readFile(new URL('../../cloudflare-site/src/worker.js',import.meta.url),'utf8')).replace('import { DurableObject } from "cloudflare:workers";','class DurableObject {}');

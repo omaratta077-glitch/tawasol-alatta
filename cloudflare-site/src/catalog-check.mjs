@@ -335,7 +335,10 @@ export default {
           typeof channelSelector?.name === 'string' && channelSelector.name.length <= 120 &&
           typeof channelSelector?.category === 'string' && channelSelector.category.length <= 120) {
         const canonical = value => value.replace(/\s+/g, '').toLowerCase();
-        const categoryName = canonical(channelSelector.category), channelName = canonical(channelSelector.name);
+        // Category display labels can contain mirrored brackets or bidi marks.
+        // Preserve letters/digits/quality; only ignore presentation characters.
+        const categoryKey = value => value.normalize('NFKC').replace(/[\s\p{Cf}()[\]{}]/gu, '').toLowerCase();
+        const categoryName = categoryKey(channelSelector.category), channelName = canonical(channelSelector.name);
         if (categoryName && channelName) {
           const readList = async (url, stage) => {
             playbackStage = stage;
@@ -353,12 +356,14 @@ export default {
             error: `تعذر تحديث رقم القناة من المصدر (HTTP ${http}؛ ${stage}؛ ${code}).` }, 502);
           const sections = await readList(SOURCE_URL, 'CHANNEL_REFRESH_CATEGORIES');
           if (!sections.entries) return refreshFailure('CHANNEL_REFRESH_CATEGORIES', 'REFRESH_LIST_UNAVAILABLE', sections.http);
-          const section = sections.entries.filter(entry => canonical(entry.name) === categoryName);
-          if (section.length !== 1) return refreshFailure('CHANNEL_REFRESH_CATEGORY', 'CATEGORY_NOT_UNIQUE', sections.http);
+          const boundCategory = validId(channelSelector.categoryId);
+          const byId = boundCategory ? sections.entries.filter(entry => entry.id === boundCategory) : [];
+          const section = byId.length === 1 ? byId : sections.entries.filter(entry => categoryKey(entry.name) === categoryName);
+          if (section.length !== 1) return refreshFailure('CHANNEL_REFRESH_CATEGORY', section.length ? 'CATEGORY_AMBIGUOUS' : 'CATEGORY_NOT_FOUND', sections.http);
           const channels = await readList(SOURCE_URL + '/' + section[0].id + '/channels', 'CHANNEL_REFRESH_CHANNELS');
           if (!channels.entries) return refreshFailure('CHANNEL_REFRESH_CHANNELS', 'REFRESH_LIST_UNAVAILABLE', channels.http);
           const matches = channels.entries.filter(entry => canonical(entry.name) === channelName);
-          if (matches.length !== 1) return refreshFailure('CHANNEL_REFRESH_MATCH', 'CHANNEL_NOT_UNIQUE', channels.http);
+          if (matches.length !== 1) return refreshFailure('CHANNEL_REFRESH_MATCH', matches.length ? 'CHANNEL_AMBIGUOUS' : 'CHANNEL_NOT_FOUND', channels.http);
           if (matches[0].id === channel) return respond({ ok: false, code: 'FRESH_ID_UNCHANGED',
             stage: 'PLAYBACK_API_HTTP', sourceHTTP: 404, idRefreshed: false,
             error: 'المصدر أعاد HTTP 404، ورقم القناة في قائمته الحالية لم يتغير (FRESH_ID_UNCHANGED).' }, 502);
