@@ -35,7 +35,8 @@ class NativePlaybackSessionTest {
         assertEquals(listOf(0, 0, 1, 1), (0 until rows.length()).map { rows.getJSONObject(it).getInt("sourceIndex") })
         now += 150
         assertEquals(40_150L, JSONObject(session.report()).getLong("elapsedMs"))
-        assertFalse(session.report().contains("private-")); assertFalse(session.report().contains("fixture.example"))
+        assertFalse(session.report().contains("private-")); assertFalse(session.report().contains(".m3u8"))
+        assertEquals("fixture.example", JSONObject(session.report()).getString("sourceHost"))
     }
 
     @Test fun releasedPlayerCallbacksAndDuplicateSnapshotsCannotResetTheActiveAttempt() {

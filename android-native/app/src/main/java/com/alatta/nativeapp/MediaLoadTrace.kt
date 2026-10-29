@@ -8,17 +8,34 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 /** Fixed error labels only: never serialize exception text, URLs, headers or response bodies. */
-internal data class SafeMediaFailure(val kinds: List<String>, val httpStatus: Int?, val ioReason: Int?)
+internal data class SafeMediaFailure(val kinds: List<String>, val httpStatus: Int?, val ioReason: Int?, val dnsHost: String? = null)
+
+/** Public DNS names only. Reject URLs, userinfo, IP literals and local/private names. */
+internal fun safeMediaHost(value: String?): String? {
+    val host = value?.lowercase(java.util.Locale.ROOT)?.removeSuffix(".") ?: return null
+    if (host.length !in 3..253 || !host.matches(Regex("""(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?"""))) return null
+    if (listOf("localhost", "local", "internal", "invalid", "test").any { host == it || host.endsWith(".$it") }) return null
+    return host
+}
+
+private fun dnsFailureHost(message: String?): String? {
+    val text = message ?: return null
+    val quoted = Regex("""Unable to resolve host ["']([^"']+)["']""", RegexOption.IGNORE_CASE).find(text)?.groupValues?.get(1)
+    val bare = Regex("^([A-Za-z0-9.-]+)(?::.*)?$", RegexOption.DOT_MATCHES_ALL).matchEntire(text)?.groupValues?.get(1)
+    return safeMediaHost(quoted ?: bare)
+}
 
 internal fun safeMediaFailure(error: Throwable): SafeMediaFailure {
     val kinds = mutableListOf<String>()
     var status: Int? = null
     var reason: Int? = null
+    var dnsHost: String? = null
     var cause: Throwable? = error
     repeat(10) {
         val value = cause ?: return@repeat
         if (value is HttpDataSource.InvalidResponseCodeException) status = value.responseCode
         if (value is DataSourceException && reason == null) reason = value.reason
+        if (value is java.net.UnknownHostException && dnsHost == null) dnsHost = dnsFailureHost(value.message)
         val kind = when (value) {
             is HttpDataSource.InvalidResponseCodeException -> "HTTP_STATUS"
             is HttpDataSource.InvalidContentTypeException -> "HTTP_CONTENT_TYPE"
@@ -40,11 +57,12 @@ internal fun safeMediaFailure(error: Throwable): SafeMediaFailure {
         if (kind !in kinds) kinds.add(kind)
         cause = value.cause
     }
-    return SafeMediaFailure(kinds, status, reason)
+    return SafeMediaFailure(kinds, status, reason, dnsHost)
 }
 
 internal data class MediaLoadTrace(val event: String, val dataType: Int, val bytesLoaded: Long,
-    val loadDurationMs: Long, val wasCanceled: Boolean = false, val failure: SafeMediaFailure? = null) {
+    val loadDurationMs: Long, val wasCanceled: Boolean = false, val failure: SafeMediaFailure? = null,
+    val requestHost: String? = null) {
     fun json(): JSONObject = JSONObject().put("event", event).put("dataType", dataType)
         .put("dataKind", when (dataType) {
             C.DATA_TYPE_MANIFEST -> "manifest"
@@ -54,5 +72,7 @@ internal data class MediaLoadTrace(val event: String, val dataType: Int, val byt
         }).put("bytesLoaded", bytesLoaded).put("loadDurationMs", loadDurationMs)
         .put("wasCanceled", wasCanceled).put("httpStatus", failure?.httpStatus ?: JSONObject.NULL)
         .put("ioReason", failure?.ioReason ?: JSONObject.NULL)
+        .put("requestHost", safeMediaHost(requestHost) ?: JSONObject.NULL)
+        .put("dnsHost", safeMediaHost(failure?.dnsHost) ?: JSONObject.NULL)
         .put("errorKinds", JSONArray(failure?.kinds ?: emptyList<String>()))
 }
