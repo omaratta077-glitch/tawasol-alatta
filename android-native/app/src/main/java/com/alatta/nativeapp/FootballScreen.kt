@@ -60,6 +60,9 @@ internal fun FootballScreen(query: String, modifier: Modifier = Modifier,
     var loading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf("") }
     var selected by remember { mutableStateOf<FootballChannel?>(null) }
+    var nativeChannel by remember { mutableStateOf<FootballChannel?>(null) }
+    var nativeSources by remember { mutableStateOf(emptyList<NativeChannelSource>()) }
+    var nativeTest by remember { mutableStateOf(true) }
     var playerFailure by remember { mutableStateOf<YtvPlayer.Failure?>(null) }
     var watchEntryRequest by remember { mutableIntStateOf(0) }
     var broadcastExpanded by rememberSaveable { mutableStateOf(false) }
@@ -91,18 +94,22 @@ internal fun FootballScreen(query: String, modifier: Modifier = Modifier,
                 }
                 "ytv" -> {
                     if (callInProgress) { error = "أنهِ المكالمة أولًا لتشغيل القناة."; return@launch }
-                    YtvPlayer.openWithWatchRoom(context, channel.streamUrl, onBeforePlayback)?.let { playerFailure = it; return@launch }
+                    if (isAdmin && nativeTest) {
+                        nativeSources = NativeChannelPlayback.load(token, channel.id)
+                        onBeforePlayback(); nativeChannel = channel
+                    } else YtvPlayer.openWithWatchRoom(context, channel.streamUrl, onBeforePlayback)?.let { playerFailure = it; return@launch }
                 }
                 else -> { onBeforePlayback(); selected = channel }
             }
             recent = footballRecent(recent, channel.id)
             preferences.edit().putString("recent", recent.joinToString(",")).apply()
         } catch (cancelled: CancellationException) { throw cancelled }
+        catch (failure: AttaApiException) { error = failure.message ?: "تعذر جلب بيانات التشغيل." }
         catch (_: Exception) { error = "تعذر تشغيل القناة. حدّث القائمة وحاول مجددًا." }
         finally { openingChannel = false }
         }
     }
-    FootballContent(catalog, query, favorites, recent, loading, error, isAdmin, callInProgress, modifier,
+    FootballContent(catalog, query, favorites, recent, loading || openingChannel, error, isAdmin, callInProgress, modifier,
         onReload = { reload++ }, onManage = onManage, onPlay = ::play,
         onFavorite = { id ->
             favorites = if (id in favorites) favorites - id else favorites + id
@@ -111,12 +118,17 @@ internal fun FootballScreen(query: String, modifier: Modifier = Modifier,
         watchEnabled = token.isNotBlank() && !callInProgress && !WatchRoomController.closing,
         onBroadcast = { broadcastExpanded = !broadcastExpanded }, broadcastExpanded = broadcastExpanded,
         livePanel = {
+            if (isAdmin) FilterChip(selected = nativeTest, enabled = !openingChannel,
+                onClick = { nativeTest = !nativeTest }, label = { Text("تجربة مشغل العطا", fontSize = 12.sp) })
             WatchRoomPanel(token, catalog.channels, callInProgress, entryRequest = watchEntryRequest,
                 onPlay = ::play, onBeforeJoin = onBeforePlayback)
             SportsLivePanel(token = token, isAdmin = isAdmin, expanded = broadcastExpanded,
                 onExpandedChange = { broadcastExpanded = it })
         })
     playerFailure?.let { YtvPlayerErrorDialog(it, onDismiss = { playerFailure = null }) }
+    nativeChannel?.let { channel ->
+        NativeChannelPlaybackDialog(channel, nativeSources, onDismiss = { nativeChannel = null; nativeSources = emptyList() })
+    }
     selected?.let { channel ->
         val posts = remember(channel) { listOf(JSONObject().put("id", channel.id).put("video", channel.streamUrl)) }
         AttaPostMediaViewer(posts, channel.id, "video", onDismiss = { selected = null },

@@ -129,7 +129,11 @@ internal fun AttaPostMediaViewer(
     live: LivePlayback? = null,
     sourceMimeType: String? = null,
     requestHeaders: Map<String, String> = emptyMap(),
-    playbackErrorMessage: String? = null
+    playbackErrorMessage: String? = null,
+    onPlaybackFailure: ((PlaybackException) -> Unit)? = null,
+    onPlaybackStarted: (() -> Unit)? = null,
+    startupTimeoutMs: Long? = null,
+    diagnosticReport: String? = null
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -155,6 +159,9 @@ internal fun AttaPostMediaViewer(
     var qualityCap by remember(id) { mutableIntStateOf(0) }
     var qualityMenu by remember(id) { mutableStateOf(false) }
     val currentPlaybackErrorMessage by rememberUpdatedState(playbackErrorMessage)
+    val currentPlaybackFailure by rememberUpdatedState(onPlaybackFailure)
+    val currentPlaybackStarted by rememberUpdatedState(onPlaybackStarted)
+    var playbackEverStarted by remember(url) { mutableStateOf(false) }
     var sources by remember(isVideo, live != null, requestHeaders) { mutableStateOf<androidx.media3.datasource.DataSource.Factory?>(null) }
     LaunchedEffect(isVideo, live != null, requestHeaders) {
         if (isVideo) sources = withContext(Dispatchers.IO) { VideoTransport.factory(context, live != null, requestHeaders) }
@@ -174,9 +181,15 @@ internal fun AttaPostMediaViewer(
     }
     DisposableEffect(player) {
         val listener = object : Player.Listener {
-            override fun onIsPlayingChanged(value: Boolean) { playing = value }
+            override fun onIsPlayingChanged(value: Boolean) {
+                playing = value
+                if (value && !playbackEverStarted) { playbackEverStarted = true; currentPlaybackStarted?.invoke() }
+            }
             override fun onPlaybackStateChanged(state: Int) { buffering = state == Player.STATE_BUFFERING }
-            override fun onPlayerError(error: PlaybackException) { failed = currentPlaybackErrorMessage ?: "تعذر تشغيل الفيديو. أعد المحاولة أو تحقق من الاتصال."; controls = true }
+            override fun onPlayerError(error: PlaybackException) {
+                failed = currentPlaybackErrorMessage ?: "تعذر تشغيل الفيديو. أعد المحاولة أو تحقق من الاتصال."; controls = true
+                currentPlaybackFailure?.invoke(error)
+            }
             override fun onTracksChanged(tracks: Tracks) {
                 videoHeights = tracks.groups.filter { it.type == C.TRACK_TYPE_VIDEO }.flatMap { group ->
                     (0 until group.length).filter { group.isTrackSupported(it) }.map { group.getTrackFormat(it).height }
@@ -192,6 +205,15 @@ internal fun AttaPostMediaViewer(
     // Opening the sole full-screen Media3 viewer starts playback; vertical
     // swipes switch tracks without creating a second video player.
     var continuePlayback by remember(isVideo) { mutableStateOf(isVideo) }
+    LaunchedEffect(player, url, startupTimeoutMs) {
+        if (player != null && startupTimeoutMs != null) {
+            delay(startupTimeoutMs)
+            if (!playbackEverStarted && player.playerError == null) {
+                player.stop(); failed = "لم يبدأ التشغيل خلال المهلة المحددة."; controls = true
+                currentPlaybackFailure?.invoke(PlaybackException("Startup timeout", null, PlaybackException.ERROR_CODE_TIMEOUT))
+            }
+        }
+    }
     LaunchedEffect(player, id, url, live?.mimeType, sourceMimeType) {
         videoHeights = emptyList()
         player?.apply {
@@ -325,11 +347,16 @@ internal fun AttaPostMediaViewer(
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     if (failed.isNotBlank()) {
-                        Text(failed, color = Color(0xFFFFB5B5), fontSize = 13.sp)
+                        Text(playbackErrorMessage ?: failed, color = Color(0xFFFFB5B5), fontSize = 13.sp)
                         if (player.playerError != null) TextButton(onClick = {
                             failed = ""; player.prepare(); player.play()
                         }) { Text("إعادة المحاولة", color = Color(0xFFE6B94E)) }
                     }
+                    if (diagnosticReport != null) TextButton(onClick = {
+                        val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                        clipboard.setPrimaryClip(android.content.ClipData.newPlainText("تقرير تشغيل القناة", diagnosticReport))
+                        android.widget.Toast.makeText(context, "تم نسخ تقرير التشغيل", android.widget.Toast.LENGTH_SHORT).show()
+                    }) { Text("نسخ نتيجة التجربة", color = Color(0xFFE6B94E)) }
                     if (duration > 0 && live == null) {
                         // One slim seek line. Keep a comfortable 24dp invisible touch target,
                         // but draw only a 3dp track and a small gold thumb.
