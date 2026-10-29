@@ -51,7 +51,6 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.C
 import androidx.media3.common.Tracks
 import androidx.media3.common.PlaybackException
-import androidx.media3.datasource.HttpDataSource
 import androidx.media3.exoplayer.analytics.AnalyticsListener
 import androidx.media3.exoplayer.source.LoadEventInfo
 import androidx.media3.exoplayer.source.MediaLoadData
@@ -145,11 +144,12 @@ internal fun AttaPostMediaViewer(
     onPlaybackFailure: ((PlaybackException) -> Unit)? = null,
     onPlaybackStarted: (() -> Unit)? = null,
     onPlaybackSnapshot: ((MediaPlaybackSnapshot) -> Unit)? = null,
-    onPlaybackLoadEvent: ((String, Int, Int?) -> Unit)? = null,
+    onPlaybackLoadEvent: ((MediaLoadTrace) -> Unit)? = null,
     onViewerDismissReason: ((String) -> Unit)? = null,
     diagnosticReport: (() -> String)? = null,
     stopPlayback: Boolean = false,
-    dataSourceFactory: androidx.media3.datasource.DataSource.Factory? = null
+    dataSourceFactory: androidx.media3.datasource.DataSource.Factory? = null,
+    playbackKey: Any? = null
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -160,42 +160,39 @@ internal fun AttaPostMediaViewer(
     val current = items[index.coerceIn(items.indices)]
     val id = current.optString("id")
     val url = media(current.optString(kind))
-    var sheet by remember(id) { mutableStateOf<String?>(null) }
-    var controls by remember(id) { mutableStateOf(true) }
-    var playing by remember { mutableStateOf(false) }
-    var buffering by remember { mutableStateOf(isVideo) }
-    var failed by remember(id) { mutableStateOf("") }
-    var progress by remember(id) { mutableFloatStateOf(0f) }
-    var duration by remember(id) { mutableStateOf(0L) }
-    var reactions by remember(id) { mutableIntStateOf(postReactionCount(current)) }
-    var comments by remember(id) { mutableIntStateOf(current.optInt("commentCount", current.optJSONArray("comments")?.length() ?: 0)) }
-    var selected by remember(id) { mutableStateOf(current.optString("myReaction").ifBlank { if (current.optBoolean("likedByMe")) "like" else "" }) }
-    var reacting by remember(id) { mutableStateOf(false) }
-    var videoHeights by remember { mutableStateOf(emptyList<Int>()) }
-    var qualityCap by remember(id) { mutableIntStateOf(0) }
-    var qualityMenu by remember(id) { mutableStateOf(false) }
+    val stateKey = playbackKey ?: id
+    var sheet by remember(stateKey) { mutableStateOf<String?>(null) }
+    var controls by remember(stateKey) { mutableStateOf(true) }
+    var playing by remember(playbackKey) { mutableStateOf(false) }
+    var buffering by remember(playbackKey) { mutableStateOf(isVideo) }
+    var failed by remember(stateKey) { mutableStateOf("") }
+    var progress by remember(stateKey) { mutableFloatStateOf(0f) }
+    var duration by remember(stateKey) { mutableStateOf(0L) }
+    var reactions by remember(stateKey) { mutableIntStateOf(postReactionCount(current)) }
+    var comments by remember(stateKey) { mutableIntStateOf(current.optInt("commentCount", current.optJSONArray("comments")?.length() ?: 0)) }
+    var selected by remember(stateKey) { mutableStateOf(current.optString("myReaction").ifBlank { if (current.optBoolean("likedByMe")) "like" else "" }) }
+    var reacting by remember(stateKey) { mutableStateOf(false) }
+    var videoHeights by remember(playbackKey) { mutableStateOf(emptyList<Int>()) }
+    var qualityCap by remember(stateKey) { mutableIntStateOf(0) }
+    var qualityMenu by remember(stateKey) { mutableStateOf(false) }
     val currentPlaybackErrorMessage by rememberUpdatedState(playbackErrorMessage)
-    val currentPlaybackFailure by rememberUpdatedState(onPlaybackFailure)
-    val currentPlaybackStarted by rememberUpdatedState(onPlaybackStarted)
-    val currentPlaybackSnapshot by rememberUpdatedState(onPlaybackSnapshot)
-    val currentPlaybackLoadEvent by rememberUpdatedState(onPlaybackLoadEvent)
     val currentDiagnosticReport by rememberUpdatedState(diagnosticReport)
-    var playbackEverStarted by remember(url) { mutableStateOf(false) }
-    var sources by remember(isVideo, live != null, requestHeaders, dataSourceFactory) { mutableStateOf<androidx.media3.datasource.DataSource.Factory?>(null) }
-    LaunchedEffect(isVideo, live != null, requestHeaders, dataSourceFactory) {
+    var playbackEverStarted by remember(url, playbackKey) { mutableStateOf(false) }
+    var sources by remember(isVideo, live != null, requestHeaders, dataSourceFactory, playbackKey) { mutableStateOf<androidx.media3.datasource.DataSource.Factory?>(null) }
+    LaunchedEffect(isVideo, live != null, requestHeaders, dataSourceFactory, playbackKey) {
         if (isVideo) {
-            currentPlaybackSnapshot?.invoke(MediaPlaybackSnapshot("transport_initializing"))
+            onPlaybackSnapshot?.invoke(MediaPlaybackSnapshot("transport_initializing"))
             try {
                 sources = withContext(Dispatchers.IO) { dataSourceFactory ?: VideoTransport.factory(context, live != null, requestHeaders) }
-                currentPlaybackSnapshot?.invoke(MediaPlaybackSnapshot("transport_ready"))
+                onPlaybackSnapshot?.invoke(MediaPlaybackSnapshot("transport_ready"))
             } catch (cancelled: CancellationException) { throw cancelled }
             catch (_: Exception) {
                 failed = "تعذر تجهيز اتصال الفيديو."; controls = true
-                currentPlaybackFailure?.invoke(PlaybackException("Transport setup failed", null, PlaybackException.ERROR_CODE_IO_UNSPECIFIED))
+                onPlaybackFailure?.invoke(PlaybackException("Transport setup failed", null, PlaybackException.ERROR_CODE_IO_UNSPECIFIED))
             }
         }
     }
-    val player = remember(isVideo, sources) {
+    val player = remember(isVideo, sources, playbackKey) {
         if (isVideo && sources != null) ExoPlayer.Builder(context)
             .setMediaSourceFactory(androidx.media3.exoplayer.source.DefaultMediaSourceFactory(requireNotNull(sources)))
             .setLoadControl(VideoTransport.loadControl(live != null)).build() else null
@@ -208,20 +205,24 @@ internal fun AttaPostMediaViewer(
         }
         onStats(postId, data)
     }
-    DisposableEffect(player) {
+    DisposableEffect(player, playbackKey) {
+        val snapshotCallback = onPlaybackSnapshot
+        val startedCallback = onPlaybackStarted
+        val failureCallback = onPlaybackFailure
+        val loadCallback = onPlaybackLoadEvent
         val listener = object : Player.Listener {
             override fun onEvents(player: Player, events: Player.Events) {
-                currentPlaybackSnapshot?.invoke(mediaPlaybackSnapshot("player_event", player))
+                snapshotCallback?.invoke(mediaPlaybackSnapshot("player_event", player))
             }
             override fun onIsPlayingChanged(value: Boolean) {
                 playing = value
                 if (value) failed = ""
-                if (value && !playbackEverStarted) { playbackEverStarted = true; currentPlaybackStarted?.invoke() }
+                if (value && !playbackEverStarted) { playbackEverStarted = true; startedCallback?.invoke() }
             }
             override fun onPlaybackStateChanged(state: Int) { buffering = state == Player.STATE_BUFFERING }
             override fun onPlayerError(error: PlaybackException) {
                 failed = currentPlaybackErrorMessage ?: "تعذر تشغيل الفيديو. أعد المحاولة أو تحقق من الاتصال."; controls = true
-                currentPlaybackFailure?.invoke(error)
+                failureCallback?.invoke(error)
             }
             override fun onTracksChanged(tracks: Tracks) {
                 videoHeights = tracks.groups.filter { it.type == C.TRACK_TYPE_VIDEO }.flatMap { group ->
@@ -233,27 +234,21 @@ internal fun AttaPostMediaViewer(
         val loadListener = object : AnalyticsListener {
             override fun onLoadStarted(eventTime: AnalyticsListener.EventTime, loadEventInfo: LoadEventInfo,
                 mediaLoadData: MediaLoadData) {
-                currentPlaybackLoadEvent?.invoke("load_started", mediaLoadData.dataType, null)
+                loadCallback?.invoke(MediaLoadTrace("load_started", mediaLoadData.dataType, loadEventInfo.bytesLoaded, loadEventInfo.loadDurationMs))
             }
             override fun onLoadCompleted(eventTime: AnalyticsListener.EventTime, loadEventInfo: LoadEventInfo,
                 mediaLoadData: MediaLoadData) {
-                currentPlaybackLoadEvent?.invoke("load_completed", mediaLoadData.dataType, null)
+                loadCallback?.invoke(MediaLoadTrace("load_completed", mediaLoadData.dataType, loadEventInfo.bytesLoaded, loadEventInfo.loadDurationMs))
             }
             override fun onLoadError(eventTime: AnalyticsListener.EventTime, loadEventInfo: LoadEventInfo,
                 mediaLoadData: MediaLoadData, error: java.io.IOException, wasCanceled: Boolean) {
-                var cause: Throwable? = error
-                var httpStatus: Int? = null
-                repeat(8) {
-                    if (cause is HttpDataSource.InvalidResponseCodeException && httpStatus == null)
-                        httpStatus = (cause as HttpDataSource.InvalidResponseCodeException).responseCode
-                    cause = cause?.cause
-                }
-                currentPlaybackLoadEvent?.invoke("load_error", mediaLoadData.dataType, httpStatus)
+                loadCallback?.invoke(MediaLoadTrace("load_error", mediaLoadData.dataType,
+                    loadEventInfo.bytesLoaded, loadEventInfo.loadDurationMs, wasCanceled, safeMediaFailure(error)))
             }
         }
         player?.addListener(listener)
         player?.addAnalyticsListener(loadListener)
-        player?.let { currentPlaybackSnapshot?.invoke(mediaPlaybackSnapshot("player_created", it)) }
+        player?.let { snapshotCallback?.invoke(mediaPlaybackSnapshot("player_created", it)) }
         val activity = context.mediaActivity()
         val lifecycleListener = LifecycleEventObserver { _, event -> if (event == Lifecycle.Event.ON_STOP) player?.pause() }
         activity?.lifecycle?.addObserver(lifecycleListener)
@@ -261,11 +256,11 @@ internal fun AttaPostMediaViewer(
     }
     // Opening the sole full-screen Media3 viewer starts playback; vertical
     // swipes switch tracks without creating a second video player.
-    var continuePlayback by remember(isVideo) { mutableStateOf(isVideo) }
+    var continuePlayback by remember(isVideo, playbackKey) { mutableStateOf(isVideo) }
     LaunchedEffect(player, stopPlayback) {
         if (stopPlayback) { player?.stop(); failed = currentPlaybackErrorMessage ?: "انتهت محاولة التشغيل."; controls = true }
     }
-    LaunchedEffect(player, id, url, live?.mimeType, sourceMimeType) {
+    LaunchedEffect(player, id, url, live?.mimeType, sourceMimeType, playbackKey) {
         videoHeights = emptyList()
         player?.takeUnless { stopPlayback }?.apply {
             val item = MediaItem.Builder().setUri(url).apply { (sourceMimeType ?: live?.mimeType)?.takeIf { it.isNotBlank() }?.let { setMimeType(it) } }.build()
@@ -273,7 +268,7 @@ internal fun AttaPostMediaViewer(
             playWhenReady = continuePlayback
             if (continuePlayback) play()
             continuePlayback = false
-            currentPlaybackSnapshot?.invoke(mediaPlaybackSnapshot("prepared", this))
+            onPlaybackSnapshot?.invoke(mediaPlaybackSnapshot("prepared", this))
         }
         if (loadInteractions != null) {
             try { updateStats(id, loadInteractions(id, "reactions", 0)) }
