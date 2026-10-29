@@ -4,6 +4,7 @@ import androidx.compose.runtime.*
 import androidx.media3.common.PlaybackException
 import androidx.media3.datasource.HttpDataSource
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import org.json.JSONArray
@@ -58,44 +59,74 @@ internal object NativeChannelPlayback {
 
 /** Bounded retry across returned alternatives, never a refresh loop or an external player. */
 @Composable
-internal fun NativeChannelPlaybackDialog(channel: FootballChannel, sources: List<NativeChannelSource>, onDismiss: () -> Unit) {
+internal fun NativeChannelPlaybackDialog(channel: FootballChannel, sources: List<NativeChannelSource>, onDismiss: () -> Unit,
+    attemptTimeoutMs: Long = 20_000, dataSourceFactory: androidx.media3.datasource.DataSource.Factory? = null) {
     var position by remember(channel.id, sources) { mutableIntStateOf(0) }
     var attempts by remember(channel.id, sources) { mutableStateOf(emptyList<JSONObject>()) }
+    var events by remember(channel.id, sources) { mutableStateOf(emptyList<JSONObject>()) }
+    val sessionStarted = remember(channel.id, sources) { android.os.SystemClock.elapsedRealtime() }
     var started by remember(position) { mutableStateOf(false) }
     var handled by remember(position) { mutableStateOf(false) }
     var lastError by remember(position) { mutableStateOf<String?>(null) }
+    var snapshot by remember(position) { mutableStateOf(MediaPlaybackSnapshot("selected")) }
+    val attemptPosition = position
     val source = sources[position]
     val attemptStarted = remember(position) { android.os.SystemClock.elapsedRealtime() }
-    fun report() = JSONObject().put("test", "native-channel-1").put("version", BuildConfig.VERSION_NAME)
+    fun elapsed() = (android.os.SystemClock.elapsedRealtime() - attemptStarted).coerceAtLeast(0)
+    fun fail(error: PlaybackException) {
+        if (position != attemptPosition || handled) return
+        handled = true
+        val (code, http) = NativeChannelPlayback.failure(error)
+        attempts = attempts + JSONObject().put("sourceIndex", source.index)
+            .put("event", if (code == PlaybackException.ERROR_CODE_TIMEOUT) "startup_timeout" else "error")
+            .put("errorCode", code).put("httpStatus", http ?: JSONObject.NULL).put("elapsedMs", elapsed())
+        if (position + 1 < sources.size) position++
+        else {
+            started = false
+            lastError = "تعذر تشغيل الخيارات المتاحة. " + (http?.let { "HTTP $it • " } ?: "") + "خطأ المشغّل: $code"
+        }
+    }
+    // The deadline covers transport/player setup as well as network loading.
+    // It does not restart when a player or its data-source factory is recreated.
+    LaunchedEffect(attemptPosition) {
+        attempts = attempts + JSONObject().put("sourceIndex", source.index).put("event", "attempt_started").put("elapsedMs", 0)
+        delay(attemptTimeoutMs.coerceIn(1, 20_000))
+        if (!started && !handled) fail(PlaybackException("Startup timeout", null, PlaybackException.ERROR_CODE_TIMEOUT))
+    }
+    fun report() = JSONObject().put("test", "native-channel-2").put("version", BuildConfig.VERSION_NAME)
         .put("channel", channel.name).put("engine", "Media3").put("sourceIndex", source.index)
-        .put("sourceCount", sources.size).put("playing", started)
-        .put("attempts", JSONArray(attempts)).toString(2)
+        .put("sourceCount", sources.size).put("playing", !handled && snapshot.isPlaying)
+        .put("elapsedMs", (android.os.SystemClock.elapsedRealtime() - sessionStarted).coerceAtLeast(0))
+        .put("attemptElapsedMs", elapsed()).put("stage", if (handled) "failed" else snapshot.stage)
+        .put("playerState", snapshot.state).put("playWhenReady", snapshot.playWhenReady)
+        .put("isLoading", snapshot.isLoading).put("suppressionReason", snapshot.suppressionReason)
+        .put("width", snapshot.width).put("height", snapshot.height)
+        .put("urlScheme", android.net.Uri.parse(source.url).scheme)
+        .put("headerNames", JSONArray(source.headers.keys.sorted()))
+        .put("attempts", JSONArray(attempts)).put("events", JSONArray(events)).toString(2)
     key(position) {
         val posts = remember(source) { listOf(JSONObject().put("id", channel.id).put("video", source.url)) }
         AttaPostMediaViewer(posts, channel.id, "video", onDismiss,
             live = LivePlayback(channel.name, "خيار ${position + 1} من ${sources.size}", source.mimeType ?: ""),
             requestHeaders = source.headers, sourceMimeType = source.mimeType,
-            playbackErrorMessage = lastError, startupTimeoutMs = 20_000,
+            playbackErrorMessage = lastError, stopPlayback = handled && lastError != null,
+            dataSourceFactory = dataSourceFactory,
+            onPlaybackSnapshot = { value ->
+                if (position == attemptPosition) {
+                    snapshot = value
+                    events = (events + JSONObject().put("sourceIndex", source.index).put("event", value.stage)
+                        .put("elapsedMs", elapsed()).put("playerState", value.state).put("playWhenReady", value.playWhenReady)
+                        .put("isLoading", value.isLoading).put("isPlaying", value.isPlaying)
+                        .put("width", value.width).put("height", value.height)).takeLast(30)
+                }
+            },
             onPlaybackStarted = {
-                if (!started) {
+                if (position == attemptPosition && !handled && !started) {
                     started = true; handled = false; lastError = null
                     attempts = attempts + JSONObject().put("sourceIndex", source.index).put("event", "playing")
                         .put("elapsedMs", android.os.SystemClock.elapsedRealtime() - attemptStarted)
                 }
             },
-            onPlaybackFailure = { error ->
-                if (!handled) {
-                    handled = true
-                    val (code, http) = NativeChannelPlayback.failure(error)
-                    attempts = attempts + JSONObject().put("sourceIndex", source.index).put("event", "error")
-                        .put("errorCode", code).put("httpStatus", http ?: JSONObject.NULL)
-                        .put("elapsedMs", android.os.SystemClock.elapsedRealtime() - attemptStarted)
-                    if (position + 1 < sources.size) position++
-                    else {
-                        started = false
-                        lastError = "تعذر تشغيل الخيارات المتاحة. " + (http?.let { "HTTP $it • " } ?: "") + "خطأ المشغّل: $code"
-                    }
-                }
-            }, diagnosticReport = report())
+            onPlaybackFailure = ::fail, diagnosticReport = ::report)
     }
 }
