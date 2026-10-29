@@ -8,7 +8,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.test.isDialog
-import androidx.test.espresso.Espresso
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onAllNodesWithText
@@ -106,7 +105,7 @@ class NativeChannelPlaybackDeviceTest {
         assertEquals(2, (0 until attempts.length()).count { attempts.getJSONObject(it).optString("event") == "attempt_started" })
         android.os.SystemClock.sleep(150)
         assertTrue(copied().getLong("elapsedMs") > final.getLong("elapsedMs"))
-        Espresso.pressBack()
+        InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(android.view.KeyEvent.KEYCODE_BACK)
         compose.waitUntil(2_000) { dismissals.get() == 1 }
         compose.onNode(isDialog()).assertDoesNotExist()
     }
