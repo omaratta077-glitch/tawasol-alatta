@@ -33,3 +33,11 @@ tag = "v1"
 new_sqlite_classes = ["SignalingRoom"]
 [previews.vars]
 SUPER_ADMIN_USERNAME = "omaratta1"
+
+[[durable_objects.bindings]]
+name = "CATALOG_REFRESH"
+class_name = "CatalogRefresh"
+
+[[migrations]]
+tag = "v2-catalog-refresh"
+new_sqlite_classes = ["CatalogRefresh"]
