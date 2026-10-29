@@ -24,9 +24,9 @@ android {
         applicationId = "com.alatta.nativeapp"
         minSdk = 26
         targetSdk = 35
-        // v1.0.194: live-channel dismissal guard and startup diagnostics; existing Media3 player retained.
-        versionCode = 294
-        versionName = "1.0.194"
+        // v1.0.195: live-channel load/exit diagnostics and retained report; existing Media3 player retained.
+        versionCode = 295
+        versionName = "1.0.195"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("boolean", "IS_APPGALLERY", appGalleryBuild.toString())
         val hmsId = (System.getenv("ALATTA_HMS_APP_ID") ?: "").trim().takeIf { it.matches(Regex("[0-9]{1,20}")) } ?: ""
