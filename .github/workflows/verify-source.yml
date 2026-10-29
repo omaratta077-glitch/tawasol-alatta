@@ -28,7 +28,7 @@ jobs:
           node scripts/test_admin_email_delivery.mjs
           node scripts/test_adhan_voices.mjs
           node scripts/test_football_catalog.mjs
-          node --test scripts/web-tests/catalog-ingest.test.mjs scripts/web-tests/catalog-check.test.mjs scripts/web-tests/catalog-refresh.test.mjs scripts/web-tests/playback-metadata.test.mjs
+          node --test scripts/web-tests/catalog-ingest.test.mjs scripts/web-tests/catalog-check.test.mjs scripts/web-tests/catalog-refresh.test.mjs scripts/web-tests/playback-metadata.test.mjs scripts/web-tests/direct-playback.test.mjs
           node scripts/test_watch_rooms.mjs
           node scripts/test_media_ranges.mjs
           node scripts/test_audit_security.mjs
