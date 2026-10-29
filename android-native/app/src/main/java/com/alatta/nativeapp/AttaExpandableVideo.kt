@@ -277,7 +277,8 @@ internal fun AttaPostMediaViewer(
         }
     }
     Dialog(onDismissRequest = { if (sheet != null) sheet = null else onDismiss() },
-        properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
+        properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false,
+            dismissOnClickOutside = live == null)) {
         val view = LocalView.current
         val window = (view.parent as? DialogWindowProvider)?.window
         DisposableEffect(window) {
