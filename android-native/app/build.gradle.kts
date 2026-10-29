@@ -24,7 +24,7 @@ android {
         applicationId = "com.alatta.nativeapp"
         minSdk = 26
         targetSdk = 35
-        // v1.0.193: bound native startup and copy live player diagnostics.
+        // v1.0.194: live-channel dismissal guard and startup diagnostics; existing Media3 player retained.
         versionCode = 294
         versionName = "1.0.194"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
