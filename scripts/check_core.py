@@ -62,8 +62,8 @@ check("Foreground ring state declared in AttaPush",
 
 check("Native Google bridge removed", not (ROOT/(android+"GoogleWebBridge.kt")).exists())
 # Validate the release version/build pair without pinning CI to a past release.
-release_name = re.search(r'^\\s*versionName\\s*=\\s*"(\\d+)\\.(\\d+)\\.(\\d+)"', gradle, re.M)
-release_code = re.search(r'^\\s*versionCode\\s*=\\s*(\\d+)', gradle, re.M)
+release_name = re.search(r'^\s*versionName\s*=\s*"(\d+)\.(\d+)\.(\d+)"', gradle, re.M)
+release_code = re.search(r'^\s*versionCode\s*=\s*(\d+)', gradle, re.M)
 check("Official Android release version/build sequence",
       bool(release_name and release_code) and
       release_name.group(1) == "1" and release_name.group(2) == "0" and
