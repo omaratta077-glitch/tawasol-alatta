@@ -25,8 +25,8 @@ android {
         minSdk = 26
         targetSdk = 35
         // v1.0.193: bound native startup and copy live player diagnostics.
-        versionCode = 293
-        versionName = "1.0.193"
+        versionCode = 294
+        versionName = "1.0.194"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("boolean", "IS_APPGALLERY", appGalleryBuild.toString())
         val hmsId = (System.getenv("ALATTA_HMS_APP_ID") ?: "").trim().takeIf { it.matches(Regex("[0-9]{1,20}")) } ?: ""
