@@ -149,17 +149,18 @@ internal fun AttaPostMediaViewer(
     diagnosticReport: (() -> String)? = null,
     stopPlayback: Boolean = false,
     dataSourceFactory: androidx.media3.datasource.DataSource.Factory? = null,
-    playbackKey: Any? = null
+    playbackKey: Any? = null,
+    validatedChannelUrl: String? = null
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val isVideo = kind == "video"
-    val items = remember(posts, kind) { posts.filter { media(it.optString(kind)).isNotBlank() }.distinctBy { it.optString("id") } }
+    val items = remember(posts, kind, validatedChannelUrl) { posts.filter { (validatedChannelUrl ?: media(it.optString(kind))).isNotBlank() }.distinctBy { it.optString("id") } }
     if (items.isEmpty()) return
     var index by remember(startId, kind) { mutableIntStateOf(items.indexOfFirst { it.optString("id") == startId }.coerceAtLeast(0)) }
     val current = items[index.coerceIn(items.indices)]
     val id = current.optString("id")
-    val url = media(current.optString(kind))
+    val url = validatedChannelUrl ?: media(current.optString(kind))
     val stateKey = playbackKey ?: id
     var sheet by remember(stateKey) { mutableStateOf<String?>(null) }
     var controls by remember(stateKey) { mutableStateOf(true) }
