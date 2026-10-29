@@ -70,7 +70,8 @@ assert.deepEqual([...d.querySelector('[data-reaction-picker]').querySelectorAll(
 assert.equal(d.querySelector('[data-post="reaction-0"]').querySelectorAll('[data-share-post]').length,1,'one native-style share action');
 postFixtures=[];
 // Full native catalogues; no abbreviated or invented replacement text.
-const azkar=JSON.parse(read('knowledge/azkar.json'));assert.equal(azkar.find(g=>g.id==='morning').entries.length,34);assert.equal(azkar.find(g=>g.id==='evening').entries.length,30);
+const azkar=JSON.parse(read('knowledge/azkar.json'));assert.equal(azkar.find(g=>g.id==='morning').entries.length,35);assert.equal(azkar.find(g=>g.id==='evening').entries.length,31);
+for(const id of ['morning','evening']){const entries=azkar.find(g=>g.id===id).entries;assert.deepEqual(entries.slice(0,3).map(e=>e.id),['fatiha','kursi','baqarah-ending']);assert.equal(entries[6].id,'salawat-ten');assert.equal(entries[6].target,10);assert.equal(entries[7].id,'kingdom');}
 w.AttaWeb.navigate('azkarPage');await tick();assert.equal(d.querySelectorAll('[data-dhikr-group]').length,6);
 const counter=d.querySelector('[data-dhikr-count]');counter.click();assert.ok(counter.textContent.startsWith('1 /'));
 d.querySelector('[data-dhikr-reset]').click();assert.ok(d.querySelector('[data-dhikr-count]').textContent.startsWith('0 /'));
