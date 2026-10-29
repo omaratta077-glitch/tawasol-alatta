@@ -51,7 +51,7 @@ export async function catalogIngest(request,storage,env){
   const bytes=new Uint8Array(size);let offset=0;for(const chunk of chunks){bytes.set(chunk,offset);offset+=chunk.length;}
   body=JSON.parse(new TextDecoder("utf-8",{fatal:true}).decode(bytes));
  }catch{return json({ok:false,error:"INVALID_BODY"},400);}finally{reader.releaseLock();}
- if(!body||body.categoryId!=="4"||typeof body.sourceTime!=="string"||!/^\d{10}$/.test(body.sourceTime))return json({ok:false,error:"INVALID_SOURCE_METADATA"},400);
+ if(!body||(!id(body.categoryId)||(body.categoryId!=="4"&&canonical(body.categoryName)!=="beinsports(1080p)"))||typeof body.sourceTime!=="string"||!/^\d{10}$/.test(body.sourceTime))return json({ok:false,error:"INVALID_SOURCE_METADATA"},400);
  try{
   const result=await storage.transaction(async tx=>{
    const previous=await tx.get("football:source-sync")||{sourceTime:"0",bindings:{}};
@@ -59,7 +59,7 @@ export async function catalogIngest(request,storage,env){
    const current=await tx.get("football:catalog");
    const merged=mergeCatalogIds(current,body.entries,previous.bindings);
    if(merged.changed)await tx.put("football:catalog",merged.catalog);
-   await tx.put("football:source-sync",{sourceTime:body.sourceTime,bindings:merged.bindings,receivedAt:Date.now(),changed:merged.changed,matched:merged.matched,skipped:merged.skipped});
+   await tx.put("football:source-sync",{sourceTime:body.sourceTime,categoryId:body.categoryId,categoryName:body.categoryName||"beIN SPORTS (1080P)",bindings:merged.bindings,receivedAt:Date.now(),changed:merged.changed,matched:merged.matched,skipped:merged.skipped});
    return {ok:true,changed:merged.changed,matched:merged.matched,skipped:merged.skipped,revision:merged.catalog.revision};
   });
   return json(result);
