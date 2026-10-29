@@ -311,7 +311,7 @@ internal fun AttaPostMediaViewer(
                             onVerticalDrag = { change, amount -> change.consume(); drag += amount }
                         ) })
                     // Use the SINGLE central play/pause button in the controls row below.
-                } else AttaZoomableImage(url, "صورة المنشور", onTap = { controls = !controls })
+                } else if (!isVideo) AttaZoomableImage(url, "صورة المنشور", onTap = { controls = !controls })
                 if (live != null && controls) Row(Modifier.align(Alignment.TopCenter).fillMaxWidth()
                     .background(Color(0xBB000000)).padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
@@ -362,7 +362,7 @@ internal fun AttaPostMediaViewer(
                     }
                 }
                 // Playback controls auto-hide; the vertical social rail remains visible.
-                if (player != null && controls) Column(
+                if ((player != null || diagnosticReport != null) && controls) Column(
                     Modifier.align(Alignment.BottomCenter).fillMaxWidth()
                         .padding(bottom = 72.dp) // Lift playback controls without resizing video.
                         .background(Brush.verticalGradient(listOf(Color.Transparent, Color(0xAA000000))))
@@ -371,7 +371,7 @@ internal fun AttaPostMediaViewer(
                 ) {
                     if (failed.isNotBlank()) {
                         Text(playbackErrorMessage ?: failed, color = Color(0xFFFFB5B5), fontSize = 13.sp)
-                        if (player.playerError != null && !stopPlayback) TextButton(onClick = {
+                        if (player != null && player.playerError != null && !stopPlayback) TextButton(onClick = {
                             failed = ""; player.prepare(); player.play()
                         }) { Text("إعادة المحاولة", color = Color(0xFFE6B94E)) }
                     }
@@ -380,7 +380,7 @@ internal fun AttaPostMediaViewer(
                         clipboard.setPrimaryClip(android.content.ClipData.newPlainText("تقرير تشغيل القناة", currentDiagnosticReport?.invoke().orEmpty()))
                         android.widget.Toast.makeText(context, "تم نسخ تقرير التشغيل", android.widget.Toast.LENGTH_SHORT).show()
                     }) { Text("نسخ نتيجة التجربة", color = Color(0xFFE6B94E)) }
-                    if (duration > 0 && live == null) {
+                    if (player != null && duration > 0 && live == null) {
                         // One slim seek line. Keep a comfortable 24dp invisible touch target,
                         // but draw only a 3dp track and a small gold thumb.
                         Canvas(Modifier.fillMaxWidth().height(24.dp)
@@ -423,15 +423,15 @@ internal fun AttaPostMediaViewer(
                             color = Color.White, fontSize = 11.sp,
                             fontWeight = FontWeight.Light, lineHeight = 13.sp)
                     }
-                    Row(Modifier.fillMaxWidth(),
+                    if (player != null) Row(Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceEvenly,
                         verticalAlignment = Alignment.CenterVertically) {
-                        if (live != null) TextButton(onClick = { player.seekToDefaultPosition(); player.play() }) {
+                        if (live != null) TextButton(enabled = !stopPlayback, onClick = { player.seekToDefaultPosition(); player.play() }) {
                             Text("للمباشر", color = Color(0xFFF6D776), fontSize = 12.sp)
                         } else IconButton(onClick = {
                             changeVideo(-1)
                         }) { SiteIcon("skip-back", size = 20.dp, tint = Color.White) }
-                        IconButton(onClick = {
+                        IconButton(enabled = !stopPlayback, onClick = {
                             if (playing) player.pause() else {
                                 if (player.playbackState == Player.STATE_ENDED) {
                                     if (live != null) player.seekToDefaultPosition() else player.seekTo(0)
