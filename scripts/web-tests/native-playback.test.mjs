@@ -43,7 +43,24 @@ test('unsupported protected, transformed, unsafe or unknown-header sources are n
  assert.ok(!JSON.stringify(data).includes('private-credential'));
 });
 test('source refusal does not become a playable payload',async()=>{
- const {response,data}=await resolve(undefined,{status:403});assert.equal(response.status,502);assert.equal(data.sourceHTTP,403);assert.equal(data.sources,undefined);
+ for (const status of [403,404,429,500]) {
+  const {response,data}=await resolve(undefined,{status});assert.equal(response.status,502);assert.equal(data.sourceHTTP,status);assert.equal(data.sources,undefined);
+  assert.equal(data.stage,'PLAYBACK_API_HTTP');assert.equal(data.code,'SOURCE_HTTP_ERROR');assert.match(data.error,new RegExp('HTTP '+status));
+  assert.match(data.error,/PLAYBACK_API_HTTP/);assert.ok(!JSON.stringify(data).includes('synthetic-signature'));
+ }
+});
+test('Cloudflare error code is identified without echoing the rejection body',async()=>{
+ globalThis.fetch=async()=>new Response('error code: 1042 private-rejection-body',{status:404});
+ try {const data=await(await probe.fetch(request(),env,null,true)).json();
+  assert.equal(data.platformCode,'CLOUDFLARE_1042');assert.match(data.error,/HTTP 404/);assert.match(data.error,/CLOUDFLARE_1042/);
+  assert.ok(!JSON.stringify(data).includes('private-rejection-body'));
+ } finally {globalThis.fetch=async()=>{throw Error('No real network');};}
+});
+test('native connection error stays distinct from an HTTP rejection',async()=>{
+ globalThis.fetch=async()=>{throw Error('https://private.example/?secret=private-value');};
+ try {const data=await(await probe.fetch(request(),env,null,true)).json();assert.equal(data.sourceHTTP,null);
+  assert.equal(data.code,'SOURCE_NETWORK_ERROR');assert.equal(data.stage,'PLAYBACK_API_FETCH');assert.ok(!JSON.stringify(data).includes('private-value'));
+ } finally {globalThis.fetch=async()=>{throw Error('No real network');};}
 });
 test('native path caps alternatives and keeps upstream order',async()=>{
  const {data}=await resolve(Array.from({length:15},(_,i)=>({url:`https://cdn.example/${i}.m3u8`})));
