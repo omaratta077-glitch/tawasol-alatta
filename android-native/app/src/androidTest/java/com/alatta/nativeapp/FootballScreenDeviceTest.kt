@@ -18,21 +18,22 @@ class FootballScreenDeviceTest {
         val channels = (1..20).map { n -> FootballChannel("synthetic-$n", "beIN SPORTS $n", "beIN SPORTS (1080P)",
             "YTV PRO", YtvPlayer.APP_PAGE, (9000 + n).toString(), "ytv", true) }
         var played = ""
+        var directPlayed = ""
         compose.setContent {
             val density = LocalDensity.current.density
             var favorites by remember { mutableStateOf(emptySet<String>()) }
             CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl, LocalDensity provides Density(density, 1.5f)) {
-                MaterialTheme { FootballContent(FootballCatalog(1, channels.reversed()), "", favorites, emptyList(), false, "", false, false,
+                MaterialTheme { FootballContent(FootballCatalog(1, channels.reversed()), "", favorites, emptyList(), false, "", true, false,
                     onReload = {}, onManage = {}, onPlay = { played = it.id }, onFavorite = { id ->
                         favorites = if (id in favorites) favorites - id else favorites + id
-                    }) }
+                    }, onPlayDirect = { directPlayed = it.id }) }
             }
         }
         compose.onAllNodesWithText("YTV", substring = true, ignoreCase = true).assertCountEquals(0)
         compose.onAllNodesWithText("اختَر القناة", substring = true).assertCountEquals(0)
         compose.onNodeWithText("اليوم").assertDoesNotExist()
         val firstTab = compose.onNodeWithText("القنوات").fetchSemanticsNode().boundsInRoot
-        val nextTab = compose.onNodeWithText("المباريات").fetchSemanticsNode().boundsInRoot
+        val nextTab = compose.onNodeWithText("البث المباشر").fetchSemanticsNode().boundsInRoot
         assertTrue(firstTab.left >= nextTab.right)
         compose.onNodeWithContentDescription("تشغيل beIN SPORTS 1").performClick()
         compose.runOnIdle { assertEquals("synthetic-1", played) }
@@ -42,7 +43,12 @@ class FootballScreenDeviceTest {
         compose.onNodeWithText("القنوات").performScrollTo().performClick()
         compose.onNode(hasScrollToIndexAction()).performScrollToIndex(19)
         compose.onNodeWithContentDescription("تشغيل beIN SPORTS 20").assertIsDisplayed()
-        compose.onNodeWithText("المباريات").performScrollTo().performClick()
+        compose.onNodeWithText("المباريات").assertDoesNotExist()
+        compose.onNodeWithText("البث المباشر").performScrollTo().performClick()
+        compose.onNode(hasScrollToIndexAction()).performScrollToIndex(0)
+        compose.onNodeWithContentDescription("تشغيل beIN SPORTS 1").performClick()
+        compose.runOnIdle { assertEquals("synthetic-1", directPlayed) }
+        compose.onNodeWithText("جدول اليوم").performClick()
         compose.onNodeWithText("اليوم").assertIsDisplayed()
     }
 }

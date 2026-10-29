@@ -60,6 +60,8 @@ internal fun FootballScreen(query: String, modifier: Modifier = Modifier,
     var loading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf("") }
     var selected by remember { mutableStateOf<FootballChannel?>(null) }
+    var nativeChannel by remember { mutableStateOf<FootballChannel?>(null) }
+    var nativeSources by remember { mutableStateOf(emptyList<NativeChannelSource>()) }
     var playerFailure by remember { mutableStateOf<YtvPlayer.Failure?>(null) }
     var watchEntryRequest by remember { mutableIntStateOf(0) }
     var broadcastExpanded by rememberSaveable { mutableStateOf(false) }
@@ -77,7 +79,7 @@ internal fun FootballScreen(query: String, modifier: Modifier = Modifier,
         val lifecycle = context.mediaActivity()?.lifecycle
         while (true) { delay(CatalogAutoUpdater.FOREGROUND_REFRESH_MS); if (lifecycle?.currentState?.isAtLeast(Lifecycle.State.STARTED) == true) reload++ }
     }
-    fun play(channel: FootballChannel) {
+    fun play(channel: FootballChannel, nativePlayback: Boolean = false) {
         if (openingChannel) return
         openingChannel = true
         playbackScope.launch {
@@ -91,19 +93,23 @@ internal fun FootballScreen(query: String, modifier: Modifier = Modifier,
                 }
                 "ytv" -> {
                     if (callInProgress) { error = "أنهِ المكالمة أولًا لتشغيل القناة."; return@launch }
-                    YtvPlayer.openWithWatchRoom(context, channel.streamUrl, onBeforePlayback)?.let { playerFailure = it; return@launch }
+                    if (isAdmin && nativePlayback) {
+                        nativeSources = NativeChannelPlayback.load(token, channel.id)
+                        onBeforePlayback(); nativeChannel = channel
+                    } else YtvPlayer.openWithWatchRoom(context, channel.streamUrl, onBeforePlayback)?.let { playerFailure = it; return@launch }
                 }
                 else -> { onBeforePlayback(); selected = channel }
             }
             recent = footballRecent(recent, channel.id)
             preferences.edit().putString("recent", recent.joinToString(",")).apply()
         } catch (cancelled: CancellationException) { throw cancelled }
+        catch (failure: AttaApiException) { error = failure.message ?: "تعذر جلب بيانات التشغيل." }
         catch (_: Exception) { error = "تعذر تشغيل القناة. حدّث القائمة وحاول مجددًا." }
         finally { openingChannel = false }
         }
     }
-    FootballContent(catalog, query, favorites, recent, loading, error, isAdmin, callInProgress, modifier,
-        onReload = { reload++ }, onManage = onManage, onPlay = ::play,
+    FootballContent(catalog, query, favorites, recent, loading || openingChannel, error, isAdmin, callInProgress, modifier,
+        onReload = { reload++ }, onManage = onManage, onPlay = { play(it) }, onPlayDirect = { play(it, true) },
         onFavorite = { id ->
             favorites = if (id in favorites) favorites - id else favorites + id
             preferences.edit().putStringSet("favorites", favorites.toSet()).apply()
@@ -112,11 +118,14 @@ internal fun FootballScreen(query: String, modifier: Modifier = Modifier,
         onBroadcast = { broadcastExpanded = !broadcastExpanded }, broadcastExpanded = broadcastExpanded,
         livePanel = {
             WatchRoomPanel(token, catalog.channels, callInProgress, entryRequest = watchEntryRequest,
-                onPlay = ::play, onBeforeJoin = onBeforePlayback)
+                onPlay = { play(it) }, onBeforeJoin = onBeforePlayback)
             SportsLivePanel(token = token, isAdmin = isAdmin, expanded = broadcastExpanded,
                 onExpandedChange = { broadcastExpanded = it })
         })
     playerFailure?.let { YtvPlayerErrorDialog(it, onDismiss = { playerFailure = null }) }
+    nativeChannel?.let { channel ->
+        NativeChannelPlaybackDialog(channel, nativeSources, onDismiss = { nativeChannel = null; nativeSources = emptyList() })
+    }
     selected?.let { channel ->
         val posts = remember(channel) { listOf(JSONObject().put("id", channel.id).put("video", channel.streamUrl)) }
         AttaPostMediaViewer(posts, channel.id, "video", onDismiss = { selected = null },
@@ -130,12 +139,16 @@ internal fun FootballContent(catalog: FootballCatalog, query: String, favorites:
     loading: Boolean, error: String, isAdmin: Boolean, callInProgress: Boolean, modifier: Modifier = Modifier,
     onReload: () -> Unit, onManage: () -> Unit, onPlay: (FootballChannel) -> Unit, onFavorite: (String) -> Unit,
     livePanel: @Composable () -> Unit = {}, onWatch: () -> Unit = {}, watchEnabled: Boolean = true,
-    onBroadcast: () -> Unit = {}, broadcastExpanded: Boolean = false) {
+    onBroadcast: () -> Unit = {}, broadcastExpanded: Boolean = false,
+    onPlayDirect: ((FootballChannel) -> Unit)? = null) {
     var tab by rememberSaveable { mutableStateOf("القنوات") }
+    var showSchedule by rememberSaveable { mutableStateOf(false) }
     var category by rememberSaveable { mutableStateOf("") }
     var day by rememberSaveable { mutableIntStateOf(0) }
     val terms = remember(query) { normalizeHadithSearch(query).split(' ').filter(String::isNotBlank) }
-    val visible = catalog.channels.filter { it.enabled }
+    val directTab = tab == "البث المباشر"
+    val playVisible = if (directTab) onPlayDirect ?: onPlay else onPlay
+    val visible = catalog.channels.filter { it.enabled && (!directTab || it.format in setOf("hls", "dash") || (isAdmin && it.format == "ytv")) }
     val categories = visible.map { footballChannelCategory(it) }.distinct().sorted()
     LaunchedEffect(categories) { if (category.isNotBlank() && category !in categories) category = "" }
     val channels = visible.filter { c -> terms.all { normalizeHadithSearch(c.name + " " + footballChannelCategory(c)).contains(it) } }
@@ -143,7 +156,7 @@ internal fun FootballContent(catalog: FootballCatalog, query: String, favorites:
         .sortedWith(if (tab == "آخر مشاهدة") compareBy { recent.indexOf(it.id) } else footballChannelOrder())
     Column(modifier.fillMaxSize().background(PremiumBackground).padding(horizontal = 10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            listOf("القنوات", "المباريات", "المفضلة", "آخر مشاهدة").forEach { name ->
+            listOf("القنوات", "البث المباشر", "المفضلة", "آخر مشاهدة").forEach { name ->
                 FilterChip(selected = tab == name, onClick = { tab = name }, label = { Text(name, fontSize = 12.sp) },
                     colors = FilterChipDefaults.filterChipColors(selectedContainerColor = PremiumGold,
                         selectedLabelColor = Color.Black, labelColor = PremiumGoldLight))
@@ -174,7 +187,11 @@ internal fun FootballContent(catalog: FootballCatalog, query: String, favorites:
         livePanel()
         if (loading) LinearProgressIndicator(Modifier.fillMaxWidth(), color = PremiumGold)
         if (error.isNotBlank()) Text(error, color = Color(0xFFFFB4A9), fontSize = 12.sp)
-        if (tab == "المباريات") {
+        if (directTab) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            FilterChip(selected = !showSchedule, onClick = { showSchedule = false }, label = { Text("بث القنوات", fontSize = 12.sp) })
+            FilterChip(selected = showSchedule, onClick = { showSchedule = true }, label = { Text("جدول اليوم", fontSize = 12.sp) })
+        }
+        if (directTab && showSchedule) {
             Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 listOf("اليوم", "غدًا", "كل المواعيد").forEachIndexed { index, label ->
                     FilterChip(selected = day == index, onClick = { day = index }, label = { Text(label, fontSize = 12.sp) })
@@ -199,13 +216,13 @@ internal fun FootballContent(catalog: FootballCatalog, query: String, favorites:
                             Text(match.away, Modifier.weight(1f), color = Color.White, fontSize = 15.sp)
                         }
                         if (day == 2) Text(footballDate(match.startsAt).toString(), color = PremiumMuted, fontSize = 12.sp)
-                        if (channel != null) OutlinedButton(onClick = { onPlay(channel) }, enabled = channel.format != "ytv" || !callInProgress,
+                        if (channel != null) OutlinedButton(onClick = { playVisible(channel) }, enabled = channel.format != "ytv" || !callInProgress,
                             modifier = Modifier.fillMaxWidth()) { Text("مشاهدة • ${channel.name}", color = PremiumGoldLight) }
                     }
                 }
             }
         } else {
-            if (tab == "القنوات" && categories.size > 1) Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            if ((tab == "القنوات" || directTab) && categories.size > 1) Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 (listOf("") + categories).forEach { value -> FilterChip(selected = category == value, onClick = { category = value },
                     label = { Text(value.ifBlank { "كل القنوات" }, fontSize = 11.sp) }) }
             }
@@ -216,7 +233,7 @@ internal fun FootballContent(catalog: FootballCatalog, query: String, favorites:
                 } }
                 items(channels, key = { it.id }) { channel ->
                     FootballChannelCard(channel, channel.id in favorites, channel.format != "ytv" || !callInProgress,
-                        onPlay = { onPlay(channel) }, onFavorite = { onFavorite(channel.id) })
+                        onPlay = { playVisible(channel) }, onFavorite = { onFavorite(channel.id) })
                 }
             }
         }

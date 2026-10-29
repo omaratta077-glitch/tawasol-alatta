@@ -243,6 +243,41 @@ function inspectPlayback(text, decoded) {
     responseDecoded: decoded, entries: [], streams, streamCount: streams.length };
 }
 
+// Used only by the authenticated native owner test, never the public probe form.
+function nativeSources(rows) {
+  const sources = [];
+  for (const [index, row] of rows.entries()) {
+    if (sources.length === 10) break;
+    if (!row || typeof row.url !== 'string' || row.url.length > 8192 || /[\x00-\x20\x7f]/.test(row.url) || row.drm != null ||
+        (row.urlType != null && row.urlType !== 0)) continue;
+    let u;
+    try { u = new URL(row.url); } catch { continue; }
+    const host = u.hostname.toLowerCase();
+    if (!['https:', 'http:'].includes(u.protocol) || u.username || u.password || u.port ||
+        !host.includes('.') || /^[\d.]+$/.test(host) || host.includes(':') ||
+        /(^|\.)(localhost|local|internal|invalid|test)$/.test(host)) continue;
+    // Android permits HTTP only for the two CDN domain families observed by the owner.
+    if (u.protocol === 'http:' && !['new-redirect.online', 'cdnarvo.buzz'].some(d => host === d || host.endsWith('.' + d))) continue;
+    if (row.headers != null && (typeof row.headers !== 'object' || Array.isArray(row.headers))) continue;
+    const headers = {};
+    let supported = true;
+    for (const [name, value] of Object.entries(row.headers || {})) {
+      const canonical = {'user-agent': 'User-Agent', referer: 'Referer', origin: 'Origin'}[name.toLowerCase()];
+      if (typeof canonical !== 'string' || typeof value !== 'string' || !/^[\x20-\x7e]{1,2048}$/.test(value) || Object.hasOwn(headers, canonical)) { supported = false; break; }
+      headers[canonical] = value;
+    }
+    if (!supported) continue;
+    if (row.userAgent != null && row.userAgent !== '') {
+      if (typeof row.userAgent !== 'string' || !/^[\x20-\x7e]{1,2048}$/.test(row.userAgent) ||
+          (headers['User-Agent'] && headers['User-Agent'] !== row.userAgent)) continue;
+      headers['User-Agent'] = row.userAgent;
+    }
+    const mimeType = /\.m3u8$/i.test(u.pathname) ? 'application/x-mpegURL' : /\.mpd$/i.test(u.pathname) ? 'application/dash+xml' : null;
+    sources.push({ index, url: row.url, headers, mimeType });
+  }
+  return sources;
+}
+
 function chooseDirectHttps(rows) {
   for (const row of rows) {
     if (!row || typeof row.url !== 'string' || row.url.length > 8192 || row.drm != null ||
@@ -342,7 +377,7 @@ async function readLimited(stream, limit) {
 }
 
 return {
-  async fetch(request, env, saveCatalog) {
+  async fetch(request, env, saveCatalog, nativePlayback = false) {
     if (new URL(request.url).pathname !== "/api/internal/catalog-check") return respond({ message: "المسار غير موجود." }, 404);
     if (request.method === "GET") {
       return new Response(PAGE, {
@@ -373,6 +408,8 @@ return {
     const channel = (form.get("channel_id") || "").trim();
     if (channel && !validId(channel)) return respond({ message: "رقم القناة غير صالح." }, 400);
     const videoTest = form.get("playback_video") === "yes";
+    if (nativePlayback && (!channel || videoTest || form.get('publish') === 'yes' || category))
+      return respond({ ok: false, error: 'اختبار تشغيل غير صالح.' }, 400);
     if (videoTest && !channel) return respond({ message: "اكتب رقم القناة لتجربة تشغيلها." }, 400);
     const publish = form.get("publish") === "yes";
     if (channel && (publish || category)) return respond({ message: "فحص التشغيل منفصل: اترك القسم فارغًا وأزل علامة الحفظ." }, 400);
@@ -439,8 +476,13 @@ return {
       }
       const time = (response.headers.get("t") || "").trim();
       let candidate = null;
+      let resolvedSources = [];
       const playbackParser = (plain, decoded) => {
         const metadata = inspectPlayback(plain, decoded);
+        if (nativePlayback && metadata.state === 'PLAYBACK_METADATA') {
+          const root = JSON.parse(plain);
+          resolvedSources = nativeSources(Array.isArray(root) ? root : root.data);
+        }
         if (videoTest && metadata.state === "PLAYBACK_METADATA") {
           const root = JSON.parse(plain), rows = Array.isArray(root) ? root : root.data;
           candidate = chooseDirectHttps(rows);
@@ -450,6 +492,14 @@ return {
       const catalog = response.ok && !body.truncated ? readCatalog(text, response.headers.get("t"), env.RESPONSE_MASK, channel ? playbackParser : parseCatalog) : {
         state: body.truncated ? "TOO_LARGE" : "HTTP_ERROR", message, entries: [], responseDecoded: false,
       };
+      if (nativePlayback) {
+        if (catalog.state !== 'PLAYBACK_METADATA') return respond({ ok: false, error: catalog.message,
+          code: catalog.state, sourceHTTP: response.status }, 502);
+        if (!resolvedSources.length) return respond({ ok: false, code: 'NO_SUPPORTED_NATIVE_SOURCE',
+          error: 'لم يصل رابط مباشر بإعدادات يدعمها اختبار العطا. قد يحتاج الرابط معالجة إضافية.', sourceHTTP: response.status }, 422);
+        return respond({ ok: true, channelId: channel, sourceHTTP: response.status,
+          sources: resolvedSources, skipped: catalog.streamCount - resolvedSources.length });
+      }
       if (videoTest && candidate) return renderPlaybackTest(candidate, channel);
       if (videoTest && catalog.state === "PLAYBACK_METADATA") return respond({
         state: "NO_DIRECT_HTTPS", sourceHTTP: response.status,
@@ -1265,6 +1315,28 @@ export class SignalingRoom extends DurableObject {
     return result.catalog?j({ok:true,...result.catalog,playbackTypes:FOOTBALL_FORMATS}):j({ok:false,error:result.error},result.status);
   }
 
+  async footballPlaybackTest(request,body){
+    if(request.method!=="POST")return j({ok:false,error:"استخدم تشغيل القناة من التطبيق"},405);
+    const auth=await this.requireAdmin(body.token);if(auth.error)return auth.error;
+    const catalog=await this.ctx.storage.get("football:catalog");
+    const channel=catalog?.channels?.find(c=>c.id===body.channelId && c.enabled && c.format==="ytv");
+    if(!channel)return j({ok:false,error:"القناة غير موجودة أو غير مفعلة"},404);
+    const gate="football:playback-test:last",now=Date.now();
+    if(now-Number(await this.ctx.storage.get(gate)||0)<2000)return j({ok:false,error:"انتظر ثانيتين ثم أعد المحاولة"},429);
+    await this.ctx.storage.put(gate,now);
+    const response=await mainCatalogCheck.fetch(new Request('https://internal.invalid/api/internal/catalog-check',{
+      method:'POST',body:new URLSearchParams({probe_key:String(this.env.PROBE_KEY||''),channel_id:channel.streamUrl})
+    }),this.env,null,true);
+    const result=await response.json();
+    if(result.ok!==true){
+      const failed=j({ok:false,error:result.error||result.message||"تعذر جلب بيانات التشغيل",code:result.code||"RESOLVE_FAILED",
+        sourceHTTP:result.sourceHTTP??null},response.ok?502:response.status);
+      failed.headers.set('cache-control','private, no-store');return failed;
+    }
+    response.headers.set('cache-control','private, no-store');
+    return new Response(JSON.stringify(result),{status:response.status,headers:response.headers});
+  }
+
   realtimeConfigured(){
     return !!String(this.env.CLOUDFLARE_REALTIME_APP_ID||"").trim() &&
       !!String(this.env.CLOUDFLARE_REALTIME_APP_SECRET||"").trim();
@@ -1855,6 +1927,7 @@ export class SignalingRoom extends DurableObject {
       body=parsed.body;
     }
 
+    if(url.pathname==="/api/admin/football/playback-test")return this.footballPlaybackTest(request,body);
     if(url.pathname==="/api/sports-broadcast")return this.sportsBroadcastApi(request,url,body);
     if(url.pathname==="/api/watch-room")return this.watchRoomApi(request,body);
 

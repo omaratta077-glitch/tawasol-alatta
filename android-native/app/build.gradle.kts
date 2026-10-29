@@ -24,9 +24,9 @@ android {
         applicationId = "com.alatta.nativeapp"
         minSdk = 26
         targetSdk = 35
-        // v1.0.191: compact adhkar header, remove search, and order morning/evening remembrances.
-        versionCode = 291
-        versionName = "1.0.191"
+        // v1.0.192: owner test of native channel alternatives with per-source headers.
+        versionCode = 292
+        versionName = "1.0.192"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("boolean", "IS_APPGALLERY", appGalleryBuild.toString())
         val hmsId = (System.getenv("ALATTA_HMS_APP_ID") ?: "").trim().takeIf { it.matches(Regex("[0-9]{1,20}")) } ?: ""
