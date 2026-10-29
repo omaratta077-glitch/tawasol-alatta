@@ -21,6 +21,8 @@ small{display:block;color:#aeb5ba;line-height:1.7;margin-top:20px}
 <label for="category">رقم القسم — اتركه فارغًا لجلب الأقسام</label>
 <input id="category" name="category_id" inputmode="numeric" pattern="[1-9][0-9]{0,18}" maxlength="19" placeholder="اختياري">
 <label><input name="publish" type="checkbox" value="yes" style="width:auto"> اكتشاف قسم beIN SPORTS (1080P) وحفظ أرقامه في العطا</label>
+<label for="channel">رقم قناة لفحص بيانات التشغيل فقط — اترك القسم فارغًا والحفظ غير محدد</label>
+<input id="channel" name="channel_id" inputmode="numeric" pattern="[1-9][0-9]{0,18}" maxlength="19" placeholder="اختياري لفحص التشغيل">
 <label for="key">مفتاح التجربة</label>
 <input id="key" name="probe_key" type="password" autocomplete="off" minlength="24" maxlength="256" required>
 <button type="submit">إرسال طلب واحد</button></form>
@@ -84,9 +86,38 @@ function parseCatalog(text, decoded) {
   };
 }
 
-function readCatalog(text, headerTime, responseMask) {
+// Metadata only: never return stream URLs, header values, license values or raw JSON.
+function inspectPlayback(text, decoded) {
+  const invalid = message => ({ state: "INVALID", message, entries: [], responseDecoded: decoded });
+  let root;
+  try { root = JSON.parse(text); } catch { return invalid("رد التشغيل ليس JSON صالحًا."); }
+  if (root && !Array.isArray(root) && (root.success === false || (root.error != null && root.error !== false && root.error !== "")))
+    return invalid("الخادم أعلن فشل طلب التشغيل.");
+  const rows = Array.isArray(root) ? root : root && Array.isArray(root.data) ? root.data : null;
+  if (!rows || rows.length > 100) return invalid("شكل بيانات التشغيل غير متوقع؛ لم تُعرض قيم الرد.");
+  const streams = [];
+  for (const row of rows) {
+    if (!row || typeof row !== "object" || Array.isArray(row)) return invalid("سجل تشغيل غير صالح.");
+    const knownFields = ["name", "url", "urlType", "userAgent", "headers", "drm"].filter(k => Object.hasOwn(row, k));
+    let scheme = "unknown", hasQuery = false;
+    if (typeof row.url === "string") { try { const u = new URL(row.url); scheme = ["http:", "https:"].includes(u.protocol) ? u.protocol : "other"; hasQuery = !!u.search; } catch { /* Opaque or transformed URL. */ } }
+    const headers = row.headers && typeof row.headers === "object" && !Array.isArray(row.headers) ? row.headers : {};
+    const drm = row.drm && typeof row.drm === "object" && !Array.isArray(row.drm) ? row.drm : null;
+    streams.push({ knownFields, urlPresent: typeof row.url === "string" && row.url.length > 0,
+      urlScheme: scheme, hasQuery, urlTypePresent: Object.hasOwn(row,"urlType"),
+      userAgentPresent: typeof row.userAgent === "string" && row.userAgent.length > 0,
+      headerCount: Object.keys(headers).length,
+      commonHeadersPresent: ["User-Agent", "Referer", "Origin", "Authorization", "Cookie"].filter(k => Object.keys(headers).some(h => h.toLowerCase() === k.toLowerCase())),
+      drmPresent: !!drm, drmLicensePresent: !!drm && typeof drm.license === "string" && !!drm.license,
+      drmPropertiesPresent: !!drm && Object.hasOwn(drm,"requestProperties") });
+  }
+  return { state: streams.length ? "PLAYBACK_METADATA" : "EMPTY", message: streams.length ? "وصلت بيانات التشغيل. المعروض وصف الحقول فقط؛ لم يُختبر تشغيل الفيديو ولم تُعرض الروابط أو القيم السرية." : "وصلت قائمة تشغيل فارغة.",
+    responseDecoded: decoded, entries: [], streams, streamCount: streams.length };
+}
+
+function readCatalog(text, headerTime, responseMask, parse = parseCatalog) {
   const trimmed = text.replace(/^\uFEFF/, "").trim();
-  if (trimmed.startsWith("{") || trimmed.startsWith("[")) return parseCatalog(trimmed, false);
+  if (trimmed.startsWith("{") || trimmed.startsWith("[")) return parse(trimmed, false);
   const unreadable = (state, message) => ({ state, message, entries: [], responseDecoded: false });
   // Only a trailing file newline is removed; spaces inside the format setting are preserved.
   const prefix = typeof responseMask === "string" ? responseMask.replace(/\r?\n$/, "") : "";
@@ -105,7 +136,7 @@ function readCatalog(text, headerTime, responseMask) {
     const plain = new TextDecoder("utf-8", { fatal: true }).decode(bytes).trim();
     if (!plain.startsWith("{") && !plain.startsWith("["))
       return unreadable("DECODE_FAILED", "لم ينتج JSON من إعداد القراءة والتوقيت الواردين؛ لم تُستخرج أرقام.");
-    return parseCatalog(plain, true);
+    return parse(plain, true);
   } catch {
     return unreadable("DECODE_FAILED", "تعذرت قراءة الرد بإعداد القراءة والتوقيت الواردين؛ لم تُستخرج أرقام.");
   }
@@ -170,10 +201,13 @@ export default {
     if (!sameKey(key, secret)) return respond({ message: "مفتاح التجربة غير صحيح." }, 401);
     const category = (form.get("category_id") || "").trim();
     if (category && !validId(category)) return respond({ message: "رقم القسم غير صالح." }, 400);
+    const channel = (form.get("channel_id") || "").trim();
+    if (channel && !validId(channel)) return respond({ message: "رقم القناة غير صالح." }, 400);
     const publish = form.get("publish") === "yes";
+    if (channel && (publish || category)) return respond({ message: "فحص التشغيل منفصل: اترك القسم فارغًا وأزل علامة الحفظ." }, 400);
     if (publish && (typeof env.CATALOG_SYNC_KEY !== "string" || env.CATALOG_SYNC_KEY.length < 32 || env.CATALOG_SYNC_KEY.length > 256))
       return respond({ message: "أضف Secret باسم CATALOG_SYNC_KEY بطول من 32 إلى 256 حرفًا في مشروع العطا الأساسي." }, 503);
-    let sourceURL = category ? SOURCE_URL + "/" + category + "/channels" : SOURCE_URL;
+    let sourceURL = channel ? SOURCE_URL.replace(/categories$/, "channel/") + channel : category ? SOURCE_URL + "/" + category + "/channels" : SOURCE_URL;
 
     const started = Date.now();
     const controller = new AbortController();
@@ -233,7 +267,7 @@ export default {
         message = "وصل رد HTTP ناجح؛ لم تُثبت قائمة صالحة بعد. قد يحتاج الرد معالجة صيغته.";
       }
       const time = (response.headers.get("t") || "").trim();
-      const catalog = response.ok && !body.truncated ? readCatalog(text, response.headers.get("t"), env.RESPONSE_MASK) : {
+      const catalog = response.ok && !body.truncated ? readCatalog(text, response.headers.get("t"), env.RESPONSE_MASK, channel ? inspectPlayback : parseCatalog) : {
         state: body.truncated ? "TOO_LARGE" : "HTTP_ERROR", message, entries: [], responseDecoded: false,
       };
       let publishResult = null;
@@ -285,7 +319,7 @@ export default {
       }
       return respond({
         message: publishResult?.ignored ? "تجاهل العطا القائمة لأنها أقدم من آخر تحديث محفوظ." : publishResult?.ok ? "قبل العطا حفظ تحديث الأرقام. راجع changed لعدد الأرقام التي تغيرت." : publishResult ? publishResult.error : catalog.message,
-        diagnosticVersion: "main-catalog-check-1",
+        diagnosticVersion: channel ? "playback-metadata-1" : "main-catalog-check-1",
         sourceURL,
         categoryId: discoveredCategory?.id || category || null,
         sourceHTTP: response.status,
@@ -301,6 +335,7 @@ export default {
         state: catalog.state,
         responseDecoded: catalog.responseDecoded,
         entries: catalog.entries,
+        ...(channel ? { channelId: channel, streamCount: catalog.streamCount ?? null, streams: catalog.streams || [] } : {}),
         published: publishResult?.ok === true && publishResult?.ignored !== true,
         publishResult,
       });
