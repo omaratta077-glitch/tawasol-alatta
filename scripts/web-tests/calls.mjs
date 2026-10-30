@@ -11,7 +11,7 @@ w.Audio=class{play(){return Promise.resolve()}pause(){}};
 w.fetch=async()=>Response.json({ok:true,users:[],friends:[],requests:[],notifications:[],stories:[],voices:[]});
 w.HTMLMediaElement.prototype.play=()=>Promise.resolve();
 w.eval(read('icons.js'));
-const app=read('app.js'),end=app.indexOf('})();\n\n\n/* ===== V13.28');
+const app=read('app.js'),end=app.indexOf('})();\n\n\n/* ===== دعم التثبيت في Android وPWA، الإصدار V13.28');
 w.eval(app.slice(0,end)+`window.testCalls={showCallOverlay,hideCallOverlay,setCallState,resetCallState,addRichMessage,chatTest(redial){me={username:"owner"};selectedUser="friend";requestCall=redial;},setup(stream,sender){currentCallType="video";localStream=stream;videoSender=sender;pc={};},audio(){currentCallType="audio"},elapsed(){callConnectedAt=Date.now()-65000}};`+app.slice(end));
 const api=w.testCalls;
 let oldStopped=false,newStopped=false,replaced,fail=false,requested;
