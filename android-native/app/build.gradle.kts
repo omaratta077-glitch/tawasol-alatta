@@ -24,9 +24,9 @@ android {
         applicationId = "com.alatta.nativeapp"
         minSdk = 26
         targetSdk = 35
-        // v1.0.199: allow the observed HTTP playback redirect host.
-        versionCode = 299
-        versionName = "1.0.199"
+        // v1.0.200: reject unencrypted HTTP traffic for every host.
+        versionCode = 300
+        versionName = "1.0.200"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("boolean", "IS_APPGALLERY", appGalleryBuild.toString())
         val hmsId = (System.getenv("ALATTA_HMS_APP_ID") ?: "").trim().takeIf { it.matches(Regex("[0-9]{1,20}")) } ?: ""
