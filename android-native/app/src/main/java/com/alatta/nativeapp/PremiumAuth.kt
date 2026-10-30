@@ -70,8 +70,8 @@ internal fun PremiumAuthOutlineButton(label: String, onClick: () -> Unit) {
 
 @Composable
 internal fun PremiumGoogleButton(enabled: Boolean = true, label: String = "المواصلة باستخدام جوجل", onClick: () -> Unit) {
-    // RTL: the icon stays on the right. The label may wrap instead of being
-    // silently cropped by a fixed 47dp height on phones with larger font scale.
+    // في RTL تبقى الأيقونة على اليمين. ويمكن أن يلتف العنوان بدلًا من
+    // قصه بصمت عند استخدام حجم خط كبير على هاتف ارتفاعه 47dp.
     OutlinedButton(
         onClick = onClick,
         enabled = enabled,

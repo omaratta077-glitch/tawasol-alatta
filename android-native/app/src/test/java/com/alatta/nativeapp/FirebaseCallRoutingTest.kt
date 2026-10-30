@@ -49,7 +49,7 @@ class FirebaseCallRoutingTest {
             assertEquals("background-logo-165", service.received.single().data["callId"])
             assertEquals("caller", service.received.single().data["sender"])
             assertEquals("receiver", service.received.single().data["to"])
-            // Firebase's own message-ID deduplication must still run.
+            // يجب أن يستمر منع تكرار معرّف الرسالة الخاص بـFirebase.
             service.handleIntent(original)
             assertEquals(1, service.received.size)
             assertEquals("1", original.getStringExtra("gcm.n.e"))

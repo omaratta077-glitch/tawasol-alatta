@@ -3,7 +3,7 @@ package com.alatta.nativeapp
 import kotlinx.coroutines.CancellationException
 import java.util.Locale
 
-/** A local owner binding. Category and full source name distinguish quality variants. */
+/** ربط محلي للمالك؛ ويميّز اسم الفئة والمصدر الكامل بين إصدارات الجودة المختلفة. */
 internal data class CatalogChannelLink(val channelId: String, val categoryId: String,
     val sourceName: String, val lastPublishedId: String)
 
@@ -18,7 +18,7 @@ internal fun catalogDefaultSection(result: YacineCatalogProbe.Result): YacineCat
     }.singleOrNull()
 }
 
-/** Only updates existing YTV records, through the existing revision-checked owner API. */
+/** حدّث سجلات YTV الموجودة فقط عبر واجهة المالك الحالية التي تتحقق من رقم المراجعة. */
 internal class CatalogChannelSync(
     private val load: suspend () -> FootballCatalog,
     private val fetch: suspend (String) -> YacineCatalogProbe.Result,
@@ -28,7 +28,7 @@ internal class CatalogChannelSync(
 ) {
     private fun key(value: String) = value.lowercase(Locale.ROOT).filter { it.isLetterOrDigit() }
 
-    /** Import the complete chosen section in one revision, then track its stable names. */
+    /** استورد القسم المحدد كاملًا ضمن مراجعة واحدة، ثم تتبّع أسماءه الثابتة. */
     suspend fun refreshSection(links: List<CatalogChannelLink>,
         chooseSection: suspend () -> YacineCatalogProbe.Entry?): CatalogSyncResult {
         var catalog: FootballCatalog? = null
@@ -105,7 +105,7 @@ internal class CatalogChannelSync(
             val current = load().also { catalog = it }
             val channel = current.channels.singleOrNull { it.id == channelId && it.format == "ytv" }
                 ?: return CatalogSyncResult(current, message = "القناة المحفوظة لم تعد متاحة للربط.")
-            // Re-read the selected category; never bind from a stale or ambiguous preview.
+            // أعد قراءة الفئة المحددة؛ ولا تُنشئ ربطًا من معاينة قديمة أو ملتبسة.
             val entry = exact(fetch(category), selected.name)?.takeIf { it.id == selected.id }
                 ?: return CatalogSyncResult(current, message = "تغيرت القائمة أو لم يصل اسم فريد؛ حدّث القائمة واختر القناة مجددًا.")
             val changed = if (channel.streamUrl == entry.id) 0 else 1
@@ -126,13 +126,13 @@ internal class CatalogChannelSync(
         var skipped = 0
         var remembered = links
         try {
-            // Also verifies the current account's owner role before any source request.
+            // تحقّق أيضًا من صلاحية دور المالك للحساب الحالي قبل طلب المصدر.
             catalog = load()
             val responses = mutableMapOf<String, YacineCatalogProbe.Result>()
             for (link in links) {
                 val current = requireNotNull(catalog)
                 val channel = current.channels.singleOrNull { it.id == link.channelId }
-                // A manual ID edit pauses this binding; never overwrite it silently.
+                // يوقف تعديل المعرّف يدويًا هذا الربط؛ فلا تستبدله بصمت.
                 if (channel == null || channel.format != "ytv" || !channel.enabled ||
                     channel.streamUrl != link.lastPublishedId || YtvPlayer.channelId(link.categoryId) != link.categoryId) {
                     skipped++; continue
@@ -145,7 +145,7 @@ internal class CatalogChannelSync(
                 catalog = save(current, channel.copy(streamUrl = entry.id))
                 changed++
                 remembered = remembered.map { if (it.channelId == link.channelId) it.copy(lastPublishedId = entry.id) else it }
-                // Commit progress per successful write; a later failure cannot lose earlier work.
+                // احفظ التقدم بعد كل كتابة ناجحة؛ حتى لا يفقد العطل اللاحق ما سبق حفظه.
                 if (!rememberLinks(remembered)) return CatalogSyncResult(catalog, changed, checked,
                     "تم تحديث $changed قناة، لكن تعذر حفظ متابعة الربط على الهاتف. أعد ربطها.")
             }

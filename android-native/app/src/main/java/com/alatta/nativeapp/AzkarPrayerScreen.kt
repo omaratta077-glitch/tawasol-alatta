@@ -71,7 +71,7 @@ private fun PrayerCard(modifier: Modifier = Modifier, content: @Composable Colum
         verticalArrangement = Arrangement.spacedBy(10.dp), content = content)
 }
 
-/** Small code-native symbols; no artwork, fonts, ads or code copied from the reference APK. */
+/** رموز صغيرة مرسومة بالكود؛ بلا رسوم أو خطوط أو إعلانات أو كود منسوخ من التطبيق المرجعي. */
 @Composable
 private fun PrayerSymbol(symbol: String, size: Dp = 36.dp, tint: Color = PremiumGold) {
     if (symbol == "hands") { SiteIcon("hand-heart", tint = tint, size = size); return }

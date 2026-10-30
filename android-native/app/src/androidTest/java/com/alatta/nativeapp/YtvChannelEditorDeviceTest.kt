@@ -17,7 +17,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
-/** Exercise the real administrator form without a server or installed third-party player. */
+/** اختبر نموذج الإدارة الفعلي بلا خادم أو مشغّل خارجي مثبّت. */
 @RunWith(AndroidJUnit4::class)
 class YtvChannelEditorDeviceTest {
     @get:Rule val compose = createComposeRule()

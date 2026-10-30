@@ -1,4 +1,4 @@
-/* Retain screen light for an actively playing, visible YouTube embed only. */
+/* أبقِ الشاشة مضاءة فقط أثناء تشغيل تضمين YouTube وظهوره فعليًا. */
 (() => {
   'use strict';
   let lock = null;
@@ -18,8 +18,8 @@
     }
     catch (_) { /* Unsupported or blocked: normal screen dimming applies */ }
   }
-  // Ask the existing iframe for player-state events. This only subscribes to
-  // state; it never creates or replaces a YouTube player.
+  // اطلب من iframe الحالي أحداث حالة المشغّل. هذا للاشتراك في
+  // الحالة فقط، ولا ينشئ مشغّل YouTube ولا يستبدله.
   function trackFrame() {
     const frame = document.querySelector('.atta-youtube-frame iframe');
     if (frame === trackedFrame) return;

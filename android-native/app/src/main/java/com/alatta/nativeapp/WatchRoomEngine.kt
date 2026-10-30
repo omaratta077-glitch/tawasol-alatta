@@ -8,7 +8,7 @@ import org.json.JSONObject
 import org.webrtc.*
 import java.util.UUID
 
-/** One camera/microphone feeds bounded native WebRTC peers, using the existing TURN and SDP helpers. */
+/** كاميرا وميكروفون واحدان يغذيان نظراء WebRTC الأصليين المحدودين باستخدام مساعدات TURN وSDP الحالية. */
 internal class WatchRoomEngine(private val context: Context, private val token: String,
     private val clientId: String, private val end: () -> Unit) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
@@ -58,7 +58,7 @@ internal class WatchRoomEngine(private val context: Context, private val token: 
                     val next = WatchRoom.parse(result); room = next; WatchRoomController.room = next
                     reconcile(next)
                     val packets = result.optJSONArray("signals")
-                    // Acknowledge only after SDP/ICE is processed. A failed packet must survive the next poll.
+                    // لا تؤكد الاستلام إلا بعد معالجة SDP/ICE؛ يجب أن تبقى الحزمة الفاشلة للمحاولة التالية.
                     if (packets != null) for (i in 0 until packets.length())
                         check(receive(packets.getJSONObject(i), authoritativeRoster = true)) { "جارٍ استعادة اتصال الغرفة" }
                     cursor = result.optLong("cursor", cursor); errors = 0
@@ -186,7 +186,7 @@ internal class WatchRoomEngine(private val context: Context, private val token: 
         if (packet.optString("code") != state.code || packet.optString("to") != state.myPeerId) return@withLock true
         val id = packet.optString("signalId")
         val from = packet.optString("from")
-        // WebSocket can beat the roster poll or local media initialization; the queued HTTP copy will retry it.
+        // قد يسبق WebSocket استطلاع قائمة الأعضاء أو تهيئة الوسائط المحلية؛ وستعيد نسخة HTTP المؤجلة المحاولة.
         if (factory == null) return@withLock false
         if (state.members.none { it.peerId == from && it.peerId != state.myPeerId }) return@withLock authoritativeRoster
         if (id in seen) return@withLock true

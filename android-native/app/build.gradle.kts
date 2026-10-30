@@ -5,7 +5,7 @@ plugins {
 }
 
 val appGalleryBuild = providers.gradleProperty("alatta.distribution").orNull == "appgallery"
-// Assemble a slim asset tree; retain only the opening page inside the APK.
+// جهّز مجموعة أصول مصغّرة؛ وأبقِ صفحة البداية فقط داخل ملف APK.
 val slimMushafAssets by tasks.registering(Sync::class) {
     from("src/main/assets") { exclude("mushaf/pages/**") }
     from("src/main/assets/mushaf/pages/001.svg.gz") { into("mushaf/pages") }
@@ -24,9 +24,9 @@ android {
         applicationId = "com.alatta.nativeapp"
         minSdk = 26
         targetSdk = 35
-        // v1.0.200: reject unencrypted HTTP traffic for every host.
-        versionCode = 300
-        versionName = "1.0.200"
+        // الإصدار 1.0.201: ارفض اتصالات HTTP غير المشفّرة مع جميع المضيفين.
+        versionCode = 301
+        versionName = "1.0.201"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("boolean", "IS_APPGALLERY", appGalleryBuild.toString())
         val hmsId = (System.getenv("ALATTA_HMS_APP_ID") ?: "").trim().takeIf { it.matches(Regex("[0-9]{1,20}")) } ?: ""
@@ -36,9 +36,9 @@ android {
         manifestPlaceholders["distributionChannel"] = if (appGalleryBuild) "appgallery" else "direct"
     }
 
-    // Firebase's public Android configuration is supplied by GitHub Actions vars.
-    // Empty values intentionally leave background push inactive without breaking
-    // local builds or requiring a checked-in google-services.json.
+    // يوفّر سير عمل GitHub إعدادات Android العامة الخاصة بـFirebase.
+    // تُبقي القيم الفارغة الإشعارات الخلفية متوقفة من دون تعطيل
+    // البُنى المحلية أو اشتراط وجود ملف google-services.json داخل المستودع.
     buildFeatures { compose = true; buildConfig = true }
     val pushFields = mapOf(
         "PUSH_APP_ID" to "ALATTA_FCM_APP_ID",
@@ -53,7 +53,7 @@ android {
         }
     }
 
-    // MUST remain inside android {}, before buildTypes.
+    // يجب أن يبقى هذا داخل android {} وقبل buildTypes.
     signingConfigs {
         create("officialRelease") {
             val path = System.getenv("ALATTA_KEYSTORE_PATH")
@@ -69,7 +69,7 @@ android {
     buildTypes {
         getByName("release") {
             isMinifyEnabled = false
-            // Keep both ARM phone architectures; debug retains x86 for device tests.
+            // احتفظ بمعماريتَي ARM للهاتف؛ ويُبقي الإصدار التجريبي x86 لاختبارات الأجهزة.
             ndk { abiFilters += setOf("arm64-v8a", "armeabi-v7a") }
             signingConfig = signingConfigs.getByName("officialRelease")
         }
@@ -89,7 +89,7 @@ android {
     testOptions.unitTests.isIncludeAndroidResources = true
 }
 tasks.named("preBuild").configure { dependsOn(syncLegalAssets, slimMushafAssets) }
-// Gradle 8 must see explicit dependencies for generated asset inputs.
+// يحتاج Gradle 8 إلى اعتماديات صريحة لمدخلات الأصول المُنشأة.
 tasks.matching { it.name.startsWith("merge") && it.name.endsWith("Assets") }
     .configureEach { dependsOn(syncLegalAssets, slimMushafAssets) }
 
@@ -127,6 +127,6 @@ dependencies {
     implementation("com.google.firebase:firebase-messaging:24.1.2")
     implementation("com.google.android.gms:play-services-base:18.5.0")
     implementation("com.huawei.hms:push:6.13.0.300")
-    // Native C++ WebRTC camera/audio/renderers; no call HTML page.
+    // مكتبة WebRTC الأصلية بلغة C++ للكاميرا والصوت وعرض الوسائط؛ لا توجد صفحة مكالمات HTML.
     implementation("io.github.webrtc-sdk:android:137.7151.03")
 }

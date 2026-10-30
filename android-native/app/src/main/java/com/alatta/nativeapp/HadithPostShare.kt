@@ -1,7 +1,7 @@
 package com.alatta.nativeapp
 
-/** Preserve the complete religious text and source, including whole dhikr groups.
- * Match the Worker's validated 50,000-character limit; never silently truncate.
+/** احتفظ بالنص الديني ومصدره كاملين، بما في ذلك مجموعات الأذكار كاملة.
+ * التزم بحد Worker المعتمد البالغ 50,000 حرف؛ ولا تحذف النهاية بصمت.
  */
 internal fun composeHadithPost(currentDraft: String, fullHadithWithSource: String): String? {
     val selected = fullHadithWithSource.trim()

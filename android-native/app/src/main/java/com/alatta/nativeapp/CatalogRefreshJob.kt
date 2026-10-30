@@ -9,7 +9,7 @@ import android.content.Context
 import android.os.PersistableBundle
 import kotlinx.coroutines.*
 
-/** Periodic owner-only catalog work. No credentials or response masks in JobScheduler extras. */
+/** مهمة دورية خاصة بالمالك فقط؛ بلا بيانات اعتماد أو أقنعة استجابة في إضافات JobScheduler. */
 class CatalogRefreshJob : JobService() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var task: Job? = null
@@ -24,7 +24,7 @@ class CatalogRefreshJob : JobService() {
         active = params
         task = scope.launch {
             try {
-                // The existing owner API is checked again before the source is requested.
+                // يُعاد التحقق من واجهة المالك الحالية قبل طلب المصدر.
                 withTimeoutOrNull(60_000) { CatalogAutoUpdater.refresh(applicationContext, token, owner) }
             } catch (cancelled: CancellationException) { throw cancelled
             } catch (_: Exception) { /* Keep the cached catalog for the next periodic window. */

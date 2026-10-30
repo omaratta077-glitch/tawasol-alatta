@@ -19,7 +19,7 @@ import androidx.compose.ui.unit.dp
 import kotlin.math.hypot
 import kotlin.math.roundToInt
 
-/** Physical coordinates: dragging right must also move right in an RTL layout. */
+/** إحداثيات فعلية: السحب إلى اليمين يجب أن يحرك العنصر يمينًا في تخطيط RTL أيضًا. */
 internal data class MiniVideoBounds(val left: Float, val top: Float, val right: Float, val bottom: Float) {
     fun clamp(point: Offset) = Offset(point.x.coerceIn(left, right), point.y.coerceIn(top, bottom))
     val initial get() = Offset(left, bottom)
@@ -36,7 +36,7 @@ internal data class MiniVideoBounds(val left: Float, val top: Float, val right: 
     }
 }
 
-/** Positions the existing player; its WebView remains mounted when tabs change. */
+/** يحدد موضع المشغّل الحالي؛ وتظل WebView مركبة عند تغيير علامات التبويب. */
 @Composable
 internal fun FloatingVideoContainer(
     expanded: Boolean,
@@ -50,7 +50,7 @@ internal fun FloatingVideoContainer(
     val mini = !expanded && !pipMode
     Box(Modifier.fillMaxSize().then(if (pipMode) Modifier else Modifier.safeDrawingPadding())) {
         BoxWithConstraints(Modifier.fillMaxSize()) {
-            // Also fit landscape, split-screen and a resized viewport above the keyboard.
+            // اضبط الموضع أيضًا للوضع الأفقي وتقسيم الشاشة وتغيير حجم العرض فوق لوحة المفاتيح.
             val availableWidth = (maxWidth - 16.dp).coerceAtLeast(0.dp)
             val miniWidth = minOf(240.dp, availableWidth)
             val viewport = with(density) { IntSize(maxWidth.roundToPx(), maxHeight.roundToPx()) }
@@ -77,7 +77,7 @@ internal fun FloatingVideoContainer(
     }
 }
 
-/** Intercept only a real one-finger drag. Ordinary taps still reach the player. */
+/** اعترض السحب الحقيقي بإصبع واحد فقط؛ واترك النقرات العادية تصل إلى المشغّل. */
 internal class MiniPlayerTouchHost(context: Context) : FrameLayout(context) {
     var onDrag: ((Float, Float) -> Unit)? = null
         set(value) {
@@ -99,8 +99,8 @@ internal class MiniPlayerTouchHost(context: Context) : FrameLayout(context) {
     }
 
     override fun requestDisallowInterceptTouchEvent(disallowIntercept: Boolean) {
-        // A WebView can claim the gesture on DOWN. Continue observing until touch slop
-        // is crossed, then Android sends the child CANCEL before moving the window.
+        // قد تستحوذ WebView على الإيماءة عند DOWN. واصل الرصد حتى تجاوز حد السحب،
+        // ثم يرسل Android إشارة CANCEL إلى العنصر الفرعي قبل تحريك النافذة.
         if (onDrag == null || !tracking || !disallowIntercept)
             super.requestDisallowInterceptTouchEvent(disallowIntercept)
     }
@@ -138,7 +138,7 @@ internal class MiniPlayerTouchHost(context: Context) : FrameLayout(context) {
         when (event.actionMasked) {
             MotionEvent.ACTION_POINTER_DOWN, MotionEvent.ACTION_POINTER_UP -> tracking = false
             MotionEvent.ACTION_MOVE -> if (tracking && event.pointerCount == 1) {
-                // Raw screen coordinates stay stable while this View itself moves.
+                // تظل إحداثيات الشاشة الخام ثابتة أثناء تحرك هذا العرض نفسه.
                 val dx = event.rawX - lastX
                 val dy = event.rawY - lastY
                 lastX = event.rawX; lastY = event.rawY

@@ -1,8 +1,8 @@
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp" android:height="24dp"
     android:viewportWidth="512" android:viewportHeight="512">
-    <!-- Monochrome A, sweeping ribbon, people and book from the approved app mark.
-         No square background, frame or small lettering: Android tints this alpha mask. -->
+    <!-- الحرف A أحادي اللون، والشريط المنحني والأشخاص والكتاب من شعار التطبيق المعتمد.
+         بلا خلفية مربعة أو إطار أو كتابة صغيرة؛ يلوّن Android قناع الشفافية هذا. -->
     <group android:scaleX="1.12" android:scaleY="1.12"
         android:translateX="-30.72" android:translateY="20">
         <path android:fillColor="#FFFFFFFF" android:pathData="M136,227 L238,71 C247,54 258,50 271,55 C282,59 288,66 294,79 L343,182 C325,190 308,192 285,191 L258,117 C255,108 251,107 247,116 L202,199 C179,205 157,215 136,227 Z"/>

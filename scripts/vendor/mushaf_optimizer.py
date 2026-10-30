@@ -72,11 +72,11 @@ def optimize_opening_page(doc):
     ayah_marker_group = root_children[-2]
     ayah_marker_group.setAttribute("id", "ayah_markers")
 
-    # remove decorations
+    # أزل الزخارف
     decorative_nodes = root_children[0:-2]
     remove_nodes(decorative_nodes)
 
-    # remove nested surah title
+    # أزل عنوان السورة المتداخل
     remove_nodes([content_group.firstChild.firstChild.lastChild])
 
 
@@ -96,7 +96,7 @@ def optimize_standard_page(doc, page_number, surahs):
     content_children = content_group.childNodes
     decorative_nodes = root_children[0:2] + root_children[3:-1] + content_children[0:-1]
 
-    # figure out surah header position
+    # حدّد موضع ترويسة السورة
     page_surahs = [x for x in surahs if x["pageNumber"] == page_number]
     if len(page_surahs) > 0:
         found = get_surah_header_positions(decorative_nodes)
@@ -110,14 +110,14 @@ def optimize_standard_page(doc, page_number, surahs):
             f = found_sorted[i]
             s["headerPosition"] = float(round(f[1], 2))
 
-    # remove missed white background elements
+    # أزل عناصر الخلفية البيضاء التي فاتت
     bad_paths = [
         x
         for x in root_group.getElementsByTagName("path")
         if "fill:#ffffff" in x.getAttribute("style")
     ]
 
-    # remove decorations
+    # أزل الزخارف
     remove_nodes(decorative_nodes + bad_paths)
 
     return page_surahs
@@ -144,7 +144,7 @@ def set_ayah_numbers(doc):
     ayah_markers = ayah_marker_group.childNodes
 
     for node in ayah_markers:
-        # print ayah offset
+        # اطبع إزاحة الآية
         x, y = get_offset(node)
 
         node.setAttribute("ayah:x", str(round(x, 2)))
@@ -155,7 +155,7 @@ def get_offset(node, x=0, y=0):
     if node.firstChild is not None and is_path(node.firstChild):
         path_definition = node.firstChild.getAttribute("d")
         xmin, ymin, xmax, ymax = Path(path_definition).bbox()
-        # use path's bounding box to get the center of the ayah marker
+        # استخدم صندوق إحاطة المسار لحساب مركز علامة الآية
         x += Decimal(xmin + ((xmax - xmin) / 2))
         y += Decimal(ymin + ((ymax - ymin) / 2))
 
@@ -195,15 +195,15 @@ def scour_xml(doc):
         )
     )
 
-    # scour the string
+    # افحص السلسلة النصية
     out_string = scour.scourString(in_string, options)
 
-    # prepare the output xml.dom.minidom object
+    # أنشئ كائن xml.dom.minidom الناتج
     doc = minidom.parseString(out_string.encode("utf-8"))
 
-    # since minidom does not seem to parse DTDs properly
-    # manually declare all attributes with name "id" to be of type ID
-    # (otherwise things like doc.getElementById() won't work)
+    # لأن minidom لا يبدو أنه يحلل DTD على نحو صحيح
+    # أعلن يدويًا أن كل السمات المسماة id من النوع ID
+    # (وإلا فلن تعمل دوال مثل doc.getElementById())
     all_nodes = doc.getElementsByTagName("*")
     for node in all_nodes:
         try:
@@ -230,7 +230,7 @@ def process_file(filename, surahs):
 
     doc.firstChild.setAttribute("xmlns:ayah", "https://quranapp.com")
 
-    # remove all clip-path attributes
+    # أزل سمات clip-path
     all_nodes = doc.getElementsByTagName("*")
     for node in all_nodes:
         try:

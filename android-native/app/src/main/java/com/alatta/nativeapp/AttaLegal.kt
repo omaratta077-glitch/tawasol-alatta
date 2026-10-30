@@ -38,12 +38,12 @@ internal object AttaPrivacy {
     fun setNotifications(context: Context, enabled: Boolean) { prefs(context).edit().putBoolean("notifications", enabled).apply() }
 }
 
-/** No account, network task or third-party SDK is mounted until this choice. */
+/** لا يُحمّل حساب أو مهمة شبكة أو حزمة خارجية قبل اختيار المستخدم. */
 @Composable
 internal fun AttaPrivacyGate(content: @Composable ((() -> Unit), (() -> Unit)) -> Unit) {
     val context = LocalContext.current
-    // Consent is collected as part of creating a new account. Do not interrupt
-    // sign-in with a second legal notice. Keep the explicit withdrawal flow.
+    // تُجمع الموافقة عند إنشاء حساب جديد. لا تقاطع تسجيل الدخول بإشعار قانوني ثانٍ.
+    // أبقِ مسار سحب الموافقة الصريح متاحًا.
     var showWithdrawalGate by remember { mutableStateOf(false) }
     var offlineReader by remember { mutableStateOf(false) }
     var document by remember { mutableStateOf<String?>(null) }
@@ -56,7 +56,7 @@ internal fun AttaPrivacyGate(content: @Composable ((() -> Unit), (() -> Unit)) -
                 showWithdrawalGate = true
                 agreedPrivacy = false; agreedTerms = false
             }, {
-                // Sign-in is not consent collection; new users agree in signup.
+                // تسجيل الدخول ليس موضع جمع الموافقة؛ يوافق المستخدم الجديد أثناء إنشاء الحساب.
                 showWithdrawalGate = false
             }) else if (offlineReader) {
                 QuranReaderScreen(onExit = { offlineReader = false }, allowOnlineFeatures = false)
@@ -87,7 +87,7 @@ internal fun LegalLinks(open: (String) -> Unit) {
     }
 }
 
-/** The same published legal documents are bundled for offline review; no remote scripts. */
+/** تُضمَّن المستندات القانونية المنشورة نفسها لمراجعتها دون اتصال، بلا نصوص برمجية بعيدة. */
 @Composable
 internal fun LegalDocument(name: String, close: () -> Unit) {
     val context = LocalContext.current

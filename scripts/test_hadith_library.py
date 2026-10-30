@@ -10,7 +10,7 @@ import unittest
 from build_hadith_library import ASSETS, SOURCES, normalize
 
 EXPECTED_COUNTS = {"nawawi": 42, "bukhari": 7008, "muslim": 5362, "malik": 1594}
-# Independently pinned digests of every numbered Arabic source row after documented cleanup.
+# بصمات مثبتة بشكل مستقل لكل صف عربي مرقّم بعد التنظيف الموثّق.
 EXPECTED_TEXT = {
     "nawawi": "629441efea3dbd7eec75f11e84e769d07434f0336343d49dacd1312f54161e09",
     "bukhari": "353a20bf27bff8fd3a818748484a60a8c6ba23c143ea9050aadb76f76d4437b7",

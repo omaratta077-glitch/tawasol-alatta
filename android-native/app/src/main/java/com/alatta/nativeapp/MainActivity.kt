@@ -152,9 +152,9 @@ private fun AttaCommentEntry(entry: JSONObject, nested: Boolean,
                         }
 
 /**
- * Read-only list of users who reacted to a post, like the website's existing
- * interactions panel. The Worker filters blocked/hidden/invisible profiles.
- * This NEVER updates a reaction: it only fetches pages and opens profiles.
+ * قائمة للقراءة فقط بالمستخدمين الذين تفاعلوا مع منشور، مثل لوحة التفاعلات الحالية في الموقع.
+ * يستبعد Worker الحسابات المحظورة أو المخفية أو غير الظاهرة.
+ * لا تُحدّث القائمة التفاعل مطلقًا؛ بل تجلب الصفحات وتفتح الملفات الشخصية فقط.
  */
 @Composable
 private fun AttaPostReactorsDialog(
@@ -255,9 +255,9 @@ private fun AttaPostReactorsDialog(
 }
 
 /**
- * A single, genuinely RTL comment dialog used by the native feed.
- * Both Arabic and English names are on the RIGHT; English letters retain
- * their normal order. Replies use the server's existing /api/comment-reply.
+ * مربع تعليقات واحد باتجاه RTL فعلي للموجز الأصلي.
+ * تظهر الأسماء العربية والإنجليزية على اليمين، مع الحفاظ على الترتيب الطبيعي للحروف الإنجليزية.
+ * تستخدم الردود واجهة الخادم الحالية /api/comment-reply.
  */
 @Composable
 private fun AttaRightAlignedComments(
@@ -294,9 +294,8 @@ private fun AttaRightAlignedComments(
         val keyboard = LocalSoftwareKeyboardController.current
         val density = androidx.compose.ui.platform.LocalDensity.current
         var keyboardCoveredPx by remember { mutableIntStateOf(0) }
-        // Some Android vendors keep fullscreen dialogs the same size when the
-        // keyboard opens. Measure the actual visible window area and raise
-        // only the comment composer by the covered height.
+        // تُبقي بعض شركات Android مربعات الحوار بملء الشاشة بالحجم نفسه عند فتح لوحة المفاتيح.
+        // قِس المساحة الفعلية المرئية للنافذة وارفع مربع التعليق فقط بمقدار الجزء المحجوب.
         DisposableEffect(dialogWindow) {
             dialogWindow?.let {
                 WindowCompat.setDecorFitsSystemWindows(it, true)
@@ -365,8 +364,8 @@ private fun AttaRightAlignedComments(
                         Text("إلغاء", color = Muted)
                     }
                 }
-                // Composer remains directly above the IME; insets are already
-                // handled by the dialog container, no extra bottom clearance.
+                // يبقى مربع الكتابة فوق لوحة المفاتيح مباشرةً؛ فحاوية الحوار عالجت الهوامش
+                // بالفعل ولا حاجة لإضافة مساحة سفلية أخرى.
                 Row(Modifier.fillMaxWidth().background(Panel)
                     .padding(horizontal = 10.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically) {
@@ -404,8 +403,8 @@ private fun AttaRightAlignedComments(
 
 internal const val ATTA_API_BASE = "https://tawasol-alatta.omaratta077-4fd.workers.dev"
 private const val BASE = ATTA_API_BASE
-// Colors transcribed from the FINAL :root block in cloudflare-site/public/style.css.
-// Intentionally independent of the web CSS: styling changes require an Android update.
+// نُقلت الألوان من كتلة :root النهائية في cloudflare-site/public/style.css.
+// وهي مستقلة عمدًا عن CSS الويب؛ فأي تغيير في تنسيق الموقع يتطلب تحديث Android.
 private val Gold = Color(0xFFE6B94E)
 private val GoldLight = Color(0xFFF6D776)
 private val Black = Color(0xFF040506)
@@ -415,7 +414,7 @@ private val White = Color(0xFFF7F8F9)
 private val Muted = Color(0xFFC9D0D4)
 
 private fun googleTokenDetails(idToken: String): JSONObject {
-    // Preview only. Server validates Google's signature, audience and expiry.
+    // معاينة فقط؛ يتحقق الخادم من توقيع Google والجمهور وموعد انتهاء الصلاحية.
     return try {
         val payload = idToken.split('.').getOrNull(1) ?: return JSONObject()
         JSONObject(String(Base64.decode(payload, Base64.URL_SAFE or Base64.NO_PADDING or Base64.NO_WRAP), Charsets.UTF_8))
@@ -447,9 +446,9 @@ internal fun attaApi(path: String, payload: JSONObject? = null): JSONObject {
         val serverMessage = obj.optString("error").ifBlank { "HTTP $status" }
         val googleSignup = path.startsWith("/api/google-login") &&
             payload?.optString("signupFlow") == "android-signup"
-        // Legacy Cloudflare Worker used this generic message exclusively for
-        // the `await this.user(username)` conflict (HTTP 409). Recognise it
-        // only on the Google signup request; do not disguise other failures.
+        // استخدم Worker القديم في Cloudflare هذه الرسالة العامة حصريًا عند
+        // تعارض await this.user(username) (HTTP 409). تعرّف عليها
+        // في طلب إنشاء حساب Google فقط؛ ولا تخفِ الأخطاء الأخرى.
         val duplicateUsername = status == 409 && googleSignup && (
             obj.optString("code") == "USERNAME_TAKEN" ||
             serverMessage.trim() == "تعذر إنشاء الحساب. تواصل مع الإدارة."
@@ -484,8 +483,8 @@ private fun upload(token: String, mime: String, filename: String, bytes: ByteArr
 }
 
 
-// Files up to the Cloudflare R2 endpoint limit (50 MiB) are streamed in 64 KiB chunks.
-// Do not use readBytes() for videos: phones may run out of memory.
+// تُرسل الملفات التي تصل إلى حد Cloudflare R2 البالغ 50 MiB في أجزاء حجمها 64 KiB.
+// لا تستخدم readBytes() للفيديوهات؛ فقد تنفد ذاكرة الهاتف.
 private fun uploadChatMedia(context: android.content.Context, token: String, uri: Uri, mime: String, type: String): String {
     val kind = when {
         type == "video" && mime.startsWith("video/") -> "video"
@@ -543,7 +542,7 @@ private fun uploadChatMedia(context: android.content.Context, token: String, uri
 }
 
 class MainActivity : ComponentActivity(), WatchRoomPipStateHost {
-    // Notification taps work for a cold start AND for an existing singleTask Activity.
+    // تعمل نقرات الإشعارات عند بدء التطبيق باردًا وعند وجود Activity واحدة من نوع singleTask.
     internal var incomingPush by mutableStateOf<PushCall?>(null)
         private set
     internal var requestedNotificationEvent by mutableStateOf<String?>(null)
@@ -594,7 +593,7 @@ class MainActivity : ComponentActivity(), WatchRoomPipStateHost {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // Restore only on an Activity launch, never before validating a cold-start alarm receiver.
+        // لا تستعد إلا عند تشغيل Activity، وبعد التحقق من مستقبل منبّه بدء التشغيل البارد.
         AdhanScheduler.restore(this)
         consumePushIntent(intent)
         setContent { NativeApp() }
@@ -637,9 +636,9 @@ class MainActivity : ComponentActivity(), WatchRoomPipStateHost {
             return
         }
         if (intent == null) return
-        // FCM notification+data: when the phone is locked Android displays the
-        // incoming-call notification itself. Tapping it launches our Activity
-        // with FCM data extras, not ACTION_OPEN_CALL. Handle both entry points.
+        // إشعار FCM مع بيانات: عندما تكون شاشة الهاتف مقفلة يعرض Android
+        // إشعار المكالمة الواردة بنفسه. وعند الضغط، يبدأ Activity مع
+        // بيانات FCM، لا مع ACTION_OPEN_CALL. عالج نقطتي الدخول.
         val event = if (intent.action == AttaPush.ACTION_OPEN_CALL) {
             PushCall.fromIntent(intent)
         } else if (intent.getStringExtra("type") == "call-request") {
@@ -659,7 +658,7 @@ class MainActivity : ComponentActivity(), WatchRoomPipStateHost {
         incomingPush = pending
         AttaPush.markCallAlerted(this, pending.callId)
         AttaPush.dismiss(this, pending.callId, ended = false)
-        // Clear one-shot extras so recreation cannot replay an incoming call.
+        // امسح الإضافات أحادية الاستخدام حتى لا يؤدي إعادة إنشاء الشاشة إلى تكرار المكالمة الواردة.
         intent.removeExtra("atta_call_id")
         intent.removeExtra("callId")
         intent.removeExtra("type")
@@ -723,7 +722,7 @@ private fun SignupLegalConsent(
         Text(text, fontWeight = FontWeight.Bold, fontSize = 13.sp, maxLines = 1)
     }
 }
-/** A quiet empty action becomes gold and animated when content is ready. */
+/** يتحول الإجراء الهادئ الفارغ إلى اللون الذهبي مع حركة عند جهوزية المحتوى. */
 @Composable private fun GoldPublishButton(enabled: Boolean, onClick: () -> Unit) {
     Button(onClick = onClick, enabled = enabled,
         colors = ButtonDefaults.buttonColors(
@@ -752,9 +751,9 @@ private fun SignupLegalConsent(
 @Composable internal fun NativeVideo(url: String) {
     AttaExpandableVideo(url)
 }
-/** YouTube's supported embedded player, with a real HTTPS Referer supplied by WebView.
- *  The previous v1.0.18 player could show an endless spinner because it only
- *  watched the outer HTML page, not the YouTube player lifecycle.
+/** مشغّل YouTube المضمّن المدعوم، مع Referer حقيقي عبر HTTPS من WebView.
+ * كان مشغّل v1.0.18 السابق يعرض مؤشر تحميل لا ينتهي لأنه راقب صفحة HTML الخارجية فقط،
+ * ولم يتابع دورة حياة مشغّل YouTube نفسه.
  */
 private class AttaYoutubeFullscreenChrome(
     private val context: android.content.Context,
@@ -790,7 +789,7 @@ private class AttaYoutubeFullscreenChrome(
         fullscreenView = view
         orientationBeforeYoutubeFullscreen = activity.requestedOrientation
         container.addView(view, android.view.ViewGroup.LayoutParams(-1, -1))
-        // Fullscreen requested from inside the YouTube WebView player.
+        // طلب وضع ملء الشاشة من داخل مشغّل YouTube في WebView.
         activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
         activity.window.addFlags(android.view.WindowManager.LayoutParams.FLAG_FULLSCREEN)
     }
@@ -798,7 +797,7 @@ private class AttaYoutubeFullscreenChrome(
     override fun onHideCustomView() {
         fullscreenView?.let { root?.removeView(it) }
         owner?.window?.clearFlags(android.view.WindowManager.LayoutParams.FLAG_FULLSCREEN)
-        // Return to the device/app orientation that was in effect before fullscreen.
+        // أعد اتجاه الجهاز أو التطبيق إلى ما كان عليه قبل ملء الشاشة.
         orientationBeforeYoutubeFullscreen?.let { previous ->
             owner?.requestedOrientation = previous
         }
@@ -816,10 +815,10 @@ private class AttaYoutubeFullscreenChrome(
     }
 }
 
-/** Android uses the *site's actual YouTube panel*, not an injected or separate
- * player. The only iframe is created by cloudflare-site/public/youtube-section.js
- * using cloudflare-site/public/youtube-player-shared.js on the HTTPS site origin.
- * The local JS is an interaction/diagnostics bridge and never creates an iframe.
+/** يستخدم Android لوحة YouTube الفعلية في الموقع، لا مشغّلًا محقونًا أو منفصلًا.
+ * ينشئ youtube-section.js في cloudflare-site/public إطار iframe الوحيد
+ * باستخدام youtube-player-shared.js من أصل الموقع عبر HTTPS.
+ * يربط JavaScript المحلي التفاعلات والتشخيص فقط، ولا ينشئ إطار iframe.
  */
 @Composable private fun YouTubePlayer(id: String, onMiniDrag: ((Float, Float) -> Unit)? = null) {
     val safeId = id.takeIf { Regex("[A-Za-z0-9_-]{11}").matches(it) } ?: return
@@ -830,8 +829,8 @@ private class AttaYoutubeFullscreenChrome(
     var error by remember(safeId) { mutableStateOf("") }
     var lastEvent by remember(safeId) { mutableStateOf("بدء التحميل") }
 
-    // A small DOM bridge drives the existing site button and search form.
-    // No duplicate iframe implementation is shipped in the Android APK.
+    // يحرّك جسر DOM صغير زر الموقع الحالي ونموذج البحث.
+    // لا تُضمَّن نسخة ثانية من iframe في APK Android.
     val bridgeJs = remember(ctx) {
         ctx.assets.open("atta-site-youtube-bridge.js").bufferedReader(Charsets.UTF_8)
             .use { it.readText() }
@@ -886,8 +885,8 @@ private class AttaYoutubeFullscreenChrome(
             webViewClient = object : WebViewClient() {
                 override fun onPageFinished(view: WebView?, url: String?) {
                     if (url == BASE || url?.startsWith("$BASE/") == true) {
-                        // Do not overwrite the site's document: it contains the
-                        // real working player event handlers and CSS.
+                        // لا تستبدل مستند الموقع؛ فهو يحتوي على
+                        // معالجات أحداث المشغّل الفعلية العاملة وCSS الخاص به.
                         view?.evaluateJavascript(playOnSite, null)
                     } else {
                         loading = false
@@ -925,9 +924,8 @@ private class AttaYoutubeFullscreenChrome(
             addView(webView, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
         }
     }
-    // An iframe loading is not proof of playback, but a 20-second timeout
-    // is not a player error either. Stop the loading spinner quietly and let
-    // the site's existing embedded player display its own controls.
+    // تحميل iframe لا يثبت بدء التشغيل، كما أن انتهاء مهلة 20 ثانية لا يعني عطل المشغّل.
+    // أوقف مؤشر التحميل بهدوء، ودع مشغّل الموقع المضمّن الحالي يعرض عناصر التحكم.
     LaunchedEffect(webView, safeId) {
         kotlinx.coroutines.delay(20000)
         if (!playbackConfirmed) loading = false
@@ -965,18 +963,18 @@ private class AttaYoutubeFullscreenChrome(
                 touchHost
             }, update = { it.onDrag = onMiniDrag }, modifier = Modifier.fillMaxSize())
             if (loading) CircularProgressIndicator(color = Gold, modifier = Modifier.size(30.dp))
-            // Never cover the real YouTube picture with a WebView diagnostic caption.
+            // لا تغطِّ صورة YouTube الحقيقية بعنوان تشخيصي داخل WebView.
         }
     }
-    // v1.0.57 playback path intentionally unchanged: the HTTPS site still
-    // constructs the sole iframe via the existing site bridge.
+    // لم يتغير مسار التشغيل في v1.0.57 عمدًا؛ فما زال موقع HTTPS
+    // ينشئ iframe الوحيد عبر جسر الموقع الحالي.
     val compact = LocalConfiguration.current.screenHeightDp < 480
     BoxWithConstraints(Modifier.fillMaxWidth()) {
         PlayerSurface(Modifier.fillMaxWidth().height(if (compact) 200.dp else (maxWidth * 9f / 16f).coerceAtLeast(200.dp)))
     }
 }
 
-/** Posts use the same site player inline; only the YouTube section owns a floating host. */
+/** تستخدم المنشورات مشغّل الموقع نفسه داخل البطاقة؛ والقسم YouTube وحده يملك نافذة عائمة. */
 @Composable
 internal fun YoutubePostMedia(videoId: String, playing: Boolean, onPlay: () -> Unit, onStop: () -> Unit,
     playerContent: @Composable (String) -> Unit = { YouTubePlayer(it) }) {
@@ -1023,7 +1021,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
     }
 }
 
-/** Single row, 39dp-high search shared across page headers. */
+/** صف بحث واحد بارتفاع 39dp مشترك بين عناوين الصفحات. */
 @Composable private fun AttaCompactSearch(
     value: String,
     onValueChange: (String) -> Unit,
@@ -1178,9 +1176,9 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
     var youtubePostDraftId by remember { mutableStateOf("") }
     var youtubePostDraftTitle by remember { mutableStateOf("") }
     var activeYoutubePostId by remember { mutableStateOf("") }
-    // Reload Home without launching scrolling work from an off-screen navigation item.
+    // أعد تحميل الرئيسية من دون بدء عمل تمرير من عنصر تنقل خارج الشاشة.
     var homeRefreshRequest by remember { mutableIntStateOf(0) }
-    // Scroll requests are handled only while Home's LazyColumn is composed.
+    // تُعالَج طلبات التمرير فقط عندما تكون LazyColumn للرئيسية مركبة.
     var homeFirstPostRequest by remember { mutableIntStateOf(0) }
     var homeScrollTarget by remember { mutableIntStateOf(1) }
     var quranPage by remember { mutableIntStateOf(1) }
@@ -1203,16 +1201,16 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
     var homeCursor by remember(token) { mutableStateOf<String?>(null) }
     var ownCursor by remember(token) { mutableStateOf<String?>(null) }
     var loadingMore by remember { mutableStateOf(false) }
-    // Block automatic retries of a failed cursor until Home refreshes.
+    // أوقف المحاولات التلقائية لمؤشر تحميل فاشل إلى أن يحدّث المستخدم الرئيسية.
     var olderPageFailedCursor by remember(token) { mutableStateOf<String?>(null) }
     var myAvatar by remember { mutableStateOf("") }
     var search by remember { mutableStateOf("") }
     var chatWith by remember { mutableStateOf("") }
     var messages by remember { mutableStateOf(emptyList<JSONObject>()) }
     var inboxPreviews by remember { mutableStateOf(emptyList<ChatPreview>()) }
-    // The Worker stores message history per conversation, not as a global inbox.
-    // Remember peers locally so an existing conversation remains visible even
-    // before a friend request is accepted. Never store message bodies locally.
+    // يخزّن Worker سجل الرسائل لكل محادثة، لا في صندوق وارد عام.
+    // احتفظ بأسماء جهات الاتصال محليًا حتى تظل المحادثة الحالية ظاهرة
+    // قبل قبول طلب الصداقة. لا تخزّن نصوص الرسائل محليًا.
     val recentChatPeers = remember { mutableStateListOf<String>() }
     var hiddenChatPeers by remember { mutableStateOf(emptySet<String>()) }
     var inboxLoading by remember { mutableStateOf(false) }
@@ -1220,7 +1218,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
     var ownPosts by remember { mutableStateOf(emptyList<JSONObject>()) }
     var chatText by remember { mutableStateOf("") }
     var activeCall by remember { mutableStateOf<NativeCallSession?>(null) }
-    // Keep a call connected when the user returns to chats or browses the app.
+    // أبقِ المكالمة متصلة عند عودة المستخدم إلى المحادثات أو تصفحه بقية التطبيق.
     var callMinimized by remember { mutableStateOf(false) }
     var incomingCall by remember { mutableStateOf<NativeCallSession?>(null) }
     var pendingPermissionCall by remember { mutableStateOf<NativeCallSession?>(null) }
@@ -1234,8 +1232,8 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
     var knowledgeSearch by remember { mutableStateOf("") }
     var youtubeItems by remember { mutableStateOf(emptyList<JSONObject>()) }
     var youtubeId by remember { mutableStateOf("") }
-    // Choosing a suggestion only previews it. The trusted v1.0.57 WebView is
-    // created ONLY when the user explicitly presses Play in the top preview.
+    // تعرض اختيارات المقترحات معاينة فقط. ولا تُنشأ WebView الموثوقة v1.0.57
+    // إلا عندما يضغط المستخدم صراحةً على تشغيل في المعاينة العلوية.
     var youtubePlayRequested by remember { mutableStateOf(false) }
     var youtubeSelectedThumbnail by remember { mutableStateOf("") }
     val youtubePipMode = (ctx as? MainActivity)?.youtubePipMode == true
@@ -1256,7 +1254,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
     val compactYoutubeLayout = LocalConfiguration.current.screenHeightDp < 480
     val youtubeDisplayHeight = if (compactYoutubeLayout) 200.dp else
         (((LocalConfiguration.current.screenWidthDp-16).dp)*9f/16f).coerceAtLeast(200.dp)
-    // Keep the screen awake while a YouTube video or video call is visibly active.
+    // أبقِ الشاشة مضاءة أثناء ظهور فيديو YouTube أو مكالمة فيديو.
     val keepScreenAwake = (token.isNotBlank() && (youtubePlayRequested || activeYoutubePostId.isNotBlank())) || activeCall?.type == "video" || WatchRoomController.active
     DisposableEffect(keepScreenAwake) {
         val window = (ctx as? ComponentActivity)?.window
@@ -1272,7 +1270,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
         }
     }
     LaunchedEffect(tab, profilePeer) {
-        // A post stops when its screen is left or covered by a profile. It never becomes a mini-player.
+        // يتوقف المنشور عند مغادرة شاشته أو تغطيته بملف شخصي؛ ولا يتحول إلى مشغّل مصغّر.
         activeYoutubePostId = ""
     }
     val youtubeListState = rememberLazyListState()
@@ -1286,7 +1284,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
     var editProfileDetails by remember { mutableStateOf(false) }
     var allowFriendRequests by remember { mutableStateOf(true) }
     var accountPrivate by remember { mutableStateOf(false) }
-    // An Activity-scoped job is not cancelled just because login or a tab leaves composition.
+    // لا يُلغى العمل المرتبط بـActivity لمجرد مغادرة تسجيل الدخول أو علامة تبويب للواجهة.
     val scope = (ctx as ComponentActivity).lifecycleScope
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         if (uri != null) {
@@ -1301,10 +1299,10 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
             try { block() }
             catch (cancelled: CancellationException) { throw cancelled }
             catch (e: Exception) {
-                // Do not rewrite login errors as registration errors. The old
-                // substring check matched the word "المستخدم" in a normal
-                // invalid-password response and showed a false "username taken" error.
-                // Only api() maps the explicitly identified Google-signup conflict.
+                // لا تحوّل أخطاء تسجيل الدخول إلى أخطاء إنشاء الحساب. كان فحص النص القديم
+                // يطابق كلمة «المستخدم» في استجابة كلمة مرور غير صحيحة عادية،
+                // فيعرض خطأ زائفًا يفيد بأن اسم المستخدم مستخدم.
+                // لا يحوّل api() إلا التعارض المحدد صراحةً في إنشاء حساب Google.
                 error = loadingFailureMessage(e)
             }
             finally { busy = false }
@@ -1370,8 +1368,8 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
         if (busy) return
         if (!hasGoogleServices) { error = "هذا الجهاز لا يدعم خدمات Google؛ استخدم التسجيل أو الدخول بالبريد الإلكتروني"; return }
         task {
-            // The sign-in button must never be a silent, permanently disabled control.
-            // Retry the public configuration at tap time (e.g. after temporary network loss).
+            // يجب ألا يبقى زر تسجيل الدخول صامتًا ومعطلًا دائمًا.
+            // أعد طلب الإعداد العام عند الضغط، مثلًا بعد انقطاع مؤقت للشبكة.
             var clientId = googleClientId
             if (!googleEnabled || clientId.isBlank()) {
                 val conf = withContext(Dispatchers.IO) { api("/api/google-config") }
@@ -1400,9 +1398,9 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                 googleHideChoice = null
                 authMode = "googleProfile"
             }
-            // One validated server request decides whether this Google identity already
-            // owns an account. Existing users log in; new users complete required fields.
-            // New-account registration MUST NOT go through the email OTP endpoints.
+            // يحدد طلب واحد تم التحقق منه إلى الخادم ما إذا كانت هوية Google هذه
+            // تملك حسابًا بالفعل. يسجل المستخدم الحالي دخوله، ويكمل المستخدم الجديد الحقول المطلوبة.
+            // يجب ألا يمر إنشاء الحساب الجديد عبر واجهات رمز التحقق بالبريد الإلكتروني.
             try {
                 val result = withContext(Dispatchers.IO) {
                     api("/api/google-login", JSONObject()
@@ -1466,8 +1464,8 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
         val needed = permissionNames.filter {
             ContextCompat.checkSelfPermission(ctx, it) != PackageManager.PERMISSION_GRANTED
         }
-        // Mark the call occupied before asynchronous permission/UI work starts.
-        // Delayed FCM for this exact ID must not generate a second ringtone.
+        // سجّل انشغال المكالمة قبل بدء طلب الإذن أو واجهة المستخدم غير المتزامنة.
+        // امنع نسخة FCM المتأخرة لهذا المعرّف نفسه من تشغيل رنين ثانٍ.
         AttaPush.activeCallId = callId
         if (needed.isEmpty()) { activeCall = session; callMinimized = false }
         else { pendingPermissionCall = session; callPermissions.launch(needed.toTypedArray()) }
@@ -1479,7 +1477,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
         scope.launch {
             try {
                 val detail = get("/api/profile-public?username=${enc(other)}")
-                // Only the recent public posts returned by the existing API are shown.
+                // اعرض المنشورات العامة الحديثة التي أعادتها الواجهة الحالية فقط.
                 val latest = get("/api/posts?limit=50").arr("posts").filter {
                     it.optString("author").equals(other, ignoreCase = true)
                 }
@@ -1491,8 +1489,8 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
         }
     }
     fun sendCallRinging(session: NativeCallSession) {
-        // The remote device really received the invite and displayed its incoming dialog.
-        // Do NOT signal "ringing" merely because the caller initiated a request.
+        // تأكد أن الجهاز الآخر استلم الدعوة فعلًا وعرض مربع المكالمة الواردة.
+        // لا ترسل إشارة «يرن» لمجرد أن المتصل بدأ الطلب.
         scope.launch {
             try {
                 val data = JSONObject().put("type", "call-ringing").put("to", session.peer)
@@ -1523,8 +1521,8 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
             catch (_: Exception) { }
         }
     }
-    // A push Accept and the queued WebSocket/HTTP call-request can arrive in either
-    // order. Both describe the SAME invitation; never reject it as a second call.
+    // قد يصل قبول الإشعار الفوري وطلب المكالمة في قائمة WebSocket/HTTP بأي ترتيب.
+    // كلاهما يصف الدعوة نفسها؛ فلا ترفض الثاني باعتباره مكالمة أخرى.
     fun acceptIncomingInvite(invitation: NativeCallSession) {
         val id = invitation.callId
         if (activeCall?.callId == id || pendingPermissionCall?.callId == id) {
@@ -1533,7 +1531,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
             AttaPush.dismiss(ctx, id)
             return
         }
-        // A genuinely different active/pending call may still be busy.
+        // قد تكون هناك مكالمة نشطة أو معلقة مختلفة فعلًا؛ عندها يمكن إظهار أن الخط مشغول.
         if (WatchRoomController.active || WatchRoomController.closing || activeCall != null || pendingPermissionCall != null ||
             (incomingCall != null && incomingCall?.callId != id)) {
             knownCalls.add(id)
@@ -1542,8 +1540,8 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
             featureMessage = "توجد مكالمة أخرى جارية"
             return
         }
-        // Record the accepted call BEFORE opening WebRTC. Otherwise a delayed
-        // copy of the invitation can be processed as a NEW call and send "busy".
+        // سجّل قبول المكالمة قبل فتح WebRTC. وإلا فقد تُعالج نسخة متأخرة
+        // من الدعوة باعتبارها مكالمة جديدة وتُرسل رد «مشغول».
         knownCalls.add(id)
         if (incomingCall?.callId == id) incomingCall = null
         AttaPush.dismiss(ctx, id)
@@ -1581,7 +1579,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
         task {
             val data = withContext(Dispatchers.IO) { encodeProfileImage(ctx, uri, kind) }
             val updated = post("/api/profile", JSONObject().put(kind, data))
-            // Server returns the updated user, but reload if an older deployment omits it.
+            // يعيد الخادم بيانات المستخدم المحدّثة؛ لكن أعد تحميلها إذا لم يتضمنها نشر قديم.
             profile = updated.optJSONObject("user") ?: get("/api/me").optJSONObject("user") ?: JSONObject()
             profileBio = profile.optString("bio")
             myAvatar = profile.optString("avatar")
@@ -1659,8 +1657,8 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                             }
                         } catch (failure: AttaApiException) {
                             if (failure.statusCode != 404) throw failure
-                            // Compatibility only while a native update precedes the
-                            // backend deployment; never retry auth/server errors as N requests.
+                            // للتوافق فقط عند وصول تحديث التطبيق قبل نشر الخادم؛
+                            // لا تكرر أخطاء المصادقة أو الخادم على شكل N طلبات.
                             val byId = people.associateBy { it.optString("username").lowercase() }
                             peerIds.mapNotNull { id ->
                                 val person = byId[id] ?: return@mapNotNull null
@@ -1676,7 +1674,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                 }
             }
             "القائمة" -> {
-                // Fail closed: never retain an old owner role if the refresh fails.
+                // ارفض الوصول عند الفشل: لا تحتفظ بدور مالك قديم إذا أخفق التحديث.
                 adminRole = ""
                 val current = get("/api/me").optJSONObject("user")
                 adminRole = current?.optString("role").orEmpty().trim().lowercase()
@@ -1690,14 +1688,14 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
             }
             "المحفوظات" -> posts = get("/api/saved-posts").arr("posts")
             "الإدارة" -> {
-                // Re-check the role from the server whenever this privileged screen loads.
+                // أعد التحقق من الدور لدى الخادم كلما فُتحت هذه الشاشة المقيّدة.
                 adminRole = get("/api/me").optJSONObject("user")?.optString("role").orEmpty().trim().lowercase()
                 if (adminRole in listOf("super_admin", "moderator")) {
                     adminSummary = get("/api/admin/summary")
                     val accounts = get("/api/admin/users?q=${enc(adminSearch)}")
                     adminUsers = accounts.arr("users")
                     adminNextOffset = if (accounts.isNull("nextOffset")) -1 else accounts.optInt("nextOffset", -1)
-                    // During a paused deletion only owner status and account reads are available.
+                    // أثناء إيقاف الحذف مؤقتًا لا تتاح إلا صلاحية المالك وقراءة الحسابات.
                     if (adminSummary.isNull("deletion")) {
                         adminPosts = get("/api/admin/posts?q=${enc(adminPostSearch)}").arr("posts")
                         adminReports = get("/api/admin/reports").arr("reports")
@@ -1730,17 +1728,17 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
         }
     }
 
-    // The same invitation processor is used by realtime WebSocket and authenticated
-    // HTTP polling. A transient socket disconnection must not lose incoming calls.
+    // يستخدم معالج الدعوات نفسه عبر WebSocket اللحظي واستطلاع HTTP المصادق عليهما.
+    // لا ينبغي أن يؤدي انقطاع مؤقت عن المقبس إلى فقدان المكالمات الواردة.
     fun handleIncomingCallEvent(signal: JSONObject) {
         val kind = signal.optString("type")
         val sender = signal.optString("from").trim().lowercase()
         val callId = signal.optString("callId").trim()
         if (sender.isBlank() || sender == myUsername.lowercase() || callId.isBlank()) return
         if (kind == "call-request") {
-            // Duplicates can arrive from FCM, the socket and the polling queue.
-            // In particular, a call already accepted via a background notification
-            // MUST NOT receive a second "busy" response from this handler.
+            // قد تصل النسخ المكررة من FCM والمقبس وقائمة الاستطلاع.
+            // وبالأخص لا يجوز لهذا المعالج إرسال رد «مشغول» ثانيًا
+            // لمكالمة قُبلت بالفعل عبر إشعار الخلفية.
             if (activeCall?.callId == callId ||
                 pendingPermissionCall?.callId == callId ||
                 incomingCall?.callId == callId) {
@@ -1764,8 +1762,8 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
         }
     }
 
-    // A push notification is a wake-up hint, never a bypass around our logged-in
-    // identity, call expiry, or friendship/signaling authorization.
+    // الإشعار الفوري مجرد تنبيه لإيقاظ التطبيق، وليس تجاوزًا للتحقق من
+    // هوية المستخدم المسجل أو انتهاء المكالمة أو صلاحية الصداقة والإشارات.
     val activity = ctx as? MainActivity
     val incomingPush = activity?.incomingPush
     LaunchedEffect(incomingPush, token, myUsername) {
@@ -1796,8 +1794,8 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
         }
     }
 
-    // Missed/hung-up calls must not leave an incoming dialog marked busy forever
-    // if the screen was asleep when the cancellation signal arrived.
+    // يجب ألا تترك المكالمات الفائتة أو المنتهية مربع المكالمة الواردة مشغولًا للأبد
+    // إذا كانت الشاشة نائمة عند وصول إشارة الإلغاء.
     LaunchedEffect(incomingCall?.callId) {
         val invitation = incomingCall ?: return@LaunchedEffect
         delay(if (invitation.invitedAt > 0L) remainingIncomingCallMillis(invitation.invitedAt) else 45000L)
@@ -1838,9 +1836,9 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
         catch (_: Exception) { /* The local choice still applies when the server is temporarily unavailable. */ }
     }
 
-    // Foreground fallback: poll only small call invitations every three seconds.
-    // The backend's queue is authenticated, one-time, and scoped to this user.
-    // Background delivery is handled separately by FirebaseMessagingService when configured.
+    // بديل الواجهة الأمامية: استطلاع دعوات المكالمات الصغيرة كل ثلاث ثوانٍ فقط.
+    // قائمة الخادم مصادق عليها، أحادية الاستخدام، ومحددة بهذا المستخدم.
+    // يتولى FirebaseMessagingService التسليم في الخلفية عند إعدادها.
     LaunchedEffect(token, myUsername) {
         if (token.isBlank() || myUsername.isBlank()) return@LaunchedEffect
         while (isActive) {
@@ -1854,8 +1852,8 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
         }
     }
 
-    // A single lightweight authenticated WebSocket receives incoming calls in the
-    // foreground. WebRTC transport itself is active only while a call screen is open.
+    // يستقبل WebSocket واحد خفيف ومصادق عليه المكالمات الواردة في الواجهة الأمامية.
+    // ولا يعمل نقل WebRTC إلا عند فتح شاشة المكالمة.
     LaunchedEffect(token) {
         if (token.isNotBlank()) NativeRtcCall.prewarmIce(token)
     }
@@ -1975,11 +1973,11 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
 
     fun navigate(destination: String) {
         notificationTargetPost = null
-        // Only the verified owner sees or enters admin; server APIs also enforce this.
+        // لا يرى لوحة الإدارة ولا يفتحها إلا المالك الذي تم التحقق منه؛ وتتحقق واجهات الخادم من ذلك أيضًا.
         if (destination == "الإدارة" && adminRole !in listOf("super_admin", "moderator")) return
         if (destination == "الرئيسية" && token.isNotBlank()) {
-            // Home always lands on the FIRST feed post, even when already on Home.
-            // The scroll runs in LaunchedEffect after Home is actually composed.
+            // تعرض الرئيسية دائمًا أول منشور في الموجز، حتى إذا كانت مفتوحة بالفعل.
+            // ينفذ LaunchedEffect التمرير بعد تركيب الرئيسية فعليًا.
             homeScrollTarget = 1
             homeFirstPostRequest++
             if (tab == destination) {
@@ -1988,14 +1986,14 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
             }
         }
         if (destination == "القائمة" && tab != "القائمة") {
-            // Display owner/moderator controls only after /api/me verifies this session.
+            // اعرض أدوات المالك أو المشرف فقط بعد أن تتحقق /api/me من الجلسة.
             adminRole = ""
         }
         if (tab != destination) { visited.add(tab); tab = destination }
     }
     fun openHomeComposer() {
-        // Choosing a Quran/YouTube attachment must leave the write box visible
-        // until Publish; explicit Home taps still jump to the first feed post.
+        // يجب أن يُبقي إرفاق المصحف أو YouTube مربع الكتابة ظاهرًا
+        // حتى الضغط على نشر؛ أما الضغط الصريح على الرئيسية فيعود لأول منشور.
         navigate("الرئيسية")
         homeScrollTarget = 0
         homeFirstPostRequest++
@@ -2301,7 +2299,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
             } catch (_: Exception) { }
         }
     }
-    // Fetch our actual profile photo after login, even when opening the home feed first.
+    // اجلب صورة الملف الشخصي الفعلية بعد تسجيل الدخول، حتى عند فتح الموجز أولًا.
     LaunchedEffect(token) {
         if (token.isNotBlank()) {
             try {
@@ -2312,8 +2310,8 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
             catch (_: Exception) { /* UI can still use the account initial. */ }
         } else { myAvatar = ""; adminRole = "" }
     }
-    // Only scroll a composed Home list. The composer is row 0 and the first
-    // actual post is row 1. Avoid the old detached-list animateScroll crash.
+    // مرر القائمة الرئيسية المركبة فقط. مربع الكتابة هو الصف 0 وأول
+    // منشور فعلي هو الصف 1. تجنب تعطل animateScroll القديم بسبب قائمة منفصلة.
     LaunchedEffect(token, tab, homeFirstPostRequest) {
         if (token.isNotBlank() && tab == "الرئيسية") {
             withFrameNanos { }
@@ -2332,8 +2330,8 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
             finally { if (screenLoadGeneration == generation) screenLoading = false }
         }
     }
-    // Scroll-to-load uses the SAME cursor endpoint as the former button.
-    // Only Home's composed LazyColumn drives it; no duplicate feed or player.
+    // يستخدم التمرير للتحميل نقطة النهاية نفسها ذات المؤشر التي كان يستخدمها الزر.
+    // لا تقوده إلا LazyColumn المركبة للرئيسية؛ بلا موجز أو مشغّل مكرر.
     LaunchedEffect(token, tab) {
         if (token.isBlank() || tab != "الرئيسية") return@LaunchedEffect
         snapshotFlow {
@@ -2351,7 +2349,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
             loadingMore = true
             try {
                 val next = FeedPages.fetch(::get, cursor)
-                // A pull-to-refresh or account change must not append stale results.
+                // يجب ألا يضيف السحب للتحديث أو تبديل الحساب نتائج قديمة.
                 if (token == accountToken && tab == "الرئيسية" &&
                     homeCursor == cursor && screenLoadGeneration == loadGeneration) {
                     posts = FeedPages.merge(posts, next)
@@ -2378,8 +2376,8 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
         catch (_: Exception) { googleEnabled = false }
     }
 
-    // The existing backend sends realtime socket events. Periodic reconciliation
-    // covers short disconnections and restores changes made from the website.
+    // يرسل الخادم الحالي أحداث المقابس اللحظية. وتغطي المطابقة الدورية
+    // الانقطاعات القصيرة وتستعيد التغييرات التي أُجريت من الموقع.
     LaunchedEffect(tab, chatWith, token) {
         if (token.isBlank()) return@LaunchedEffect
         (ctx as ComponentActivity).lifecycle.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) {
@@ -2399,8 +2397,8 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
             }
         }
     }
-    // Only refresh a visible conversation. Incoming-call/socket handling retains
-    // its separate lifetime so background calls continue to work.
+    // حدّث المحادثة الظاهرة فقط. ويظل استقبال المكالمات ومعالجة المقبس
+    // بعمر منفصل حتى تستمر المكالمات في الخلفية.
     LaunchedEffect(tab, chatWith, token) {
         if (tab == "الرسائل" && chatWith.isNotBlank() && token.isNotBlank()) {
             val other = chatWith
@@ -2428,7 +2426,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
             Box(Modifier.fillMaxSize().background(Black)) {
             Column(if (youtubePipMode) Modifier.size(0.dp) else Modifier.fillMaxSize().background(Black).safeDrawingPadding()) {
                 if (token.isBlank()) {
-                    // Scroll only the authentication screen; Android navigation remains unobstructed.
+                    // مرّر شاشة تسجيل الدخول فقط؛ واترك تنقل Android دون عائق.
                     Column(
                         Modifier.fillMaxSize().verticalScroll(rememberScrollState())
                             .padding(horizontal = 22.dp, vertical = 22.dp),
@@ -2643,9 +2641,9 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                         if (error.isNotBlank()) Text(error, color = Color(0xFFFF8888), textAlign = TextAlign.Center)
                     }
                 } else {
-                    // Persistent authenticated header, independent of the selected tab.
-                    // Keeps the AL-ATTA logo beside the app name (not the username),
-                    // with message, notification and unboxed YouTube icons.
+                    // عنوان دائم ومصادق عليه، مستقل عن علامة التبويب المحددة.
+                    // يُبقي شعار AL-ATTA بجانب اسم التطبيق لا اسم المستخدم،
+                    // مع أيقونات الرسائل والإشعارات وYouTube بلا إطارات.
                     if (tab == "الرئيسية") PremiumHeader(
                         current = tab,
                         unreadNotifications = notifications.count { !it.optBoolean("read", false) },
@@ -2779,8 +2777,8 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
 
                                         }
                                         Spacer(Modifier.height(8.dp))
-                                        // An inset publish action in the composer; keep the existing
-                                        // upload/publish callback unchanged.
+                                        // أدرج زر النشر داخل مربع الكتابة؛ وأبقِ
+                                        // معالج التحميل والنشر الحالي دون تغيير.
                                         OutlinedTextField(draft, { draft = it },
                                             modifier = Modifier.fillMaxWidth().heightIn(min = 76.dp),
                                             placeholder = { Text("بم تفكر؟", fontSize = 14.sp) },
@@ -2884,8 +2882,8 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                 val reactionCounts = p.optJSONObject("reactionCounts") ?: JSONObject()
                                 val reactionTotal = listOf("like", "love", "haha", "wow", "sad", "angry", "dislike")
                                     .sumOf { reactionCounts.optInt(it) }
-                                // One user has one reaction: server totals already
-                                // deduplicate legacy likes and modern reactions.
+                                // للمستخدم تفاعل واحد؛ فإجماليات الخادم تزيل
+                                // تكرار الإعجابات القديمة والتفاعلات الحديثة.
                                 val baseTotal = p.optInt("reactionCount",
                                     p.optInt("likeCount") + reactionTotal)
                                 var selectedReaction by remember(postId, serverReaction) {
@@ -2959,8 +2957,8 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                             .border(.6.dp, Border.copy(alpha = .75f), RoundedCornerShape(11.dp)),
                                         contentScale = ContentScale.Crop)
                                     if (video.isNotBlank()) {
-                                        // Open the sole existing Media3 viewer with the full feed
-                                        // playlist, so vertical swipes go to the next post video.
+                                        // افتح مشغّل Media3 الوحيد مع قائمة فيديوهات الموجز كاملة،
+                                        // حتى ينتقل السحب الرأسي إلى فيديو المنشور التالي.
                                         AttaExpandableVideo(video, image.takeIf { it.isNotBlank() },
                                             onOpen = { showFullscreenVideo = true })
                                         if (showFullscreenVideo) {
@@ -3056,7 +3054,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                             PremiumPostAction("message-circle", p.optInt("commentCount").toString(), Muted) {
                                                 showComments = !showComments
                                             }
-                                            // The site 'repeat' arrows are the ONE and ONLY share control.
+                                            // أسهم «إعادة» في الموقع هي عنصر المشاركة الوحيد حصريًا.
                                             PremiumPostAction("repeat", p.optInt("shareCount").toString(), GoldLight) {
                                                 task {
                                                     post("/api/post-share", JSONObject().put("postId", postId).put("text", ""))
@@ -3155,7 +3153,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                             item {
                                 CardBox {
                                     if (adminRole == "super_admin" || adminRole == "moderator") {
-                                        // The owner assigns individual moderator accounts server-side.
+                                        // يعيّن المالك حسابات المشرفين كلًّا على حدة من جهة الخادم.
                                         PremiumMenuEntry("shield", "لوحة الإدارة") { navigate("الإدارة") }
                                         HorizontalDivider(color = Border.copy(alpha = .5f))
                                     }
@@ -3586,7 +3584,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                             verticalArrangement = Arrangement.spacedBy(7.dp)) {
                             if (youtubeId.isNotBlank()) item(key = "selected_youtube_video") {
                                 if (youtubePlayRequested) {
-                                    // Space for the single persistent host above this list.
+                                    // اترك مساحة للنافذة الدائمة الوحيدة فوق هذه القائمة.
                                     Spacer(Modifier.fillMaxWidth().height(youtubeDisplayHeight+28.dp))
                                 } else {
                                     Box(Modifier.fillMaxWidth().aspectRatio(16f / 9f)
@@ -3613,7 +3611,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                             OutlinedButton(onClick = {
                                                 youtubeCategory = category
                                                 youtubeSearch = ""
-                                                // Leave the selected video untouched while browsing topics.
+                                                // لا تغيّر الفيديو المحدد أثناء تصفح المواضيع.
                                                 task { load("يوتيوب") }
                                             }, shape = RoundedCornerShape(18.dp),
                                                 border = BorderStroke(1.dp, if (selected) Gold else Border),
@@ -3686,8 +3684,8 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                         activeYoutubePostId = ""
                                         youtubePostDraftId = id
                                         youtubePostDraftTitle = v.optString("title").take(160)
-                                        // Selecting a video prepares the existing Home composer.
-                                        // The Home feed loads via its composable effect after navigation.
+                                        // يجهّز اختيار الفيديو مربع الكتابة الحالي في الرئيسية.
+                                        // يُحمّل موجز الرئيسية من أثر الواجهة بعد التنقل.
                                         openHomeComposer()
                                     }) {
                                         SiteIcon("share", size = 20.dp)
@@ -3706,7 +3704,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                         listOf("المنشورات", "حول", "الأصدقاء", "الصور", "الفيديوهات").forEach { section ->
                                             TextButton(onClick = {
                                                 ownProfileFilter = section
-                                                // Editing belongs to About only, not posts or photos.
+                                                // التعديل خاص بصفحة «حول» فقط، لا بالمنشورات أو الصور.
                                                 if (section != "حول") editProfileDetails = false
                                             }) { Text(section, color = if (ownProfileFilter == section) GoldLight else Muted) }
                                         }
@@ -3853,9 +3851,9 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                     )
                 }
             }
-            // Keep the existing site WebView at one stable composition location.
-            // Only section playback reaches this host; post playback stays inside its card.
-            // Only its bounds change between the YouTube page and a visible mini-player.
+            // أبقِ WebView الموقع الحالية في موضع تركيب ثابت واحد.
+            // يصل تشغيل القسم فقط إلى هذه النافذة؛ ويظل تشغيل المنشور داخل بطاقته.
+            // لا يتغير سوى حجمها بين صفحة YouTube والمشغّل المصغّر الظاهر.
             if (token.isNotBlank() && youtubePlayRequested && youtubeId.isNotBlank() && activeYoutubePostId.isBlank()) {
                 val expandedYoutube = tab == "يوتيوب" && profilePeer.isBlank()
                 FloatingVideoContainer(expandedYoutube, youtubePipMode,
@@ -3893,8 +3891,8 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                 }
             }
             activeCall?.let { session ->
-                // Keep the native WebRTC peer and its Compose screen mounted while minimized.
-                // The separate native camera/renderer lifecycle owns the call.
+                // أبقِ نظير WebRTC الأصلي وشاشته في Compose مركبين أثناء التصغير.
+                // دورة حياة الكاميرا والعرض الأصلية المستقلة تتولى المكالمة.
                 FloatingCallBubble(minimized = callMinimized) { callHost -> NativeCallScreen(
                     session = session, token = token, myUsername = myUsername,
                     minimized = callMinimized,
@@ -3916,7 +3914,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
 }
 
 
-/** Owner-only premium header; permissions come from the server, not local flags. */
+/** عنوان ذهبي مميز للمالك فقط؛ ويمنح الخادم الصلاحيات لا العلامات المحلية. */
 @Composable
 private fun AdminOwnerHero(accountName: String, avatarUrl: String, username: String) {
     Column(Modifier.fillMaxWidth()

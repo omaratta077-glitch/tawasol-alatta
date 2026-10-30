@@ -10,14 +10,14 @@ import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import org.json.JSONArray
 import org.json.JSONObject
 
-/** Ephemeral playback data. Never saved in the catalog, preferences or copied diagnostics. */
+/** بيانات تشغيل مؤقتة؛ لا تُحفظ في الكتالوج أو التفضيلات أو التشخيصات المنسوخة. */
 internal data class NativeChannelSource(val index: Int, val url: String,
     val headers: Map<String, String>, val mimeType: String?) {
     override fun toString() = "NativeChannelSource(index=$index)"
 }
 
 internal object NativeChannelPlayback {
-    // Observed fallback in the supplied YTV PRO PlayerActivity constructor.
+    // بديل احتياطي تمت ملاحظته في مُنشئ PlayerActivity المرفق من YTV PRO.
     internal const val FALLBACK_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/95.0.4638.54 Safari/537.36"
 
     internal fun transport(context: android.content.Context, headers: Map<String, String>): androidx.media3.datasource.DataSource.Factory =
@@ -53,7 +53,7 @@ internal object NativeChannelPlayback {
     }
 
     suspend fun load(token: String, stableChannelId: String): List<NativeChannelSource> = withContext(Dispatchers.IO) {
-        // Only our normal owner session goes to AL-ATTA; no admin/decoder secret enters the APK.
+        // تذهب جلسة المالك العادية فقط إلى AL-ATTA؛ ولا يدخل APK أي سر إداري أو مفتاح فك ترميز.
         parse(attaApi("/api/admin/football/playback-test", JSONObject().put("token", token).put("channelId", stableChannelId)))
     }
 
@@ -68,8 +68,8 @@ internal object NativeChannelPlayback {
     }
 }
 
-/** One immutable source selection and one clock for the lifetime of the open viewer.
- * Main-thread callbacks carry an attempt token so a released player cannot alter its successor.
+/** اختيار مصدر واحد غير قابل للتغيير وعداد واحد طوال مدة فتح العارض.
+ * تحمل استدعاءات الخيط الرئيسي رمز المحاولة، كيلا يغيّر مشغّل محرر حالة المشغّل الذي يليه.
  */
 internal class NativePlaybackSession(channel: FootballChannel, initialSources: List<NativeChannelSource>,
     private val clock: () -> Long = android.os.SystemClock::elapsedRealtime) {
@@ -173,7 +173,7 @@ internal class NativePlaybackSession(channel: FootballChannel, initialSources: L
     }
 }
 
-/** Source changes reset the transport/player inside a single fullscreen window. */
+/** تعيد تغييرات المصدر ضبط النقل والمشغّل داخل نافذة واحدة بملء الشاشة. */
 @Composable
 internal fun NativeChannelPlaybackDialog(session: NativePlaybackSession, onDismiss: () -> Unit,
     attemptTimeoutMs: Long = 20_000, dataSourceFactory: androidx.media3.datasource.DataSource.Factory? = null,

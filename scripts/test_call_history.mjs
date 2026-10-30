@@ -48,7 +48,7 @@ assert.equal(status.status,200);assert.equal(status.value.registeredDevices,0);
 assert.equal(status.value.serverConfigured,false);
 assert.equal((await api('/api/push/test','POST',{token:bob})).status,409);
 console.log('PASS authenticated push status and no false-positive delivery test when not configured');
-// Simulate FCM's own accepted/failed response without making a network request.
+// حاكِ رد FCM المقبول أو الفاشل دون إرسال طلب شبكة.
 room.env.FIREBASE_SERVICE_ACCOUNT_JSON=JSON.stringify({project_id:'demo',client_email:'svc@demo',private_key:'test-not-real'});
 room.fcmAccessToken=async()=> 'fake-token';
 const device='F'.repeat(150);
@@ -59,7 +59,7 @@ try {
  const passed=await api('/api/push/test','POST',{token:bob});
  assert.equal(passed.status,200);assert.equal(passed.value.acceptedByFirebase,1);
  assert.equal((await api('/api/push/test','POST',{token:bob})).status,429);
- // Another account, same service but simulated FCM authorization failure.
+ // حساب آخر، والخدمة نفسها مع محاكاة فشل تفويض FCM.
  const failedDevice='G'.repeat(150);
  assert.equal((await api('/api/push/register','POST',{token:alice,deviceToken:failedDevice})).status,200);
  globalThis.fetch=async()=>new Response(JSON.stringify({error:{status:'PERMISSION_DENIED'}}),{status:403});

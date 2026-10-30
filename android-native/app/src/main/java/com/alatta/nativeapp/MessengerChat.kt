@@ -40,8 +40,8 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-// Messenger-inspired interface with AL-ATTA's own black / gold appearance.
-// Existing Cloudflare conversations remain the source of truth: no mock data.
+// واجهة مستوحاة من تطبيقات المراسلة، بألوان العطا الأسود والذهبي.
+// تظل محادثات Cloudflare الحالية مصدر الحقيقة؛ بلا بيانات وهمية.
 internal data class ChatPreview(val user: JSONObject, val lastMessage: JSONObject?) {
     val username: String get() = user.optString("username")
     val timestamp: Long get() = lastMessage?.optLong("ts", 0L) ?: 0L
@@ -71,7 +71,7 @@ private fun shortTime(ms: Long): String {
     return if (elapsed in 0 until 86_400_000L) prettyTime(ms)
     else SimpleDateFormat("d MMM", Locale("ar")).format(Date(ms))
 }
-// Call history comes from the existing private conversation, never from raw SDP/ICE.
+// يأتي سجل المكالمات من المحادثة الخاصة الحالية، لا من بيانات SDP/ICE الخام.
 private fun callSummary(message: JSONObject, outgoing: Boolean): String {
     val video = message.optString("callType") == "video"
     val base = if (video) "مكالمة فيديو" else "مكالمة صوتية"
@@ -191,7 +191,7 @@ internal fun MessengerInbox(
     }
     val previews = remember(contacts, inbox, hiddenPeers) {
         val byUser = inbox.associateBy { it.username.lowercase() }
-        // Do not hide an existing chat just because the contact is not yet a friend.
+        // لا تُخفِ محادثة موجودة لمجرد أن جهة الاتصال ليست صديقًا بعد.
         val allUsers = (inbox.map { it.user } + contacts)
             .filter { it.optString("username").isNotBlank() && it.optString("username").lowercase() !in hiddenPeers }
             .distinctBy { it.optString("username").lowercase() }
@@ -216,7 +216,7 @@ internal fun MessengerInbox(
             Spacer(Modifier.width(5.dp))
             ChatCircleAction("repeat", "تحديث") { onRefresh() }
         }
-        // Compact, responsive single row: All + Chats + Search (RTL).
+        // صف واحد مدمج ومتجاوب: الكل + المحادثات + البحث، باتجاه RTL.
         Row(Modifier.fillMaxWidth().padding(horizontal = 13.dp, vertical = 6.dp),
             horizontalArrangement = Arrangement.spacedBy(6.dp),
             verticalAlignment = Alignment.CenterVertically) {
@@ -243,7 +243,7 @@ internal fun MessengerInbox(
                 )
             }
         }
-        // Stories have one location: the message inbox, replacing the old friends strip.
+        // للمحتوى القصصي موضع واحد: صندوق الرسائل بدل شريط الأصدقاء القديم.
         if (query.isBlank()) {
             Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())
                 .padding(horizontal = 14.dp, vertical = 3.dp),
@@ -348,7 +348,7 @@ private fun ChatBubble(message: JSONObject, mine: Boolean, onCall: (String) -> U
     val body = message.optString("text")
     val mediaUrl = media(message.optString("media"))
     val mediaType = message.optString("mediaType")
-    // In RTL layout Start is the RIGHT side: my bubbles appear on the right.
+    // في تخطيط RTL يكون Start على اليمين؛ لذلك تظهر فقاعات رسائلي على اليمين.
     Box(Modifier.fillMaxWidth().combinedClickable(role = if (mediaType == "call-event") Role.Button else null,
         onClickLabel = if (mediaType == "call-event") "إعادة الاتصال" else null, onClick = {
         if (mediaType == "call-event") onCall(if (message.optString("callType") == "video") "video" else "audio")
@@ -541,8 +541,8 @@ internal fun MessengerThread(
             }
         }
         HorizontalDivider(color = ChatDivider)
-        // Composer stays at the BOTTOM of the conversation, just above the IME.
-        // Deliberately keep the plus / send actions outside the text field.
+        // يبقى مربع الكتابة أسفل المحادثة، فوق لوحة المفاتيح مباشرةً.
+        // أبقِ زري الإضافة والإرسال خارج حقل النص عمدًا.
         Row(
             modifier = Modifier.fillMaxWidth()
                 .background(ChatPanel)
@@ -561,8 +561,8 @@ internal fun MessengerThread(
                 SiteIcon("plus", size = 28.dp, tint = ChatGoldBright)
             }
 
-            // BasicTextField avoids TextField's large built-in vertical insets.
-            // Keep the entered characters white on black, even while focused.
+            // يتجنب BasicTextField الهوامش الرأسية الكبيرة المدمجة في TextField.
+            // أبقِ الأحرف المدخلة بيضاء على خلفية سوداء حتى أثناء التركيز.
             BasicTextField(
                 value = chatText,
                 onValueChange = onTextChange,

@@ -7,7 +7,7 @@ import com.huawei.hms.push.RemoteMessage
 import org.json.JSONObject
 import java.util.concurrent.Executors
 
-/** HMS is a transport adapter; account ownership and notification UI stay shared. */
+/** طبقة نقل HMS؛ وتظل ملكية الحساب وواجهة الإشعارات مشتركة. */
 internal object AttaHuaweiPush {
     private val io = Executors.newSingleThreadExecutor()
     fun register(context: Context, session: String, user: String) {

@@ -11,18 +11,18 @@ import java.util.Locale
 import java.util.zip.GZIPInputStream
 
 /**
- * A single source for Quran SVG page bytes, shared by the native reader, posts and PDF.
- * The opening page ships with the APK. The remaining 603 pages download once and
- * persist in private app storage for offline reading on subsequent visits.
+ * مصدر واحد لبايتات صفحات المصحف بصيغة SVG، مشترك بين القارئ الأصلي والمنشورات وPDF.
+ * تأتي صفحة البداية مع APK. وتُنزّل الصفحات الـ603 المتبقية مرة واحدة،
+ * ثم تُحفظ في مساحة التطبيق الخاصة لقراءتها دون اتصال في الزيارات التالية.
  */
 internal object MushafPageStore {
-    // Immutable source revision: never point downloads at a moving main branch.
+    // ثبّت مراجعة المصدر؛ ولا توجّه التنزيلات إلى فرع main متغير المحتوى.
     private const val SOURCE_REVISION = "ab1fda7e4657b872ec77a596f2453e0da88d1507"
     private const val SOURCE_BASE =
         "https://raw.githubusercontent.com/omaratta077-glitch/tawasol-alatta/$SOURCE_REVISION/android-native/app/src/main/assets/mushaf/pages"
     private const val MAX_PAGE_BYTES = 2_000_000L
-    // Only requests for the same page serialize. An offline page remains usable
-    // while another page is downloading over a slow connection.
+    // تُسلسَل الطلبات للصفحة نفسها فقط. وتظل الصفحة المحفوظة دون اتصال قابلة للاستخدام
+    // أثناء تنزيل صفحة أخرى عبر اتصال بطيء.
     private val pageLocks = Array(605) { Any() }
     private val metadataLock = Any()
     @Volatile private var pageMetadata: List<Pair<Long, String>>? = null
@@ -30,7 +30,7 @@ internal object MushafPageStore {
     fun openPage(context: Context, page: Int, allowNetwork: Boolean = true): InputStream {
         require(page in 1..604)
         if (page == 1) {
-            // Android's asset merger transparently inflates the 001.svg.gz source.
+            // يوسّع Android ملف المصدر 001.svg.gz تلقائيًا أثناء دمج الأصول.
             return context.assets.open("mushaf/pages/001.svg")
         }
         val packed = ensureCached(context, page, allowNetwork)
@@ -44,7 +44,7 @@ internal object MushafPageStore {
         return isValid(File(storage(context), name(page)), meta.first, meta.second)
     }
 
-    /** Explicit optional offline download from the reader's index screen. */
+    /** تنزيل اختياري صريح للاستخدام دون اتصال من شاشة فهرس القارئ. */
     fun downloadPage(context: Context, page: Int) {
         require(page in 1..604)
         if (page > 1) ensureCached(context, page)

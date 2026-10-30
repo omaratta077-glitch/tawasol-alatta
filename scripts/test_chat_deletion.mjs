@@ -39,7 +39,7 @@ assert.equal((await api('/api/conversation-delete',{with:'bob'})).status,200);
 room=restart();assert.deepEqual((await chat()).map(m=>m.id),['signal']);
 const inbox=await api('/api/inbox?peers=bob');assert.deepEqual(inbox.data.hiddenPeers,['bob']);assert.equal(inbox.data.summaries.length,0);
 assert.ok((await chat('bob')).some(m=>m.id==='two'),'clearing only affects the owner');
-// Offline delivery respects deletion without dropping active call transport.
+// يجب أن يحترم التسليم دون اتصال الحذف من دون إسقاط نقل المكالمة النشطة.
 const pending=data.get(key);for(const m of pending)m.deliveredAt=0;
 pending.push(msg('incoming-signal','bob','call-signal'));data.set(key,pending);
 events.length=0;await room.deliverPendingMessages('alice',sockets[0]);assert.ok(!events.some(e=>e.id==='two'));

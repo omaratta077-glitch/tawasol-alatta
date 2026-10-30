@@ -38,8 +38,8 @@ import coil.compose.AsyncImage
 import androidx.compose.ui.layout.ContentScale
 import org.json.JSONObject
 
-// Android vectors are produced directly from cloudflare-site/public/icons.js.
-// This file does NOT use substitute text glyphs or platform-dependent emoji.
+// تُنتج متجهات Android مباشرةً من cloudflare-site/public/icons.js.
+// لا يستخدم هذا الملف رموزًا نصية بديلة أو إيموجي يختلف حسب المنصة.
 internal val PremiumGold = Color(0xFFE6B94E)
 internal val PremiumGoldLight = Color(0xFFF6D776)
 internal val PremiumBackground = Color(0xFF040506)
@@ -121,8 +121,8 @@ internal fun PremiumHeader(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        // RTL: first child is positioned on the right. Brand icon is only
-        // slightly bigger than the notification icons, as requested.
+        // يكون العنصر الفرعي الأول على اليمين في RTL. وأيقونة العلامة
+        // أكبر قليلًا فقط من أيقونات الإشعارات.
         Row(
             Modifier.widthIn(min = 111.dp).clickable { onNavigate("الرئيسية") },
             verticalAlignment = Alignment.CenterVertically,
@@ -132,8 +132,8 @@ internal fun PremiumHeader(
             Text("AL-ATTA", color = PremiumGoldLight, fontWeight = FontWeight.Bold,
                 fontSize = 12.sp, maxLines = 1, softWrap = false)
         }
-        // Keep the four navigation buttons grouped tightly on the LEFT in RTL.
-        // Preserve 38dp tap targets; reduce only the gap between the buttons.
+        // اجمع أزرار التنقل الأربعة بإحكام على اليسار في RTL.
+        // احتفظ بمساحة لمس 38dp؛ وقلل الفجوة بين الأزرار فقط.
         Spacer(Modifier.weight(1f))
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -190,13 +190,13 @@ internal fun PremiumSearchBar(onClick: () -> Unit) {
 
 @Composable
 internal fun PremiumBottomNav(current: String, go: (String) -> Unit) {
-    // This bar is inside safeDrawingPadding() in the parent, ABOVE Android's
-    // system back/home controls, not overlapping them.
-    // One horizontally scrolling navigation bar; it replaces the old fixed five-item bar.
-    // Same Lucide-style vector icons as the approved interactive prototype.
+    // يقع هذا الشريط داخل safeDrawingPadding() في الحاوية الأم، فوق
+    // عناصر الرجوع والرئيسية في Android، لا متداخلًا معها.
+    // شريط تنقل أفقي قابل للتمرير؛ يحل محل الشريط القديم الثابت ذي خمسة عناصر.
+    // يستخدم أيقونات متجهية على نمط Lucide كما في النموذج التفاعلي المعتمد.
     val destinations = listOf(
-        // The first item is at the far right in this Arabic navigation row.
-        // Remaining screens stay reachable by horizontal swiping, not removed.
+        // يظهر العنصر الأول عند أقصى اليمين في صف التنقل العربي.
+        // وتظل الشاشات الأخرى متاحة بالتمرير الأفقي، ولم تُحذف.
         Triple("الرئيسية", "home", "الرئيسية"),
         Triple("الرسائل", "message-circle", "الرسائل"),
         Triple("الملف", "user-round", "الملف"),
@@ -272,8 +272,8 @@ internal fun PremiumPostAction(icon: String, label: String, color: Color = Premi
 }
 
 
-// Tap to toggle the normal like (highlighted gold). Long-press to reveal
-// advanced reactions. No reaction row is rendered below every post.
+// اضغط لتبديل الإعجاب العادي المميز بالذهبي. واضغط مطولًا لإظهار
+// التفاعلات المتقدمة. لا يُرسم صف التفاعلات أسفل كل منشور.
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 internal fun PremiumReactionAction(
@@ -354,7 +354,7 @@ internal fun PremiumReactionAction(
     }
 }
 
-/** Reserve any system-bar space missing from a Dialog's own inset dispatch. */
+/** احجز مساحة أشرطة النظام التي قد لا يمررها الحوار ضمن هوامشه الخاصة. */
 @Composable
 internal fun attaCommentBottomClearance(): Dp {
     val context = androidx.compose.ui.platform.LocalContext.current

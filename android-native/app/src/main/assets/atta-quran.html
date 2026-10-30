@@ -130,17 +130,17 @@ function overlay(id,on){$(id).classList.toggle('open',on);}
 function closeOverlays(){overlay('indexOverlay',false);overlay('verseOverlay',false)}
 document.querySelectorAll('[data-close]').forEach(b=>b.addEventListener('click',closeOverlays));
 ['indexOverlay','verseOverlay'].forEach(id=>$(id).addEventListener('click',e=>{if(e.target===$(id))closeOverlays()}));
-// Strip vocalisation from UI labels only; the printed Quran paths and verse text stay intact.
+// أزل التشكيل من تسميات الواجهة فقط؛ تبقى مسارات المصحف المطبوعة ونص الآيات كما هي.
 function surahLabel(name){return String(name||'القرآن').replace(/^سُورَةُ\s*/,'').replace(/[\u0610-\u061a\u064b-\u065f\u0670\u06d6-\u06ed]/g,'').replace(/ٱ/g,'ا');}
 function surahName(n){return surahLabel(surahs.find(s=>s.number===n)?.name||'سورة '+ar(n));}
 function pageTitle(verse){return surahLabel(verse?.surah?.name||surahName(verse?.surah?.number));}
 function marker(n){return '﴿'+ar(n)+'﴾';}
 function showBookmark(){let value=0;try{value=Number(localStorage.getItem(bookmarkMemory))||0}catch(_){} $('bookmarkButton').classList.toggle('selected',value===page);$('bookmarkButton').title=value?'العلامة عند صفحة '+ar(value):'حفظ الصفحة';}
-// Fit the fixed 15-line artwork to the reading surface; zoom never changes its lines.
+// وائم الرسم الثابت ذي الأسطر الخمسة عشر مع مساحة القراءة؛ التكبير لا يغيّر الأسطر.
 function applyReadingStyle(){
  const root=$('pageText'),reader=$('reader');
  const opening=page<=2;
- // Short landscape screens scroll vertically instead of shrinking the Mushaf to a thumbnail.
+ // في الشاشات القصيرة بالوضع الأفقي، مرّر عموديًا بدل تصغير المصحف إلى صورة مصغّرة.
  const available=Math.max(reader.clientWidth>reader.clientHeight?600:240,reader.clientHeight-14);
  const baseWidth=Math.min(Math.max(220,reader.clientWidth-20),available*.54);
  const width=baseWidth*readingSize/100;
@@ -182,7 +182,7 @@ function loadPage(number){
    if(requested<=2)continue;
    const title=document.createElement('div');title.className='mushaf-surah-header';title.setAttribute('aria-hidden','true');title.style.top=(header.headerPosition/currentPageInfo.height*100)+'%';title.textContent=header.nameArabic;root.append(title);
   }
-  // Screen-reader/keyboard access uses the same verse actions without re-typesetting the page.
+  // يوفّر قارئ الشاشة ولوحة المفاتيح إجراءات الآيات نفسها من دون إعادة تنسيق الصفحة.
   const accessible=document.createElement('div');accessible.className='sr-only';
   for(const ayah of ayahs){const b=document.createElement('button');b.className='ayah';b.textContent=sanitize(ayah.text)+' '+marker(ayah.numberInSurah);b.onclick=()=>openVerse(ayah,false);accessible.append(b);}root.append(accessible);
   const choose=(event,explanation)=>{
@@ -246,7 +246,7 @@ $('reader').addEventListener('touchend',e=>{
  const delta=e.changedTouches[0].clientX-previousTouchX,vertical=Math.abs(e.changedTouches[0].clientY-previousTouchY);
  if(Math.abs(delta)>125 && Math.abs(delta)>vertical*1.5 && !document.querySelector('.overlay.open'))loadPage(page+(delta>0?1:-1));
 },{passive:true});
-// The native Android back button dismisses an open sheet before leaving the reader.
+// يغلق زر الرجوع الأصلي في Android اللوحة المفتوحة قبل مغادرة القارئ.
 window.addEventListener('pagehide',stopRecitation);
 loadPage(page);initIndex();
 </script>

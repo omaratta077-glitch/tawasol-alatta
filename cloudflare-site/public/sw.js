@@ -20,7 +20,7 @@ self.addEventListener("fetch",event=>{
   if(u.origin!==self.location.origin)return;
   if(u.pathname.startsWith("/api/")||u.pathname==="/ws"||u.pathname.startsWith("/media/"))return;
 
-  // Generated Quran/Hadith data is fetched on demand; do not grow the shell cache by hundreds of MB.
+  // تُجلب بيانات المصحف والأحاديث عند الطلب؛ فلا تضخم ذاكرة التخزين المؤقت الأساسية بمئات الميغابايت.
   if(u.pathname.startsWith("/knowledge/generated/"))return;
 
   if(STATIC_RE.test(u.pathname)){
@@ -44,6 +44,6 @@ self.addEventListener("fetch",event=>{
     return;
   }
 
-  // HTML/navigation: network first so deployments appear immediately.
+  // HTML والتنقل: ابدأ بالشبكة كي تظهر الإصدارات المنشورة فورًا.
   event.respondWith(fetch(r).catch(()=>caches.match(r)));
 });

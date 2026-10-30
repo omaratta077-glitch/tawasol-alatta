@@ -15,7 +15,7 @@ import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 
-/** Non-secret bindings only. The response configuration stays in CatalogFormatSettings. */
+/** روابط إعداد لا تحتوي أسرارًا فقط؛ وتبقى إعدادات استجابة المصدر في CatalogFormatSettings. */
 internal object CatalogLinkStore {
     private fun prefs(context: Context) = context.getSharedPreferences("alatta_catalog_links_v1", Context.MODE_PRIVATE)
     fun automatic(context: Context, owner: String) = owner.isNotBlank() && prefs(context).getBoolean("automatic:$owner", true)
@@ -96,7 +96,7 @@ internal object CatalogAutoUpdater {
     } }
 }
 
-/** Owner phone publishes cached IDs for everyone; no service configuration leaves the phone. */
+/** ينشر هاتف المالك المعرّفات المحفوظة لبقية المستخدمين؛ ولا تغادر إعدادات الخدمة الهاتف. */
 @Composable
 internal fun CatalogAutoRefreshEffect(token: String, owner: String, enabled: Boolean) {
     val context = LocalContext.current

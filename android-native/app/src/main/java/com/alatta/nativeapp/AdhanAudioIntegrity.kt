@@ -6,7 +6,7 @@ import java.security.MessageDigest
 
 internal const val ADHAN_MAX_BYTES = 20 * 1024 * 1024
 
-/** A truncated/changed recording must never replace the currently selected offline voice. */
+/** لا يجوز أن يحل تسجيل مبتور أو متغيّر محل الصوت المحفوظ المحدد حاليًا. */
 internal fun copyVerifiedAdhan(input: InputStream, output: OutputStream, size: Long, sha256: String, checkCancelled: () -> Unit = {}) {
     require(size in 1..ADHAN_MAX_BYTES.toLong() && sha256.matches(Regex("[a-f0-9]{64}"))) { "بيانات التسجيل غير صحيحة" }
     val digest = MessageDigest.getInstance("SHA-256")

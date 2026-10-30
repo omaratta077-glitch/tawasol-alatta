@@ -21,7 +21,7 @@ internal fun mushafPartSelection(part: Int): MushafShareSelection {
 
 internal data class MushafPostAttachment(val pdfUrl: String, val pages: IntRange)
 
-/** Links are ordinary post text, compatible with the existing deployed post API. */
+/** الروابط نص عادي في المنشور، ومتوافقة مع واجهة المنشورات المنشورة الحالية. */
 internal fun parseMushafPostAttachment(text: String, siteOrigin: String): MushafPostAttachment? {
     val expected = runCatching { URI(siteOrigin) }.getOrNull() ?: return null
     for (match in Regex("https://[^\\s]+#mushaf=([0-9]{1,3})-([0-9]{1,3})(?=\\s|$)").findAll(text)) {
@@ -36,7 +36,7 @@ internal fun parseMushafPostAttachment(text: String, siteOrigin: String): Mushaf
     return null
 }
 
-/** Hide only the verified mushaf PDF attachment URL in feed text; links remain in stored post data. */
+/** أخفِ من نص الموجز رابط مرفق PDF للمصحف الذي تم التحقق منه فقط؛ ويظل الرابط ضمن بيانات المنشور المخزنة. */
 internal fun visibleMushafPostText(text: String, siteOrigin: String): String {
     val attachment = parseMushafPostAttachment(text, siteOrigin) ?: return text
     val marker = Regex("https://[^\\s]+#mushaf=([0-9]{1,3})-([0-9]{1,3})(?=\\s|$)")

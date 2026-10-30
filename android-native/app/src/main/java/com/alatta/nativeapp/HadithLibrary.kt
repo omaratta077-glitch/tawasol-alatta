@@ -20,8 +20,8 @@ import java.security.MessageDigest
 import java.util.Collections
 import java.util.zip.GZIPInputStream
 
-/** One bundled, verified SQLite database; no API requests and no full-book loads into the UI. */
-/** Safe, actionable UI error; the original cause is logged for diagnosis. */
+/** قاعدة SQLite واحدة مضمّنة تم التحقق منها؛ بلا طلبات API أو تحميل الكتاب كاملًا إلى الواجهة. */
+/** خطأ آمن ومفيد للمستخدم؛ ويُسجل السبب الأصلي لأغراض التشخيص. */
 internal class HadithPreparationException(
     message: String, cause: Throwable? = null, val stage: String = "PREPARE"
 ) : IOException(message, cause)
@@ -30,9 +30,9 @@ internal object HadithLibrary {
     private val installLock = Mutex()
     @Volatile private var cached: SQLiteDatabase? = null
 
-    /** Never trust only a matching file length: an interrupted or stale copy may
-     * have the same length. Hash the full APK-derived file once per cold start.
-     * This avoids OEM-specific SQLite PRAGMA checks during installation.
+    /** لا تثق بتطابق حجم الملف وحده؛ فقد تكون نسخة منقطعة أو قديمة بالحجم نفسه.
+     * احسب بصمة الملف الكامل المشتق من APK مرة واحدة عند بدء التشغيل البارد.
+     * يجنب ذلك اختبارات PRAGMA الخاصة بمصنعي الأجهزة أثناء التثبيت.
      */
     private fun verifiedCopy(file: File, bytes: Long, sha256: String): Boolean {
         if (!file.isFile || file.length() != bytes) return false
@@ -48,10 +48,9 @@ internal object HadithLibrary {
         return digest.digest().joinToString("") { "%02x".format(it) } == sha256
     }
 
-    /**
-     * Only clear this library's own extracted SQLite files; never touch user
-     * accounts, posts, settings, messages or other app storage.
-     * Calling books() after repair will reinstall from the signed APK assets.
+    /** احذف ملفات SQLite المستخرجة الخاصة بهذه المكتبة فقط؛ ولا تمس حسابات المستخدمين
+     * أو منشوراتهم أو إعداداتهم أو رسائلهم أو أي بيانات أخرى للتطبيق.
+     * يعيد استدعاء books() بعد الإصلاح تثبيتها من موارد APK الموقّع.
      */
     suspend fun repair(context: Context) = withContext(Dispatchers.IO) {
         installLock.withLock {
@@ -81,10 +80,10 @@ internal object HadithLibrary {
         if (!directory.isDirectory) throw HadithPreparationException("تعذر الوصول لمساحة تخزين مكتبة الأحاديث على الهاتف.")
         val target = File(directory, "library-${hash.take(16)}.db")
         suspend fun install() {
-            // The compressed assets stay in the APK; only the 37 MB SQLite file is extracted.
-            // File.usableSpace reads the same private volume used for extraction.
-            // A zero reading can also mean "unknown" (notably in JVM/Robolectric tests);
-            // in that case try writing and let the actual I/O error explain a full disk.
+            // تبقى الملفات المضغوطة داخل APK؛ ولا يُستخرج سوى ملف SQLite بحجم 37 MB.
+            // تقرأ File.usableSpace المساحة المتاحة على وحدة التخزين الخاصة نفسها.
+            // قد تعني القيمة صفرًا أن المساحة غير معروفة، خاصةً في اختبارات JVM/Robolectric؛
+            // عندها حاول الكتابة ودع خطأ الإدخال والإخراج الفعلي يوضح إن كان القرص ممتلئًا.
             val availableBytes = directory.usableSpace
             if (availableBytes > 0L && availableBytes < expectedBytes + 2L * 1024 * 1024) {
                 throw HadithPreparationException("المساحة الداخلية غير كافية لتجهيز الأحاديث. وفر نحو 40 ميجابايت ثم أعد المحاولة.")
@@ -121,11 +120,11 @@ internal object HadithLibrary {
                 throw HadithPreparationException("فشل استخراج مكتبة الأحاديث من ملفات التطبيق. أعد المحاولة؛ وإذا استمر الخطأ أعد تثبيت الإصدار.", error)
             } finally { inputs.forEach { runCatching { it.close() } }; temporary.delete() }
         }
-        // Verify the exact bundled SQLite bytes, not Android/OEM PRAGMA output.
-        // The archive is separately checked during CI by PRAGMA integrity_check,
-        // user_version and all 14,006 source rows. Do not run quick_check on every
-        // Honor/Android cold start: some vendor SQLite builds throw
-        // IllegalArgumentException while evaluating PRAGMA, despite valid data.
+        // تحقق من مطابقة بايتات SQLite المضمّنة نفسها، لا من مخرجات PRAGMA لدى Android أو الشركة المصنّعة.
+        // يجري التحقق من الأرشيف بشكل منفصل في CI باستخدام PRAGMA integrity_check،
+        // وقيمة user_version وجميع صفوف المصدر البالغ عددها 14,006. لا تشغّل quick_check عند كل
+        // بدء بارد على Honor/Android؛ فبعض إصدارات SQLite الخاصة بالمصنّعين ترمي
+        // IllegalArgumentException عند تنفيذ PRAGMA رغم سلامة البيانات.
         if (!verifiedCopy(target, expectedBytes, hash)) {
             if (!target.delete() && target.exists()) {
                 throw HadithPreparationException("تعذر استبدال نسخة الأحاديث غير المكتملة.", stage = "FILE_REPLACE")
@@ -133,8 +132,8 @@ internal object HadithLibrary {
             install()
         }
         val db = try {
-            // No localized collation override and no redundant PRAGMA queries.
-            // The first user-facing SELECT books is the actual usability check.
+            // بلا استبدال لترتيب الحروف حسب اللغة ولا استعلامات PRAGMA زائدة.
+            // يكفي أول استعلام SELECT books الذي يطلبه المستخدم للتحقق من قابلية الاستخدام.
             SQLiteDatabase.openDatabase(target.path, null, SQLiteDatabase.OPEN_READONLY)
         } catch (error: Exception) {
             Log.e("AlattaHadith", "Verified SQLite bytes rejected by Android SQLite", error)
@@ -169,9 +168,8 @@ internal object HadithLibrary {
         }
     }
 
-    /**
-     * If the device's SQLite build cannot query FTS4, search the normalized text column.
-     * The fallback is slower but works offline and never loses the original Arabic content.
+    /** إذا تعذر على إصدار SQLite في الجهاز الاستعلام عبر FTS4، فابحث في عمود النص الموحد.
+     * البديل أبطأ، لكنه يعمل دون اتصال ويحافظ على المحتوى العربي الأصلي كاملًا.
      */
     suspend fun page(
         context: Context, bookId: String, section: Int, query: String,
@@ -192,7 +190,7 @@ internal object HadithLibrary {
                 if (useFts) {
                     conditions += "hadith_search MATCH ?"; arguments += search.match
                 } else {
-                    // All normalized terms must occur, with parameters (no SQL/FTS operators).
+                    // يجب أن يظهر كل مصطلح موحد، مع استخدام معاملات SQL لا معاملات البحث أو أوامر FTS.
                     for (term in search.text.split(' ').filter(String::isNotBlank).take(8)) {
                         conditions += "INSTR(h.search, ?) > 0"
                         arguments += term

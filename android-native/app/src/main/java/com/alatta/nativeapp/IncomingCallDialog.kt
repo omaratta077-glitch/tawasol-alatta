@@ -16,7 +16,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 
-/** Bounded dialog layout: call actions never participate in AlertDialog intrinsic measurement. */
+/** تخطيط النافذة محدود؛ فأزرار الاتصال لا تدخل في قياس AlertDialog الداخلي للحجم. */
 @Composable internal fun IncomingCallDialog(callerName: String, type: String, onClick: () -> Unit, onReject: () -> Unit) {
     Dialog(onDismissRequest = onReject, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Surface(Modifier.padding(16.dp).widthIn(max = 420.dp).fillMaxWidth(),

@@ -2,7 +2,7 @@ name: Build AL-ATTA Official Release APK
 
 on:
   workflow_dispatch:
-  # Build and publish a public APK after pushing a new Android version to main.
+  # ابنِ ملف APK عامًا وانشره بعد دفع إصدار Android جديد إلى الفرع main.
   push:
     branches:
       - main
@@ -217,8 +217,8 @@ jobs:
           ALATTA_KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           ALATTA_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           ALATTA_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-          # Firebase Android configuration is public; keep private service account
-          # JSON ONLY in Cloudflare secrets, never in this workflow or APK.
+          # إعداد Android الخاص بـFirebase عام؛ أبقِ ملف حساب الخدمة الخاص
+          # داخل أسرار Cloudflare فقط، ولا تضعه في سير العمل أو APK.
           ALATTA_FCM_APP_ID: ${{ vars.ALATTA_FCM_APP_ID }}
           ALATTA_FCM_SENDER_ID: ${{ vars.ALATTA_FCM_SENDER_ID }}
           ALATTA_FCM_PROJECT_ID: ${{ vars.ALATTA_FCM_PROJECT_ID }}
@@ -226,8 +226,8 @@ jobs:
         run: |
           set -euo pipefail
           test -n "${ALATTA_KEY_PASSWORD:-}" || { echo '::error::Missing KEY_PASSWORD'; exit 1; }
-          # Preserve the actual Kotlin compiler diagnostic in a short group,
-          # instead of forcing users to copy hundreds of Gradle stack-trace lines.
+          # احتفظ بتشخيص مترجم Kotlin الفعلي في مجموعة قصيرة،
+          # بدل مطالبة المستخدمين بنسخ مئات الأسطر من تتبع مكدس Gradle.
           set +e
           gradle --no-daemon --console=plain assembleRelease 2>&1 | tee "$RUNNER_TEMP/alatta-gradle.log"
           gradle_exit=${PIPESTATUS[0]}
@@ -258,7 +258,7 @@ jobs:
           }
           mkdir -p release-output
           cp "$APK" "release-output/tawasol-alatta-v${RELEASE_VERSION}.apk"
-          # The stable filename is for /releases/latest/download/ on the website.
+          # اسم الملف الثابت مخصص لرابط /releases/latest/download/ في الموقع.
           cp "$APK" release-output/tawasol-alatta-latest.apk
           "$APKSIGNER" verify --print-certs "$APK" | sed -n 's/.*certificate SHA-256 digest:[[:space:]]*//p' | head -n 1 > release-output/signing-certificate-SHA256.txt
 

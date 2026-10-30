@@ -3,7 +3,7 @@ package com.alatta.nativeapp
 import org.json.JSONObject
 import org.webrtc.PeerConnection
 
-/** Parses the same short-lived Cloudflare TURN credentials used by native calls. */
+/** يحلل بيانات اعتماد Cloudflare TURN قصيرة العمر نفسها المستخدمة في المكالمات الأصلية. */
 internal fun parseRtcIceServers(credentials: JSONObject): List<PeerConnection.IceServer> {
     val fallback = fallbackRtcIceServers()
     val servers = credentials.optJSONArray("iceServers") ?: return fallback

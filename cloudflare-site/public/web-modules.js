@@ -1,4 +1,4 @@
-/* Website modules reuse native data, the existing composer, API and single YouTube player. */
+/* تعيد وحدات الموقع استخدام بيانات التطبيق الأصلية ومحرر المنشور وواجهات API ومشغّل YouTube الوحيد. */
 (()=>{
 'use strict';
 const $=id=>document.getElementById(id), bridge=window.AttaWeb;
@@ -139,7 +139,7 @@ function renderFootball(){
    const app=document.createElement('a');app.href='https://play.google.com/store/apps/details?id=com.ytv.pronew';app.target='_blank';app.rel='noopener noreferrer';app.className='native-button';app.textContent='تثبيت المشغّل';host.append(app);host.scrollIntoView({block:'center',behavior:'smooth'});return;
   }
   const url=safeUrl(channel.streamUrl);if(!url)return;
-  // Use the existing official YouTube section, never a second YouTube player.
+  // استخدم قسم YouTube الرسمي الحالي ولا تنشئ مشغّل YouTube ثانيًا.
   if(channel.format==='youtube'){bridge.navigate('youtubePage');$('attaYouTubeBtn').click();const field=document.querySelector('.atta-youtube-form input');if(field){field.value=url;field.dispatchEvent(new Event('input',{bubbles:true}));}return;}
   if(channel.format==='hls'){const video=document.createElement('video');video.controls=true;video.playsInline=true;video.preload='none';video.src=url;video.style.width='100%';host.append(video);}
   const link=document.createElement('a');link.href=url;link.target='_blank';link.rel='noopener noreferrer';link.className='native-button';link.textContent=channel.format==='external'?'فتح المصدر الرسمي':'فتح في مشغل يدعم المصدر';host.append(link);host.scrollIntoView({block:'center',behavior:'smooth'});

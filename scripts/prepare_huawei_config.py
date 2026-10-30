@@ -18,7 +18,7 @@ if raw:
         raise SystemExit("Huawei app ID and client configuration do not match")
     target = Path("android-native/app/src/main/assets/agconnect-services.json")
     target.parent.mkdir(parents=True, exist_ok=True)
-    # The APK needs public client configuration, never a server push secret.
+    # يحتاج APK إلى إعداد العميل العام فقط، وليس سرّ إرسال الإشعارات على الخادم.
     def public_configuration(value):
         if isinstance(value, dict):
             return {key: public_configuration(item) for key, item in value.items()

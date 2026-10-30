@@ -50,7 +50,7 @@ class VideoTransportTest {
             assertEquals(1, server.requestCount)
             assertTrue(cache.cacheSpace > 0)
             assertTrue(cache.cacheSpace <= 1024 * 1024)
-            // Existing inline video attachments still use Media3's data source.
+            // تواصل مرفقات الفيديو المضمّنة الحالية استخدام مصدر بيانات Media3.
             assertArrayEquals(byteArrayOf(1, 2, 3), read(factory, DataSpec.Builder().setUri("data:video/mp4;base64,AQID").build()))
         } finally { cache.release(); server.shutdown(); folder.deleteRecursively() }
     }

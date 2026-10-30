@@ -30,7 +30,7 @@ private fun additionalDailyAdhkar(evening: Boolean) = listOf(
     Dhikr("lasting-blessing", "الاستعاذة من زوال النعمة", "اللَّهُمَّ إِنِّي أَعُوذُ بِكَ مِنْ زَوَالِ نِعْمَتِكَ، وَتَحَوُّلِ عَافِيَتِكَ، وَفُجَاءَةِ نِقْمَتِكَ، وَجَمِيعِ سَخَطِكَ", 1, "صحيح مسلم • 2739", generalDhikrNote)
 )
 
-// Keep the original ids: expanding the collection must not discard today's counters.
+// احتفظ بالمعرّفات الأصلية حتى لا يؤدي توسيع المجموعة إلى حذف عدّادات اليوم.
 private fun dailyAdhkar(evening: Boolean): List<Dhikr> {
     val time = if (evening) "أَمْسَيْنَا" else "أَصْبَحْنَا"
     val singular = if (evening) "أَمْسَيْتُ" else "أَصْبَحْتُ"
@@ -42,7 +42,7 @@ private fun dailyAdhkar(evening: Boolean): List<Dhikr> {
         Dhikr("salawat-ten", "الصلاة على النبي ﷺ عشر مرات", "اللَّهُمَّ صَلِّ وَسَلِّمْ وَبَارِكْ عَلَى سَيِّدِنَا مُحَمَّدٍ", 10, "ذكر عام • العدد المقترح 10"),
         Dhikr("kingdom", if (evening) "أمسينا وأمسى الملك لله" else "أصبحنا وأصبح الملك لله",
             "$time وَ${if (evening) "أَمْسَى" else "أَصْبَحَ"} الْمُلْكُ لِلَّهِ، وَالْحَمْدُ لِلَّهِ، لَا إِلَٰهَ إِلَّا اللَّهُ وَحْدَهُ لَا شَرِيكَ لَهُ، لَهُ الْمُلْكُ وَلَهُ الْحَمْدُ، وَهُوَ عَلَى كُلِّ شَيْءٍ قَدِيرٌ. رَبِّ أَسْأَلُكَ خَيْرَ هَذِهِ $period وَخَيْرَ مَا $after، وَأَعُوذُ بِكَ مِنْ شَرِّ هَذِهِ $period وَشَرِّ مَا $after. رَبِّ أَعُوذُ بِكَ مِنَ الْكَسَلِ وَسُوءِ الْكِبَرِ، رَبِّ أَعُوذُ بِكَ مِنْ عَذَابٍ فِي النَّارِ وَعَذَابٍ فِي الْقَبْرِ".let {
-                // Arabic demonstrative changes with اليوم (masculine).
+                // تتغير صيغة اسم الإشارة العربية بحسب كلمة «اليوم» المذكرة.
                 if (evening) it else it.replace("هَذِهِ الْيَوْمِ", "هَذَا الْيَوْمِ")
             }, 1, "صحيح مسلم • 2723"),
         Dhikr(if (evening) "evening" else "morning", if (evening) "دعاء المساء" else "دعاء الصباح",

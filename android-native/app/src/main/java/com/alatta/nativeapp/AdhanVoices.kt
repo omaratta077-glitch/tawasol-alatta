@@ -18,7 +18,7 @@ import java.security.MessageDigest
 internal data class AdhanVoice(val id: String, val name: String, val mosque: String, val url: String,
     val size: Long, val sha256: String, val source: String, val sourceUrl: String = "")
 
-/** The alarm service only opens a verified local file. It never downloads or streams a voice. */
+/** لا تفتح خدمة المنبّه إلا ملفًا محليًا تم التحقق منه؛ ولا تنزّل صوتًا ولا تبثّه. */
 internal object AdhanVoices {
     private val downloadLock = Mutex()
     private fun directory(context: Context) = File(context.filesDir, "adhan-voices").apply { mkdirs() }
@@ -32,7 +32,7 @@ internal object AdhanVoices {
         val audio = if (raw.startsWith("/media/adhan/")) ATTA_API_BASE + raw else raw
         val parsed = java.net.URI(audio)
         require(parsed.scheme == "https" && parsed.userInfo == null && parsed.fragment == null)
-        // The bundled publisher and the application's own admin uploads are the only audio hosts.
+        // خادما الصوت الوحيدان هما الناشر المضمّن وملفات الصوت التي يرفعها مدير التطبيق.
         require((parsed.host == "d1.islamhouse.com" && parsed.path.startsWith("/data/ar/ih_sounds/chain/Athan/")) ||
             (parsed.host == java.net.URI(ATTA_API_BASE).host && parsed.path.startsWith("/media/adhan/")))
         val id = value.getString("id"); val name = value.getString("name").trim()

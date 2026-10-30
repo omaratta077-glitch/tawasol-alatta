@@ -47,8 +47,8 @@ assert playback_service, "Missing local Adhan playback service"
 assert re.search(r'android:exported[^\n]*\b0x0\b', playback_service), "Adhan service must not be exported"
 assert re.search(r'android:foregroundServiceType[^\n]*\b0x2\b', playback_service), "Adhan service must declare mediaPlayback"
 with zipfile.ZipFile(args.apk) as apk:
-    # Release optimization shortens resource file paths. Check the original bytes
-    # and verify that raw/atta_adhan actually points to that entry, not its ZIP name.
+    # يختصر تحسين الإصدار مسارات ملفات الموارد. تحقّق من البايتات الأصلية
+    # وتأكد أن raw/atta_adhan يشير فعليًا إلى ذلك المدخل، لا إلى اسم ZIP.
     audio = [info.filename for info in apk.infolist() if info.file_size == 1229032 and
              hashlib.sha256(apk.read(info.filename)).hexdigest() == "35fe06b08fe80505c550c33fed8a783fa9901ddc81ac884958b4be048f5b2a79"]
     assert len(audio) == 1, "Missing or duplicated offline Adhan recording"

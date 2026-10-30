@@ -18,15 +18,15 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.clipRect
 
 /**
- * Shared gold shine, styled after the website "attaGoldShine":
- * ::after width:24%, height:180%, top:-40%, left:-28%,
- * linear-gradient(90deg, transparent, white .48, transparent),
- * skewX(-22deg), traversing the complete control in 55% of 4.6 s,
- * then the strip remains beyond the button until the cycle restarts.
+ * تأثير اللمعة الذهبية المشترك، بتنسيق يحاكي «attaGoldShine» في الموقع:
+ * ::after بعرض 24% وارتفاع 180%، مع top:-40% وleft:-28%.
+ * تدرّج خطي من شفاف إلى أبيض .48 ثم شفاف،
+ * وميل skewX(-22deg)، ليعبر الزر كله خلال 55% من دورة مدتها 4.6 ثانية،
+ * ثم يبقى الشريط خارج الزر حتى تبدأ الدورة التالية.
  *
- * Draw ONLY on already-present primary/native gold controls. One shared
- * implementation avoids separate per-screen timers or new Android views.
- * Disabled controls never create an infinite transition.
+ * يُرسم التأثير على الأزرار الذهبية الأساسية الموجودة فقط. يمنع التنفيذ المشترك
+ * إنشاء مؤقتات منفصلة لكل شاشة أو إضافة عروض Android جديدة.
+ * لا تنشئ الأزرار المعطلة حركة متكررة بلا نهاية.
  */
 internal fun Modifier.attaGoldShine(enabled: Boolean = true): Modifier =
     if (!enabled) this else this.composed {
@@ -55,7 +55,7 @@ internal fun Modifier.attaGoldShine(enabled: Boolean = true): Modifier =
             val left = -band - slantMargin + progress * (size.width + band + 2f * slantMargin)
             val top = -size.height * .40f
             val bottom = size.height * 1.40f
-            // CSS transform-origin is the strip's center.
+            // أصل التحويل في CSS هو مركز الشريط.
             val skew = -0.40402623f // tan(-22 degrees)
             val topShift = skew * (top - size.height * .5f)
             val bottomShift = skew * (bottom - size.height * .5f)

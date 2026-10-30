@@ -29,7 +29,7 @@ const index=app.indexOf('})();\n\n\n/* ===== V13.28');
 w.eval(app.slice(0,index)+'window.__webTest={api,restoreSavedLogin,showPage,loadPosts,setSession(){token="fixture";me={username:"fixture"}}};'+app.slice(index));
 w.eval(read('web-modules.js'));
 const tick=async()=>{for(let i=0;i<10;i++)await new Promise(r=>setImmediate(r));};
-// All existing and newly introduced navigation targets resolve; rightmost first matches native.
+// يجب أن تصل كل وجهات التنقل الحالية والجديدة؛ وأول تطابق من اليمين يوافق التطبيق الأصلي.
 const buttons=[...d.querySelectorAll('.premium-nav .nav-btn')];
 assert.deepEqual(buttons.map(b=>b.dataset.page),['homePage','messagesPage','profilePage','quranPage','hadithPage','azkarPage','sportsPage','youtubePage','morePage']);
 assert.ok(buttons.every(b=>d.getElementById(b.dataset.page)));
@@ -40,7 +40,7 @@ assert.equal(d.getElementById('webAdminGo').hidden,true);
 assert.ok(!read('style.css').includes('html.mobile-device'));
 assert.ok(!html.includes('mobile-final-clean')&&!html.includes('atta-native-parity-web-only'));
 assert.match(css,/flex:0 0 66px/);assert.match(css,/height:62px/);assert.match(css,/prefers-reduced-motion/);
-// Every web icon path is copied from its exact canonical Android vector.
+// يُنسخ كل مسار أيقونة ويب من رسم Android المتجهي المطابق له تمامًا.
 for(const file of fs.readdirSync(path.join(root,'android-native/app/src/main/res/drawable')).filter(f=>f.startsWith('atta_ic_')&&f.endsWith('.xml'))){
  const xml=fs.readFileSync(path.join(root,'android-native/app/src/main/res/drawable',file),'utf8');
  const name=file.slice(8,-4).replaceAll('_','-');const svg=w.AttaIcons.icon(name);
@@ -53,12 +53,12 @@ for(const file of fs.readdirSync(path.join(root,'android-native/app/src/main/res
   assert.equal(paths[i].getAttribute('stroke'),attr('strokeColor')&&!['#00000000','@android:color/transparent'].includes(attr('strokeColor'))?'currentColor':'none',name+' stroke');
  });
 }
-// Actual connection failures preserve saved login. Only an explicit auth refusal clears it.
+// تحافظ إخفاقات الاتصال الفعلية على تسجيل الدخول المحفوظ؛ ولا يمسح بياناته إلا رفض صريح للمصادقة.
 const key='tawasol_alatta_session_v1';w.localStorage.setItem(key,JSON.stringify({token:'fixture'}));mode='network';requests=[];
 assert.equal(await w.__webTest.restoreSavedLogin(),false);assert.ok(w.localStorage.getItem(key));assert.equal(requests.length,2);
 requests=[];await assert.rejects(w.__webTest.api('/api/posts',{method:'POST',body:'{}'}));assert.equal(requests.length,1,'POST is never replayed');
 mode='401';assert.equal(await w.__webTest.restoreSavedLogin(),false);assert.equal(w.localStorage.getItem(key),null);mode='data';
-// Render real feed reactions, preserving the chosen emoji and canonical native order.
+// اعرض تفاعلات الموجز الفعلية، مع الحفاظ على الرمز التعبيري المختار والترتيب الأصلي المعتمد.
 w.__webTest.setSession();
 postFixtures=['','like','love','angry'].map((myReaction,i)=>({id:'reaction-'+i,author:'fixture',authorInfo:{username:'fixture',fullName:'اختبار'},myReaction,createdAt:Date.now(),likes:[],comments:[],text:'اختبار التفاعلات'}));
 await w.__webTest.loadPosts();
@@ -69,7 +69,7 @@ assert.equal(symbols[2].textContent,'❤️');assert.equal(symbols[3].textConten
 assert.deepEqual([...d.querySelector('[data-reaction-picker]').querySelectorAll('[data-reaction]')].map(b=>b.dataset.reaction),['love','haha','wow','sad','angry']);
 assert.equal(d.querySelector('[data-post="reaction-0"]').querySelectorAll('[data-share-post]').length,1,'one native-style share action');
 postFixtures=[];
-// Full native catalogues; no abbreviated or invented replacement text.
+// استخدم الفهارس الأصلية كاملة؛ بلا نص مختصر أو بديل مختلق.
 const azkar=JSON.parse(read('knowledge/azkar.json'));assert.equal(azkar.find(g=>g.id==='morning').entries.length,35);assert.equal(azkar.find(g=>g.id==='evening').entries.length,31);
 for(const id of ['morning','evening']){const entries=azkar.find(g=>g.id===id).entries;assert.deepEqual(entries.slice(0,3).map(e=>e.id),['fatiha','kursi','baqarah-ending']);assert.equal(entries[6].id,'salawat-ten');assert.equal(entries[6].target,10);assert.equal(entries[7].id,'kingdom');}
 w.AttaWeb.navigate('azkarPage');await tick();assert.equal(d.querySelectorAll('[data-dhikr-group]').length,6);

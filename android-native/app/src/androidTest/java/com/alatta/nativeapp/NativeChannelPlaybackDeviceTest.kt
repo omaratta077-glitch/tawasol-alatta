@@ -29,7 +29,7 @@ import java.util.concurrent.atomic.AtomicReference
 class NativeChannelPlaybackDeviceTest {
     @get:Rule val compose = createComposeRule()
 
-    /** Stalls inside Media3's real loader; never opens a socket or requests a live source. */
+    /** يعلّق أداة التحميل الحقيقية في Media3؛ ولا يفتح اتصالًا ولا يطلب مصدر بث حي. */
     private class StalledTransport : DataSource.Factory {
         val opened = CopyOnWriteArrayList<String>()
         override fun createDataSource(): DataSource = object : DataSource {

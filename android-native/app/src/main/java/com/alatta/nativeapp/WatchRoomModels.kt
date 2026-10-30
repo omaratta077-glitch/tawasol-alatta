@@ -5,7 +5,7 @@ import java.util.Locale
 
 internal fun watchRoomCode(value: String): String? = value.trim().replace(Regex("[\\s-]"), "")
     .uppercase(Locale.ROOT).takeIf { it.matches(Regex("[A-Z]{3}")) }
-/** Only a whole code or an explicitly marked room invitation is accepted, never a random word in a message. */
+/** لا يُقبل إلا رمز كامل أو دعوة غرفة معلّمة صراحةً، لا كلمة عشوائية في رسالة. */
 internal fun watchRoomInviteCode(text: String): String? = watchRoomCode(text) ?: Regex(
     "(?:الكود|كود الغرفة|room code)\\s*[:：]\\s*([A-Za-z]{3})(?![A-Za-z0-9])", RegexOption.IGNORE_CASE
 ).find(text.take(16000))?.groupValues?.get(1)?.let(::watchRoomCode)

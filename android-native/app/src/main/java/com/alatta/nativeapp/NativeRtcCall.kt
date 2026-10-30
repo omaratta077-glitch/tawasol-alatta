@@ -67,12 +67,12 @@ import java.util.UUID
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
- * Dedicated NATIVE Android WebRTC call implementation.
- * No HTML, WebView, canvas or site call page is loaded here.
- * Its JSON signaling protocol matches cloudflare-site/public/app.js:
- * call-request / call-ringing / call-accept / offer / answer / ice / hangup.
- * The existing signed-in WebSocket provides immediate inbound signaling, with
- * authenticated /api/call-media-signals as the small stored fallback.
+ * تنفيذ مكالمة WebRTC أصلي مخصص لنظام Android.
+ * لا تُحمّل هنا صفحة HTML أو WebView أو Canvas أو صفحة مكالمات الموقع.
+ * يطابق بروتوكول الإشارات بصيغة JSON ما في cloudflare-site/public/app.js:
+ * call-request وcall-ringing وcall-accept وoffer وanswer وice وhangup.
+ * يوفّر WebSocket للمستخدم المسجل دخوله إشارات فورية واردة، مع
+ * واجهة /api/call-media-signals المصادق عليها كبديل صغير للتخزين.
  */
 internal class NativeRtcCall(
     private val context: Context,
@@ -98,7 +98,7 @@ internal class NativeRtcCall(
         private var cachedIceExpires = 0L
         private var activeEngine: NativeRtcCall? = null
 
-        // Feed the existing signed-in WebSocket directly into the one native engine.
+        // وجّه WebSocket الحالي للمستخدم المسجّل دخوله مباشرةً إلى المحرك الأصلي الوحيد.
         fun deliverSignal(signal: JSONObject) { activeEngine?.enqueueSignal(signal) }
         fun clearIceCache() { cachedIce = null; cachedIceToken = ""; cachedIceExpires = 0L }
         suspend fun prewarmIce(token: String) { try { turnCredentials(token) } catch (e: CancellationException) { throw e } catch (_: Exception) { } }
@@ -132,7 +132,7 @@ internal class NativeRtcCall(
             }.build()
             return suspendCancellableCoroutine { continuation ->
                 val call = http.newCall(request)
-                // A hang-up timeout really cancels the socket request, instead of waiting for IO.
+                // يلغي انتهاء مهلة إنهاء المكالمة طلب المقبس فعلًا بدلًا من انتظار انتهاء الإدخال والإخراج.
                 continuation.invokeOnCancellation { call.cancel() }
                 call.enqueue(object : Callback {
                     override fun onFailure(call: Call, e: IOException) {
@@ -158,8 +158,8 @@ internal class NativeRtcCall(
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val egl = run {
-        // Renderers are initialized before media capture, so load the JNI
-        // library before creating EGL surfaces (not afterwards).
+        // تُهيّأ العروض قبل التقاط الوسائط؛ لذا حمّل مكتبة JNI
+        // قبل إنشاء أسطح EGL، لا بعدها.
         initializeRtc(context)
         EglBase.create()
     }
@@ -204,8 +204,8 @@ internal class NativeRtcCall(
     }
     private val remoteFrameProbe = VideoSink {
         if (firstRemote.compareAndSet(false, true)) {
-            // A decoded frame proves the remote video is already arriving,
-            // even on devices that deliver WebRTC connection callbacks late.
+            // يثبت الإطار المفكوك وصول الفيديو البعيد بالفعل،
+            // حتى على الأجهزة التي تتأخر فيها إشعارات اتصال WebRTC.
             confirmMediaConnected()
             scope.launch { remoteFrame() }
         }
@@ -237,7 +237,7 @@ internal class NativeRtcCall(
         scope.launch {
             try {
                 report("جارٍ تشغيل الكاميرا والميكروفون...")
-                // Start the network request alongside camera initialization, usually served from prewarm.
+                // ابدأ طلب الشبكة بالتوازي مع تهيئة الكاميرا؛ وغالبًا يُخدم من التهيئة المسبقة.
                 val pendingServers = async(Dispatchers.IO) { loadIceServers() }
                 initializeNativeMedia()
                 if (ended) return@launch
@@ -263,7 +263,7 @@ internal class NativeRtcCall(
             } catch (cancelled: CancellationException) { throw cancelled }
             catch (e: Exception) {
                 report("تعذر بدء المكالمة: ${e.message?.take(90) ?: "خطأ في الوسائط"}")
-                // Keep the native controls visible so the user can hang up.
+                // أبقِ عناصر التحكم الأصلية ظاهرة حتى يستطيع المستخدم إنهاء المكالمة.
             }
         }
     }
@@ -294,7 +294,7 @@ internal class NativeRtcCall(
             localVideo?.setEnabled(true)
             localVideo?.addSink(localFrameProbe)
             localView?.let { localVideo?.addSink(it) }
-            // One native camera capture serves BOTH the PiP and the WebRTC sender.
+            // يخدم التقاط كاميرا أصلي واحد كلاً من PiP ومرسل WebRTC.
             capture.startCapture(640, 360, 20)
             videoSource?.adaptOutputFormat(640, 360, 20)
         }
@@ -315,8 +315,8 @@ internal class NativeRtcCall(
         }
     }.getOrDefault(false)
 
-    // Select a two-way communication device, never an A2DP-only media output.
-    // On Android 12+ setCommunicationDevice routes both playback and microphone.
+    // اختر جهاز اتصال ثنائي الاتجاه، لا مخرج وسائط A2DP فقط.
+    // في Android 12 وما بعده، يوجّه setCommunicationDevice تشغيل الصوت والميكروفون.
     @Suppress("DEPRECATION")
     fun refreshAudioRoute() {
         if (!audioRouteReady || ended) return
@@ -367,7 +367,7 @@ internal class NativeRtcCall(
             parseRtcIceServers(turnCredentials(token))
         } catch (cancelled: CancellationException) { throw cancelled }
         catch (_: Exception) {
-            // Direct STUN fallback preserves audio/video on open networks.
+            // يحافظ البديل المباشر عبر STUN على الصوت والفيديو في الشبكات المفتوحة.
             report("TURN غير متاح — جارٍ تجربة STUN")
             fallbackRtcIceServers()
         }
@@ -464,17 +464,17 @@ internal class NativeRtcCall(
     }
 
     private suspend fun pollConversation() {
-        // Poll the identical per-peer stored signals the working website uses.
-        // Multiple independent readers are harmless; they do not consume messages.
+        // استطلع إشارات النظير نفسها المخزنة التي يستخدمها الموقع العامل.
+        // لا ضرر من تعدد القراء المستقلين؛ فهم لا يستهلكون الرسائل.
         while (scope.isActive && !ended) {
             try {
-                // Fetch only this call's SDP/ICE: never download chat images/history every poll.
+                // اجلب SDP/ICE لهذه المكالمة فقط؛ ولا تنزّل صور المحادثة وسجلها في كل استطلاع.
                 val d = api("/api/call-media-signals?token=${urlEncode(token)}&with=${urlEncode(session.peer)}&callId=${urlEncode(session.callId)}")
                 val signals = d.optJSONArray("signals") ?: JSONArray()
                 for (i in 0 until signals.length()) signals.optJSONObject(i)?.let { receiveSignal(it) }
             } catch (cancelled: CancellationException) { throw cancelled }
             catch (_: Exception) { /* the next poll retries without dropping the call */ }
-            // Fast signaling while connecting; conserve requests during established calls.
+            // إشارات أسرع أثناء الاتصال، مع تقليل الطلبات بعد استقرار المكالمة.
             delay(if (peer?.connectionState() == PeerConnection.PeerConnectionState.CONNECTED) 2500L else 900L)
         }
     }
@@ -508,7 +508,7 @@ internal class NativeRtcCall(
                     val conn = requireNotNull(peer)
                     val offer = createDescription(conn, true)
                     setDescription(conn, offer, local = true)
-                    // Trickle ICE is already sent by onIceCandidate; do not block SDP.
+                    // أُرسلت ICE المتدرجة بالفعل بواسطة onIceCandidate؛ فلا تحجب SDP.
                     sendSignal("offer", JSONObject().put("sdp", JSONObject()
                         .put("type", "offer").put("sdp", conn.localDescription?.description ?: offer.description)))
                 } catch (e: Exception) {
@@ -523,7 +523,7 @@ internal class NativeRtcCall(
                 flushIce()
                 val answer = createDescription(conn, false)
                 setDescription(conn, answer, local = true)
-                // Remote endpoint accepts trickled ICE; send answer promptly.
+                // تقبل الوجهة البعيدة ICE المتدرج؛ فأرسل الإجابة سريعًا.
                 sendSignal("answer", JSONObject().put("sdp", JSONObject()
                     .put("type", "answer").put("sdp", conn.localDescription?.description ?: answer.description)))
                 report("جارٍ إتمام اتصال الفيديو والصوت...")
@@ -591,7 +591,7 @@ internal class NativeRtcCall(
             .put("createdAt", System.currentTimeMillis())
         val body = JSONObject().put("token", token).put("to", session.peer).put("text", "")
             .put("media", packet.toString()).put("mediaType", "call-signal")
-        // Preserve signalId across retries so WebSocket and HTTP copies are deduplicated.
+        // احتفظ بـ signalId عبر المحاولات لمنع تكرار نسختي WebSocket وHTTP.
         for (attempt in 0..2) {
             try { api("/api/message-send", body); return }
             catch (e: CancellationException) { throw e }
@@ -688,8 +688,8 @@ internal class NativeRtcCall(
         @Suppress("DEPRECATION")
         audioManager.isSpeakerphoneOn = priorSpeaker
         audioManager.mode = priorAudioMode
-        // Renderer owners release their SurfaceViewRenderer before EGL teardown.
-        // EglBase itself is released by the screen after renderers have disposed.
+        // تحرر الجهة المالكة للمرسم SurfaceViewRenderer قبل إنهاء EGL.
+        // تحرر الشاشة EglBase نفسها بعد التخلص من المرسومات.
     }
 
     fun disposeEgl() { runCatching { egl.release() } }

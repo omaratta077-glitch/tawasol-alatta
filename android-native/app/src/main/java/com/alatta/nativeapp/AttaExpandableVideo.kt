@@ -89,7 +89,7 @@ internal fun AttaExpandableVideo(url: String, posterUrl: String? = null, onOpen:
     Box(Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(RoundedCornerShape(12.dp))
         .background(Color.Black).clickable { if (onOpen != null) onOpen() else expanded = true },
         contentAlignment = Alignment.Center) {
-        // Always retain the extracted image beneath an optional remote poster.
+        // احتفظ دائمًا بالصورة المستخرجة أسفل الملصق البعيد الاختياري.
         preview?.let { frame ->
             Image(frame.asImageBitmap(), contentDescription = "معاينة الفيديو",
                 modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
@@ -98,7 +98,7 @@ internal fun AttaExpandableVideo(url: String, posterUrl: String? = null, onOpen:
             coil.compose.AsyncImage(model = remember(posterUrl) { coil.request.ImageRequest.Builder(context).data(posterUrl).allowHardware(false).build() }, contentDescription = "صورة معاينة الفيديو",
                 modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop,
                 onError = { posterFailed = true }, onSuccess = { state ->
-                    // A v120 cover may be a successfully loaded black first frame.
+                    // قد تكون صورة الغلاف في الإصدار v120 إطارًا أول أسود تم تحميله بنجاح.
                     val bitmap = (state.result.drawable as? android.graphics.drawable.BitmapDrawable)?.bitmap
                     if (bitmap != null && bitmap.config != Bitmap.Config.HARDWARE && VideoPostPreview.mostlyBlack(bitmap)) posterFailed = true
                 })
@@ -118,7 +118,7 @@ internal fun AttaExpandableVideo(url: String, posterUrl: String? = null, onOpen:
     )
 }
 
-/** One fullscreen viewer and, for its whole video playlist, exactly one Media3 player. */
+/** مشغّل ملء شاشة واحد ومشغّل Media3 واحد طوال قائمة الفيديوهات كلها. */
 internal data class MediaPlaybackSnapshot(val stage: String, val state: Int = Player.STATE_IDLE,
     val playWhenReady: Boolean = false, val isLoading: Boolean = false, val isPlaying: Boolean = false,
     val suppressionReason: Int = 0, val width: Int = 0, val height: Int = 0)
@@ -231,7 +231,7 @@ internal fun AttaPostMediaViewer(
                 }.filter { it > 0 }.distinct().sorted()
             }
         }
-        // Network-only diagnostics: never copy stream URLs, query tokens or header values.
+        // تشخيص الشبكة فقط: لا تنسخ روابط البث أو رموز الاستعلام أو قيم الترويسات.
         val loadListener = object : AnalyticsListener {
             override fun onLoadStarted(eventTime: AnalyticsListener.EventTime, loadEventInfo: LoadEventInfo,
                 mediaLoadData: MediaLoadData) {
@@ -257,8 +257,8 @@ internal fun AttaPostMediaViewer(
         activity?.lifecycle?.addObserver(lifecycleListener)
         onDispose { activity?.lifecycle?.removeObserver(lifecycleListener); player?.removeListener(listener); player?.removeAnalyticsListener(loadListener); player?.release() }
     }
-    // Opening the sole full-screen Media3 viewer starts playback; vertical
-    // swipes switch tracks without creating a second video player.
+    // يبدأ التشغيل عند فتح مشغّل Media3 الوحيد بملء الشاشة؛ وتبدّل
+    // حركات السحب الرأسية المقاطع من دون إنشاء مشغّل فيديو ثانٍ.
     var continuePlayback by remember(isVideo, playbackKey) { mutableStateOf(isVideo) }
     LaunchedEffect(player, stopPlayback) {
         if (stopPlayback) { player?.stop(); failed = currentPlaybackErrorMessage ?: "انتهت محاولة التشغيل."; controls = true }
@@ -323,7 +323,7 @@ internal fun AttaPostMediaViewer(
             onDispose { window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) }
         }
         BackHandler { if (sheet != null) sheet = null else dismissViewer("system_back") }
-        // The video uses the full safe viewport; social actions live in one rail.
+        // يشغل الفيديو كامل المساحة الآمنة، وتظهر التفاعلات الاجتماعية في شريط واحد.
         Column(Modifier.fillMaxSize().background(Color.Black).safeDrawingPadding()) {
             Box(Modifier.weight(1f).fillMaxWidth().clipToBounds()) {
                 if (player != null) {
@@ -340,7 +340,7 @@ internal fun AttaPostMediaViewer(
                             onDragEnd = { if (abs(drag) > 80.dp.toPx()) changeVideo(if (drag < 0) 1 else -1); drag = 0f },
                             onVerticalDrag = { change, amount -> change.consume(); drag += amount }
                         ) })
-                    // Use the SINGLE central play/pause button in the controls row below.
+                    // استخدم زر التشغيل والإيقاف المركزي الوحيد في صف عناصر التحكم أدناه.
                 } else if (!isVideo) AttaZoomableImage(url, "صورة المنشور", onTap = { controls = !controls })
                 if (live != null && controls) Row(Modifier.align(Alignment.TopCenter).fillMaxWidth()
                     .background(Color(0xBB000000)).padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -350,7 +350,7 @@ internal fun AttaPostMediaViewer(
                     }
                     IconButton(onClick = { dismissViewer("close_button") }) { SiteIcon("x", tint = Color.White, size = 22.dp) }
                 }
-                // Physical right edge in both RTL and LTR; one vertical social rail.
+                // ثبّت الشريط الاجتماعي الرأسي عند الحافة اليمنى الفعلية في تخطيطي RTL وLTR.
                 if (player != null && (sendReaction != null || onShare != null)) {
                     Column(Modifier.align(AbsoluteAlignment.TopRight)
                         .absolutePadding(top = 12.dp, right = 14.dp),
@@ -391,7 +391,7 @@ internal fun AttaPostMediaViewer(
                         }
                     }
                 }
-                // Playback controls auto-hide; the vertical social rail remains visible.
+                // تختفي عناصر التحكم في التشغيل تلقائيًا؛ ويبقى الشريط الاجتماعي الرأسي ظاهرًا.
                 if ((player != null || diagnosticReport != null) && controls) Column(
                     Modifier.align(Alignment.BottomCenter).fillMaxWidth()
                         .padding(bottom = 72.dp) // Lift playback controls without resizing video.
@@ -411,8 +411,8 @@ internal fun AttaPostMediaViewer(
                         android.widget.Toast.makeText(context, "تم نسخ تقرير التشغيل", android.widget.Toast.LENGTH_SHORT).show()
                     }) { Text("نسخ نتيجة التجربة", color = Color(0xFFE6B94E)) }
                     if (player != null && duration > 0 && live == null) {
-                        // One slim seek line. Keep a comfortable 24dp invisible touch target,
-                        // but draw only a 3dp track and a small gold thumb.
+                        // خط بحث رفيع واحد. احتفظ بمساحة لمس شفافة مريحة بارتفاع 24dp،
+                        // مع رسم مسار بارتفاع 3dp ومؤشر ذهبي صغير فقط.
                         Canvas(Modifier.fillMaxWidth().height(24.dp)
                             .pointerInput(player, duration) {
                                 detectTapGestures { position ->
@@ -498,7 +498,7 @@ internal fun AttaPostMediaViewer(
     }
 }
 
-/** Real callbacks are optional; never fabricate post interactions in media viewer. */
+/** معالجات التفاعل الحقيقية اختيارية؛ لا تختلق تفاعلات للمنشور داخل مشغّل الوسائط. */
 internal typealias PostInteractionsLoader = suspend (postId: String, category: String, offset: Int) -> JSONObject
 internal typealias PostReactionSender = suspend (postId: String, reaction: String, remove: Boolean) -> Unit
 internal typealias PostCommentSender = suspend (postId: String, message: String) -> JSONObject
@@ -506,7 +506,7 @@ internal typealias PostCommentSender = suspend (postId: String, message: String)
 private fun postReactionCount(post: JSONObject): Int =
     post.optInt("reactionCount", post.optInt("likesCount", post.optJSONArray("reactions")?.length() ?: 0))
 
-/** Reuse the existing image loader, supporting pinch zoom without a duplicate player. */
+/** أعد استخدام محمّل الصور الموجود لدعم التكبير بالقرص من دون مشغّل مكرر. */
 @Composable
 private fun AttaZoomableImage(url: String, description: String, onTap: () -> Unit) {
     var zoom by remember(url) { mutableFloatStateOf(1f) }
@@ -524,7 +524,7 @@ private fun AttaZoomableImage(url: String, description: String, onTap: () -> Uni
         contentScale = ContentScale.Fit)
 }
 
-/** Render comments/reactions only with working server callbacks. */
+/** اعرض التعليقات والتفاعلات فقط عند توفر معالجات خادم عاملة. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun PostInteractionsSheet(
@@ -548,8 +548,8 @@ private fun PostInteractionsSheet(
     }
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState,
         containerColor = Color(0xFF12161A)) {
-        // Measure the scrolling list after reserving the header and composer;
-        // the keyboard shrinks the list instead of pushing Send off-screen.
+        // قِس قائمة التمرير بعد حجز مساحة العنوان ومربع الكتابة؛
+        // تقلّص لوحة المفاتيح القائمة بدلًا من دفع زر الإرسال خارج الشاشة.
         val bottomClearance = attaCommentBottomClearance()
         Column(Modifier.fillMaxWidth().fillMaxHeight(.85f).imePadding()
             .padding(horizontal = 16.dp, vertical = 12.dp).padding(bottom = bottomClearance)) {

@@ -78,7 +78,7 @@ def load_rows(source, folder, download=False):
     else:
         csv.field_size_limit(2_000_000)
         with path.open(encoding="utf-8-sig", newline="") as stream:
-            # Third column is commentary. It is deliberately excluded from the library.
+            # العمود الثالث للتعليق التوضيحي، ويُستبعد عمدًا من المكتبة.
             rows = [(int(row[0]), clean_text(row[1])) for row in csv.reader(stream)]
     assert [number for number, _ in rows] == list(range(1, source["count"] + 1)), "Numbering gap in " + source["id"]
     assert all(len(normalize(body)) >= 20 for _, body in rows), "Empty/incomplete Arabic text in " + source["id"]
@@ -119,7 +119,7 @@ def build(folder, destination=ASSETS, download=False):
         db.close()
         raw = path.read_bytes()
         packed = gzip.compress(raw, compresslevel=9, mtime=0)
-        # Small immutable parts keep source-hosting uploads manageable; Android reads one gzip stream.
+        # تقسيم البيانات إلى أجزاء صغيرة ثابتة يُبقي الرفع إلى مستودع الشيفرة ضمن حدوده؛ ويقرأ Android تدفق gzip واحدًا.
         for previous in destination.glob("library.db.gz*"):
             previous.unlink()
         parts = []

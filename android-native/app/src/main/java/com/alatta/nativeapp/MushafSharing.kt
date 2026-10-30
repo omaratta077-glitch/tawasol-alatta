@@ -19,7 +19,7 @@ internal data class MushafPostDraft(
     fun discard() { preview.delete(); document.delete() }
 }
 
-/** Export the same canonical SVG paths used by the reader, without retyping verses. */
+/** صدّر مسارات SVG الأساسية نفسها التي يستخدمها القارئ، من دون إعادة كتابة الآيات. */
 internal suspend fun prepareMushafPost(context: Context, selection: MushafShareSelection): MushafPostDraft {
     val directory = File(context.cacheDir, "mushaf-share").apply { mkdirs() }
     val prefix = UUID.randomUUID().toString()

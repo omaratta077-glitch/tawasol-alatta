@@ -24,14 +24,14 @@ const stream=new ReadableStream({pull(c){produced++;c.enqueue(new Uint8Array(64*
 const oversized=await room.api(new Request('https://unit.test/api/login',{method:'POST',body:stream,duplex:'half'}));
 assert.equal(oversized.status,413);assert.ok(cancelled);assert.ok(produced<=67,'rejects before buffering the unbounded request');
 assert.equal(oversized.headers.get('cache-control'),'no-store');
-// A blocked login must not scan every account before returning its rate limit.
+// يجب ألا يفحص تسجيل الدخول المحظور كل الحسابات قبل إرجاع حد معدل الطلبات.
 data.set('login-fail:missing@test.example',{count:12,until:Date.now()+60000});reads.length=0;
 assert.equal((await api('/api/login',{username:'missing@test.example',password:'x'})).status,429);
 assert.ok(!reads.includes('usernames') && !reads.some(k=>k.startsWith('user:')));
 const closed=[];const ws={close:(...args)=>closed.push(args),deserializeAttachment:()=>({user:'alice',token}),send(){}};
 await room.handleSocketMessage(ws,'x'.repeat(4*1024*1024+1));assert.equal(closed[0][0],1009);
 for(const msg of ['null','[]','false'])await room.handleSocketMessage(ws,msg);
-// Previously uploaded SVGs are sandboxed even on partial or HEAD responses.
+// تُعزل ملفات SVG المرفوعة سابقًا حتى في الردود الجزئية أو طلبات HEAD.
 const bytes=new TextEncoder().encode('<svg><script>alert(1)</script></svg>');
 let type='image/svg+xml';
 const meta={size:bytes.length,httpEtag:'"fixture"',writeHttpMetadata(h){h.set('content-type',type)}};

@@ -1,5 +1,5 @@
-// Reproduce Cloudflare Workers' WebCrypto PBKDF2 iteration limit in Node.
-// test_backend.mjs includes Google signup, regular login and reset/change flows.
+// حاكِ حد تكرارات PBKDF2 في WebCrypto ضمن Cloudflare Workers على Node.
+// يتضمن test_backend.mjs إنشاء حساب Google وتسجيل الدخول العادي ومسارات إعادة التعيين وتغيير كلمة المرور.
 import { webcrypto } from 'node:crypto';
 const original = globalThis.crypto || webcrypto;
 const subtle = original.subtle;

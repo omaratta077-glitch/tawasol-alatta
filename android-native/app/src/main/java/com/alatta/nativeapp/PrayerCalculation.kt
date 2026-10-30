@@ -78,14 +78,14 @@ internal fun acceptsPrayerAlarm(settings: PrayerSettings, ticket: PrayerAlarmTic
         ticket.prayer in settings.prayers && ticket.generation.isNotBlank() && ticket == expected &&
         now - ticket.at in 0L..120_000L
 
-/** Local astronomical calculation; coordinates and reminder choices never leave the device. */
+/** حساب فلكي محلي؛ ولا تغادر إحداثيات الموقع أو اختيارات التنبيه الجهاز. */
 internal object PrayerCalculation {
     fun day(settings: PrayerSettings, date: LocalDate): List<PrayerMoment> {
         val place = settings.place.validate()
         require(settings.method in prayerMethods) { "اختر طريقة حساب المواقيت" }
         val parameters = CalculationMethod.valueOf(settings.method).parameters.apply {
             madhab = if (settings.hanafi) Madhab.HANAFI else Madhab.SHAFI
-            // Umm al-Qura uses a 120-minute Isha interval in Ramadan.
+            // يستخدم تقويم أم القرى فاصلًا مدته 120 دقيقة لصلاة العشاء في رمضان.
             if (settings.method == "UMM_AL_QURA" && HijrahDate.from(date).get(ChronoField.MONTH_OF_YEAR) == 9) ishaInterval = 120
             adjustments.fajr = settings.offsets["fajr"]?.coerceIn(-30, 30) ?: 0
             adjustments.dhuhr = settings.offsets["dhuhr"]?.coerceIn(-30, 30) ?: 0
@@ -96,8 +96,8 @@ internal object PrayerCalculation {
         val times = PrayerTimes(Coordinates(place.latitude, place.longitude), DateComponents(date.year, date.monthValue, date.dayOfMonth), parameters)
         val values = listOf(times.fajr, times.sunrise, times.dhuhr, times.asr, times.maghrib, times.isha)
         return prayerNames.keys.zip(values).map { (id, value) ->
-            // The Java library rounds seconds but retains Calendar's current
-            // milliseconds. Strip those so results and alarms are stable minutes.
+            // تقرّب مكتبة Java الثواني لكنها تحتفظ بمللي ثواني Calendar الحالية.
+            // احذفها لتثبيت نتائج الدقائق ومواعيد التنبيه.
             val instant = requireNotNull(value) { "تعذر حساب المواقيت لهذا الموقع والتاريخ" }.time / 60_000L * 60_000L
             require(instant > 0L) { "تعذر حساب المواقيت لهذا الموقع والتاريخ" }
             PrayerMoment(id, instant)

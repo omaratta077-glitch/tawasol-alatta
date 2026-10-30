@@ -4,7 +4,7 @@ import android.content.Context
 import org.json.JSONArray
 import org.json.JSONObject
 
-/** Shared read-only metadata. Load on IO, then reuse for the reader, hit testing and downloads. */
+/** بيانات وصفية مشتركة للقراءة فقط؛ حمّلها في IO ثم أعد استخدامها للقارئ واختبار اللمس والتنزيلات. */
 internal class MushafIndex(val json: JSONObject) {
     val pages: JSONArray = json.getJSONArray("pages")
     val ayahs: JSONArray = json.getJSONArray("ayahs")
@@ -25,7 +25,7 @@ internal class MushafIndex(val json: JSONObject) {
     init { require(pages.length() == 605 && chapters.size == 114 && quarterStarts.size == 240) }
 }
 
-/** Only successful loads are cached. Concurrent reader/download requests share one parse. */
+/** تُخزّن التحميلات الناجحة فقط. وتتشارك طلبات القارئ والتنزيل المتزامنة عملية تحليل واحدة. */
 internal class SingleLoadCache<T : Any> {
     @Volatile private var value: T? = null
     fun get(load: () -> T): T = value ?: synchronized(this) {

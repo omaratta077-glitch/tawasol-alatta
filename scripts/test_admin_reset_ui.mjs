@@ -20,7 +20,7 @@ const beforePosts=calls.length;await nodes.get('adminResetExecuteBtn').onclick()
 assert.equal(attempt,3);assert.ok(calls.slice(beforePosts).every(x=>x.body.adminPassword===''));
 console.log('PASS posts-only bulk action never asks for the account deletion password');
 console.log('PASS admin UI previews, requires phrase, completes all batches and preserves owner session (DOM harness)');
-// Socket self-profile updates must retain private login fields and authoritative role.
+// يجب أن تحتفظ تحديثات الملف الشخصي عبر Socket بحقول تسجيل الدخول الخاصة والدور المعتمد.
 const joinedStart=source.indexOf('    if(msg.type==="joined")');const joinedEnd=source.indexOf('    if(msg.type==="users")',joinedStart);
 const joined={msg:{type:'joined',user:{username:'omar1',role:'super_admin',displayName:'Owner'}},me:{username:'omar1',role:'super_admin',email:'owner@example.test'},renderProfile(){},async loadChatContacts(){},async loadFriendRequests(){}};
 vm.createContext(joined);await vm.runInContext('(async()=>{'+source.slice(joinedStart,joinedEnd)+'})()',joined);

@@ -6,7 +6,7 @@ import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 
-/** A packet deadline is retryable; leaving the room must still cancel its HTTP/SDP work immediately. */
+/** يمكن إعادة محاولة انتهاء مهلة الحزمة؛ ويجب أن تظل مغادرة الغرفة قادرة على إلغاء عمل HTTP/SDP فورًا. */
 internal suspend fun watchRoomSignalAttempt(timeoutMs: Long = 12000, action: suspend () -> Unit): Boolean = try {
     withTimeout(timeoutMs) { action() }
     true

@@ -1,4 +1,4 @@
-// One persistent scheduler in the main deployment, separate from notification alarms.
+// مجدول دائم واحد في النشر الرئيسي، منفصل عن منبّهات الإشعارات.
 export function createCatalogRefresh(Base,check){
  const interval=30000,keyName='catalog:auto';
  const json=(body,status=200)=>Response.json(body,{status,headers:{'Cache-Control':'no-store'}});
@@ -42,7 +42,7 @@ export function createCatalogRefresh(Base,check){
   async perform(){
    const state=await this.ctx.storage.get(keyName);if(!state?.enabled)return;
    const started=Date.now(),nextRun=started+interval;
-   // Persist the next wake before network access; a process restart does not stop the schedule.
+   // احفظ موعد الاستيقاظ التالي قبل الاتصال بالشبكة؛ فإعادة تشغيل العملية لا توقف الجدول.
    await this.ctx.storage.setAlarm(nextRun);
    let report;
    try{

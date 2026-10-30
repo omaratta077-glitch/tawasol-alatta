@@ -24,7 +24,7 @@ internal fun watchMicrophoneConstraints() = MediaConstraints().apply {
     mandatory.add(MediaConstraints.KeyValuePair("googAutoGainControl", "true"))
 }
 
-/** Communication routing for the mic-only room; never captures playback or requests exclusive media focus. */
+/** توجيه صوت لغرفة تستخدم الميكروفون فقط؛ لا يلتقط الصوت الجاري ولا يطلب تركيزًا حصريًا للوسائط. */
 @Suppress("DEPRECATION")
 internal class WatchAudioRoute(context: Context) {
     private val manager = context.getSystemService(AudioManager::class.java)

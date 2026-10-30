@@ -13,7 +13,7 @@ internal data class HadithEntry(val id: Long, val bookId: String, val number: In
 internal data class HadithPage(val entries: List<HadithEntry>, val total: Int, val page: Int, val pages: Int)
 internal data class HadithSearch(val text: String, val match: String?, val number: Int?)
 
-/** Search normalization never changes the Arabic text shown to the reader. */
+/** لا يغيّر توحيد النص للبحث النص العربي الظاهر للقارئ. */
 internal fun normalizeHadithSearch(value: String): String {
     val expanded = value.replace("ﷺ", " صلى الله عليه وسلم ").replace("ﷲ", "الله")
         .replace('ٱ', 'ا').replace('ى', 'ي').replace("ـ", "").lowercase(Locale.ROOT)
@@ -32,7 +32,7 @@ internal fun normalizeHadithSearch(value: String): String {
 internal fun hadithSearch(value: String): HadithSearch {
     val normalized = normalizeHadithSearch(value.take(200))
     val numeric = normalized.takeIf { it.isNotBlank() && it.all(Char::isDigit) }?.toIntOrNull()?.takeIf { it > 0 }
-    // Only letters/digits reach MATCH. Quotes, SQL fragments and FTS operators become plain terms.
+    // لا تصل إلى MATCH إلا الحروف والأرقام. تتحول علامات الاقتباس وشذرات SQL وعوامل FTS إلى مصطلحات عادية.
     val match = normalized.split(' ').filter(String::isNotBlank).take(8).joinToString(" ") { "$it*" }.ifBlank { null }
     return HadithSearch(normalized, if (numeric == null) match else null, numeric)
 }

@@ -45,7 +45,7 @@ import java.io.ByteArrayOutputStream
 import kotlin.math.max
 import kotlin.math.roundToInt
 
-/** Bound the base64 input before allocation. Bitmap sampling/caching belongs to Coil. */
+/** قيّد إدخال base64 قبل حجز الذاكرة؛ وتتولى Coil أخذ عينات الصور وتخزينها المؤقت. */
 internal fun decodeInlineImageData(value: String): ByteArray? {
     if (!value.startsWith("data:image/") || !value.contains(";base64,")) return null
     val start = value.indexOf(";base64,") + 8
@@ -55,8 +55,9 @@ internal fun decodeInlineImageData(value: String): ByteArray? {
 }
 
 /**
- * Web accounts store avatar and cover as data:image/jpeg;base64,...; R2 images use
- * /media/... paths. Handle BOTH without assuming Coil can fetch data: URLs.
+ * تخزّن حسابات الويب الصورة الشخصية والغلاف بصيغة data:image/jpeg;base64,...،
+ * بينما تستخدم صور R2 مسارات /media/.... عالج التنسيقين
+ * من دون افتراض قدرة Coil على جلب عناوين data:.
  */
 @Composable
 internal fun ProfileMediaImage(
@@ -73,8 +74,8 @@ internal fun ProfileMediaImage(
             this.value = null
             this.value = withContext(Dispatchers.IO) {
                 decodeInlineImageData(resolved)?.let { bytes ->
-                    // Coil sizes the decode to the actual view and shares its memory
-                    // cache across rows. No full-resolution bitmap decode on the UI thread.
+                    // تحدد Coil حجم فك الترميز ليتناسب مع العرض الفعلي، وتتشارك
+                    // ذاكرة التخزين المؤقت بين الصفوف. لا تفك صورة بدقتها الكاملة على خيط الواجهة.
                     val key = MessageDigest.getInstance("SHA-256").digest(bytes)
                         .joinToString("") { "%02x".format(it) }
                     ImageRequest.Builder(context).data(bytes).memoryCacheKey("inline:$key").build()
@@ -109,7 +110,7 @@ internal fun ProfileMediaImage(
 }
 
 
-/** View an avatar, cover or feed image full-screen. Pinch to zoom, drag and reset. */
+/** اعرض صورة الملف أو الغلاف أو الموجز بملء الشاشة. كبّر بالقرص واسحب وأعد الضبط. */
 @Composable
 internal fun ExpandableProfileMedia(
     value: String,
@@ -148,8 +149,8 @@ internal fun ExpandableProfileMedia(
 }
 
 /**
- * Keeps the JPEG data URI strictly BELOW the backend's 250k/500k character limits.
- * Compression runs on Dispatchers.IO; no storage permission is required with GetContent.
+ * اجعل عنوان بيانات JPEG أقل من حد الخادم البالغ 250k/500k حرف دائمًا.
+ * يجري الضغط في Dispatchers.IO؛ ولا يلزم إذن التخزين عند استخدام GetContent.
  */
 internal fun encodeProfileImage(context: Context, uri: Uri, kind: String): String {
     val isAvatar = kind == "avatar"
