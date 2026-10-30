@@ -3,7 +3,7 @@ import fs from "node:fs";
 // اختبر الدالة نفسها المنشورة في worker.js، من دون نسخة ثانية منها.
 const workerSource=fs.readFileSync(new URL("../cloudflare-site/src/worker.js",import.meta.url),"utf8");
 const start=workerSource.indexOf("// BEGIN نقل البريد عبر Google Apps Script (على الخادم فقط)");
-const end=workerSource.indexOf("// END نقل البريد عبر Google Apps Script (على الخادم فقط)");
+const end=workerSource.indexOf("// END نقل البريد عبر Google Apps Script");
 assert.ok(start>=0&&end>start,"Google Apps Script helper is present in worker.js");
 const helper=workerSource.slice(start,end);
 const {sendViaGoogleAppsScript}=await import(
