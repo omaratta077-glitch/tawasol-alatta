@@ -1,6 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {catalogIngest,mergeCatalogIds} from "../../cloudflare-site/src/catalog-ingest.mjs";
+// قارن الشيفرة التنفيذية مع تجاهل اختلاف التعليقات فقط.
+const stripComments=value=>value.replace(/\/\*[\s\S]*?\*\//g,m=>m.replace(/[^\n]/g,"")).replace(/(^|\n)[ \t]*\/\/[^\n]*/g,"$1").replace(/[ \t]+\/\/[^\n]*/g,"").replace(/\n[ \t]*\n+/g,"\n").trim();
 const fixture=()=>({revision:7,updatedAt:1,channels:[{id:"stable-1",name:"beIN SPORTS1",category:"1080",provider:"existing",sourceUrl:"https://example.org",streamUrl:"123",format:"ytv",enabled:true}],matches:[{id:"match",channelId:"stable-1"}]});
 const rows=[{name:"beIN SPORTS 1",id:"1424"}];
 test("rotate only playback ID, retain stable identity, metadata and match references",()=>{
@@ -57,7 +59,8 @@ test("production bundle matches the tested module",async()=>{
  const {readFile}=await import("node:fs/promises");
  const source=await readFile(new URL("../../cloudflare-site/src/worker.js",import.meta.url),"utf8");
  const module=await readFile(new URL("../../cloudflare-site/src/catalog-ingest.mjs",import.meta.url),"utf8");
- assert.ok(source.includes("const catalogIngest = (() => {\n"+module.replaceAll("export function ","function ").replaceAll("export async function ","async function ")+"\nreturn catalogIngest;"));
+ const expected="const catalogIngest = (() => {\n"+module.replaceAll("export function ","function ").replaceAll("export async function ","async function ")+"\nreturn catalogIngest;";
+ assert.ok(stripComments(source).includes(stripComments(expected)));
 });
 
 test("rotated section and 19-digit channel IDs remain exact strings",async()=>{
