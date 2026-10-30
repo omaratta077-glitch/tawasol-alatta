@@ -25,7 +25,7 @@ w.fetch=async(url,opts={})=>{
  return Response.json({ok:true,users:[],friends:[],requests:[],notifications:[],stories:[],voices:[]});
 };
 w.eval(read('icons.js'));
-const index=app.indexOf('})();\n\n\n/* ===== V13.28');
+const index=app.indexOf('})();\n\n\n/* ===== دعم التثبيت في Android وPWA، الإصدار V13.28');
 w.eval(app.slice(0,index)+'window.__webTest={api,restoreSavedLogin,showPage,loadPosts,setSession(){token="fixture";me={username:"fixture"}}};'+app.slice(index));
 w.eval(read('web-modules.js'));
 const tick=async()=>{for(let i=0;i<10;i++)await new Promise(r=>setImmediate(r));};
