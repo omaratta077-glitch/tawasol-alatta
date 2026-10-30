@@ -257,7 +257,7 @@ function nativeSources(rows) {
         !host.includes('.') || /^[\d.]+$/.test(host) || host.includes(':') ||
         /(^|\.)(localhost|local|internal|invalid|test)$/.test(host)) continue;
     // لا يسمح إصدار Android 1.0.201 بأي اتصال HTTP غير مشفّر.
-    if (u.protocol === 'http:' && !['new-redirect.online', 'cdnarvo.buzz'].some(d => host === d || host.endsWith('.' + d))) continue;
+    if (u.protocol === 'http:' && !['new-redirect.online', 'cdnarvo.buzz', 'cdnravon.buzz', 'streamalvo.buzz', 'vidorise.buzz', 'vidunex.buzz'].some(d => host === d || host.endsWith('.' + d))) continue;
     if (row.headers != null && (typeof row.headers !== 'object' || Array.isArray(row.headers))) continue;
     const headers = {};
     let supported = true;
@@ -1387,9 +1387,12 @@ export class SignalingRoom extends DurableObject {
     return result.catalog?j({ok:true,...result.catalog,playbackTypes:FOOTBALL_FORMATS}):j({ok:false,error:result.error},result.status);
   }
 
-  async footballPlaybackTest(request,body){
+  async footballPlaybackTest(request,body,viewer=false){
     if(request.method!=="POST")return j({ok:false,error:"استخدم تشغيل القناة من التطبيق"},405);
-    const auth=await this.requireAdmin(body.token);if(auth.error)return auth.error;
+    // المشاهدة متاحة للجلسات الصالحة؛ يبقى المسار الإداري محميًا بصلاحية المالك.
+    const auth=viewer?{session:await this.session(String(body.token||""))}:await this.requireAdmin(body.token);
+    if(auth.error)return auth.error;
+    if(viewer&&!auth.session)return j({ok:false,error:"الجلسة منتهية"},401);
     const catalog=await this.ctx.storage.get("football:catalog");
     const channel=catalog?.channels?.find(c=>c.id===body.channelId && c.enabled && c.format==="ytv");
     if(!channel)return j({ok:false,error:"القناة غير موجودة أو غير مفعلة"},404);
@@ -1397,7 +1400,7 @@ export class SignalingRoom extends DurableObject {
     const bound=synced?.bindings?.[channel.id]===channel.streamUrl;
     const selector={name:channel.name,category:bound&&typeof synced.categoryName==="string"?synced.categoryName:channel.category,
       ...(bound?{categoryId:synced.categoryId}:{})};
-    const gate="football:playback-test:last",now=Date.now();
+    const gate=viewer?"football:playback:last:"+auth.session.username:"football:playback-test:last",now=Date.now();
     if(now-Number(await this.ctx.storage.get(gate)||0)<2000)return j({ok:false,error:"انتظر ثانيتين ثم أعد المحاولة"},429);
     await this.ctx.storage.put(gate,now);
     const response=await mainCatalogCheck.fetch(new Request('https://internal.invalid/api/internal/catalog-check',{
@@ -2005,6 +2008,7 @@ export class SignalingRoom extends DurableObject {
     }
 
     if(url.pathname==="/api/admin/football/playback-test")return this.footballPlaybackTest(request,body);
+    if(url.pathname==="/api/football/playback")return this.footballPlaybackTest(request,body,true);
     if(url.pathname==="/api/sports-broadcast")return this.sportsBroadcastApi(request,url,body);
     if(url.pathname==="/api/watch-room")return this.watchRoomApi(request,body);
 

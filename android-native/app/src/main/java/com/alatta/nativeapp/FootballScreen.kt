@@ -79,7 +79,7 @@ internal fun FootballScreen(query: String, modifier: Modifier = Modifier,
         val lifecycle = context.mediaActivity()?.lifecycle
         while (true) { delay(CatalogAutoUpdater.FOREGROUND_REFRESH_MS); if (lifecycle?.currentState?.isAtLeast(Lifecycle.State.STARTED) == true) reload++ }
     }
-    fun play(channel: FootballChannel, nativePlayback: Boolean = false) {
+    fun play(channel: FootballChannel) {
         if (openingChannel) return
         openingChannel = true
         playbackScope.launch {
@@ -93,10 +93,9 @@ internal fun FootballScreen(query: String, modifier: Modifier = Modifier,
                 }
                 "ytv" -> {
                     if (callInProgress) { error = "أنهِ المكالمة أولًا لتشغيل القناة."; return@launch }
-                    if (isAdmin && nativePlayback) {
-                        val sources = NativeChannelPlayback.load(token, channel.id)
-                        onBeforePlayback(); nativeSession = NativePlaybackSession(channel, sources)
-                    } else YtvPlayer.openWithWatchRoom(context, channel.streamUrl, onBeforePlayback)?.let { playerFailure = it; return@launch }
+                    if (token.isBlank()) { error = "سجّل الدخول لتشغيل القناة."; return@launch }
+                    val sources = NativeChannelPlayback.load(token, channel.id)
+                    onBeforePlayback(); nativeSession = NativePlaybackSession(channel, sources)
                 }
                 else -> { onBeforePlayback(); selected = channel }
             }
@@ -109,7 +108,7 @@ internal fun FootballScreen(query: String, modifier: Modifier = Modifier,
         }
     }
     FootballContent(catalog, query, favorites, recent, loading || openingChannel, error, isAdmin, callInProgress, modifier,
-        onReload = { reload++ }, onManage = onManage, onPlay = { play(it) }, onPlayDirect = { play(it, true) },
+        onReload = { reload++ }, onManage = onManage, onPlay = { play(it) }, onPlayDirect = { play(it) },
         onFavorite = { id ->
             favorites = if (id in favorites) favorites - id else favorites + id
             preferences.edit().putStringSet("favorites", favorites.toSet()).apply()
@@ -156,7 +155,7 @@ internal fun FootballContent(catalog: FootballCatalog, query: String, favorites:
     val terms = remember(query) { normalizeHadithSearch(query).split(' ').filter(String::isNotBlank) }
     val directTab = tab == "البث المباشر"
     val playVisible = if (directTab) onPlayDirect ?: onPlay else onPlay
-    val visible = catalog.channels.filter { it.enabled && (!directTab || it.format in setOf("hls", "dash") || (isAdmin && it.format == "ytv")) }
+    val visible = catalog.channels.filter { it.enabled && (!directTab || it.format in setOf("hls", "dash") || it.format == "ytv") }
     val categories = visible.map { footballChannelCategory(it) }.distinct().sorted()
     LaunchedEffect(categories) { if (category.isNotBlank() && category !in categories) category = "" }
     val channels = visible.filter { c -> terms.all { normalizeHadithSearch(c.name + " " + footballChannelCategory(c)).contains(it) } }

@@ -35,6 +35,27 @@ class NativeChannelTransportTest {
         } finally { server.shutdown() }
     }
 
+    @Test fun redirectPreservesQueryAndHeadersAndUsesFinalUriForRelativeSegments() {
+        val entry = MockWebServer(); val edge = MockWebServer()
+        entry.start(); edge.start()
+        try {
+            val target = edge.url("/live/index.m3u8?t=synthetic%2Btoken&e=123")
+            entry.enqueue(MockResponse().setResponseCode(302).setHeader("Location", target))
+            edge.enqueue(MockResponse().setHeader("Content-Type", "application/vnd.apple.mpegurl")
+                .setBody("#EXTM3U\n#EXTINF:6,\n/segments/1.js\n"))
+            val source = NativeChannelPlayback.transport(RuntimeEnvironment.getApplication(),
+                mapOf("User-Agent" to "Captured fixture")).createDataSource()
+            try {
+                source.open(DataSpec.Builder().setUri(entry.url("/start").toString()).build())
+                assertTrue(source.read(ByteArray(128), 0, 128) > 0)
+                assertEquals(target.toString(), source.uri.toString())
+                val request = edge.takeRequest()
+                assertEquals("/live/index.m3u8?t=synthetic%2Btoken&e=123", request.path)
+                assertEquals("Captured fixture", request.getHeader("User-Agent"))
+            } finally { source.close() }
+        } finally { entry.shutdown(); edge.shutdown() }
+    }
+
     @Test fun actualHttpFailureKeepsOnlyStatusAndFixedLabels() {
         val server = MockWebServer(); server.start()
         try {
