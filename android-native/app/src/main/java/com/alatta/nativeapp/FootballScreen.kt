@@ -109,7 +109,9 @@ internal fun FootballScreen(query: String, modifier: Modifier = Modifier,
         }
     }
     FootballContent(catalog, query, favorites, recent, loading || openingChannel, error, isAdmin, callInProgress, modifier,
-        onReload = { reload++ }, onManage = onManage, onPlay = { play(it) }, onPlayDirect = { play(it, true) },
+        onReload = { reload++ }, onManage = onManage,
+        // للمدير فقط: جرّب Media3 الموجود مباشرة؛ لا تغيّر عقد YTV للمستخدمين.
+        onPlay = { play(it, isAdmin && it.format == "ytv") }, onPlayDirect = { play(it, true) },
         onFavorite = { id ->
             favorites = if (id in favorites) favorites - id else favorites + id
             preferences.edit().putStringSet("favorites", favorites.toSet()).apply()
