@@ -152,3 +152,30 @@ test('app endpoint authenticates first, resolves current stable catalog ID and n
   assert.equal(calls,1);assert.equal(map.size,2);assert.deepEqual(map.get('football:catalog').channels[0].streamUrl,channel);
  } finally {globalThis.fetch=async()=>{throw Error('No real network');};}
 });
+
+test('viewer playback requires a valid session, isolates throttling and keeps admin authorization',async()=>{
+ const source=(await readFile(new URL('../../cloudflare-site/src/worker.js',import.meta.url),'utf8')).replace('import { DurableObject } from "cloudflare:workers";','class DurableObject {}');
+ const {SignalingRoom}=await import('data:text/javascript,'+encodeURIComponent(source));
+ const map=new Map([['football:catalog',{channels:[{id:'stable',format:'ytv',enabled:true,streamUrl:channel}]}]]);
+ const room=new SignalingRoom({storage:{async get(k){return structuredClone(map.get(k));},async put(k,v){map.set(k,structuredClone(v));}},getWebSockets:()=>[]},env);
+ room.session=async token=>['alice','bob'].includes(token)?{username:token}:null;
+ room.requireAdmin=async()=>({error:Response.json({ok:false},{status:403})});
+ const req=new Request('https://owned.example/api/football/playback',{method:'POST'});
+ let calls=0;globalThis.fetch=async()=>{calls++;return Response.json({data:fixtures});};
+ try{
+  assert.equal((await room.footballPlaybackTest(req,{token:'expired',channelId:'stable'},true)).status,401);
+  assert.equal((await room.footballPlaybackTest(req,{token:'alice',channelId:'unknown'},true)).status,404);
+  assert.equal(calls,0);
+  assert.equal((await room.footballPlaybackTest(req,{token:'alice',channelId:'stable'},true)).status,200);
+  assert.equal((await room.footballPlaybackTest(req,{token:'alice',channelId:'stable'},true)).status,429);
+  assert.equal((await room.footballPlaybackTest(req,{token:'bob',channelId:'stable'},true)).status,200);
+  assert.equal((await room.footballPlaybackTest(req,{token:'bob',channelId:'stable'})).status,403);
+  assert.equal(calls,2);
+ }finally{globalThis.fetch=async()=>{throw Error('No real network');};}
+});
+test('observed HTTP source families pass while unrelated HTTP hosts remain rejected',async()=>{
+ for(const host of ['h50.cdnravon.buzz','h32.streamalvo.buzz','h46.vidorise.buzz']){
+  assert.equal((await resolve([{url:'http://'+host+'/live/index.m3u8'}])).data.sources.length,1);
+ }
+ assert.equal((await resolve([{url:'http://unrelated.buzz/live/index.m3u8'}])).response.status,422);
+});

@@ -17,13 +17,14 @@ internal data class NativeChannelSource(val index: Int, val url: String,
 }
 
 internal object NativeChannelPlayback {
-    // بديل احتياطي تمت ملاحظته في مُنشئ PlayerActivity المرفق من YTV PRO.
-    internal const val FALLBACK_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/95.0.4638.54 Safari/537.36"
+    // ترويسة الطلب الناجح الملتقط؛ تُقدَّم عليها ترويسة المصدر إن وُجدت.
+    internal const val FALLBACK_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36"
 
     internal fun transport(context: android.content.Context, headers: Map<String, String>): androidx.media3.datasource.DataSource.Factory =
         androidx.media3.datasource.DefaultDataSource.Factory(context.applicationContext,
             androidx.media3.datasource.DefaultHttpDataSource.Factory()
                 .setConnectTimeoutMs(8_000).setReadTimeoutMs(8_000)
+                .setAllowCrossProtocolRedirects(true)
                 .setUserAgent(headers["User-Agent"] ?: FALLBACK_USER_AGENT)
                 .setDefaultRequestProperties(headers))
 
@@ -38,7 +39,7 @@ internal object NativeChannelPlayback {
                 parsed.host.contains('.') && !parsed.host.matches(Regex("[0-9.]+")) && !parsed.host.contains(':') &&
                 listOf("localhost", "local", "internal", "invalid", "test").none { parsed.host == it || parsed.host.endsWith(".$it") })
             require(parsed.port == if (parsed.isHttps) 443 else 80)
-            if (!parsed.isHttps) require(listOf("new-redirect.online", "cdnarvo.buzz")
+            if (!parsed.isHttps) require(listOf("new-redirect.online", "cdnarvo.buzz", "cdnravon.buzz", "streamalvo.buzz", "vidorise.buzz", "vidunex.buzz")
                 .any { parsed.host == it || parsed.host.endsWith(".$it") })
             val rawHeaders = row.getJSONObject("headers")
             val headers = rawHeaders.keys().asSequence().associateWith { name ->
@@ -53,8 +54,8 @@ internal object NativeChannelPlayback {
     }
 
     suspend fun load(token: String, stableChannelId: String): List<NativeChannelSource> = withContext(Dispatchers.IO) {
-        // تذهب جلسة المالك العادية فقط إلى AL-ATTA؛ ولا يدخل APK أي سر إداري أو مفتاح فك ترميز.
-        parse(attaApi("/api/admin/football/playback-test", JSONObject().put("token", token).put("channelId", stableChannelId)))
+        // تذهب جلسة المستخدم إلى خادم العطا فقط، ويُجلب رابط جديد عند كل تشغيل.
+        parse(attaApi("/api/football/playback", JSONObject().put("token", token).put("channelId", stableChannelId)))
     }
 
     internal fun failure(error: PlaybackException): Pair<Int, Int?> {
