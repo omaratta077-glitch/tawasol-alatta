@@ -25,8 +25,8 @@ android {
         minSdk = 26
         targetSdk = 35
         // الإصدار 1.0.201: ارفض اتصالات HTTP غير المشفّرة مع جميع المضيفين.
-        versionCode = 301
-        versionName = "1.0.201"
+        versionCode = 302
+        versionName = "1.0.202"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("boolean", "IS_APPGALLERY", appGalleryBuild.toString())
         val hmsId = (System.getenv("ALATTA_HMS_APP_ID") ?: "").trim().takeIf { it.matches(Regex("[0-9]{1,20}")) } ?: ""
