@@ -23,7 +23,7 @@ w.fetch=async(url,opts={})=>{
  return Response.json(body);
 };
 w.eval(read('icons.js'));
-const source=read('app.js'),idx=source.indexOf('})();\n\n\n/* ===== V13.28');
+const source=read('app.js'),idx=source.indexOf('})();\n\n\n/* ===== دعم التثبيت في Android وPWA، الإصدار V13.28');
 w.eval(source.slice(0,idx)+`window.__ui={setRole(role){me={username:'owner',role};token='fixture';},renderProfilePage,loadAdminDashboard,loadAdminUsers,adminSecret};`+source.slice(idx));
 w.__ui.setRole('super_admin');await w.__ui.renderProfilePage('owner');
 assert.equal(d.getElementById('profileName').textContent,'المدير الرئيسي');assert.equal(d.getElementById('toggleProfileEditBtn').classList.contains('hidden'),false);
