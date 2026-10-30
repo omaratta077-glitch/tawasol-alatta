@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import {JSDOM} from 'jsdom';
 const pub=new URL('../../cloudflare-site/public/',import.meta.url);
 const read=n=>fs.readFileSync(new URL(n,pub),'utf8');
-const source=read('app.js').split('/* ===== دعم التثبيت على Android وPWA، الإصدار 13.28 ===== */')[1];
+const source=read('app.js').split('/* ===== دعم التثبيت في Android وPWA، الإصدار V13.28 ===== */')[1];
 const dom=new JSDOM(read('index.html'),{url:'https://unit.test/',runScripts:'outside-only'});
 const w=dom.window,d=w.document;
 let standalone=false,change,alerts=0,prompts=0;
