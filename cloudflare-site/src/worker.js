@@ -256,7 +256,7 @@ function nativeSources(rows) {
     if (!['https:', 'http:'].includes(u.protocol) || u.username || u.password || u.port ||
         !host.includes('.') || /^[\d.]+$/.test(host) || host.includes(':') ||
         /(^|\.)(localhost|local|internal|invalid|test)$/.test(host)) continue;
-    // لا يسمح إصدار Android 1.0.201 بأي اتصال HTTP غير مشفّر.
+    // تقبل النسخة 1.0.202 نطاقات البث المرصودة فقط عبر HTTP، مع منع بقية النطاقات.
     if (u.protocol === 'http:' && !['new-redirect.online', 'cdnarvo.buzz', 'cdnravon.buzz', 'streamalvo.buzz', 'vidorise.buzz', 'vidunex.buzz'].some(d => host === d || host.endsWith('.' + d))) continue;
     if (row.headers != null && (typeof row.headers !== 'object' || Array.isArray(row.headers))) continue;
     const headers = {};
