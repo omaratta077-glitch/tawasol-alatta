@@ -39,7 +39,7 @@ internal object NativeChannelPlayback {
                 parsed.host.contains('.') && !parsed.host.matches(Regex("[0-9.]+")) && !parsed.host.contains(':') &&
                 listOf("localhost", "local", "internal", "invalid", "test").none { parsed.host == it || parsed.host.endsWith(".$it") })
             require(parsed.port == if (parsed.isHttps) 443 else 80)
-            if (!parsed.isHttps) require(listOf("new-redirect.online", "cdnarvo.buzz", "cdnravon.buzz", "streamalvo.buzz", "vidorise.buzz", "vidunex.buzz")
+            if (!parsed.isHttps) require(listOf("new-redirect.online", "cdnarvo.buzz", "cdnravon.buzz", "streamalvo.buzz", "vidorise.buzz", "vidunex.buzz", "castavion.buzz")
                 .any { parsed.host == it || parsed.host.endsWith(".$it") })
             val rawHeaders = row.getJSONObject("headers")
             val headers = rawHeaders.keys().asSequence().associateWith { name ->

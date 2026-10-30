@@ -9,5 +9,6 @@
         <domain includeSubdomains="true">streamalvo.buzz</domain>
         <domain includeSubdomains="true">vidorise.buzz</domain>
         <domain includeSubdomains="true">vidunex.buzz</domain>
+        <domain includeSubdomains="true">castavion.buzz</domain>
     </domain-config>
 </network-security-config>

@@ -257,7 +257,7 @@ function nativeSources(rows) {
         !host.includes('.') || /^[\d.]+$/.test(host) || host.includes(':') ||
         /(^|\.)(localhost|local|internal|invalid|test)$/.test(host)) continue;
     // تقبل النسخة 1.0.202 نطاقات البث المرصودة فقط عبر HTTP، مع منع بقية النطاقات.
-    if (u.protocol === 'http:' && !['new-redirect.online', 'cdnarvo.buzz', 'cdnravon.buzz', 'streamalvo.buzz', 'vidorise.buzz', 'vidunex.buzz'].some(d => host === d || host.endsWith('.' + d))) continue;
+    if (u.protocol === 'http:' && !['new-redirect.online', 'cdnarvo.buzz', 'cdnravon.buzz', 'streamalvo.buzz', 'vidorise.buzz', 'vidunex.buzz', 'castavion.buzz'].some(d => host === d || host.endsWith('.' + d))) continue;
     if (row.headers != null && (typeof row.headers !== 'object' || Array.isArray(row.headers))) continue;
     const headers = {};
     let supported = true;
