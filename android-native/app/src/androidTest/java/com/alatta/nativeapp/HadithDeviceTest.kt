@@ -8,7 +8,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import java.util.Locale
 
-/** Runs inside Android itself, including libcore gzip/formatting and system SQLite. */
+/** يُشغّل داخل Android نفسه، بما في ذلك فك الضغط والتنسيق في libcore وقاعدة SQLite الخاصة بالنظام. */
 @RunWith(AndroidJUnit4::class)
 class HadithDeviceTest {
     @Test fun arabicPhoneInstallsAllFourBooksAndSearchesOffline() = runBlocking {
@@ -26,13 +26,13 @@ class HadithDeviceTest {
             }
             assertTrue(HadithLibrary.page(context, "bukhari", 0, "إِنَّمَا الأَعْمَالُ بِالنِّيَّاتِ", 0).entries.any { it.number == 1 })
             assertEquals(7008, HadithLibrary.sections(context, "bukhari").sumOf { it.count })
-            // Same user-facing repair path, without clearing account data.
+            // مسار الإصلاح نفسه الذي يراه المستخدم، من دون مسح بيانات الحساب.
             HadithLibrary.repair(context)
             assertEquals(14006, HadithLibrary.books(context).sumOf { it.count })
-            // A second read proves the installed database stays open without
-            // device-dependent SQLite quick_check/user_version PRAGMA calls.
+            // تثبت القراءة الثانية أن قاعدة البيانات المثبّتة تظل مفتوحة، من دون
+            // استدعاءات PRAGMA للتحقق السريع أو إصدار SQLite تعتمد على الجهاز.
             assertEquals(4, HadithLibrary.books(context).size)
-            // Exercise the same offline fallback used when a handset lacks FTS4.
+            // اختبر مسار العمل دون اتصال نفسه المستخدم عندما لا يدعم الهاتف FTS4.
             val fallback = HadithLibrary.page(context, "bukhari", 0, "إِنَّمَا الأَعْمَالُ بِالنِّيَّاتِ", 0, preferFullText = false)
             assertTrue(fallback.entries.any { it.number == 1 })
         } finally { Locale.setDefault(previous) }

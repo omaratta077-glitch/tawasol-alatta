@@ -6,7 +6,7 @@ import android.content.Context
 import android.widget.RemoteViews
 import androidx.core.app.NotificationCompat
 
-/** A small brand icon and bounded call controls, never a full-width picture. */
+/** أيقونة صغيرة للعلامة التجارية وأزرار اتصال بمساحة محدودة، بلا صورة بعرض الشاشة. */
 internal fun incomingCallNotification(context: Context, call: PushCall, view: PendingIntent,
     accept: PendingIntent, reject: PendingIntent, silent: Boolean): Notification {
     fun layout(resource: Int) = RemoteViews(context.packageName, resource).apply {
@@ -21,7 +21,7 @@ internal fun incomingCallNotification(context: Context, call: PushCall, view: Pe
     }
     return NotificationCompat.Builder(context, AttaPush.CHANNEL)
         .setSmallIcon(R.drawable.atta_notification_icon)
-        // The custom layouts already contain the gold app logo. A large icon would duplicate it.
+        // تتضمن التخطيطات المخصصة شعار التطبيق الذهبي بالفعل؛ لذا ستكرر الأيقونة الكبيرة الشعار.
         .setColor(0xFFD8B451.toInt())
         .setContentTitle(call.displayName.ifBlank { "مستخدم" })
         .setContentText(if (call.type == "video") "مكالمة فيديو واردة" else "مكالمة صوتية واردة")

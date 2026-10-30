@@ -6,7 +6,7 @@ import org.junit.Assert.*
 import org.junit.Test
 import org.junit.runner.RunWith
 
-/** Check Android's effective policy, not just the XML declaration. No network requests. */
+/** تحقّق من سياسة Android الفعلية، لا من تعريف XML وحده. لا تُرسل طلبات شبكة. */
 @RunWith(AndroidJUnit4::class)
 class ProviderNetworkPolicyDeviceTest {
     @Test fun externalPlayerHandoffKeepsHttpDeniedForEveryHost() {

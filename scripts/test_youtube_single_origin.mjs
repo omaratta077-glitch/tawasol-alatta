@@ -15,8 +15,8 @@ assert.ok(site.includes('window.AttaYouTubeEmbed.create'),'site is sole iframe c
 assert.ok(shared.includes('global.AttaYouTubeEmbed=Object.freeze({create})'));
 new vm.Script(bridge.replace('__ALATTA_VIDEO_ID__','dQw4w9WgXcQ'));
 assert.ok(main.includes('modifier = modifier.height(39.dp)'),'39dp search preserved');
-// Exercise the DOM bridge with a fake already-initialized site player UI.
-// The iframe creation is attributed exclusively to the site's form handler.
+// اختبر جسر DOM بواجهة مشغّل الموقع التي جرى تهيئتها مسبقًا.
+// يُنسب إنشاء iframe حصريًا إلى معالج النموذج في الموقع.
 let iframeCount = 0, siteClicks = 0, searchSubmits = 0;
 const logs = [];
 const iframeListeners = {};

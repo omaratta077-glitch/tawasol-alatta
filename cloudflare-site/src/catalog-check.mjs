@@ -1,5 +1,5 @@
-// Manual owner-triggered catalog check in the main application. No scheduler.
-// Secrets: PROBE_KEY (24-256 characters), RESPONSE_MASK (private 16-character format setting).
+// فحص يدوي للفهرس يبدأه المالك من التطبيق الرئيسي. بلا جدولة.
+// الأسرار: PROBE_KEY (من 24 إلى 256 محرفًا)، وRESPONSE_MASK (إعداد تنسيق خاص من 16 محرفًا).
 const SOURCE_URL = "https://def001.ycnapi.com/api/categories";
 const MAX_RESPONSE_BYTES = 512 * 1024;
 const MAX_FORM_BYTES = 4096;
@@ -87,7 +87,7 @@ function parseCatalog(text, decoded) {
   };
 }
 
-// Metadata only: never return stream URLs, header values, license values or raw JSON.
+// بيانات وصفية فقط: لا تُعد روابط البث أو قيم الترويسات أو التراخيص أو JSON الخام.
 function inspectPlayback(text, decoded) {
   const invalid = message => ({ state: "INVALID", message, entries: [], responseDecoded: decoded });
   let root;
@@ -101,7 +101,7 @@ function inspectPlayback(text, decoded) {
     if (!row || typeof row !== "object" || Array.isArray(row)) return invalid("سجل تشغيل غير صالح.");
     const knownFields = ["name", "url", "urlType", "userAgent", "headers", "drm"].filter(k => Object.hasOwn(row, k));
     let scheme = "unknown", hasQuery = false;
-    if (typeof row.url === "string") { try { const u = new URL(row.url); scheme = ["http:", "https:"].includes(u.protocol) ? u.protocol : "other"; hasQuery = !!u.search; } catch { /* Opaque or transformed URL. */ } }
+    if (typeof row.url === "string") { try { const u = new URL(row.url); scheme = ["http:", "https:"].includes(u.protocol) ? u.protocol : "other"; hasQuery = !!u.search; } catch { /* رابط مبهم أو محوّل. */ } }
     const headers = row.headers && typeof row.headers === "object" && !Array.isArray(row.headers) ? row.headers : {};
     const drm = row.drm && typeof row.drm === "object" && !Array.isArray(row.drm) ? row.drm : null;
     streams.push({ knownFields, urlPresent: typeof row.url === "string" && row.url.length > 0,
@@ -116,7 +116,7 @@ function inspectPlayback(text, decoded) {
     responseDecoded: decoded, entries: [], streams, streamCount: streams.length };
 }
 
-// Used only by the authenticated native owner test, never the public probe form.
+// يُستخدم فقط في اختبار المالك الأصلي بعد المصادقة، ولا يستخدمه نموذج الفحص العام.
 function nativeSources(rows) {
   const sources = [];
   for (const [index, row] of rows.entries()) {
@@ -129,7 +129,7 @@ function nativeSources(rows) {
     if (!['https:', 'http:'].includes(u.protocol) || u.username || u.password || u.port ||
         !host.includes('.') || /^[\d.]+$/.test(host) || host.includes(':') ||
         /(^|\.)(localhost|local|internal|invalid|test)$/.test(host)) continue;
-    // Android permits HTTP only for the two CDN domain families observed by the owner.
+    // يرفض Android في الإصدار 1.0.201 كل اتصالات HTTP غير المشفّرة.
     if (u.protocol === 'http:' && !['new-redirect.online', 'cdnarvo.buzz'].some(d => host === d || host.endsWith('.' + d))) continue;
     if (row.headers != null && (typeof row.headers !== 'object' || Array.isArray(row.headers))) continue;
     const headers = {};
@@ -161,7 +161,7 @@ function chooseDirectHttps(rows) {
       if (u.protocol !== 'https:' || u.username || u.password || u.port || !host.includes('.') ||
           /^[\d.]+$/.test(host) || host.includes(':') || /(^|\.)(localhost|local|internal|invalid|test)$/.test(host)) continue;
       return u.href;
-    } catch { /* Opaque or malformed links need their own processing, never guess. */ }
+    } catch { /* الروابط المبهمة أو غير الصالحة تحتاج معالجة مستقلة؛ لا تخمّن. */ }
   }
   return null;
 }
@@ -196,7 +196,7 @@ function readCatalog(text, headerTime, responseMask, parse = parseCatalog) {
   const trimmed = text.replace(/^\uFEFF/, "").trim();
   if (trimmed.startsWith("{") || trimmed.startsWith("[")) return parse(trimmed, false);
   const unreadable = (state, message) => ({ state, message, entries: [], responseDecoded: false });
-  // Only a trailing file newline is removed; spaces inside the format setting are preserved.
+  // أزل فقط محرف السطر الجديد الختامي؛ واحتفظ بالمسافات داخل إعداد التنسيق.
   const prefix = typeof responseMask === "string" ? responseMask.replace(/\r?\n$/, "") : "";
   if (!prefix) return unreadable("CONFIG_MISSING", "وصل رد مرمّز. أضف Secret باسم RESPONSE_MASK بقيمة إعداد القراءة المحفوظ عندك.");
   if (!/^[\x20-\x7e]{16}$/.test(prefix)) return unreadable("CONFIG_INVALID", "إعداد RESPONSE_MASK يجب أن يكون 16 حرف ASCII قابلًا للطباعة، من ملف إعداد القراءة نفسه.");
@@ -298,7 +298,7 @@ export default {
     try {
       let discoveredCategory = null;
       if (publish) {
-        // Resolve by name every time: never trust a remembered section number.
+        // ابحث بالاسم في كل مرة؛ ولا تثق برقم قسم محفوظ سابقًا.
         const sections = await fetch(SOURCE_URL, {
           method: "GET", headers: { Accept: "application/json", "User-Agent": "okhttp/4.12.0" },
           redirect: "manual", signal: controller.signal,
@@ -328,15 +328,15 @@ export default {
       let text = new TextDecoder().decode(body.bytes).replace(/^\uFEFF/, "").trim();
       let effectiveChannel = channel;
       let idRefreshed = false;
-      // A 404 may be an expired source ID. Refresh by exact catalog labels once;
-      // do not guess IDs, change endpoints or retry an unchanged ID.
+      // قد يعني خطأ 404 أن معرّف المصدر انتهت صلاحيته. حدّث مرة واحدة باستخدام تسميات الفهرس المطابقة تمامًا؛
+      // لا تخمّن المعرّفات أو تغيّر نقاط النهاية أو تعاود طلب المعرّف نفسه.
       if (nativePlayback && response.status === 404 &&
           !/(?:error\s*code\s*:?|error\s+)\s*(10\d{2}|11\d{2})\b/i.test(text) &&
           typeof channelSelector?.name === 'string' && channelSelector.name.length <= 120 &&
           typeof channelSelector?.category === 'string' && channelSelector.category.length <= 120) {
         const canonical = value => value.replace(/\s+/g, '').toLowerCase();
-        // Category display labels can contain mirrored brackets or bidi marks.
-        // Preserve letters/digits/quality; only ignore presentation characters.
+        // قد تحتوي تسميات عرض الأقسام على أقواس معكوسة أو علامات اتجاه النص.
+        // احتفظ بالحروف والأرقام والجودة؛ وتجاهل محارف العرض فقط.
         const categoryKey = value => value.normalize('NFKC').replace(/[\s\p{Cf}()[\]{}]/gu, '').toLowerCase();
         const categoryName = categoryKey(channelSelector.category), channelName = canonical(channelSelector.name);
         if (categoryName && channelName) {
@@ -390,7 +390,7 @@ export default {
           if (rows) listRows = rows.length;
           declaresFailure = Boolean(parsed && !Array.isArray(parsed) &&
             (parsed.success === false || (parsed.error !== undefined && parsed.error !== null && parsed.error !== false && parsed.error !== "")));
-        } catch { /* Encoded or other content: no decoding key is embedded here. */ }
+        } catch { /* محتوى مشفّر أو من نوع آخر: لا يوجد هنا مفتاح لفك الترميز. */ }
       }
       let message;
       if (response.status >= 300 && response.status < 400) {
@@ -428,8 +428,8 @@ export default {
           const platform = !response.ok && text.match(/(?:error\s*code\s*:?|error\s+)\s*(10\d{2}|11\d{2})\b/i);
           const platformCode = platform ? 'CLOUDFLARE_' + platform[1] : null;
           const code = !response.ok ? 'SOURCE_HTTP_ERROR' : catalog.state;
-          // v192 already displays error; put the safe status/stage in that field too.
-          // This is a resolver failure before any video is loaded by the phone.
+          // يعرض الإصدار 192 الخطأ بالفعل؛ أضف إليه الحالة والمرحلة الآمنتين أيضًا.
+          // هذا إخفاق في حل المصدر قبل تحميل الهاتف أي فيديو.
           return respond({ ok: false,
             error: `تعذر جلب بيانات تشغيل القناة (HTTP ${response.status}؛ ${stage}${platformCode ? '؛ ' + platformCode : ''}${idRefreshed ? '؛ ID_REFRESHED' : ''}؛ ${code}).`,
             code, stage, platformCode, sourceHTTP: response.status, idRefreshed }, 502);
@@ -453,7 +453,7 @@ export default {
             categoryId: discoveredCategory.id, categoryName: discoveredCategory.name, sourceTime: time,
             entries: catalog.entries.map(({ id, name }) => ({ id, name })),
           });
-          // Record HTTP metadata before parsing so a non-JSON response stays diagnosable.
+          // سجّل بيانات HTTP الوصفية قبل التحليل كي يظل الرد غير الصالح بصيغة JSON قابلًا للتشخيص.
           publishResult.status = saved.status;
           publishResult.stage = "READ_RESPONSE";
           const rawType = (saved.headers.get("Content-Type") || "").split(";")[0].trim().toLowerCase();
@@ -464,7 +464,7 @@ export default {
           const reportText = new TextDecoder().decode(report.bytes);
           let result = null;
           if (!report.truncated) {
-            try { result = JSON.parse(reportText); } catch { /* Keep status, never echo arbitrary response text. */ }
+            try { result = JSON.parse(reportText); } catch { /* احتفظ بالحالة، ولا تُظهر نصًا عشوائيًا من الرد. */ }
           }
           const validReport = result !== null && typeof result === "object" && !Array.isArray(result);
           const allowed = new Set(["SYNC_NOT_CONFIGURED", "UNAUTHORIZED", "METHOD_NOT_ALLOWED", "JSON_REQUIRED",

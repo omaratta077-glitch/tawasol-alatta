@@ -29,8 +29,8 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.util.concurrent.Executors
 
-// Firebase's Android identifiers are public configuration, NOT a service-account
-// credential. The server-side service account remains a Cloudflare secret.
+// معرّفات Firebase لأندرويد إعدادات عامة وليست بيانات اعتماد لحساب خدمة.
+// تبقى بيانات اعتماد حساب الخدمة على الخادم سرًا في Cloudflare.
 class AttaApplication : Application() {
     override fun onCreate() {
         super.onCreate()
@@ -73,10 +73,10 @@ internal data class PushCall(
 
 internal object AttaPush {
     @Volatile var appVisible = false
-    // A visible incoming-call dialog rings on its own; suppress only that
-    // notification, not all calls just because the Activity is STARTED.
+    // يصدر مربع الاتصال الوارد الظاهر رنينه بنفسه؛ أوقف هذا الإشعار وحده،
+    // ولا توقف كل الإشعارات لمجرد أن Activity في حالة STARTED.
     @Volatile var foregroundRingCallId = ""
-    // A delayed copy of an already accepted FCM invitation must not ring again.
+    // يجب ألا يؤدي تكرار متأخر لدعوة FCM قُبلت بالفعل إلى رنين جديد.
     @Volatile var activeCallId = ""
     const val ACTION_OPEN_CALL = "com.alatta.nativeapp.OPEN_CALL"
     const val ACTION_REJECT = "com.alatta.nativeapp.REJECT_CALL"
@@ -114,7 +114,7 @@ internal object AttaPush {
                 .setApiKey(BuildConfig.PUSH_API_KEY).build()
             if (FirebaseApp.getApps(context).isEmpty()) FirebaseApp.initializeApp(context, options)
             FirebaseMessaging.getInstance().apply {
-                // Calls must reach our service so the same branded card is used in the background.
+                // يجب أن تصل المكالمات إلى خدمتنا لعرض البطاقة نفسها بعلامة التطبيق في الخلفية.
                 setNotificationDelegationEnabled(false)
                 isAutoInitEnabled = true
             }
@@ -133,7 +133,7 @@ internal object AttaPush {
             lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC
         }
         manager.createNotificationChannel(channel)
-        // Dedicated channels let the user choose separate sounds for messages and social alerts.
+        // تتيح القنوات المخصصة للمستخدم اختيار نغمات منفصلة للرسائل والتنبيهات الاجتماعية.
         manager.createNotificationChannel(NotificationChannel(
             CHAT_CHANNEL, "رسائل تواصل العطا", NotificationManager.IMPORTANCE_HIGH
         ).apply { description = "رسائل جديدة في المحادثات"; enableVibration(true) })
@@ -150,7 +150,7 @@ internal object AttaPush {
             System.currentTimeMillis() - call.createdAt in 0..45000L
     }
 
-    // A login token is sent to the app's OWN authenticated API, never to FCM.
+    // يُرسل رمز تسجيل الدخول إلى واجهة التطبيق المصادق عليها فقط، ولا يُرسل إلى FCM.
     private fun post(context: Context, path: String, body: JSONObject) {
         val url = URL(BASE + path)
         val connection = url.openConnection() as HttpURLConnection
@@ -273,10 +273,10 @@ internal object AttaPush {
             local.edit().putString("ended_call_alert_id", callId).apply { if (pendingId == callId) remove("pending_incoming_call") }.apply()
         }
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        // Locally posted data-only invitation (foreground).
+        // دعوة بيانات تُنشأ محليًا في الواجهة الأمامية.
         manager.cancel(callId.hashCode())
-        // OS-posted Firebase notification+data invitation (background).
-        // FCM uses notification.tag as its NotificationManager tag with id 0.
+        // إشعار ودعوة بيانات ينشرهما نظام التشغيل في الخلفية.
+        // يستخدم FCM قيمة notification.tag كمعرّف للإشعار داخل NotificationManager، وهو 0.
         manager.cancel("alatta-call-$callId", 0)
     }
 
@@ -294,9 +294,9 @@ internal object AttaPush {
             putExtra("atta_call_name", call.displayName)
         }
 
-    // These are intentionally generic summaries; private message bodies never travel
-    // in push payloads or appear on the lock screen. Server-authored sender and
-    // destination are validated against the logged-in account on this device.
+    // هذه الملخصات عامة عمدًا؛ لا تُرسل نصوص الرسائل الخاصة ضمن
+    // بيانات الدفع ولا تظهر على شاشة القفل. يتحقق هذا الجهاز من المرسل
+    // والوجهة اللذين أنشأهما الخادم بمقارنتهما بالحساب المسجل دخوله.
     fun notifyActivity(context: Context, data: Map<String, String>) {
         val type = data["type"].orEmpty()
         val account = prefs(context)
@@ -308,7 +308,7 @@ internal object AttaPush {
         if (type !in allowed || eventId.length !in 8..128 || recipient.isBlank() ||
             recipient != account.getString("username", "")?.lowercase() ||
             account.getString("token", "").isNullOrBlank()) return
-        // Foreground already has the WebSocket and in-app notification stream.
+        // تتوفر الواجهة الأمامية بالفعل على WebSocket وتدفق الإشعارات داخل التطبيق.
         if (appVisible && type != "push-test" && type != "new-post") return
         if (Build.VERSION.SDK_INT >= 33 &&
             ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS)
@@ -352,7 +352,7 @@ internal object AttaPush {
             .setPriority(if (type == "chat") NotificationCompat.PRIORITY_HIGH else NotificationCompat.PRIORITY_DEFAULT)
             .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
             .setAutoCancel(true).setContentIntent(pending)
-        // Use the event's stable ID to avoid showing the same event twice after retries.
+        // استخدم المعرّف الثابت للحدث لمنع عرضه مرتين بعد إعادة المحاولة.
         NotificationManagerCompat.from(context).notify(eventId.hashCode(), notice.build())
     }
 
@@ -361,8 +361,8 @@ internal object AttaPush {
         if (!validSession(context, call)) return true
         if (IncomingCallOverlayService.owns(call.callId)) return true
         if (activeCallId == call.callId) return true // Same accepted call, not another incoming call.
-        // Foreground calls already have a native dialog + ringtone through the
-        // authenticated WebSocket/HTTP path. Never ring the same device twice.
+        // للمكالمات في الواجهة الأمامية مربع حوار أصلي ونغمة عبر
+        // WebSocket/HTTP المصادق عليهما؛ لا ترنّ على الجهاز نفسه مرتين.
         if (appVisible && foregroundRingCallId == call.callId) return true
         createChannel(context)
         if (Build.VERSION.SDK_INT >= 33 &&
@@ -413,8 +413,8 @@ internal object AttaPush {
     }
 
     internal fun acknowledgeIncoming(context: Context, call: PushCall) {
-        // The caller should hear ringback only after the phone actually displayed
-        // an incoming call notification (or the existing foreground dialog).
+        // لا يسمع المتصل نغمة الانتظار إلا بعد أن يعرض الهاتف فعليًا
+        // إشعار المكالمة الواردة أو مربع الحوار المفتوح أصلًا.
         val session = prefs(context).getString("token", "").orEmpty()
         io.execute {
             runCatching { post(context, "/api/call-signal", JSONObject()
@@ -451,7 +451,7 @@ class AttaCallRejectReceiver : BroadcastReceiver() {
     }
 }
 
-/** Keep SDK acknowledgement and message-ID deduplication while owning call rendering. */
+/** احتفظ بإقرار حزمة SDK ومنع تكرار معرّف الرسالة مع تولّي رسم واجهة المكالمة. */
 internal fun brandedIncomingCallIntent(intent: Intent): Intent {
     if (intent.action !in setOf("com.google.android.c2dm.intent.RECEIVE",
             "com.google.firebase.messaging.RECEIVE_DIRECT_BOOT") ||
@@ -460,8 +460,8 @@ internal fun brandedIncomingCallIntent(intent: Intent): Intent {
         it.startsWith("gcm.n.") || it.startsWith("gcm.notification.")
     }
     if (notificationKeys.isEmpty()) return intent
-    // Remove only the local SDK auto-display hints. Retain call data, transport
-    // message ID, original priority and TTL; super.handleIntent still handles the delivery.
+    // أزل تلميحات العرض التلقائي المحلية للحزمة فقط. احتفظ ببيانات المكالمة والنقل
+    // ومعرّف الرسالة والأولوية والمدة الأصلية؛ فما زالت super.handleIntent تعالج التسليم.
     return Intent(intent).apply { notificationKeys.forEach { removeExtra(it) } }
 }
 

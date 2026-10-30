@@ -82,7 +82,7 @@ internal object AdhanScheduler {
     }
     fun createChannel(context: Context) {
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        // Preserve an explicit disabled legacy channel when adding lock-screen alarms.
+        // احتفظ بالقناة القديمة المعطلة صراحةً عند إضافة منبّهات شاشة القفل.
         if (manager.getNotificationChannel(CHANNEL) == null && manager.getNotificationChannel(LEGACY_CHANNEL)?.importance == NotificationManager.IMPORTANCE_NONE) return
         manager.createNotificationChannel(
             NotificationChannel(CHANNEL, "مواقيت الصلاة والأذان", NotificationManager.IMPORTANCE_HIGH).apply {
@@ -96,7 +96,7 @@ internal object AdhanScheduler {
             .putExtra("generation", generation).putExtra("at", moment?.at ?: 0L).putExtra("prayer", moment?.id.orEmpty()),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
 
-    /** One future alarm, recalculated after every event/change; no permanent background polling. */
+    /** منبّه مستقبلي واحد يُعاد حسابه بعد كل حدث أو تغيير؛ بلا استطلاع دائم في الخلفية. */
     fun schedule(context: Context, now: Long = System.currentTimeMillis()): Boolean {
         val manager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
         manager.cancel(alarmIntent(context))
@@ -152,7 +152,7 @@ class AdhanRestoreReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action in setOf(Intent.ACTION_BOOT_COMPLETED, Intent.ACTION_MY_PACKAGE_REPLACED,
                 Intent.ACTION_TIME_CHANGED, Intent.ACTION_TIMEZONE_CHANGED, AlarmManager.ACTION_SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED)) {
-            // Boot only restores the next alarm; never starts audio from BOOT_COMPLETED.
+            // يعيد الإقلاع ضبط المنبّه التالي فقط؛ ولا يبدأ تشغيل الصوت عند BOOT_COMPLETED.
             AdhanScheduler.restore(context)
         }
     }

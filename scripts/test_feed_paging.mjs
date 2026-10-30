@@ -26,11 +26,11 @@ assert.ok(collected.every(p=>!['private','blocked'].includes(p.author)&&!p.archi
 const own=await get('&author=alice');assert.ok(own.body.posts.length>0&&own.body.posts.every(p=>p.author==='alice'));
 assert.equal((await get('&before=invalid')).status,409);
 data.set('postIds',[...ids,'new-post']);assert.equal((await get('&before='+first.body.nextCursor)).status,409,'a changed timeline cannot silently duplicate/skip posts');
-// A page of entirely hidden/archived posts must still offer a private, opaque cursor.
+// يجب أن تظل صفحة خاصة ومعتمة متاحة عندما تكون الصفحة كلها منشورات مخفية أو مؤرشفة.
 data.set('postIds',Array.from({length:100},(_,i)=>'secret'+i));for(let i=0;i<100;i++)data.set('post:secret'+i,{id:'secret'+i,author:'private',text:'SECRET'});
 const hidden=await get();assert.deepEqual(hidden.body.posts,[]);assert.ok(hidden.body.nextCursor);assert.ok(!JSON.stringify(hidden.body).includes('secret')&&!JSON.stringify(hidden.body).includes('SECRET'));
-// Regression: repeated base64 comment avatars must not grow the feed beyond
-// the Android transport's 32 MiB bound. Names and full panel avatars survive.
+// اختبار تراجعي: يجب ألا تؤدي صور التعليقات المتكررة والمشفرة بترميز base64 إلى تجاوز الموجز
+// حد نقل Android البالغ 32 MiB. احتفظ بالأسماء وصور لوحة العرض كاملة.
 const photo='data:image/jpeg;base64,'+'A'.repeat(400*1024);
 data.set('user:commenter',{username:'commenter',fullName:'اسم المعلق',avatar:photo});
 const comments=Array.from({length:80},(_,i)=>({id:'comment'+i,author:'commenter',text:'تعليق '+i,replies:[]}));

@@ -4536,7 +4536,7 @@ html body #authView .atta-download-strip{display:none!important;}
 }
 
 
-/* AL-ATTA YouTube: single authoritative layout, v1.0.48 */
+/* YouTube في AL-ATTA: تخطيط موحد معتمد، v1.0.48 */
 .atta-youtube-button{color:#e9bd52!important;flex-shrink:0!important}
 .atta-youtube-overlay{position:fixed;inset:0;z-index:999999;background:rgba(0,0,0,.9);display:flex;align-items:center;justify-content:center;padding:8px;direction:rtl}
 .atta-youtube-overlay[hidden],.atta-youtube-frame[hidden]{display:none!important}
@@ -4571,7 +4571,7 @@ html body #authView .atta-download-strip{display:none!important;}
  .atta-yt-results{max-height:24dvh}
 }
 
-/* Immersive post media: controls overlay the content, with no title/zoom bars. */
+/* وسائط منشور غامرة: عناصر التحكم فوق المحتوى، بلا أشرطة عنوان أو تكبير. */
 body.post-media-open{overflow:hidden!important}
 .post-video-preview{display:grid;place-items:center;width:100%;aspect-ratio:16/9;border:0;border-radius:12px;background:#000;color:#fff;cursor:pointer}
 .post-video-preview svg{width:64px;height:64px;padding:15px;border-radius:50%;background:#161b20dd}
@@ -4612,7 +4612,7 @@ body.post-media-open{overflow:hidden!important}
 .profile-post-stats button{border:0;background:none;color:inherit;font:inherit;cursor:pointer;min-height:44px}
 
 
-/* YouTube post preview reuses the official shared iframe factory; one frame opens on tap. */
+/* تعاين منشورات YouTube باستخدام منشئ iframe الرسمي المشترك؛ ولا يُفتح الإطار إلا بالنقر. */
 .atta-youtube-post-media{position:relative;box-sizing:border-box;width:100%;aspect-ratio:16/9;background:#000;border:1px solid #e6b94e55;border-radius:14px;overflow:hidden;margin:4px 0}
 .atta-youtube-post-play{position:relative;display:block;width:100%;height:100%;border:0;padding:0;background:#000;cursor:pointer}
 .atta-youtube-post-play img{display:block;width:100%;height:100%;object-fit:cover}

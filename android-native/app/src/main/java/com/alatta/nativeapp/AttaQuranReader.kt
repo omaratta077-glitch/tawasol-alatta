@@ -44,7 +44,7 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-/** A single offline Android Canvas Mushaf with golden reading controls. */
+/** مصحف Android واحد دون اتصال، مرسوم على Canvas مع عناصر تحكم ذهبية للقراءة. */
 @Composable
 internal fun QuranReaderScreen(modifier: Modifier = Modifier, onExit: () -> Unit,
     initialPage: Int = 1, readingRange: IntRange? = null,
@@ -96,14 +96,14 @@ internal fun QuranReaderScreen(modifier: Modifier = Modifier, onExit: () -> Unit
     val chapters = indexData?.chapters.orEmpty()
     val juzStarts = remember { MUSHAF_JUZ_STARTS }
     val juz = (juzStarts.indexOfLast { it <= page } + 1).coerceAtLeast(1)
-    // Each hizb contains four quarters. Read their real start pages from the bundled index.
+    // يتكوّن كل حزب من أربعة أرباع. اقرأ صفحات بدايتها الفعلية من الفهرس المضمّن.
     val hizbQuarterStarts = indexData?.quarterStarts.orEmpty()
     val hizb = if (hizbQuarterStarts.size == 240) {
         (((hizbQuarterStarts.count { it <= page } - 1).coerceAtLeast(0)) / 4 + 1).coerceIn(1, 60)
     } else ((juz - 1) * 2 + 1).coerceIn(1, 60)
     val surah = chapters.lastOrNull { it.third <= page }?.second ?: "الفاتحة"
     val bookmark = prefs.getInt("bookmark", -1)
-    // Boundaries use the actual numbered verses in the offline index, never page estimates.
+    // تُحسب الحدود من أرقام الآيات الفعلية في الفهرس غير المتصل، لا من تقديرات الصفحات.
     val allAyahs = ayahDatabase
     val startAudio: (Int, Int) -> Unit = startAudio@{ start, end ->
         if (!allowOnlineFeatures) { playbackError = "التلاوة المتصلة متاحة بعد الموافقة على سياسة الخصوصية"; return@startAudio }
@@ -163,7 +163,7 @@ internal fun QuranReaderScreen(modifier: Modifier = Modifier, onExit: () -> Unit
     androidx.compose.runtime.CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
     Box(modifier.fillMaxSize().background(cream)) {
     Column(Modifier.fillMaxSize()) {
-        // Compact fixed-width Arabic header: no wrapped vertical "رجوع" text.
+        // عنوان عربي مدمج بعرض ثابت؛ لتجنب التفاف كلمة «رجوع» عموديًا.
         Row(
             Modifier.fillMaxWidth().height(36.dp).padding(horizontal = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -209,8 +209,8 @@ internal fun QuranReaderScreen(modifier: Modifier = Modifier, onExit: () -> Unit
                 TextButton(onClick = { error = null; pageRetry++ }) { Text("إعادة التحميل", color = gold) }
             }
         }
-        // Compact reading footer: no notes, navigation arrows or oversized controls.
-        // Note editor remains accessible through the index dialog.
+        // تذييل قراءة مدمج بلا ملاحظات أو أسهم تنقل أو عناصر تحكم ضخمة.
+        // يظل محرر الملاحظات متاحًا من نافذة الفهرس.
         Row(
             Modifier.fillMaxWidth().height(20.dp).padding(horizontal = 8.dp),
             horizontalArrangement = Arrangement.Start,
@@ -361,7 +361,7 @@ internal fun QuranReaderScreen(modifier: Modifier = Modifier, onExit: () -> Unit
         }
         val pageEnd = pageNumbers.filter { it >= selectedAyah }.lastOrNull() ?: selectedAyah
         var reciterMenu by remember { mutableStateOf(false) }
-        // In-page overlay instead of a full-screen alert dialog.
+        // استخدم طبقة فوق الصفحة بدلًا من نافذة تنبيه بملء الشاشة.
         Surface(
             modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(horizontal = 9.dp, vertical = 26.dp),
             shape = RoundedCornerShape(22.dp),
@@ -456,7 +456,7 @@ private class MushafPageView(
     private val reportError: (String) -> Unit
 ) : View(context) {
     companion object {
-        // Fast swipes cannot create an unbounded number of SVG parser threads.
+        // لا تستطيع حركات السحب السريعة إنشاء عدد غير محدود من خيوط تحليل SVG.
         private val executor = java.util.concurrent.ScheduledThreadPoolExecutor(2).apply {
             removeOnCancelPolicy = true
         }
@@ -491,7 +491,7 @@ private class MushafPageView(
         override fun onFling(e1: MotionEvent?, e2: MotionEvent, velocityX: Float, velocityY: Float): Boolean {
             val start = e1 ?: return false
             if (kotlin.math.abs(e2.x - start.x) < 80f || kotlin.math.abs(velocityX) < 350f) return false
-            // Arabic book direction: swipe toward the right to advance to the next page.
+            // اتجاه الكتاب العربي: اسحب إلى اليمين للانتقال إلى الصفحة التالية.
             if (e2.x > start.x) navigate(page + 1) else navigate(page - 1)
             return true
         }
@@ -543,7 +543,7 @@ internal fun loadMushafDrawing(context: Context, page: Int, allowNetwork: Boolea
         .use { SVG.getFromInputStream(it) }
 }
 
-/** One aspect-preserving Canvas path for the reader, image preview and PDF export. */
+/** مسار Canvas واحد يحافظ على تناسب الأبعاد للقارئ ومعاينة الصورة وتصدير PDF. */
 internal fun renderMushafDrawing(canvas: Canvas, drawing: SVG, bounds: RectF): RectF {
     val source = drawing.documentViewBox ?: RectF(0f,0f,drawing.documentWidth,drawing.documentHeight)
     require(source.width() > 0f && source.height() > 0f)
@@ -556,7 +556,7 @@ internal fun renderMushafDrawing(canvas: Canvas, drawing: SVG, bounds: RectF): R
 }
 
 
-/** Streams numbered ayahs sequentially. Uses one player; no background service or bundled audio. */
+/** يشغّل الآيات المرقمة بالتتابع بمشغّل واحد؛ بلا خدمة خلفية أو ملفات صوت مضمّنة. */
 private val QURAN_RECITERS = listOf(
     "مشاري العفاسي" to "Alafasy_128kbps",
     "محمود خليل الحصري" to "Husary_128kbps",
@@ -637,7 +637,7 @@ private class AyahSequencePlayer {
     fun stop() { stopMediaOnly(); paused = false }
 }
 
-/** Shared index presentation: accept both Arabic and Latin digits in the four tabs. */
+/** عرض الفهرس المشترك: يقبل الأرقام العربية واللاتينية في علامات التبويب الأربع. */
 internal fun mushafArabicNumber(value: Int): String = value.toString().map { if(it in '0'..'9') "٠١٢٣٤٥٦٧٨٩"[it-'0'] else it }.joinToString("")
 internal fun mushafIndexSearch(value: String): String = value.map {
     when(it) { in '٠'..'٩' -> '0' + (it-'٠'); in '۰'..'۹' -> '0' + (it-'۰'); 'أ','إ','آ','ٱ' -> 'ا'; else -> it }

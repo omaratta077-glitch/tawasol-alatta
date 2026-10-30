@@ -1,4 +1,4 @@
-/* Website only. Values and icon geometry follow the unchanged native app. */
+/* للموقع فقط. تتبع القيم وأبعاد الأيقونات التطبيق الأصلي الذي لم يتغير. */
 :root{--native-gold:#e6b94e;--native-light:#f6d776;--native-bg:#040506;--native-panel:#090d0f;--native-border:#6b5429;--native-muted:#b6bbc0;--native-nav:calc(74px + env(safe-area-inset-bottom,0px))}
 @media(max-width:999px){
 html{font-size:16px;-webkit-text-size-adjust:100%;text-size-adjust:100%;scroll-padding-top:70px}
@@ -137,7 +137,7 @@ body{background:var(--native-bg)!important;color:#f7f8f9!important}
 @media(prefers-reduced-motion:reduce){#appView .premium-nav .nav-btn.active::before{animation:none!important;display:none!important}}
 
 @media(max-width:999px){
-/* Composer mirrors the native full-width field below the identity row. */
+/* يحاكي مربع الكتابة الحقل الأصلي بعرض كامل أسفل صف الهوية. */
 #appView .reference-composer-top{display:grid!important;grid-template-columns:42px minmax(0,1fr)!important;align-items:center!important;gap:10px!important}
 #appView .reference-composer-main{display:contents!important}
 #appView .reference-composer textarea{grid-column:1/-1!important}
@@ -157,7 +157,7 @@ body{background:var(--native-bg)!important;color:#f7f8f9!important}
 }
 #appView [hidden]{display:none!important}
 
-/* Shared personal/friend timeline hierarchy. */
+/* تسلسل موحد للملف الشخصي والجدول الزمني للأصدقاء. */
 #appView .profile-page-label{font-size:15px!important;margin:4px 8px!important}
 
 
@@ -187,7 +187,7 @@ body{background:var(--native-bg)!important;color:#f7f8f9!important}
 .admin-secret-dialog{width:min(420px,calc(100% - 24px));max-height:90dvh;overflow:auto;padding:22px;border:1px solid #ad893f;border-radius:18px;background:#101619;color:#fff;direction:rtl}
 .admin-secret-dialog::backdrop{background:#000b}.admin-secret-dialog form{display:grid;gap:10px}.admin-secret-dialog form>div{display:flex;gap:10px}.admin-secret-dialog h3{margin:0;color:#f6d776}
 #appView .admin-post-text{white-space:pre-wrap;max-height:160px;overflow-y:auto;overflow-wrap:anywhere}
-/* The document is the only feed scroller. Keep overlay/chat scroll locks intact. */
+/* المستند هو عنصر التمرير الوحيد للموجز. أبقِ أقفال تمرير الطبقات والمحادثات كما هي. */
 @media(max-width:999px){
  html{height:auto!important;min-height:100%;font-size:16px!important;overflow-x:hidden!important;overflow-y:auto!important;overscroll-behavior-y:none}
  body:not(.chat-fullscreen-open):not(.post-media-open){height:auto!important;min-height:100svh;max-height:none!important;overflow:visible!important;position:static!important;font-size:16px!important}
@@ -205,11 +205,11 @@ body{background:var(--native-bg)!important;color:#f7f8f9!important}
  #appView .premium-nav .nav-btn.active::before{animation:none!important;display:none!important}
  #appView .desktop-rail,#appView .reference-rightbar,#appView .reference-leftbar{display:none!important}
 }
-/* Retain the existing desktop layout; app-style chrome belongs to mobile only. */
+/* احتفظ بتخطيط الكمبيوتر الحالي؛ وتقتصر واجهة التطبيق على الهواتف. */
 @media(min-width:1000px){#appView .native-search-bar{display:none}}
 #appView .native-card{padding:12px;margin-bottom:12px;border:1px solid #6b54297f;border-radius:15px;background:#090d0f;color:#f7f8f9}
 .pwa-install-help{font-size:13px;line-height:1.7;color:#b6bbc0}
-/* Match the native phone viewport, without changing the desktop sheet. */
+/* طابق إطار عرض الهاتف الأصلي دون تغيير لوحة الكمبيوتر. */
 @media(max-width:999px){
  html,body{width:100%!important;min-width:0!important;margin:0!important;padding:0!important;background:#040506!important}
  #appView{width:100%!important;min-width:0!important;max-width:100%!important;margin:0!important;padding-inline:0!important;background:#040506!important}
@@ -260,7 +260,7 @@ body{background:var(--native-bg)!important;color:#f7f8f9!important}
 .google-profile-overlay input,.google-profile-overlay select{box-sizing:border-box;min-width:0;max-width:100%;font-size:16px}
 .google-profile-overlay form>input,.google-profile-overlay form>select{width:100%}
 .atta-yt-result{min-width:0}.atta-yt-result .atta-yt-card{width:100%}.atta-yt-share{font-size:12px}
-/* Two text-only install choices; one shared set on the login screen. */
+/* خياران نصيان للتثبيت؛ ومجموعة مشتركة واحدة في شاشة تسجيل الدخول. */
 #authInstallMount{width:min(100%,860px)}
 .mobile-install-actions{display:flex;flex-wrap:wrap;justify-content:center;gap:8px;padding:10px;box-sizing:border-box;background:#040506;color:#f6d776;direction:rtl}
 .mobile-install-actions[hidden]{display:none!important}
@@ -280,7 +280,7 @@ body{background:var(--native-bg)!important;color:#f7f8f9!important}
  #appView .reference-reaction-picker button{font-size:25px!important;width:39px!important;height:43px!important;border:0!important;background:transparent!important}
 }
 
-/* NativeCallScreen parity: one existing WebRTC stage, shared at all widths. */
+/* تطابق NativeCallScreen: مرحلة WebRTC واحدة قائمة ومشتركة بكل الأحجام. */
 #callOverlay{background:#050709!important;direction:rtl;grid-template-rows:46px minmax(0,1fr) 136px;padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom);box-sizing:border-box;isolation:isolate}
 #callOverlay .call-overlay-header{height:46px;padding:0 12px;background:transparent!important;justify-content:flex-start;border:0}
 #callOverlay .call-top-actions{display:flex;align-items:center;gap:10px}
@@ -316,7 +316,7 @@ body{background:var(--native-bg)!important;color:#f7f8f9!important}
 #callOverlay #switchCameraBtn .atta-icon{position:static;display:block;width:22px;height:22px;margin:0;padding:0;background:none;border-radius:0}
 #callOverlay #minimizeCallBtn .atta-icon{width:23px;height:23px}
 
-/* Isolate call buttons from generic site borders and distribute a compact row. */
+/* اعزل أزرار المكالمة عن حدود الموقع العامة ورتبها في صف مدمج. */
 #callOverlay .call-tools{justify-content:center;gap:clamp(10px,5vw,22px);max-width:380px}
 #callOverlay .round-call-btn{border:0!important;border-radius:0!important;outline:0;min-width:0;min-height:0;padding:0!important;background:transparent!important;box-shadow:none!important}
 #callOverlay .round-call-btn::before,#callOverlay .round-call-btn::after,#callOverlay .call-top-btn::before,#callOverlay .call-top-btn::after{display:none!important}
@@ -338,7 +338,7 @@ body{background:var(--native-bg)!important;color:#f7f8f9!important}
 #appView #messagesPage .composer input,#appView #messagesPage .composer textarea{min-width:0!important;flex:1 1 120px!important;width:0!important}
 }
 
-/* Fixed RTL calendar parts, independent of Android/Chrome date-input locale. */
+/* أجزاء تقويم RTL ثابتة بصرف النظر عن لغة إدخال التاريخ في Android أو Chrome. */
 .atta-birth-date{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.45fr) minmax(0,1.1fr);gap:8px;width:100%;min-width:0;direction:rtl}
 .google-profile-overlay .atta-birth-date select,#registerFields .atta-birth-date select{box-sizing:border-box;width:100%;min-width:0;max-width:100%;min-height:48px;padding:12px 6px;margin:0;border:1px solid #6b5429;border-radius:11px;background:#080b0d;color:#fff;font:inherit;font-size:16px;direction:rtl;color-scheme:dark}
 .atta-birth-date select:focus{outline:2px solid #e6b94e;outline-offset:1px}
@@ -349,7 +349,7 @@ body{background:var(--native-bg)!important;color:#f7f8f9!important}
 .post-reader-text{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.9;font-size:18px;color:white}
 .post-reader-text p{margin:0 0 22px}
 
-/* Sports channel presentation: channels first, compact branded cards. */
+/* عرض قنوات الرياضة: القنوات أولًا ثم بطاقات مدمجة تحمل العلامة. */
 .sports-tabs{display:flex;gap:6px;overflow-x:auto;padding:8px 0}.sports-tabs .selected{background:#e7bd50;color:#080909}.sports-channel-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:10px}.sports-channel-card{padding:10px!important;margin:0!important;border-radius:18px}.sports-channel-brand{position:relative;min-height:112px;display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:12px;background:linear-gradient(135deg,#302a1e,#151511);color:white;text-align:center}.sports-channel-brand.bein{background:linear-gradient(135deg,#6d3495,#351154)}.bein-word{font:500 38px/1.2 Arial,sans-serif}.sports-channel-brand strong{font-size:14px;color:white}.sports-favorite{position:absolute;inset-inline-end:3px;top:3px;background:transparent;border:0;color:white;padding:7px}.sports-favorite[aria-pressed=true]{color:#e7bd50}.sports-favorite svg{width:18px;height:18px}.sports-card-bottom{display:flex;align-items:center;justify-content:space-between;margin-top:8px}.sports-card-bottom .native-button{padding:6px;background:transparent;border:0}.sports-card-bottom svg{width:16px;height:16px}.sports-card-bottom small{color:#9da5a6}
 
 .watch-room .watch-heading,.watch-room .watch-tools{display:flex;align-items:center;gap:6px;flex-wrap:wrap}.watch-stage{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:4px}.watch-tile{position:relative;background:#15191c;border-radius:8px;overflow:hidden;aspect-ratio:16/9}.watch-tile video{width:100%;height:100%;object-fit:contain}.watch-tile span{position:absolute;bottom:0;inset-inline:0;background:#000a;color:white;padding:4px;font-size:11px}.watch-ongoing{position:fixed;bottom:76px;inset-inline:8px;z-index:140;background:#090d0f;border:1px solid #6b5429;border-radius:14px;padding:8px}.watch-ongoing[hidden],.watch-stage[hidden]{display:none}
@@ -367,7 +367,7 @@ body{background:var(--native-bg)!important;color:#f7f8f9!important}
 .chat-call-history{cursor:pointer}
 .chat-call-history:focus-visible,.watch-chat-head:focus-visible{outline:2px solid #f6d776;outline-offset:3px}
 
-/* Compact YouTube result details; preserve the existing post-composer action. */
+/* تفاصيل نتائج YouTube المدمجة؛ مع الحفاظ على إجراء محرر المنشور الموجود. */
 #appView .atta-youtube-inline .atta-yt-card-info strong,.atta-youtube-overlay .atta-yt-card-info strong{font-size:13px;line-height:1.4;font-weight:600;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}
 #appView .atta-youtube-inline .atta-yt-card-info small,.atta-youtube-overlay .atta-yt-card-info small{font-size:10px;line-height:1.4}
 .atta-yt-share{display:inline-grid;place-items:center;width:48px;min-width:48px;height:48px;padding:12px}

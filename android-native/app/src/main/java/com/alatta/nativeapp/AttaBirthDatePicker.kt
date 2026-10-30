@@ -17,8 +17,8 @@ import java.time.LocalDate
 import java.time.Period
 import java.time.ZoneId
 
-// Date is entered, validated and saved as YYYY-MM-DD. Age is always derived,
-// never trusted as a client-supplied number by the updated server.
+// يُدخل تاريخ الميلاد ويُتحقق منه ويُحفظ بتنسيق YYYY-MM-DD. يُستنتج العمر دائمًا،
+// ولا يثق الخادم المحدّث برقم عمر يرسله التطبيق.
 internal fun attaAgeFromBirthDate(raw: String): Int? = try {
     val birthday = LocalDate.parse(raw)
     val now = LocalDate.now()

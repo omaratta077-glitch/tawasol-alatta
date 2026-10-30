@@ -34,8 +34,8 @@ check("Exactly one Android versionCode and versionName",
 check("No legacy root Android source copies", not any((ROOT/p).exists() for p in ["MainActivity.kt","GoogleNativeSignIn.kt","AndroidManifest.xml","build.gradle.kts"]))
 check("One actual site YouTube player, no Android duplication", main.count("fun YouTubePlayer(")==1 and "YouTubePlayer(youtubeId, onMiniDrag = onMiniDrag)" in main and 'loadUrl("$BASE/")' in main and 'atta-site-youtube-bridge.js' in main and 'document.body.replaceChildren(host)' not in main and 'new YT.Player(' not in main and 'attaYouTubeHtml' not in main and 'www.youtube.com/embed/' not in main and 'syncAttaYouTube' not in gradle and (ROOT/'android-native/app/src/main/assets/atta-site-youtube-bridge.js').is_file() and 'AttaYouTubeEmbed.create' in read('cloudflare-site/public/youtube-section.js') and 'global.AttaYouTubeEmbed=' in read('cloudflare-site/public/youtube-player-shared.js'))
 check("One compact header search and no duplicate friend search", main.count('AttaCompactSearch(')==2 and 'SectionTitle("البحث وإضافة صديق")' not in main and 'OutlinedTextField(search, { search = it }, label = { Text("ابحث بالاسم أو اسم المستخدم") }' not in main)
-# Git conflict markers can break the Worker, Gradle and JS tests as well as Kotlin.
-# Inspect all project source/config files and report the exact location if found.
+# قد تكسر علامات تعارض Git ملف Worker أو Gradle أو اختبارات JS، إضافةً إلى Kotlin.
+# افحص كل ملفات المصدر والإعدادات في المشروع وأبلغ عن الموضع الدقيق عند العثور عليها.
 SOURCE_EXTENSIONS = {".kt", ".kts", ".js", ".mjs", ".py", ".html", ".css", ".xml", ".yml", ".yaml", ".toml", ".properties"}
 merge_conflicts = []
 for source_file in ROOT.rglob("*"):
@@ -47,8 +47,8 @@ check("No unresolved merge markers", not merge_conflicts)
 for location in merge_conflicts:
     print("CONFLICT: " + location)
 check("PushCall visibility compatible", "internal var incomingPush by mutableStateOf<PushCall?>" in main)
-# Protect the cross-file foreground ringtone contract. Partial uploads must
-# include MainActivity.kt, NativeCallScreen.kt, and AttaPush.kt from one version.
+# احمِ التوافق بين الملفات لعقدة نغمة الرنين في الواجهة الأمامية. يجب أن تشمل التحديثات الجزئية
+# الملفات MainActivity.kt وNativeCallScreen.kt وAttaPush.kt من الإصدار نفسه.
 ring_screen=read(android+"NativeCallScreen.kt")
 push_source=read(android+"AttaPush.kt")
 check("Incoming call ringtone passes callId", 
@@ -61,7 +61,7 @@ check("Foreground ring state declared in AttaPush",
       "AttaPush.foregroundRingCallId == callId" in ring_screen)
 
 check("Native Google bridge removed", not (ROOT/(android+"GoogleWebBridge.kt")).exists())
-# Validate the release version/build pair without pinning CI to a past release.
+# تحقّق من توافق رقم الإصدار ورقم البناء من دون تثبيتهما على إصدار قديم.
 release_name = re.search(r'^\s*versionName\s*=\s*"(\d+)\.(\d+)\.(\d+)"', gradle, re.M)
 release_code = re.search(r'^\s*versionCode\s*=\s*(\d+)', gradle, re.M)
 check("Official Android release version/build sequence",
@@ -116,7 +116,7 @@ check(f"JavaScript syntax ({len(js)} files)",not failjs)
 for x in failjs:print(x)
 
 
-# Exactly one native WebRTC media implementation replaces the old call WebView.
+# يجب أن يكون هناك تنفيذ وسائط WebRTC أصلي واحد فقط بدل واجهة مكالمات WebView القديمة.
 video_native=read(android+"NativeCallScreen.kt")
 video_engine=read(android+"NativeRtcCall.kt")
 check("Native WebRTC camera preview and remote video without call WebView",
@@ -129,7 +129,7 @@ check("Native WebRTC camera preview and remote video without call WebView",
       'WebView(' not in video_native and 'WebView(' not in video_engine)
 check("FCM reserved data key converted safely", "fcmData.sender=String(fcmData.from??'')" in worker and "delete fcmData.from" in worker and "data:fcmData" in worker and 'data["fromName"]' in push_source and 'd["sender"] ?: d["from"]' in push_source)
 
-# Restore v145 OS background delivery and direct foreground ringing; keep safe call controls.
+# استعد تسليم المهام في خلفية النظام من الإصدار 145 والرنين المباشر في الواجهة؛ وأبقِ أدوات التحكم الآمنة بالمكالمة.
 check("v145 background notification and local ringtone restored",
       "const android={priority:'HIGH',ttl}" in worker and "android.notification={" in worker and "alatta_incoming_call_v2" in worker and "val alert = IncomingCallAlert(context.applicationContext)" in video_native and
       'lastCallPushResult:' in worker and
@@ -137,7 +137,7 @@ check("v145 background notification and local ringtone restored",
       'manager.cancel("alatta-call-$callId", 0)' in push_source and
       'SurfaceViewRenderer' in video_native)
 
-# Regression guard: FCM / WebSocket / HTTP can deliver the same invitation.
+# حارس تراجعي: قد يصل إشعار الدعوة نفسه عبر FCM أو WebSocket أو HTTP.
 accept_fn=main.split('fun acceptIncomingInvite(invitation: NativeCallSession)',1)[-1].split('fun sendSelectedChatMedia(',1)[0]
 request_fn=main.split('fun handleIncomingCallEvent(signal: JSONObject)',1)[-1].split('val activity = ctx as? MainActivity',1)[0]
 check("Same call ID is never busy after answering",
@@ -156,7 +156,7 @@ check("Accepted FCM call is not re-notified and stale dialogs expire",
       'remainingIncomingCallMillis(invitation.invitedAt)' in main and
       'if (AttaPush.activeCallId == session.callId) AttaPush.activeCallId = ""' in main)
 
-# Interactive Quran has one source of truth; never duplicate a second reader.
+# للقارئ التفاعلي للقرآن مصدر واحد للحقيقة؛ لا تنشئ قارئًا ثانيًا مكررًا.
 quran_reader = ROOT / "android-native/app/src/main/assets/atta-quran.html"
 quran_kotlin = ROOT / (android + "AttaQuranReader.kt")
 check("One full Quran reader with selectable verses and system back",
@@ -167,7 +167,7 @@ check("One full Quran reader with selectable verses and system back",
           'mushaf/index.json', '/mushaf/', 'jumpToSegment', 'ar.muyassar',
           'ar.minshawi', 'ar.abdulbasit', 'ar.husary', 'playSurah', 'playHere']))
 
-# Native offline reader replaces the former intercepted WebView implementation.
+# يستبدل القارئ الأصلي دون اتصال تنفيذ WebView الذي كان يعترض التنقل سابقًا.
 quran_source = quran_kotlin.read_text(encoding="utf-8")
 check("Quran uses one Native Android SVG renderer without WebView",
       'internal fun QuranReaderScreen(' in quran_source and

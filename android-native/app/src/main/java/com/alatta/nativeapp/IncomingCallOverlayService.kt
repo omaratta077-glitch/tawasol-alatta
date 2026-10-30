@@ -13,7 +13,7 @@ import android.view.*
 import android.widget.*
 import androidx.core.content.ContextCompat
 
-/** Explicitly opted-in call card. Never runs beyond the original invitation deadline. */
+/** بطاقة اتصال فُعّلت صراحةً؛ ولا تستمر بعد الموعد النهائي للدعوة الأصلية. */
 internal object CallWindow {
     fun enabled(context: Context) = Settings.canDrawOverlays(context)
     fun settings(context: Context) = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
@@ -25,7 +25,7 @@ internal object CallWindow {
     }.getOrDefault(false)
 }
 
-/** Same dimensions, colors, logo and RTL action order as the in-app card. */
+/** الأبعاد والألوان والشعار وترتيب الأزرار RTL مطابقة لبطاقة التطبيق. */
 internal fun callWindowCard(context: Context, call: PushCall, answer: () -> Unit, reject: () -> Unit): View {
     fun dp(n: Int) = (n * context.resources.displayMetrics.density).toInt()
     fun shape(color: Int, radius: Int, outlined: Boolean = false) = GradientDrawable().apply {
@@ -130,7 +130,7 @@ class IncomingCallOverlayService : Service() {
             if (Build.VERSION.SDK_INT >= 34) startForeground(8162, notice, ServiceInfo.FOREGROUND_SERVICE_TYPE_SHORT_SERVICE)
             else startForeground(8162, notice)
         } catch (error: RuntimeException) {
-            // Permission/system restrictions must leave the normal call notification usable.
+            // يجب ألا تمنع قيود الصلاحيات أو النظام استخدام إشعار الاتصال العادي.
             AttaPush.postStandardIncoming(this, invitation)
             stopSelf(); return START_NOT_STICKY
         }
@@ -160,7 +160,7 @@ class IncomingCallOverlayService : Service() {
     override fun onDestroy() { handler.removeCallbacksAndMessages(null); removeCard(); if (current === this) current = null; super.onDestroy() }
 }
 
-/** Public lock-screen card; answering still enters the authenticated app's normal call flow. */
+/** بطاقة عامة لشاشة القفل؛ ويبدأ الرد مسار المكالمة المعتاد داخل التطبيق المصادق عليه. */
 class IncomingCallLockActivity : Activity() {
     private val handler = Handler(Looper.getMainLooper())
     private var call: PushCall? = null

@@ -90,8 +90,8 @@ internal fun PublicUserProfile(
                         }
                     }
                     }
-                    // Reflect the friend state returned by /api/profile-public.
-                    // All actions are verified by the Cloudflare backend.
+                    // اعكس حالة الصداقة التي أعادتها /api/profile-public.
+                    // يتحقق خادم Cloudflare من جميع الإجراءات.
                     val friendState = profile?.optString("friendState").orEmpty()
                     val blocked = profile?.optBoolean("blockRestricted",false) == true
                     val requestsAllowed = user.optBoolean("allowFriendRequests",true)
@@ -210,7 +210,7 @@ internal fun PublicUserProfile(
 }
 
 
-/** Shared cover/avatar/name hierarchy for both personal and friend timelines. */
+/** ترتيب موحد للغلاف والصورة والاسم في الجداول الشخصية وجداول الأصدقاء. */
 @Composable
 internal fun ProfileTimelineHeader(
     user: JSONObject, friendCount: Int,

@@ -1,6 +1,6 @@
-/* This is NOT a player. It drives the existing, working site's YouTube UI.
- * The site (youtube-section.js) creates the sole iframe through its shared factory.
- * No second iframe, YT.Player, or HTML document is created by Android. */
+/* هذا ليس مشغّلًا. إنه يتحكم بواجهة YouTube الحالية في الموقع والتي تعمل بالفعل.
+ * ينشئ الموقع (youtube-section.js) إطار iframe الوحيد عبر المصنع المشترك.
+ * لا ينشئ Android إطارًا ثانيًا أو YT.Player أو مستند HTML. */
 (function () {
   'use strict';
   const videoId = '__ALATTA_VIDEO_ID__';
@@ -12,7 +12,7 @@
   let attempts = 0;
   let ready = false;
 
-  // Observe official iframe messages; this doesn't instantiate another player.
+  // راقب رسائل iframe الرسمية؛ فهذا لا ينشئ مشغّلًا آخر.
   window.addEventListener('message', function (e) {
     try {
       const host = new URL(e.origin).hostname;
@@ -29,7 +29,7 @@
     if (ready) return;
     const btn = document.getElementById('attaYouTubeBtn');
     if (!btn) return false;
-    // Let the site's own click handler create/show its existing overlay.
+    // دع معالج النقر الخاص بالموقع يعرض النافذة الموجودة أو ينشئها.
     btn.click();
     const overlay = document.querySelector('.atta-youtube-overlay');
     const form = overlay && overlay.querySelector('.atta-youtube-form');
@@ -49,7 +49,7 @@
       .atta-youtube-frame iframe{position:absolute!important;inset:0!important;display:block!important;width:100%!important;height:100%!important;border:0!important}`;
     document.head.appendChild(css);
     overlay.hidden = false;
-    // The site normally focuses the search input; don't open a keyboard over video.
+    // يضع الموقع عادةً التركيز في حقل البحث؛ لا تفتح لوحة المفاتيح فوق الفيديو.
     try { document.activeElement && document.activeElement.blur(); } catch (_) {}
     input.value = 'https://www.youtube.com/watch?v=' + videoId;
     form.dispatchEvent(new Event('submit', {bubbles:true, cancelable:true}));
@@ -57,7 +57,7 @@
     if (!iframe) { log('ERROR:SITE_DID_NOT_CREATE_FRAME'); return true; }
     iframe.addEventListener('load', () => {
       log('FRAME_LOADED');
-      // Enable YouTube's postMessage event subscription if supported.
+      // فعّل الاشتراك بأحداث YouTube عبر postMessage إذا كانت الميزة مدعومة.
       try { iframe.contentWindow.postMessage(JSON.stringify({event:'listening',id:'atta'}), '*'); }
       catch (_) { /* YouTube may not allow event subscription */ }
     });

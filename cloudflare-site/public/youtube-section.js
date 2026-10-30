@@ -1,4 +1,4 @@
-/* Tawas ol Alatta YouTube browser. YouTube's official player controls ads. */
+/* متصفح YouTube في Tawasol Alatta. يتولى المشغّل الرسمي لـYouTube الإعلانات. */
 (()=>{
 'use strict';
 const btn=document.getElementById('attaYouTubeBtn');
@@ -31,7 +31,7 @@ const error=overlay.querySelector('.atta-youtube-error');
 const results=overlay.querySelector('.atta-yt-results');
 const more=overlay.querySelector('.atta-yt-more');
 let query='',nextPageToken='',loading=false,loadedOnce=false,seq=0;
-// One panel and one player serve both mobile inline view and desktop dialog.
+// تخدم لوحة ومشغّل واحدان العرض المضمّن على الهاتف والنافذة على الكمبيوتر.
 const suggestions=document.createElement('div');suggestions.className='atta-yt-topics atta-yt-readers';
 const topicSuggestions={
  'قرآن':['محمد صديق المنشاوي','محمود خليل الحصري','عبدالباسط عبدالصمد','مصطفى إسماعيل','محمد رفعت','علي جابر','بدر التركي','ماهر المعيقلي','خالد الجليل'],

@@ -44,7 +44,7 @@ await room.webSocketMessage(socket,JSON.stringify({
   type:'call-request',to:'bob',callId:'socket-first',callType:'audio',
   signalId:'one-event',createdAt:Date.now()
 }));
-// A redundant HTTP copy from the same sender must NOT duplicate the queued invite.
+// يجب ألا تؤدي نسخة HTTP الزائدة من المرسل نفسه إلى تكرار الدعوة في قائمة الانتظار.
 await api('POST','/api/message-send',{token:alice,to:'bob',mediaType:'call-signal',
  media:JSON.stringify({type:'call-request',callId:'socket-first',callType:'audio',signalId:'one-event',createdAt:Date.now()})});
 const dedup=await api('GET','/api/call-signals?token='+bob);

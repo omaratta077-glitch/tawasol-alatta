@@ -3,7 +3,7 @@ package com.alatta.nativeapp
 import java.io.InputStream
 import java.io.OutputStream
 
-/** Constant memory for posts, chat and shared Quran PDFs, including unknown-length providers. */
+/** استخدام ثابت للذاكرة في المنشورات والمحادثات وملفات PDF للمصحف، حتى مع مزوّد لا يعلن حجم الملف. */
 internal fun copyMediaBounded(input: InputStream, output: OutputStream, maxBytes: Long): Long {
     require(maxBytes >= 0)
     val buffer = ByteArray(64 * 1024)

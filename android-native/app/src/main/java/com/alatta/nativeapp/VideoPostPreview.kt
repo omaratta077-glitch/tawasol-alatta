@@ -15,7 +15,7 @@ import java.io.ByteArrayOutputStream
 import java.io.File
 import java.security.MessageDigest
 
-/** Uploads and legacy feed previews use the same extractor and skip black lead-in frames. */
+/** تستخدم معاينات الرفع والمنشورات القديمة مستخرج الإطار نفسه، وتتجاوز الإطارات السوداء الأولى. */
 internal object VideoPostPreview {
     private val memory = object : LruCache<String, Bitmap>(8 * 1024 * 1024) {
         override fun sizeOf(key: String, value: Bitmap) = value.allocationByteCount
@@ -81,7 +81,7 @@ internal object VideoPostPreview {
                 frame?.also { bitmap ->
                     memory.put(url, bitmap)
                     runCatching { file.outputStream().use { bitmap.compress(Bitmap.CompressFormat.JPEG, 85, it) } }
-                    // Feed thumbnails are disposable; selected Adhan recordings are stored separately.
+                    // الصور المصغرة للموجز مؤقتة؛ وتُحفظ تسجيلات الأذان المحددة في موضع منفصل.
                     directory.listFiles()?.sortedByDescending { it.lastModified() }?.drop(48)?.forEach { it.delete() }
                 }
             }.getOrNull()

@@ -13,8 +13,8 @@ class CatalogRefreshJobDeviceTest {
     private val context get() = ApplicationProvider.getApplicationContext<Context>()
     @After fun cleanup() { CatalogRefreshJob.schedule(context, "synthetic-owner", false) }
     @Test fun backgroundScheduleIsPeriodicNetworkBoundPersistentAndContainsNoSessionCredentials() {
-        // Validate the same definition passed to the OS, without enqueueing real network work.
-        // Android may start a periodic job immediately and correctly cancel this fake session.
+        // تحقّق من التعريف نفسه المُمرّر إلى نظام التشغيل من دون جدولة عمل شبكي فعلي.
+        // قد يبدأ Android مهمة دورية فورًا، ثم يلغي جلسة الاختبار الوهمية كما ينبغي.
         val job = CatalogRefreshJob.definition(context, "synthetic-owner")
         val scheduler = context.getSystemService(JobScheduler::class.java)
         assertEquals(CatalogRefreshJob.JOB_ID, job.id)

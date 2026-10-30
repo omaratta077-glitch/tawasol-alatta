@@ -1,5 +1,5 @@
-// Regression checks for the actual browser call-signal handler.
-// Runs without network, the browser, WebRTC, or production accounts.
+// اختبارات تراجعية لمعالج إشارة المكالمات الفعلي في المتصفح.
+// تعمل بلا شبكة أو متصفح أو WebRTC أو حسابات إنتاج.
 import fs from 'node:fs';
 import vm from 'node:vm';
 import assert from 'node:assert/strict';
@@ -49,13 +49,13 @@ const ctx = {
   callIdMatches: msg => !ctx.activeCallId || ctx.activeCallId === msg.callId,
   clearOutgoingCallTimer: () => {}, stopCallSounds: () => events.push('stop-sounds'),
   showCallOverlay: () => {}, startOffer: async () => {},
-  // Unused in these branches; required only if a test reaches the media path.
+  // غير مستخدم في هذه الفروع؛ يلزم فقط إذا وصل الاختبار إلى مسار الوسائط.
   teardownPeer: async () => {}, hideCallOverlay: () => {}, resetCallState: () => {}
 };
 vm.createContext(ctx);
 vm.runInContext(handler, ctx, { filename: 'app.js/handleCallSignal' });
 
-// Incoming request: display the incoming UI THEN acknowledge the exact call ID.
+// طلب وارد: اعرض واجهة الاتصال الوارد ثم أقرّ معرّف المكالمة نفسه.
 await ctx.handleCallSignal({ type:'call-request', from:'caller', callId:'call-1',
   callType:'audio', signalId:'one' });
 assert.equal(emitted.length, 1);
@@ -103,5 +103,5 @@ assert.ok(!request.includes('playOutgoingRing()'),
 assert.ok(!request.includes('result?.online'),
   'socket delivery is not proof that recipient is ringing');
 
-// Minimized-call movement and media lifecycle are exercised on Android by FloatingCallBubbleDeviceTest.
+// يُختبر تحريك المكالمة المصغّرة ودورة حياة الوسائط على Android في FloatingCallBubbleDeviceTest.
 console.log('ALL CALL RINGING REGRESSION TESTS PASSED');

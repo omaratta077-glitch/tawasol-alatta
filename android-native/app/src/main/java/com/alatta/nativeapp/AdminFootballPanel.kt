@@ -70,7 +70,7 @@ internal fun AdminFootballPanel(token: String, owner: String) {
         } catch (e: CancellationException) { throw e }
         catch (e: Exception) {
             message = e.message ?: "تعذر حفظ التعديل"
-            // Refresh the revision after a conflict without discarding the entered form.
+            // أعد تحميل رقم المراجعة بعد التعارض من دون مسح البيانات التي أُدخلت في النموذج.
             try { catalog = FootballRepository.load(token); loaded = true }
             catch (cancelled: CancellationException) { throw cancelled }
             catch (_: Exception) { /* Keep the form and last known catalog for an explicit retry. */ }

@@ -20,7 +20,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-/** Only opened by an opted-in scheduled prayer alarm; never dismisses the device keyguard. */
+/** لا تُفتح إلا لمن فعّل منبّه صلاة مجدولًا؛ ولا تتجاوز قفل شاشة الجهاز. */
 class AdhanAlarmActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

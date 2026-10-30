@@ -17,7 +17,7 @@ import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
 import java.lang.ref.WeakReference
 
-/** Debug-only system PiP exercise: no accounts, camera, microphone, channel source or network. */
+/** اختبار صورة داخل صورة للنظام في إصدار التصحيح فقط؛ بلا حساب أو كاميرا أو ميكروفون أو مصدر قناة أو شبكة. */
 class WatchRoomPipTestActivity : ComponentActivity(), WatchRoomPipStateHost {
     private var pip by mutableStateOf(false)
     @Volatile internal var lastFailure: WatchRoomPip.Failure? = null
@@ -59,7 +59,7 @@ class WatchRoomPipTestActivity : ComponentActivity(), WatchRoomPipStateHost {
     }
     override fun onPictureInPictureModeChanged(isInPictureInPictureMode: Boolean, newConfig: Configuration) {
         super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
-        // Deliberately leave Compose stale: the production handoff must refresh it after system confirmation.
+        // اترك Compose عمدًا ببيانات قديمة؛ يجب أن يحدّثه تسليم التحكم في الإنتاج بعد تأكيد النظام.
     }
     override fun syncWatchRoomPipState() { pip = isInPictureInPictureMode }
     override fun onDestroy() {
@@ -68,7 +68,7 @@ class WatchRoomPipTestActivity : ComponentActivity(), WatchRoomPipStateHost {
     }
 }
 
-/** A separate task represents the external channel player and deliberately sends no leave hint. */
+/** تمثل مهمة مستقلة مشغّل القنوات الخارجي، ولا ترسل عمدًا إشارة مغادرة. */
 class WatchRoomExternalTestActivity : Activity() {
     companion object {
         @Volatile internal var current: WeakReference<WatchRoomExternalTestActivity>? = null

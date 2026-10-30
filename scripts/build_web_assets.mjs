@@ -1,4 +1,4 @@
-/** Derive website data from the approved, unchanged Android assets. No remote downloads. */
+/** اشتق بيانات الموقع من أصول Android المعتمدة التي لم تتغير. بلا تنزيلات عن بُعد. */
 import fs from 'node:fs';
 import path from 'node:path';
 import zlib from 'node:zlib';

@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import {JSDOM} from 'jsdom';
 const pub=new URL('../../cloudflare-site/public/',import.meta.url);
 const read=n=>fs.readFileSync(new URL(n,pub),'utf8');
-const source=read('app.js').split('/* ===== V13.28 Android/PWA install support ===== */')[1];
+const source=read('app.js').split('/* ===== دعم التثبيت على Android وPWA، الإصدار 13.28 ===== */')[1];
 const dom=new JSDOM(read('index.html'),{url:'https://unit.test/',runScripts:'outside-only'});
 const w=dom.window,d=w.document;
 let standalone=false,change,alerts=0,prompts=0;
@@ -28,7 +28,7 @@ standalone=true;change();assert.ok(buttons.every(b=>b.classList.contains('hidden
 standalone=false;change();assert.ok(buttons.every(b=>!b.classList.contains('hidden')));
 w.dispatchEvent(new w.Event('appinstalled'));assert.ok(buttons.every(b=>b.classList.contains('hidden')));
 const style=d.createElement('style');style.textContent=read('native-parity.css');d.head.append(style);
-// Browser CSSOM must parse the responsive sheet; desktop must never receive phone chrome.
+// يجب أن يحلل CSSOM في المتصفح ورقة الأنماط المتجاوبة؛ ولا تعرض واجهة الهاتف على الكمبيوتر.
 let mobileHeaders=0;
 function check(rules,scoped=false){for(const r of rules){if(r.cssRules){check(r.cssRules,scoped||r.conditionText==='(max-width:999px)');continue}if(r.selectorText?.includes('.premium-header')){assert.ok(scoped,'phone header stays in mobile media query');mobileHeaders++}}}
 check(style.sheet.cssRules);assert.ok(mobileHeaders>=2);

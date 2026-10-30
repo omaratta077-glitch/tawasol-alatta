@@ -1,4 +1,4 @@
-/* Private sports watch-room client: reuses the signed-in API/TURN and the browser's existing WebRTC stack. */
+/* عميل خاص لغرفة مشاهدة رياضية؛ يعيد استخدام API/TURN للمستخدم المسجل ومكدس WebRTC الموجود في المتصفح. */
 (()=>{'use strict';
 const bridge=window.AttaWeb,mount=document.getElementById('watchRoomMount');if(!bridge||!mount)return;
 let active=false,room=null,stream=null,clientId='',cursor=0,timer=null,muted=false,cameraOff=false,busy=false,generation=0,collapsed=false,page='sportsPage';

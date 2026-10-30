@@ -17,7 +17,7 @@ import java.time.ZoneId
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
-/** Foreground, bounded location lookup. No Google Play Services or background tracking. */
+/** تحديد موقع محدود أثناء استخدام التطبيق؛ بلا Google Play Services أو تتبع في الخلفية. */
 internal object PrayerLocation {
     fun permitted(context: Context) = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
         ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
@@ -65,7 +65,7 @@ internal object PrayerLocation {
             (System.currentTimeMillis() - prefs.getLong("location_updated_at", 0L) in 0L..1_800_000L && settings.place.zone == ZoneId.systemDefault().id)) return
         try {
             val place = current(context)
-            // Re-read after the asynchronous fix: never restore a setting disabled during lookup.
+            // أعد القراءة بعد الحصول على الموقع غير المتزامن؛ ولا تُعِد تفعيل إعداد عطّله المستخدم أثناء الانتظار.
             val latest = PrayerStore.read(context)
             if (latest.automaticLocation) {
                 AdhanScheduler.update(context, latest.copy(place = place, confirmedPlace = true))

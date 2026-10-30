@@ -182,7 +182,7 @@ async function startAuthenticatedApp(sessionToken,user=null){
       user={...user,...d.user};
       if(!d.user?.role)user.role="user";
     }catch{
-      // Offline cached session may keep ordinary pages; never cached admin rights.
+      // قد تبقي الجلسة المخزنة مؤقتًا الصفحات العادية متاحة دون اتصال؛ ولا تحفظ صلاحيات الإدارة أبدًا.
       user={...user,role:"user"};
     }
   }
@@ -200,11 +200,11 @@ async function startAuthenticatedApp(sessionToken,user=null){
 
   renderProfile();
   $("homeAvatar").src=me.avatar||avatarFallback(me.fullName||me.displayName||me.username);
-  // Load the profile only when requested; it is not required for the Home feed.
+  // حمّل الملف الشخصي عند طلبه فقط؛ فهو غير مطلوب لعرض موجز الرئيسية.
 
   ensureTurnIceServers().catch(()=>{});
 
-  // V13.60: show the main feed first, then load secondary panels gradually.
+  // V13.60: اعرض الموجز الرئيسي أولًا، ثم حمّل اللوحات الثانوية تدريجيًا.
   connect();
   startCallSignalPolling();
   resetMessagesInbox();
@@ -325,8 +325,8 @@ function showInAppToast(title,body){
 }
 
 function notify(title,body,target=null){
-  // Always show an in-app alert. Browser notifications are only a bonus because
-  // Chrome can block permission prompts that were not triggered by a user gesture.
+  // اعرض تنبيهًا داخل التطبيق دائمًا. إشعارات المتصفح ميزة إضافية فقط، لأن
+  // Chrome قد يمنع طلب الإذن إذا لم ينتج عن إيماءة مباشرة من المستخدم.
   const toast=showInAppToast(title,body);
   if(target && toast){toast.style.cursor="pointer";toast.onclick=()=>openNotificationTarget(target);}
   if("Notification" in window && Notification.permission==="granted"){
@@ -510,8 +510,8 @@ async function handleCallSignal(msg){
     setCallPeerIdentity(incomingFrom);
     $("incomingModal").classList.remove("hidden");
     playIncomingRing();
-    // Acknowledge only AFTER the incoming-call dialog is visible.
-    // The caller must not hear ringback just because a request was sent.
+    // لا تؤكد الاستلام إلا بعد ظهور مربع المكالمة الواردة.
+    // يجب ألا يسمع المتصل نغمة انتظار لمجرد إرسال الطلب.
     sendCallSignal({
       type:"call-ringing", to:msg.from, callId:msgCallId,
       callType:currentCallType
@@ -525,7 +525,7 @@ async function handleCallSignal(msg){
   }
 
   if(msg.type==="call-ringing"){
-    // Only the intended caller can transition from dialing to ringing.
+    // لا ينتقل الاتصال من «جارٍ الاتصال» إلى «يرن» إلا بتأكيد المتصل المقصود.
     if((callState==="outgoing" || callState==="preparing") &&
        msg.from===activeCallPeer && activeCallId===msgCallId){
       remoteRinging=true;
@@ -709,8 +709,8 @@ async function pollCallSignals(){
   callSignalPollBusy=true;
 
   try{
-    // Always use the compatible stored-message fallback. This works with the
-    // currently deployed backend and does not require /api/call-signals.
+    // استخدم دائمًا البديل المتوافق القائم على تخزين الرسائل. يعمل مع
+    // الخادم المنشور حاليًا ولا يتطلب /api/call-signals.
     await pollStoredCallSignals();
   }finally{
     callSignalPollBusy=false;
@@ -719,7 +719,7 @@ async function pollCallSignals(){
 function startCallSignalPolling(){
   clearInterval(callSignalPollTimer);
 
-  // First check immediately, then keep checking quickly enough for ringing.
+  // افحص فورًا أولًا، ثم تابع الفحص بوتيرة تكفي لمتابعة الرنين.
   pollCallSignals();
   callSignalPollTimer=setInterval(pollCallSignals,2000);
 }
@@ -933,7 +933,7 @@ function connect(){
     }
 
     if(msg.type==="user-offline"){
-      // This event is now used for live calls only.
+      // يُستخدم هذا الحدث الآن للمكالمات الحية فقط.
       if(document.body.classList.contains("call-open") || pc){
         alert("المستخدم غير متصل الآن ولا يمكن بدء المكالمة.");
       }
@@ -1347,7 +1347,7 @@ async function flushPendingIce(){
 async function ensurePeer(){
   if(pc)return pc;
 
-  // Prepare relay credentials and local media concurrently to reduce setup latency.
+  // جهّز بيانات اعتماد الترحيل والوسائط المحلية بالتوازي لتقليل زمن الإعداد.
   const [turnOk,stream]=await Promise.all([
     ensureTurnIceServers(),
     getMedia(currentCallType)
@@ -1371,7 +1371,7 @@ async function ensurePeer(){
     if(track.kind==="audio")audioSender=sender;
     if(track.kind==="video")videoSender=sender;
 
-    // Keep calls responsive on mobile and slower connections.
+    // حافظ على استجابة المكالمات على الهواتف والاتصالات الأبطأ.
     try{
       const params=sender.getParameters();
       params.encodings=params.encodings?.length?params.encodings:[{}];
@@ -1388,7 +1388,7 @@ async function ensurePeer(){
     }
   }
 
-  // We wait for complete ICE in offer/answer, so trickle ICE is only a bonus.
+  // ننتظر اكتمال ICE في offer/answer؛ لذلك يظل ICE المتدرج ميزة إضافية فقط.
   pc.onicecandidate=e=>{
     if(!e.candidate || !selectedUser || !activeCallId)return;
 
@@ -1412,8 +1412,8 @@ async function ensurePeer(){
     const remoteVideo=$("remoteVideo");
     const remoteAudio=$("remoteAudio");
 
-    // Keep remote sound on ONE element only. Using the same stream on both
-    // <video> and <audio> caused duplicated/silent audio on some Chrome/mobile combinations.
+    // أبقِ صوت الطرف الآخر على عنصر واحد فقط. أدى استخدام الدفق نفسه في
+    // <video> و<audio> إلى تكرار الصوت أو كتمه في بعض إصدارات Chrome والهواتف.
     remoteVideo.srcObject=remoteMediaStream;
     remoteVideo.playsInline=true;
     remoteVideo.autoplay=true;
@@ -1564,7 +1564,7 @@ async function requestCall(type){
   remoteRinging=false;
 
   try{
-    // Microphone/camera permission and TURN setup can run in parallel.
+    // يمكن تشغيل إذن الميكروفون والكاميرا وإعداد TURN بالتوازي.
     const [turnOk]=await Promise.all([
       ensureTurnIceServers(),
       getMedia(type)
@@ -1578,7 +1578,7 @@ async function requestCall(type){
       turnOk?"TURN جاهز — جاري الاتصال...":"جاري الاتصال..."
     );
 
-    // Ringback waits for call-ringing from the recipient's UI.
+    // تنتظر نغمة الاتصال تأكيد call-ringing من واجهة المستلم.
     setCallState("outgoing",peer,callId);
 
     const result=await sendCallSignal({
@@ -1588,7 +1588,7 @@ async function requestCall(type){
       callType:type
     });
 
-    // Avoid racing a fast ringing acknowledgement received while send was awaiting.
+    // تجنب سباق تأكيد الرنين السريع الذي يصل أثناء انتظار إرسال الطلب.
     const stateText=remoteRinging
       ?"يرن الآن..."
       :"تم إرسال الاتصال — في انتظار الطرف الآخر...";
@@ -1713,7 +1713,7 @@ const reactionEmoji={like:"👍",love:"❤️",haha:"😂",wow:"😮",sad:"😢"
 
 let callAudioCtx=null;
 let ringtoneTimer=null;
-// Reset for each outgoing attempt; delivery is NOT proof the recipient is ringing.
+// أعد الضبط لكل محاولة اتصال صادرة؛ فالتسليم لا يثبت أن الطرف الآخر يرن.
 let remoteRinging=false;
 let activeRingType="";
 
@@ -2058,7 +2058,7 @@ document.addEventListener("click",async e=>{
 
 function showPage(pageId){
   if(pageId!=="homePage")notificationPostTarget="";
-  // Owner-only UI. Cloudflare independently rejects unauthorized admin APIs.
+  // واجهة المالك فقط. ويرفض Cloudflare بشكل مستقل واجهات الإدارة غير المصرح بها.
   if(pageId==="adminPage" && !["super_admin","moderator"].includes(me?.role))return false;
   const page=$(pageId);
   if(!page || !page.classList.contains("page"))return false;
@@ -2317,7 +2317,7 @@ if($("postVideoInput")){
       showInAppToast("تم رفع الفيديو","الفيديو جاهز للنشر.");
     }catch(err){
       console.error("Video upload failed",err);
-      // Keep the existing small-video fallback only when R2 is unavailable.
+      // احتفظ ببديل الفيديو المصغّر الحالي فقط عند تعذر R2.
       if(f.size<=1100000){
         try{
           const data=await new Promise((resolve,reject)=>{
@@ -2432,7 +2432,7 @@ document.addEventListener("click",e=>{
   }
 });
 
-// One immersive post viewer. The existing YouTube player is independent.
+// عارض غامر واحد لوسائط المنشور؛ ويظل مشغّل YouTube الحالي مستقلًا.
 const postMediaUI={catalogue:new Map(),playlist:[],index:0,kind:"image",root:null,panel:null,session:null,viewerOpen:false,controls:true,hideTimer:0,panelSerial:0,zoom:1,panX:0,panY:0};
 function postTotalReactionCount(post){
   if(Number.isFinite(post.reactionCount))return Math.max(0,post.reactionCount);
@@ -2916,12 +2916,12 @@ async function loadPosts(){
       };
     });
 
-    // Comments count now opens the already existing paginated viewer,
-    // including names, avatars and the comment composer (via bindPostMedia).
+    // يفتح عدّاد التعليقات العارض المقسّم إلى صفحات الموجود أصلًا،
+    // بما فيه الأسماء والصور ومربع التعليق عبر bindPostMedia.
 
     document.querySelectorAll("[data-react-main]").forEach(btn=>{
-      // Normal click = Like / Unlike immediately. This keeps the main reaction usable
-      // on desktop and mobile instead of only opening a hidden picker.
+      // النقر العادي يبدّل الإعجاب فورًا. فيظل التفاعل الأساسي متاحًا
+      // على الكمبيوتر والهاتف، لا مجرد زر يفتح منتقيًا مخفيًا.
       btn.onclick=async()=>{
         try{
           const current=btn.dataset.currentReaction||"";
@@ -2935,7 +2935,7 @@ async function loadPosts(){
         }catch(e){alert(e.message)}
       };
 
-      // Right click on desktop opens the full reaction picker.
+      // النقر بالزر الأيمن على الكمبيوتر يفتح منتقي التفاعلات كاملًا.
       btn.oncontextmenu=(e)=>{
         e.preventDefault();
         document.querySelector(`[data-reaction-picker="${btn.dataset.reactMain}"]`)?.classList.toggle("hidden");
@@ -3301,15 +3301,15 @@ async function uploadOwnProfileImage(kind,file){
       const coverImg=$("profileCoverImage");
       if(coverImg){ coverImg.src=data; coverImg.classList.remove("hidden"); }
     }
-    // V13.43: use only long-standing API routes for maximum deployment compatibility.
-    // 1) Update the user's profile media through /api/profile.
+    // V13.43: استخدم مسارات API المستقرة فقط لأقصى توافق عند النشر.
+    // 1) حدّث وسائط الملف الشخصي للمستخدم عبر /api/profile.
     const profilePayload=kind==="avatar"?{token,avatar:data}:{token,cover:data};
     const d=await api("/api/profile",{method:"POST",body:JSON.stringify(profilePayload)});
     me={...me,...d.user};
     renderProfile();
     await renderProfilePage(me.username);
 
-    // 2) Publish a normal feed post through the existing /api/posts route.
+    // 2) انشر منشورًا عاديًا في الموجز عبر المسار الحالي /api/posts.
     const postText=isAvatar?"قام بتحديث صورته الشخصية.":"قام بتحديث صورة الغلاف.";
     const posted=await api("/api/posts",{method:"POST",body:JSON.stringify({token,text:postText,image:data})});
 
@@ -3659,14 +3659,14 @@ if($("refreshSavedPageBtn"))$("refreshSavedPageBtn").onclick=loadSavedPostsPage;
 
 
 let authMode="login";
-// AL-ATTA v1.0.14: use real calendar birthdays, not a typed age.
+// AL-ATTA v1.0.14: استخدم أعياد الميلاد من التقويم الفعلي، لا عمرًا مكتوبًا يدويًا.
 function attaCalendarLimit(offsetYears){
   const now=new Date();
   const d=new Date(now.getFullYear()+offsetYears,now.getMonth(),now.getDate());
   const p=n=>String(n).padStart(2,"0");
   return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`;
 }
-// Use ordinary selects instead of locale-dependent native date segments in the PWA.
+// استخدم قوائم اختيار عادية بدل أجزاء إدخال تاريخ أصلية تختلف حسب لغة الموقع في PWA.
 function setupBirthDateFields(input){
   if(!input || input.attaReadBirthDate)return;
   const initial=input.value,minimum=attaCalendarLimit(-120),maximum=attaCalendarLimit(-13);
@@ -3706,7 +3706,7 @@ function readBirthDate(input){return input.attaReadBirthDate();}
 setupBirthDateFields(document.getElementById("ageInput"));
 
 let pendingVerificationId="";
-// AL-ATTA v1.0.10 login/register hint
+// تلميح تسجيل الدخول أو التسجيل AL-ATTA v1.0.10
 function refreshLoginIdentifierHint(){
   const field=document.getElementById("usernameInput");
   if(field)field.placeholder=authMode==="register" ? "اختر اسم مستخدم لحسابك" : "الهاتف أو البريد أو اسم المستخدم";
@@ -4213,8 +4213,8 @@ $("switchCameraBtn").onclick=async()=>{
     let stream;
     try{stream=await navigator.mediaDevices.getUserMedia(constraints)}
     catch(error){
-      // Some phones allow only one camera open. Keep audio alive while handing
-      // the camera over, and restore the old facing direction if opening fails.
+      // تسمح بعض الهواتف بفتح كاميرا واحدة فقط. أبقِ الصوت يعمل أثناء تسليم
+      // الكاميرا، وأعد اتجاه العدسة السابق إذا تعذر فتحها.
       if(error.name!=="NotReadableError")throw error;
       previous.stop();previousReleased=true;
       stream=await navigator.mediaDevices.getUserMedia(constraints);
@@ -4271,16 +4271,16 @@ queueMicrotask(()=>{
 });
 
 
-// One privacy selector for the existing email registration form.
+// منتقي خصوصية واحد لنموذج التسجيل الحالي بالبريد الإلكتروني.
 const registerGender=$("genderInput"), registerHidden=$("hiddenAccountChoice");
 registerGender?.addEventListener("change",()=>{
   registerHidden?.classList.toggle("hidden",registerGender.value!=="female");
   if(registerGender.value!=="female")$("hiddenAccountInput").value="";
 });
 
-// V13.8 — Google Identity Services (free verified-email signup/login).
-// Google checks email ownership. No verification code is sent or exposed.
-// AL-ATTA v1.0.10: manually choose profile for first-time Google accounts.
+// V13.8 — خدمات هوية Google (تسجيل الدخول/إنشاء الحساب ببريد موثّق مجانًا).
+// تتحقق Google من ملكية البريد؛ ولا يُرسل رمز تحقق أو يُكشف.
+// AL-ATTA v1.0.10: اختر الملف الشخصي يدويًا لحسابات Google الجديدة.
 function requestGoogleProfile(submitProfile){
   return new Promise(resolve=>{
     const overlay=document.createElement("div");
@@ -4409,7 +4409,7 @@ window.AttaWeb=Object.freeze({
 })();
 
 
-/* ===== V13.28 Android/PWA install support ===== */
+/* ===== دعم التثبيت في Android وPWA، الإصدار V13.28 ===== */
 (() => {
   let deferredInstallPrompt = null;
   const installButtons = [...document.querySelectorAll('[data-pwa-install]')];

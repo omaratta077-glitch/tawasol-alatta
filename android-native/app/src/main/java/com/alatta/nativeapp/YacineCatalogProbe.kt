@@ -19,9 +19,9 @@ import java.util.concurrent.TimeUnit
 import javax.net.ssl.SSLException
 import kotlin.coroutines.resume
 
-/** Explicit, read-only owner diagnostic. Never receives account tokens or edits the catalog. */
+/** فحص تشخيصي صريح للمالك وللقراءة فقط؛ لا يتلقى رموز الحسابات ولا يحرر الكتالوج. */
 internal object YacineCatalogProbe {
-    // The owner supplied a successful encoded categories response from this host.
+    // زوّد المالك التطبيق باستجابة ناجحة مشفّرة من هذا المضيف لمسار categories.
     const val BASE = "https://def001.ycnapi.com/api/"
     const val MAX_BYTES = 512 * 1024
     const val MAX_ITEMS = 500
@@ -83,7 +83,7 @@ internal object YacineCatalogProbe {
             Kind.CATEGORIES -> if (id == null) "categories" else "categories/" + id
             Kind.CHANNELS -> "categories/" + requireNotNull(id) { "اختر قسمًا أولًا" } + "/channels"
         }
-        // Separate client: no AL-ATTA cookies, tokens, headers or third-party app credentials.
+        // عميل مستقل: بلا ملفات تعريف ارتباط أو رموز أو ترويسات AL-ATTA أو بيانات دخول تطبيق خارجي.
         return Request.Builder().url(BASE + path).header("Accept", "application/json").get().build()
     }
 
@@ -141,7 +141,7 @@ internal object YacineCatalogProbe {
             else "وصلت قائمة قابلة للقراءة. الأرقام للمعاينة فقط؛ لم تُحفظ تلقائيًا.", code, entries = entries)
     }
 
-    /** Response-only wire decoding. This does not add request signing or client identity. */
+    /** فك ترميز استجابة المصدر فقط؛ ولا يضيف توقيعًا للطلب أو هوية للعميل. */
     private fun parseSuccessfulBody(text: String, code: Int, path: String, headerTime: String?, nowEpochSeconds: Long,
         responseMask: ByteArray?): Result {
         val trimmed = text.trim().removePrefix("\uFEFF").trimStart()
@@ -179,12 +179,12 @@ internal object YacineCatalogProbe {
         nowEpochSeconds: Long = System.currentTimeMillis() / 1000L, responseMask: ByteArray? = null): Result {
         val type = response.header("Content-Type").orEmpty().substringBefore(';').take(80)
         val hasTime = !response.header("t").isNullOrBlank()
-        // Export only the numeric response timestamp, never arbitrary headers or credentials.
+        // صدّر الطابع الزمني الرقمي للاستجابة فقط؛ ولا تصدّر ترويسات عشوائية أو بيانات اعتماد.
         val time = response.header("t").orEmpty().trim()
             .takeIf { it.length in 10..13 && it.all { char -> char in '0'..'9' } }.orEmpty()
         if (!response.isSuccessful) {
-            // Read a bounded error preview without retrying, following redirects or
-            // passing an error body to the successful catalog parser.
+            // اقرأ معاينة محدودة للخطأ من دون إعادة المحاولة أو اتباع التحويلات،
+            // ومن دون تمرير نص الخطأ إلى محلل الكتالوج المخصص للنجاح.
             val preview = response.peekBody(4096).use { it.bytes() }
             return parse("", response.code, path).copy(contentType = type,
                 bytes = preview.size.toLong(), elapsedMs = elapsedMs, hasTimeHeader = hasTime, timeHeader = time,
@@ -198,8 +198,8 @@ internal object YacineCatalogProbe {
         if (size > MAX_BYTES) return Result(State.TOO_LARGE, path, "الرد يتجاوز حد التجربة الآمن 512 كيلوبايت.",
             response.code, type, size, elapsedMs, hasTime, timeHeader = time)
         val text = source.buffer.readUtf8()
-        // Keep a bounded sample in this result only. Copying is an explicit owner action;
-        // nothing is persisted, logged, sent to AL-ATTA or automatically shared.
+        // احتفظ بعينة محدودة في هذه النتيجة فقط. نسخها إجراء صريح من المالك؛
+        // ولا تُحفظ ولا تُسجّل ولا تُرسل إلى AL-ATTA ولا تُشارك تلقائيًا.
         return parseSuccessfulBody(text, response.code, path, response.header("t"), nowEpochSeconds, responseMask)
             .copy(contentType = type, bytes = size, elapsedMs = elapsedMs, hasTimeHeader = hasTime,
                 timeHeader = time, responseText = text.take(MAX_REPORT_CHARS),

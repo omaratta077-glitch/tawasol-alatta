@@ -141,7 +141,7 @@ internal fun FootballScreen(query: String, modifier: Modifier = Modifier,
     }
 }
 
-/** The actual sports presentation is shared with the device UI test, without network/player substitutes. */
+/** تُستخدم واجهة الرياضة الفعلية في اختبار الجهاز من دون بدائل للشبكة أو المشغّل. */
 @Composable
 internal fun FootballContent(catalog: FootballCatalog, query: String, favorites: Set<String>, recent: List<String>,
     loading: Boolean, error: String, isAdmin: Boolean, callInProgress: Boolean, modifier: Modifier = Modifier,

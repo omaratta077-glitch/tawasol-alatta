@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>تواصل العطا | رسائل ومكالمات وأصدقاء</title>
-<!-- Web 14.15: native design parity; website changes only. -->
+<!-- Web 14.15: تطابق التصميم الأصلي؛ التغيير للموقع فقط. -->
 <meta name="description" content="تواصل العطا: منصة عربية للتواصل مع الأصدقاء، الرسائل، والمكالمات الصوتية والمرئية عبر الويب وتطبيق Android.">
 <meta name="robots" content="index,follow,max-image-preview:large">
 <link rel="canonical" href="https://tawasol-alatta.omaratta077-4fd.workers.dev/">
@@ -25,7 +25,7 @@
 
 
 <style id="atta-apk-download-button">
-/* Official download entry — intentional two-line label; no mixed RTL/LTR wrapping. */
+/* رابط التنزيل الرسمي — تسمية مقصودة على سطرين لتجنب التفاف RTL/LTR المختلط. */
 #authView .atta-login-card .atta-official-apk-download {
   display:flex!important;flex-direction:row!important;align-items:center!important;
   justify-content:center!important;gap:12px!important;width:100%!important;
@@ -91,12 +91,12 @@
 #adminPage .admin-actions button{white-space:nowrap}
 @media(max-width:480px){#appView #adminPage{padding:112px 10px 0!important}#appView #adminPage .admin-head h2{font-size:24px!important}#appView #adminPage .admin-tabs button{font-size:14px!important}#adminPage .admin-item{flex-wrap:wrap}#adminPage .admin-actions{width:100%}}
 </style>
-<!-- Website UI follows PremiumChrome; Android source remains unchanged. -->
+<!-- تتبع واجهة الموقع PremiumChrome؛ لم يتغير مصدر Android. -->
 
 <link rel="stylesheet" href="native-parity.css?v=14.17">
 <style id="atta-friends-explore-mobile-fit">
-/* Web-only compact phone correction for Friends and Explore.
-   Overrides legacy 22-34px mobile typography without touching APK or other pages. */
+/* تصحيح مدمج للهواتف في الموقع فقط لقسمَي الأصدقاء والاستكشاف.
+   يتجاوز أحجام الخط القديمة على الهاتف، 22-34px، من دون المساس بـAPK أو بقية الصفحات. */
 @media (max-width:850px) {
   html.mobile-device #appView #friendsPage,
   html.mobile-device #appView #searchPage {
@@ -110,7 +110,7 @@
     box-sizing:border-box!important;max-width:100%;
   }
 
-  /* Friends: restore readable two-line profile rows and normal-size headings. */
+  /* الأصدقاء: أعد صفوف الملفات الشخصية المقروءة على سطرين والعناوين بالحجم المعتاد. */
   html.mobile-device #appView #friendsPage .friends-page-shell {
     width:100%!important;min-width:0!important;max-width:none!important;
     padding:0!important;margin:0!important;
@@ -196,7 +196,7 @@
     text-align:right!important;
   }
 
-  /* Explore: one full-width empty state, short headings, and usable search rows. */
+  /* الاستكشاف: حالة فارغة بعرض الصفحة وعناوين قصيرة وصفوف بحث قابلة للاستخدام. */
   html.mobile-device #appView #searchPage .page-title {
     width:100%!important;display:flex!important;flex-wrap:wrap!important;
     justify-content:space-between!important;align-items:center!important;
@@ -280,7 +280,7 @@
     <div id="authInstallMount"></div>
 
     <div class="atta-login-card">
-      <!-- Tawasol Al-Atta: official Android download, visible before login -->
+      <!-- Tawasol Al-Atta: رابط التنزيل الرسمي لـAndroid، ظاهر قبل تسجيل الدخول -->
 
       <div class="atta-language">العربية</div>
 

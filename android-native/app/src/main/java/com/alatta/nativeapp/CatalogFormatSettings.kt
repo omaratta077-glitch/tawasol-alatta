@@ -10,7 +10,7 @@ import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 
-/** Owner-entered configuration stays on this device; no default service value is bundled. */
+/** يبقى الإعداد الذي أدخله المالك على هذا الجهاز؛ ولا تُضمَّن قيمة خدمة افتراضية. */
 internal object CatalogFormatSettings {
     private const val PREFS = "alatta_catalog_format_v1"
     private const val PAYLOAD = "encrypted"

@@ -56,7 +56,7 @@ class AdhanAudioIntegrityTest {
             val existing = group.entries.filterNot { it.id in additions }.map { canonical(it.text) }.toSet()
             assertTrue(newEntries.none { canonical(it.text) in existing })
             assertTrue(newEntries.all { it.target == 1 && it.note.isNotBlank() })
-            // The previously offered one-time and daily hundred Tawhid remain separate goals.
+            // يبقى هدفا التوحيد لمرة واحدة والتوحيد اليومي مئة مرة، المعروضان سابقًا، منفصلين.
             assertEquals(group.entries.size, group.entries.map { canonical(it.text) to it.target }.toSet().size)
         }
     }

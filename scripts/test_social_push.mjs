@@ -51,14 +51,14 @@ await drain();assert.equal(sent.at(-1).type,'friend-request');assert.equal(sent.
 assert.equal((await request('/api/friend-action',{token:alice,username:'carol',action:'accept'})).status,200);
 await drain();assert.equal(sent.at(-1).type,'friend-accepted');assert.equal(sent.at(-1).to,'carol');
 console.log('PASS friend requests and accepted notifications reach correct account');
-// Logging into another account on the same device moves ownership; prevent leaks.
+// يؤدي تسجيل الدخول بحساب آخر على الجهاز نفسه إلى نقل الملكية؛ امنع تسرب البيانات.
 assert.equal((await request('/api/push/register',{token:alice,deviceToken:device})).status,200);
 assert.deepEqual(state.get('fcmTokens:bob'),[]);
 assert.deepEqual(state.get('fcmTokens:alice'),[device]);
 assert.equal((await request('/api/push/unregister',{token:alice,deviceToken:device})).status,200);
 assert.deepEqual(state.get('fcmTokens:alice'),[]);
 console.log('PASS device token cannot remain linked to the previous account');
-// Validate the actual FCM v1 data-only packet (no messages, no auth token).
+// تحقّق من حزمة FCM v1 الفعلية التي تحتوي بيانات فقط (بلا رسائل أو رمز تفويض).
 await storage.put('fcmTokens:bob',[device]);
 room.fcmAccessToken=async()=> 'test-auth';
 const originalFetch=globalThis.fetch, outbound=[];

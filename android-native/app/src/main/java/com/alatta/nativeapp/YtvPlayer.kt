@@ -13,7 +13,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalContext
 
-/** The ACTION_VIEW contract observed in the supplied Yacine and YTV PRO APKs. */
+/** عقد ACTION_VIEW الذي لوحظ في تطبيقي Yacine وYTV PRO المرفقين. */
 internal object YtvPlayer {
     const val APP_PAGE = "https://play.google.com/store/apps/details?id=com.ytv.pronew"
     private const val PACKAGE = "com.ytv.pronew"
@@ -66,7 +66,7 @@ internal object YtvPlayer {
     suspend fun openWithWatchRoom(context: Context, value: String, beforeLaunch: () -> Unit = {}): Failure? {
         val request = channelIntent(value) ?: return Failure.INVALID_ID
         if (WatchRoomController.active) {
-            // Avoid entering PiP just to discover that no installed player can handle the channel.
+            // تجنب الدخول إلى وضع PiP لمجرد اكتشاف عدم وجود مشغّل مثبت يعالج القناة.
             if (request.resolveActivity(context.packageManager) == null) return Failure.UNAVAILABLE
             WatchRoomPip.enterAndWait(context)?.let { return it.playerFailure() }
         }

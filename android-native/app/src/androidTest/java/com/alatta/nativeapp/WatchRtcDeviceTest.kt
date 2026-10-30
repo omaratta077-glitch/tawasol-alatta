@@ -11,7 +11,7 @@ import org.webrtc.*
 import java.util.concurrent.ConcurrentLinkedQueue
 import kotlin.coroutines.resume
 
-/** Real encoded audio/video over local host ICE, in both offer directions; no external service or camera. */
+/** صوت وصورة مشفّران فعليًا عبر ICE محلي على الجهاز وباتجاهَي عرض؛ بلا خدمة خارجية أو كاميرا. */
 class WatchRtcDeviceTest {
     @Test fun negotiatedPeersDeliverAudioAndVideoInBothDirections() = runBlocking {
         val context = ApplicationProvider.getApplicationContext<Context>()

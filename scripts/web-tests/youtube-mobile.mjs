@@ -23,7 +23,7 @@ for(const mobile of [true,false]){
  d.querySelector('.atta-yt-share').click();assert.match(shared,/\[\[alatta-youtube:dQw4w9WgXcQ\]\]/);
  if(mobile){
   w.AttaWeb.navigate('homePage');assert.equal(d.querySelectorAll('.atta-youtube-frame iframe').length,0);
-  // Run the unchanged native integration against the actual website controller.
+  // شغّل تكامل Android الأصلي كما هو ضد متحكم الموقع الفعلي.
   const bridge=fs.readFileSync(new URL('../../android-native/app/src/main/assets/atta-site-youtube-bridge.js',import.meta.url),'utf8');
   w.eval(bridge.replace('__ALATTA_VIDEO_ID__','dQw4w9WgXcQ'));
   assert.equal(panel.parentNode.className,'atta-youtube-overlay');

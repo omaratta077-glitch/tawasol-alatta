@@ -104,7 +104,7 @@ private suspend fun uploadAdminAdhan(context: android.content.Context, token: St
     } finally { temporary.delete() }
 }
 
-/** Uses the existing owner's authenticated API; ordinary accounts cannot add catalog entries. */
+/** تستخدم واجهة المالك الحالية والمصادقة؛ لا تستطيع الحسابات العادية إضافة عناصر إلى القائمة. */
 @Composable
 internal fun AdminAdhanVoicesPanel(token: String) {
     val context = LocalContext.current

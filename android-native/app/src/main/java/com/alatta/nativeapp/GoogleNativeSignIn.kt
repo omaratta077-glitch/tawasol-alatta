@@ -12,13 +12,13 @@ import com.google.android.libraries.identity.googleid.GetSignInWithGoogleOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 
 /**
- * Android native account picker (Credential Manager / Google Play Services).
- * Web client ID is retrieved at runtime from the existing /api/google-config.
- * The ID token is sent only in the POST body to the existing /api/google-login.
- * The server verifies audience, issuer, signature and token expiry.
+ * منتقي الحساب الأصلي في Android ‏(Credential Manager / Google Play Services).
+ * يُسترجع معرّف عميل الويب وقت التشغيل من /api/google-config الحالي.
+ * يُرسل رمز الهوية فقط داخل متن POST إلى /api/google-login الحالي.
+ * يتحقق الخادم من الجمهور والجهة المصدرة والتوقيع ومدة صلاحية الرمز.
  *
- * IMPORTANT: configure an Android OAuth client for the SAME Google Cloud project,
- * package com.alatta.nativeapp, with the RELEASE signing certificate SHA-1.
+ * مهم: أعد إعداد عميل OAuth لنظام Android في مشروع Google Cloud نفسه،
+ * للحزمة com.alatta.nativeapp، وبصمة SHA-1 لشهادة توقيع الإصدار.
  */
 internal object GoogleNativeSignIn {
     suspend fun pickAccount(activity: ComponentActivity, webClientId: String): String? {
@@ -27,7 +27,7 @@ internal object GoogleNativeSignIn {
         }
         val manager = CredentialManager.create(activity)
 
-        // Explicit user tap: Google-provided native Sign in with Google sheet.
+        // يظهر مربع تسجيل الدخول الأصلي من Google بعد نقر المستخدم صراحةً.
         val buttonOption = GetSignInWithGoogleOption.Builder(webClientId).build()
         val buttonRequest = GetCredentialRequest.Builder()
             .addCredentialOption(buttonOption)
@@ -37,7 +37,7 @@ internal object GoogleNativeSignIn {
         } catch (cancelled: GetCredentialCancellationException) {
             return null // Closing the sheet is not a login error.
         } catch (noCredential: NoCredentialException) {
-            // Show all Google accounts on this device, including first-time sign-up users.
+            // اعرض جميع حسابات Google على هذا الجهاز، بما فيها حسابات المستخدمين الجدد.
             val allAccounts = GetGoogleIdOption.Builder()
                 .setServerClientId(webClientId)
                 .setFilterByAuthorizedAccounts(false)

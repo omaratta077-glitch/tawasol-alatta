@@ -20,7 +20,7 @@ internal fun postTextPreview(text: String): String = text.take(320).let {
     if (it.lastOrNull()?.isHighSurrogate() == true) it.dropLast(1) else it
 }.lineSequence().take(6).joinToString("\n").trimEnd()
 
-/** A compact feed preview; the original complete text stays inside its own reader. */
+/** معاينة موجز مدمجة؛ ويبقى النص الكامل الأصلي داخل قارئه الخاص. */
 @Composable internal fun PostTextContent(text: String, modifier: Modifier = Modifier, color: Color = Color.White) {
     var reading by remember(text) { mutableStateOf(false) }
     val long = needsPostReader(text)

@@ -63,7 +63,7 @@ assert.equal(state.data.channels.find(c=>c.id===ytvChannel.id).streamUrl,'922337
 assert.equal((await api(publicPath)).data.channels.find(c=>c.id===ytvChannel.id).format,'ytv');
 state=await save(12,{...ytv,id:ytvChannel.id,streamUrl:'9223372036854775807',enabled:false});assert.equal(state.status,200);
 assert.ok(!(await api(publicPath)).data.channels.some(c=>c.id===ytvChannel.id),'disabled YTV channels stay out of public lists');
-// Whole-section publication is one owner-only, revision-checked transaction.
+// نشر القسم كاملًا معاملة واحدة؛ لا ينفذها إلا المالك وبعد التحقق من رقم المراجعة.
 const imported=[1,2].map(n=>({...channel,...ytv,name:'Synthetic Sports '+n,category:'Synthetic 1080',streamUrl:String(9000+n)}));
 const batch=(revision,channels,token=owner)=>api(adminPath,{token,revision,action:'saveChannels',channels});
 const beforeBatch=JSON.stringify(data.get('football:catalog'));

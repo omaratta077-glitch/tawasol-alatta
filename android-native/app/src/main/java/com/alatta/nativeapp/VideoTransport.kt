@@ -16,13 +16,13 @@ import androidx.media3.exoplayer.DefaultLoadControl
 import java.io.File
 import okhttp3.OkHttpClient
 
-/** Playback cache only. It neither predownloads a feed nor caches live/YouTube streams. */
+/** ذاكرة تخزين مؤقت لتشغيل الفيديو فقط؛ لا تسبق تنزيل الموجز ولا تخزّن بثًا مباشرًا أو بث YouTube. */
 internal object VideoTransport {
     const val MAX_CACHE_BYTES = 64L * 1024 * 1024
     @Volatile private var sharedFactory: DataSource.Factory? = null
     private var cache: SimpleCache? = null
 
-    // Called on IO when the viewer opens, never during startup or composition.
+    // يُستدعى على خيط IO عند فتح العارض، لا أثناء بدء التشغيل أو تركيب الواجهة.
     fun factory(context: Context, live: Boolean, requestHeaders: Map<String, String> = emptyMap()): DataSource.Factory {
         val app = context.applicationContext
         if (requestHeaders.isNotEmpty()) return DefaultDataSource.Factory(app,

@@ -1,4 +1,4 @@
-// Scoped incoming updates only. Never contacts the channel source.
+// تحديثات واردة ضمن النطاق فقط. لا يتصل بمصدر القنوات.
 const json=(value,status=200)=>Response.json(value,{status,headers:{"cache-control":"no-store"}});
 const canonical=value=>typeof value==="string"?value.trim().replace(/\s+/g,"").toLowerCase():"";
 const id=value=>typeof value==="string"&&/^[1-9][0-9]{0,18}$/.test(value)&&BigInt(value)<=9223372036854775807n;

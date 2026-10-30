@@ -1,4 +1,4 @@
-// Native Quran regression: bundled local pages and the single Canvas renderer.
+// اختبار تراجعي للمصحف الأصلي: صفحات محلية مضمّنة وعارض Canvas واحد.
 import fs from 'node:fs';
 import path from 'node:path';
 import assert from 'node:assert/strict';
@@ -26,7 +26,7 @@ const index=JSON.parse(fs.readFileSync(path.join(app,'assets/mushaf/index.json')
 assert.ok(index.pages, 'offline Quran index missing');
 console.log('PASS: Native offline Quran reader, 604 compressed SVG pages, sampled valid pages, history and back navigation');
 
-// Android asset merger expands .svg.gz to .svg before bundling the APK.
+// يحوّل دمج أصول Android ملفات .svg.gz إلى .svg قبل تضمينها في APK.
 const pageStore = fs.readFileSync(path.join(app, 'java/com/alatta/nativeapp/MushafPageStore.kt'), 'utf8');
 assert.ok(source.includes('MushafPageStore.openPage(context,page,allowNetwork)'));
 assert.ok(pageStore.includes('mushaf/pages/001.svg'));
@@ -38,13 +38,13 @@ assert.doesNotMatch(source, /GZIPInputStream/);
 
 for (const control of ["فهرس المصحف الشريف","الأجزاء","المرجعيات","الملاحظات","ابحث عن اسم السورة أو رقم الجزء","bookmark","note_$page"]) assert.ok(source.includes(control), `reader control missing: ${control}`);
 
-// Recitation range player regression checks.
+// اختبارات تراجعية لمشغّل نطاقات التلاوة.
 for(const fn of ['playRange(', 'audio.pause()', 'audio.resume()', 'audio.next()', 'audio.previous()', 'repeatRange = !repeatRange','repeat = { repeatRange }','إلى آخر الصفحة','إلى آخر السورة','customEnd','QURAN_RECITERS']) {
  assert.ok(source.includes(fn), `missing range playback control ${fn}`);
 }
 assert.match(source, /height\(20\.dp\)/);
 
-// Compact player uses an icon for repeat, but must retain a functioning toggle.
+// يستخدم المشغّل المصغّر أيقونة للتكرار، لكن يجب أن يبقى زر التبديل عاملًا.
 assert.match(source, /IconButton\(onClick = \{ repeatRange = !repeatRange \}\)/);
 assert.match(source, /if \(repeat\(\)\) current = start/);
 console.log('PASS: inline recitation controls, repeat-range state and Arabic labels');

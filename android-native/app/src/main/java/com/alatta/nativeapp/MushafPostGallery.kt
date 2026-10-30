@@ -32,10 +32,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 /**
- * The feed shows ONE fixed first-page cover, like a video thumbnail.
- * Tapping opens a separate fullscreen vertical page viewer. No nested feed
- * scrolling; ten shared pages never block scrolling to the next post.
- * The existing uploaded preview and local offline SVG renderer are reused.
+ * يعرض الموجز غلافًا ثابتًا لصفحة أولى واحدة، مثل الصورة المصغرة للفيديو.
+ * يفتح الضغط عارض صفحات عموديًا منفصلًا بملء الشاشة. لا يوجد تمرير متداخل للموجز،
+ * ولا تمنع الصفحات العشر المشتركة الوصول بالتمرير إلى المنشور التالي.
+ * يُعاد استخدام المعاينة المرفوعة الحالية ومرسّم SVG المحلي دون اتصال.
  */
 @Composable
 internal fun MushafPostGallery(
@@ -80,8 +80,8 @@ internal fun MushafPostGallery(
                 }
                 VerticalPager(state = pager, modifier = Modifier.weight(1f).fillMaxWidth(),
                     beyondViewportPageCount = 1) { position ->
-                    // Exactly one page per vertical swipe; the page stays within
-                    // its viewport and does not insert gaps between pages.
+                    // صفحة واحدة بالضبط لكل سحب عمودي؛ وتبقى الصفحة داخل
+                    // إطار العرض من دون فراغات بين الصفحات.
                     Box(Modifier.fillMaxSize().background(Color(0xFFFDF7E6)),
                         contentAlignment = Alignment.Center) {
                         if (position == 0 && coverModel != null) {
@@ -100,7 +100,7 @@ internal fun MushafPostGallery(
     }
 }
 
-/** Reuse the original SVG-based mushaf renderer, without new image assets. */
+/** أعد استخدام مرسّم المصحف الأصلي بصيغة SVG، من دون إضافة أصول صور جديدة. */
 @Composable
 private fun MushafGalleryPage(page: Int, modifier: Modifier = Modifier) {
     val context = LocalContext.current

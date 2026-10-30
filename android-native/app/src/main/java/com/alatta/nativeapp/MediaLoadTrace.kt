@@ -7,10 +7,10 @@ import androidx.media3.datasource.HttpDataSource
 import org.json.JSONArray
 import org.json.JSONObject
 
-/** Fixed error labels only: never serialize exception text, URLs, headers or response bodies. */
+/** تسميات أخطاء ثابتة فقط: لا تسلسل نص الاستثناءات أو عناوين URL أو الترويسات أو أجسام الردود. */
 internal data class SafeMediaFailure(val kinds: List<String>, val httpStatus: Int?, val ioReason: Int?, val dnsHost: String? = null)
 
-/** Public DNS names only. Reject URLs, userinfo, IP literals and local/private names. */
+/** أسماء DNS عامة فقط. ارفض عناوين URL ومعلومات المستخدم وعناوين IP والأسماء المحلية أو الخاصة. */
 internal fun safeMediaHost(value: String?): String? {
     val host = value?.lowercase(java.util.Locale.ROOT)?.removeSuffix(".") ?: return null
     if (host.length !in 3..253 || !host.matches(Regex("""(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?"""))) return null

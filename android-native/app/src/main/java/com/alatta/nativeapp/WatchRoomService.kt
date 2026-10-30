@@ -40,7 +40,7 @@ internal object WatchRoomController {
     fun signal(packet: org.json.JSONObject) { engine?.enqueue(packet) }
 }
 
-/** Explicitly joined foreground camera/mic call; it survives changing tabs and opening the channel player. */
+/** مكالمة كاميرا وميكروفون بدأها المستخدم صراحةً؛ تستمر عند تبديل التبويبات وفتح مشغّل القناة. */
 class WatchRoomService : Service() {
     private var engine: WatchRoomEngine? = null
     private var busyId = ""

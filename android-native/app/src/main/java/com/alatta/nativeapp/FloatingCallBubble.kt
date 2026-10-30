@@ -21,7 +21,7 @@ import kotlinx.coroutines.launch
 
 private object LastCallBubblePosition { var horizontal = 0f; var vertical = .35f }
 
-/** A chat-head style host. Physical coordinates keep dragging correct in Arabic/RTL. */
+/** نافذة عائمة شبيهة برأس المحادثة؛ تحفظ الإحداثيات الفعلية صحة السحب في واجهة RTL العربية. */
 @Composable
 internal fun FloatingCallBubble(minimized: Boolean = true, content: @Composable (Modifier) -> Unit) {
     var horizontal by rememberSaveable { mutableFloatStateOf(LastCallBubblePosition.horizontal) }

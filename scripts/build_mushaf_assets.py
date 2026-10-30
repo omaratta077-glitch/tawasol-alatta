@@ -34,10 +34,10 @@ def page_asset(args):
  points=[[float(n.get('{'+AYAH+'}x')),float(n.get('{'+AYAH+'}y'))] for n in markers]
  lines=7 if number<=2 else 15;offset=20 if number<=2 else 6
  points.sort(key=lambda p:(math.ceil((p[1]-offset)/((height-offset*2)/lines)),-p[0]))
- # Original path geometry remains from the upstream converter. Only presentation metadata is added.
+ # بقيت هندسة المسارات الأصلية من المحوّل السابق. أُضيفت بيانات العرض فقط.
  text=raw.decode().replace('<svg ', '<svg preserveAspectRatio="none" ',1)
  style='<style>#ayah_markers path{fill:#884300!important}#content path{stroke:#000;stroke-width:.12;stroke-linejoin:round}</style>'
- # Floral end-marker frames are presentation artwork; the original numeral paths stay intact.
+ # إطارات علامة نهاية السورة الزخرفية للعرض؛ وتبقى مسارات الأرقام الأصلية كما هي.
  flowers=[]
  for x,y in points:
   coords=[]
@@ -75,8 +75,8 @@ def main():
   item=pages[n];numbers=[]
   for marker in item['markers']:
    count+=1;assert count<len(ayahs)
-   # This printed Madani edition and the API do not share every page break.
-   # Use the actual printed endpoints in reading order, never the API page field.
+   # لا تتطابق فواصل الصفحات في هذه الطبعة المدنية المطبوعة مع واجهة API في كل المواضع.
+   # استخدم نهايات الصفحات المطبوعة الفعلية بترتيب القراءة، ولا تستخدم حقل الصفحة في واجهة API.
    if ayahs[count]['page']!=n:different_pages.add(n)
    ayahs[count]['page']=n
    marker.insert(0,count);numbers.append(count)

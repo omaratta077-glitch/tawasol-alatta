@@ -91,7 +91,7 @@ private class IncomingCallAlert(private val context: Context) {
     }
 }
 
-/** Restore the v145 local ringtone while the incoming-call prompt is visible. */
+/** استعد نغمة الرنين المحلية v145 أثناء ظهور إشعار المكالمة الواردة. */
 @Composable
 internal fun IncomingCallRingtone(call: PushCall) {
     val context = LocalContext.current
@@ -102,7 +102,7 @@ internal fun IncomingCallRingtone(call: PushCall) {
         AttaPush.rememberIncoming(context, call)
         val alert = IncomingCallAlert(context.applicationContext)
         fun startVisibleAlert() {
-            // Hand over from the background OS notification before local audio.
+            // انتقل من إشعار النظام في الخلفية قبل تشغيل الصوت المحلي.
             AttaPush.dismiss(context, callId, ended = false)
             alert.start()
         }
@@ -151,7 +151,7 @@ private class OutgoingRingback {
     }
 }
 
-/** The same call identity and signaling format used by the website. */
+/** هوية المكالمة وتنسيق الإشارات نفسيهما المستخدمان في الموقع. */
 internal data class NativeCallSession(
     val peer: String,
     val type: String,
@@ -213,13 +213,13 @@ internal fun NativeCallScreen(
     var speakerOn by remember(session.callId) { mutableStateOf(videoCall) }
     var bluetoothConnected by remember(session.callId) { mutableStateOf(false) }
     var hangingUp by remember(session.callId) { mutableStateOf(false) }
-    // Both caller and callee hide the central video labels as soon as media
-    // connects; a received frame also covers devices missing CONNECTED callbacks.
+    // يخفي المتصل والمجيب تسميات الفيديو الوسطى فور اتصال الوسائط؛ ويؤكد وصول
+    // إطار مستلم الاتصال أيضًا على الأجهزة التي تتأخر فيها إشعارات CONNECTED.
     val videoEstablished = connectedAt > 0L || remoteReady
 
-    // A single native PeerConnectionFactory, native camera capture, and native
-    // SurfaceViewRenderers are owned by this session. The old call HTML and
-    // its Canvas/WebView overlays have been removed, not duplicated.
+    // يتولى هذه الجلسة مصنع PeerConnectionFactory أصلي واحد، والتقاط كاميرا أصلي،
+    // وعروض SurfaceViewRenderer أصلية. أُزيلت صفحة مكالمة HTML القديمة
+    // وطبقات Canvas/WebView الخاصة بها بدلًا من إنشاء نسخة مكررة.
     val engine = remember(session.callId, token) {
         NativeRtcCall(
             context.applicationContext, session, token, myUsername,
@@ -236,8 +236,8 @@ internal fun NativeCallScreen(
     val bluetoothPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { granted -> if (granted) engine.refreshAudioRoute() }
-    // Bluetooth device enumeration can be empty before BLUETOOTH_CONNECT is granted.
-    // Ask once when entering a native call, then re-evaluate routing on grant.
+    // قد تكون قائمة أجهزة Bluetooth فارغة قبل منح BLUETOOTH_CONNECT.
+    // اطلب الإذن مرة عند دخول مكالمة أصلية، ثم أعد تقييم توجيه الصوت بعد الموافقة.
     LaunchedEffect(engine) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
             ContextCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_CONNECT) !=
@@ -248,8 +248,8 @@ internal fun NativeCallScreen(
 
     val localRenderer = remember(engine) { SurfaceViewRenderer(context) }
     val remoteRenderer = remember(engine) { SurfaceViewRenderer(context) }
-    // SurfaceViewRenderer has its own EGL surface; initialize once, outside the
-    // Compose view factory so minimizing never destroys the media connection.
+    // يملك SurfaceViewRenderer سطح EGL خاصًا به؛ هيّئه مرة واحدة خارج
+    // مصنع عروض Compose حتى لا يؤدي التصغير إلى قطع اتصال الوسائط.
     DisposableEffect(engine) {
         remoteRenderer.init(engine.eglContext(), null)
         remoteRenderer.setScalingType(RendererCommon.ScalingType.SCALE_ASPECT_FILL)
@@ -289,7 +289,7 @@ internal fun NativeCallScreen(
     Box(modifier.clip(if (minimized) CircleShape else RoundedCornerShape(0.dp))
         .background(CallBackground)) {
         if (videoCall) {
-            // The large view is the remote decoded frames, NOT an iframe/WebView.
+            // العرض الكبير هو الإطارات البعيدة المفكوكة، وليس iframe أو WebView.
             AndroidView(factory = { remoteRenderer }, modifier = Modifier.fillMaxSize())
             Box(
                 Modifier.align(Alignment.TopEnd)
@@ -329,8 +329,8 @@ internal fun NativeCallScreen(
                 }
             }
         } else {
-            // Audio-call identity and live status are centered in one balanced
-            // area. Video keeps decoded remote frames behind a compact overlay.
+            // تتوسط هوية المكالمة الصوتية وحالتها الحية مساحة متوازنة واحدة.
+            // ويبقي الفيديو الإطارات البعيدة المفكوكة خلف طبقة تحكم مدمجة.
             Column(Modifier.fillMaxSize()) {
                 Row(Modifier.fillMaxWidth().height(46.dp).padding(horizontal = 12.dp),
                     verticalAlignment = Alignment.CenterVertically) {
@@ -357,8 +357,8 @@ internal fun NativeCallScreen(
                         }
                         Spacer(Modifier.height(18.dp))
                     }
-                    // During an established video call, leave the remote picture
-                    // unobstructed. Audio calls keep their existing identity UI.
+                    // أثناء مكالمة فيديو قائمة، اترك صورة الطرف الآخر بلا حجب.
+                    // وتحتفظ مكالمات الصوت بواجهة الهوية الحالية.
                     if (!videoCall || !videoEstablished) {
                         Text(peerDisplayName, fontSize = 24.sp,
                             fontWeight = FontWeight.Bold, color = CallWhite,
@@ -368,7 +368,7 @@ internal fun NativeCallScreen(
                             color = CallMuted, fontSize = 16.sp, textAlign = TextAlign.Center)
                         Spacer(Modifier.height(30.dp))
                     }
-                    // Decorative, non-interactive audio wave; does not replace WebRTC.
+                    // موجة صوتية زخرفية غير تفاعلية؛ ولا تحل محل WebRTC.
                     if (!videoCall) {
                         Row(horizontalArrangement = Arrangement.spacedBy(5.dp),
                             verticalAlignment = Alignment.CenterVertically) {
@@ -388,12 +388,12 @@ internal fun NativeCallScreen(
                         )
                     }
                 }
-                // Bottom third, rather than overlapping Android's navigation bar.
+                // ضعها في الثلث السفلي بدلًا من التداخل مع شريط تنقل Android.
                 Row(Modifier.fillMaxWidth().height(92.dp)
                     .padding(horizontal = 12.dp),
                     horizontalArrangement = Arrangement.spacedBy(if (videoCall) 12.dp else 20.dp, Alignment.CenterHorizontally),
                     verticalAlignment = Alignment.CenterVertically) {
-                    // RTL row: first item is at the far right in audio and video calls.
+                    // صف RTL: يظهر العنصر الأول عند أقصى اليمين في المكالمات الصوتية والمرئية.
                     CallControl("phone", "إنهاء", danger = true) { endCall() }
                     CallControl(if (muted) "mic-off" else "mic", "الميكروفون", active = muted) {
                         muted = engine.toggleMute()

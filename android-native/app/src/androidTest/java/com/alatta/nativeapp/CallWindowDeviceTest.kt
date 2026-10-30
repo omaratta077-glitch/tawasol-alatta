@@ -38,7 +38,7 @@ class CallWindowDeviceTest {
             assertTrue("Overlay caller name above Home", visible("متصل الاختبار"))
             assertTrue("Approved full logo", visible("AL-ATTA MEDIA"))
             assertTrue("Answer action", visible("رد")); assertTrue("Reject action", visible("رفض"))
-            // Longer than an ordinary transient heads-up notification.
+            // مدة أطول من إشعار عابر عادي أعلى الشاشة.
             SystemClock.sleep(6000)
             assertTrue("Card remains while ringing", visible("متصل الاختبار"))
             instrumentation.runOnMainSync { AttaPush.dismiss(context, invitation.callId) }

@@ -17,8 +17,8 @@ internal object FeedPages {
             (if (!author.isNullOrBlank()) "&author=" + enc(author) else "")
         var response = get(path)
         val paged = response.optBoolean("paged")
-        // Old Workers ignore the author filter. Preserve the previous own-post
-        // window while the native and backend deployments roll out independently.
+        // تتجاهل Workers القديمة مرشح الكاتب. حافظ على نافذة منشورات المستخدم السابقة
+        // إلى أن يكتمل نشر تحديثي التطبيق الأصلي والخادم كلٌّ على حدة.
         if (!paged && !author.isNullOrBlank()) response = get("/api/posts?limit=50")
         val array = response.optJSONArray("posts")
         val all = (0 until (array?.length() ?: 0)).mapNotNull { array?.optJSONObject(it) }
@@ -32,12 +32,12 @@ internal object FeedPages {
     private fun enc(value: String) = URLEncoder.encode(value, "UTF-8")
 }
 
-/** Either part may fail without suppressing the other part's successful result. */
+/** يمكن أن يفشل أي جزء من دون حجب النتيجة الناجحة للجزء الآخر. */
 internal suspend fun loadAccountScreen(get: suspend (String) -> JSONObject, author: String,
     account: (JSONObject) -> Unit, posts: (FeedPage) -> Unit) = supervisorScope {
     if (author.isBlank()) {
-        // Resolve the real identity before filtering: never label the public feed
-        // as the user's own posts when an older saved session lacks a username.
+        // تحقّق من الهوية الحقيقية قبل التصفية؛ ولا تعرض الموجز العام
+        // على أنه منشورات المستخدم إذا كانت جلسة محفوظة قديمة تفتقر إلى اسم المستخدم.
         val user = get("/api/me").getJSONObject("user")
         account(user)
         val username = user.getString("username").takeIf { it.isNotBlank() }

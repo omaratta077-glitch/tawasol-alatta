@@ -15,7 +15,7 @@ import org.json.JSONObject
 internal data class JsonHttpResponse(val code: Int, val data: JSONObject)
 internal class ResponseTooLarge : IOException("حجم البيانات كبير؛ حمّل المنشورات على دفعات أصغر")
 
-/** One pool for normal HTTP traffic. Never replay a write after an ambiguous disconnect. */
+/** مجموعة اتصال واحدة لطلبات HTTP العادية؛ لا تُعِد إرسال كتابة بعد انقطاع ملتبس. */
 internal object AttaHttp {
     val apiClient = OkHttpClient.Builder().connectTimeout(8, TimeUnit.SECONDS)
         .readTimeout(20, TimeUnit.SECONDS).callTimeout(25, TimeUnit.SECONDS)
@@ -58,7 +58,7 @@ internal object AttaHttp {
                 val transient = failure is SocketException || failure is EOFException || failure is SocketTimeoutException ||
                     failure.message.orEmpty().contains("unexpected end of stream", ignoreCase = true)
                 if (payload != null || attempt++ >= 1 || !transient || System.nanoTime() >= deadline) throw failure
-                // A fresh connection for the safe GET; no recursive retry and no POST replay.
+                // اتصال جديد لطلب GET الآمن؛ بلا محاولات متداخلة ولا إعادة إرسال لطلب POST.
                 Thread.sleep(100)
             }
         }

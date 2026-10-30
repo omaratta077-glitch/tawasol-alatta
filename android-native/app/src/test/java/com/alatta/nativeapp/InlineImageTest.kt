@@ -39,8 +39,8 @@ class InlineImageTest {
         try {
             val request = ImageRequest.Builder(context).data(bytes).size(128, 128).allowHardware(false).build()
             val future = executor.submit<coil.request.ImageResult> { runBlocking { loader.execute(request) } }
-            // PAUSED Robolectric shares the test/main thread. Drive Main while
-            // Coil decodes on its worker; blocking Main would deadlock the test.
+            // يشارك Robolectric في وضع الإيقاف المؤقت خيط الاختبار والرئيسي. شغّل الخيط الرئيسي بينما
+            // تفك Coil الصورة في عاملها؛ حظر الخيط الرئيسي سيعلّق الاختبار.
             val deadline = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(15)
             while (!future.isDone && System.nanoTime() < deadline) {
                 org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()

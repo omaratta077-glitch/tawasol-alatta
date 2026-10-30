@@ -72,11 +72,11 @@ while(true){
 check('Complete read-only backup page iteration', exported.length===preview.data.durableObjectKeys && exported.some(e=>e.key==='user:omar1'));
 check('Owner can inventory media', (await post('/api/admin/reset/media-list',{token:sessions.omar1})).data.objects[0].key==='image/test.png');
 check('No data was deleted during preview or export', deletes===deletesBeforeReview && !!(await storage.get('user:omar1')));
-// Google account creation is equally protected (without calling Google test network).
+// يخضع إنشاء حساب Google للحماية نفسها، دون الاتصال بشبكة اختبار Google.
 check('Gender is required for standard registration', Boolean(await room.validateRegistration({fullName:'X Test',username:'newname',age:20,email:'new@test.com',gender:'',password:'123456',confirmPassword:'123456'})));
 check('Female hiding choice is mandatory', (await room.validateRegistration({fullName:'X Test',username:'newname',age:20,email:'new@test.com',gender:'female',password:'123456',confirmPassword:'123456'})).includes('إخفاء'));
 check('Male registration cannot request hidden account', (await room.validateRegistration({fullName:'X Test',username:'newname',age:20,email:'new@test.com',gender:'male',accountHidden:true,password:'123456',confirmPassword:'123456'})).includes('متاح'));
-// Hidden identities must also be removed from nested public content and legacy data.
+// يجب أيضًا حذف الهويات المخفية من المحتوى العام المتداخل والبيانات القديمة.
 const publicPost={id:'public',author:'bob',text:'visible sample',likes:['dina','bob'],reactions:{love:['dina']},comments:[
  {id:'hidden-comment',author:'dina',text:'private'},
  {id:'public-comment',author:'bob',text:'visible',replies:[{id:'hidden-reply',author:'dina',text:'private reply'}]}

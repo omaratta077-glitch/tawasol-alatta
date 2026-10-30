@@ -10,7 +10,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.json.JSONObject
 
-/** All password verification and permission checks run on the server. Nothing is saved locally. */
+/** يجري الخادم كل عمليات التحقق من كلمة المرور والصلاحيات؛ ولا يُحفظ شيء محليًا. */
 @Composable
 internal fun AdminProtectionPanel(
     configured: Boolean, busy: Boolean,

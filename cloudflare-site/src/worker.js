@@ -1,5 +1,5 @@
 import { DurableObject } from "cloudflare:workers";
-// BEGIN Google Apps Script email transport (server-side only)
+// BEGIN نقل البريد عبر Google Apps Script (على الخادم فقط)
 async function sendViaGoogleAppsScript(env,email,code,type,fetcher=fetch){
   const endpoint=String(env.GAS_EMAIL_WEBAPP_URL||"").trim();
   const secret=String(env.GAS_EMAIL_API_SECRET||"").trim();
@@ -32,8 +32,8 @@ async function sendViaGoogleAppsScript(env,email,code,type,fetcher=fetch){
   if(!response.ok||result?.ok!==true){
     const err=new Error("EMAIL_SEND_FAILED");
     err.providerName="GoogleAppsScript";err.providerStatus=response.status;
-    // Only allowlisted classifications leave the transport; never provider text,
-    // which may contain request details, secret values or verification codes.
+    // لا تغادر النقل إلا التصنيفات المدرجة؛ ولا تُرسل نص المزود
+    // الذي قد يحتوي تفاصيل الطلب أو قيمًا سرية أو رموز تحقق.
     err.providerReason=result?.error==="Unauthorized"?"GOOGLE_EMAIL_SECRET_MISMATCH":
       [401,403].includes(response.status)?"GOOGLE_EMAIL_ACCESS_DENIED":
       !result?"GOOGLE_EMAIL_INVALID_RESPONSE":
@@ -43,11 +43,11 @@ async function sendViaGoogleAppsScript(env,email,code,type,fetcher=fetch){
   }
   return true;
 }
-// END Google Apps Script email transport
+// END نقل البريد عبر Google Apps Script
 
-// BEGIN scoped catalog ingest
+// BEGIN استيراد الكتالوج بنطاق محدود
 const catalogIngest = (() => {
-// Scoped incoming updates only. Never contacts the channel source.
+// تحديثات واردة ضمن النطاق المحدد فقط؛ لا يتصل بمصدر القنوات.
 const json=(value,status=200)=>Response.json(value,{status,headers:{"cache-control":"no-store"}});
 const canonical=value=>typeof value==="string"?value.trim().replace(/\s+/g,"").toLowerCase():"";
 const id=value=>typeof value==="string"&&/^[1-9][0-9]{0,18}$/.test(value)&&BigInt(value)<=9223372036854775807n;
@@ -121,12 +121,12 @@ async function catalogIngest(request,storage,env){
 
 return catalogIngest;
 })();
-// END scoped catalog ingest
+// END استيراد الكتالوج بنطاق محدود
 
-// BEGIN main catalog check
+// BEGIN فحص الكتالوج الرئيسي
 const mainCatalogCheck = (() => {
-// Manual owner-triggered catalog check in the main application. No scheduler.
-// Secrets: PROBE_KEY (24-256 characters), RESPONSE_MASK (private 16-character format setting).
+// فحص يدوي للكتالوج في التطبيق الرئيسي بطلب من المالك. بلا جدولة.
+// الأسرار: PROBE_KEY (من 24 إلى 256 حرفًا)، وRESPONSE_MASK (إعداد تنسيق خاص بطول 16 حرفًا).
 const SOURCE_URL = "https://def001.ycnapi.com/api/categories";
 const MAX_RESPONSE_BYTES = 512 * 1024;
 const MAX_FORM_BYTES = 4096;
@@ -214,7 +214,7 @@ function parseCatalog(text, decoded) {
   };
 }
 
-// Metadata only: never return stream URLs, header values, license values or raw JSON.
+// بيانات وصفية فقط: لا تُعد روابط البث أو قيم الترويسات أو بيانات الترخيص أو JSON الخام.
 function inspectPlayback(text, decoded) {
   const invalid = message => ({ state: "INVALID", message, entries: [], responseDecoded: decoded });
   let root;
@@ -243,7 +243,7 @@ function inspectPlayback(text, decoded) {
     responseDecoded: decoded, entries: [], streams, streamCount: streams.length };
 }
 
-// Used only by the authenticated native owner test, never the public probe form.
+// يُستخدم فقط في اختبار المالك الأصلي المصادق عليه، وليس في نموذج الفحص العام.
 function nativeSources(rows) {
   const sources = [];
   for (const [index, row] of rows.entries()) {
@@ -256,7 +256,7 @@ function nativeSources(rows) {
     if (!['https:', 'http:'].includes(u.protocol) || u.username || u.password || u.port ||
         !host.includes('.') || /^[\d.]+$/.test(host) || host.includes(':') ||
         /(^|\.)(localhost|local|internal|invalid|test)$/.test(host)) continue;
-    // Android permits HTTP only for the two CDN domain families observed by the owner.
+    // لا يسمح إصدار Android 1.0.201 بأي اتصال HTTP غير مشفّر.
     if (u.protocol === 'http:' && !['new-redirect.online', 'cdnarvo.buzz'].some(d => host === d || host.endsWith('.' + d))) continue;
     if (row.headers != null && (typeof row.headers !== 'object' || Array.isArray(row.headers))) continue;
     const headers = {};
@@ -323,7 +323,7 @@ function readCatalog(text, headerTime, responseMask, parse = parseCatalog) {
   const trimmed = text.replace(/^\uFEFF/, "").trim();
   if (trimmed.startsWith("{") || trimmed.startsWith("[")) return parse(trimmed, false);
   const unreadable = (state, message) => ({ state, message, entries: [], responseDecoded: false });
-  // Only a trailing file newline is removed; spaces inside the format setting are preserved.
+  // أزل السطر الأخير فقط من الملف؛ واحتفظ بالمسافات داخل إعداد التنسيق.
   const prefix = typeof responseMask === "string" ? responseMask.replace(/\r?\n$/, "") : "";
   if (!prefix) return unreadable("CONFIG_MISSING", "وصل رد مرمّز. أضف Secret باسم RESPONSE_MASK بقيمة إعداد القراءة المحفوظ عندك.");
   if (!/^[\x20-\x7e]{16}$/.test(prefix)) return unreadable("CONFIG_INVALID", "إعداد RESPONSE_MASK يجب أن يكون 16 حرف ASCII قابلًا للطباعة، من ملف إعداد القراءة نفسه.");
@@ -425,7 +425,7 @@ return {
     try {
       let discoveredCategory = null;
       if (publish) {
-        // Resolve by name every time: never trust a remembered section number.
+        // ابحث بالاسم كل مرة؛ ولا تثق برقم قسم محفوظ.
         const sections = await fetch(SOURCE_URL, {
           method: "GET", headers: { Accept: "application/json", "User-Agent": "okhttp/4.12.0" },
           redirect: "manual", signal: controller.signal,
@@ -455,15 +455,15 @@ return {
       let text = new TextDecoder().decode(body.bytes).replace(/^\uFEFF/, "").trim();
       let effectiveChannel = channel;
       let idRefreshed = false;
-      // A 404 may be an expired source ID. Refresh by exact catalog labels once;
-      // do not guess IDs, change endpoints or retry an unchanged ID.
+      // قد يعني 404 انتهاء صلاحية معرّف المصدر. حدّث مرة واحدة باستخدام أسماء الكتالوج المطابقة تمامًا؛
+      // ولا تخمّن المعرّفات أو تغيّر المسارات أو تعاود الطلب بمعرّف لم يتغير.
       if (nativePlayback && response.status === 404 &&
           !/(?:error\s*code\s*:?|error\s+)\s*(10\d{2}|11\d{2})\b/i.test(text) &&
           typeof channelSelector?.name === 'string' && channelSelector.name.length <= 120 &&
           typeof channelSelector?.category === 'string' && channelSelector.category.length <= 120) {
         const canonical = value => value.replace(/\s+/g, '').toLowerCase();
-        // Category display labels can contain mirrored brackets or bidi marks.
-        // Preserve letters/digits/quality; only ignore presentation characters.
+        // قد تتضمن أسماء الفئات المعروضة أقواسًا متقابلة أو علامات اتجاه ثنائية.
+        // احتفظ بالحروف والأرقام والجودة؛ وتجاهل رموز العرض فقط.
         const categoryKey = value => value.normalize('NFKC').replace(/[\s\p{Cf}()[\]{}]/gu, '').toLowerCase();
         const categoryName = categoryKey(channelSelector.category), channelName = canonical(channelSelector.name);
         if (categoryName && channelName) {
@@ -555,8 +555,8 @@ return {
           const platform = !response.ok && text.match(/(?:error\s*code\s*:?|error\s+)\s*(10\d{2}|11\d{2})\b/i);
           const platformCode = platform ? 'CLOUDFLARE_' + platform[1] : null;
           const code = !response.ok ? 'SOURCE_HTTP_ERROR' : catalog.state;
-          // v192 already displays error; put the safe status/stage in that field too.
-          // This is a resolver failure before any video is loaded by the phone.
+          // يعرض v192 الخطأ بالفعل؛ أضف إليه الحالة والمرحلة الآمنتين.
+          // هذا عطل في محلل الرابط قبل تحميل أي فيديو إلى الهاتف.
           return respond({ ok: false,
             error: `تعذر جلب بيانات تشغيل القناة (HTTP ${response.status}؛ ${stage}${platformCode ? '؛ ' + platformCode : ''}${idRefreshed ? '؛ ID_REFRESHED' : ''}؛ ${code}).`,
             code, stage, platformCode, sourceHTTP: response.status, idRefreshed }, 502);
@@ -580,7 +580,7 @@ return {
             categoryId: discoveredCategory.id, categoryName: discoveredCategory.name, sourceTime: time,
             entries: catalog.entries.map(({ id, name }) => ({ id, name })),
           });
-          // Record HTTP metadata before parsing so a non-JSON response stays diagnosable.
+          // سجّل بيانات HTTP قبل التحليل كي يظل الرد غير JSON قابلًا للتشخيص.
           publishResult.status = saved.status;
           publishResult.stage = "READ_RESPONSE";
           const rawType = (saved.headers.get("Content-Type") || "").split(";")[0].trim().toLowerCase();
@@ -664,10 +664,10 @@ return {
 
 
 })();
-// END main catalog check
+// END فحص الكتالوج الرئيسي
 
-// BEGIN catalog refresh scheduler
-// One persistent scheduler in the main deployment, separate from notification alarms.
+// BEGIN مجدول تحديث الكتالوج
+// مجدول دائم واحد في النشر الرئيسي، مستقل عن منبّهات الإشعارات.
 function createCatalogRefresh(Base,check){
  const interval=30000,keyName='catalog:auto';
  const json=(body,status=200)=>Response.json(body,{status,headers:{'Cache-Control':'no-store'}});
@@ -711,7 +711,7 @@ function createCatalogRefresh(Base,check){
   async perform(){
    const state=await this.ctx.storage.get(keyName);if(!state?.enabled)return;
    const started=Date.now(),nextRun=started+interval;
-   // Persist the next wake before network access; a process restart does not stop the schedule.
+   // احفظ وقت الإيقاظ التالي قبل الاتصال بالشبكة؛ كيلا توقف إعادة تشغيل العملية الجدول.
    await this.ctx.storage.setAlarm(nextRun);
    let report;
    try{
@@ -738,12 +738,12 @@ function createCatalogRefresh(Base,check){
 }
 
 export const CatalogRefresh = createCatalogRefresh(DurableObject,mainCatalogCheck);
-// END catalog refresh scheduler
+// END مجدول تحديث الكتالوج
 
 const encoder = new TextEncoder();
 
-// Football is an owner-managed catalog. Streams are played directly by the client,
-// without proxying another service or obtaining its credentials.
+// يدير المالك كتالوج كرة القدم. يشغّل العميل التدفقات مباشرةً
+// من دون تمريرها عبر خدمة أخرى أو الحصول على بيانات اعتمادها.
 const FOOTBALL_FORMATS=["hls","dash","youtube","external","ytv"];
 function footballYtvId(value){
   if(typeof value!=="string")return "";
@@ -791,7 +791,7 @@ function footballChange(current,body){
     const item={id:id||"fc-"+crypto.randomUUID(),name,category,provider,sourceUrl,streamUrl,format,enabled:channel.enabled};
     if(index<0)next.channels.push(item);else next.channels[index]=item;
     }
-    // Validate the final snapshot, so rotating/swapping IDs cannot leave a partial catalog.
+    // تحقّق من النسخة النهائية كاملة حتى لا يؤدي تدوير المعرّفات أو تبديلها إلى كتالوج جزئي.
     if(new Set(next.channels.map(c=>c.streamUrl)).size!==next.channels.length)return {status:409,error:"رقم أو رابط القناة مضاف بالفعل؛ عدّل القناة الموجودة بدل تكرارها"};
   }else if(body.action==="deleteChannel"){
     if(!next.channels.some(c=>c.id===body.id))return {status:404,error:"القناة غير موجودة"};
@@ -822,10 +822,10 @@ async function hashPassword(text){
   return [...new Uint8Array(buf)].map(b=>b.toString(16).padStart(2,"0")).join("");
 }
 
-// Cloudflare Workers WebCrypto currently rejects PBKDF2 rounds > 100,000.
-// Keep the stored format versioned as pbkdf2:<rounds>:<salt>:<digest>.
-// Any older hash with a different supported round count is still read by
-// passwordMatches using the rounds embedded in its stored value.
+// يرفض WebCrypto في Cloudflare Workers حاليًا عدد دورات PBKDF2 الأكبر من 100,000.
+// احتفظ بتنسيق تخزين ذي إصدار: pbkdf2:<rounds>:<salt>:<digest>.
+// تظل أي بصمة أقدم بعدد دورات مدعوم مختلف قابلة للقراءة بواسطة
+// passwordMatches باستخدام العدد المضمّن في القيمة المخزنة.
 const KDF_ITERATIONS=100000;
 async function securePassword(password){
   const salt=crypto.getRandomValues(new Uint8Array(16));
@@ -856,8 +856,8 @@ function j(data,status=200){
   });
 }
 
-// Valid legacy post payloads fit below this bound; reject before JSON.parse,
-// including chunked requests with no trustworthy Content-Length.
+// تناسب بيانات المنشور القديمة الصحيحة هذا الحد؛ ارفض قبل JSON.parse،
+// بما في ذلك الطلبات المقسمة التي لا تحتوي Content-Length موثوقًا.
 const MAX_API_JSON_BYTES=4*1024*1024;
 const RASTER_IMAGE_TYPES=new Set(["image/jpeg","image/png","image/webp","image/gif","image/avif","image/heic","image/heif","image/bmp","image/x-ms-bmp"]);
 async function readApiJson(request){
@@ -901,7 +901,7 @@ function isAdhanAudio(bytes){
     (bytes[0]===255 && (bytes[1]&0xe0)===0xe0);
 }
 
-// Merge legacy likes with modern reactions; one person has one visible reaction.
+// ادمج الإعجابات القديمة مع التفاعلات الحديثة؛ ولكل شخص تفاعل ظاهر واحد.
 function postReactionMembers(post){
   const members=new Map();
   for(const name of Array.isArray(post.likes)?post.likes:[])if(typeof name==="string"&&name)members.set(name,"like");
@@ -959,7 +959,7 @@ export class SignalingRoom extends DurableObject {
       if(!post || post.archived || !await this.canSeeContent(post.author,post.author)){
         await this.ctx.storage.delete(key);
       }else{
-        // Persist a cursor: publishing never waits for all accounts or device pushes.
+        // احفظ مؤشرًا: لا ينتظر النشر اكتمال جميع الحسابات أو إشعارات الأجهزة.
         const page=await this.ctx.storage.list({prefix:"user:",limit:25,...(job.cursor?{startAfter:job.cursor}:{})});
         for(const [userKey,user] of page){
           const to=user.username;
@@ -1024,8 +1024,8 @@ export class SignalingRoom extends DurableObject {
       const user=await this.user(name);
       let result=null;
       if(user && !user.banned && !user.disabled && !await this.isBlockedBetween(viewer,name)){
-        // Per-response opaque aliases retain distinct counts without exposing a
-        // username, avatar, profile link, or a cross-post tracking identifier.
+        // تحتفظ الأسماء البديلة المعتمة داخل كل استجابة بالتعدادات المختلفة من دون كشف
+        // اسم مستخدم أو صورة أو رابط ملف شخصي أو معرّف تتبّع مشترك بين المنشورات.
         result=user.accountHidden && name!==viewer?`~anonymous:${identities.size}`:name;
       }
       identities.set(name,result);return result;
@@ -1037,8 +1037,8 @@ export class SignalingRoom extends DurableObject {
     }
     const commentView=async comment=>{
       const author=await identity(comment.author);if(!author)return null;
-      // Feed previews need names, not an embedded copy of the same photo in
-      // every comment. Full avatars are loaded by the paginated people panel.
+      // تحتاج معاينات الموجز إلى الأسماء، لا إلى نسخة مضمّنة من الصورة نفسها في
+      // كل تعليق. تُحمّل الصور الكاملة في لوحة الأشخاص المقسمة إلى صفحات.
       if(!commentPeople.has(author))commentPeople.set(author,await this.interactionPerson(author,false));
       return {...comment,author,authorInfo:commentPeople.get(author)};
     };
@@ -1104,9 +1104,9 @@ export class SignalingRoom extends DurableObject {
   }
 
 
-  // A hidden account is never discoverable by search, presence lists or public friend lists.
-  // Direct access is reserved for its owner, confirmed friends and the receiver of a
-  // friend request initiated by the hidden account. A friendship never makes it public.
+  // لا يمكن العثور على الحساب المخفي عبر البحث أو قوائم الظهور أو قوائم الأصدقاء العامة.
+  // يقتصر الوصول المباشر على المالك وأصدقائه المؤكدين ومستلم طلب الصداقة
+  // الذي بدأه الحساب المخفي. ولا تجعل الصداقة الحساب عامًا.
   async canViewProfile(viewer, target){
     if(!viewer || !target || await this.isBlockedBetween(viewer,target))return false;
     const u=await this.user(target);
@@ -1146,7 +1146,7 @@ export class SignalingRoom extends DurableObject {
     return (await this.blockedUsers(a)).includes(b) || (await this.blockedUsers(b)).includes(a);
   }
 
-  // One authorization policy for HTTP chat, WebSocket chat, call signaling and presence.
+  // سياسة تفويض واحدة لمحادثات HTTP وWebSocket وإشارات المكالمات وحالة الوجود.
   async canCommunicate(a,b){
     if(!a || !b || a===b || await this.isBlockedBetween(a,b))return false;
     const ua=await this.user(a),ub=await this.user(b);
@@ -1170,7 +1170,7 @@ export class SignalingRoom extends DurableObject {
     return u?{username:u.username,fullName:u.fullName,displayName:u.displayName,...(includeAvatar?{avatar:u.avatar}:{})}:null;
   }
 
-  // Following/sharing still reveals identity and retains its prior policy.
+  // يظل المتابعة أو المشاركة كاشفًا للهوية وتبقى سياستهما السابقة.
   async canRevealInteraction(actor,audience){
     const u=await this.user(actor);
     return !u?.accountHidden || actor===audience || await this.canCommunicate(actor,audience);
@@ -1201,7 +1201,7 @@ export class SignalingRoom extends DurableObject {
     if(!session)return null;
     const u=await this.user(session.username);
     if(!u || u.banned || u.disabled || Number(session.moderationVersion||0)!==Number(u.moderationVersion||0) || Number(session.authVersion||0)!==Number(u.authVersion||0))return null;
-    // Keep the existing sessions working, but cap lifetime for safety.
+    // أبقِ الجلسات الحالية صالحة، مع تحديد أقصى مدة لها للسلامة.
     if(Date.now()-Number(session.createdAt||0)>30*24*60*60*1000)return null;
     return session;
   }
@@ -1224,7 +1224,7 @@ export class SignalingRoom extends DurableObject {
     const session=await this.session(String(token||""));
     if(!session)return {error:j({ok:false,error:"الجلسة منتهية"},401)};
     const role=await this.roleFor(session.username);
-    // All administration, including backups, is restricted to the configured owner.
+  // تقتصر كل صلاحيات الإدارة، بما فيها النسخ الاحتياطي، على المالك المحدد.
     if(role!=="super_admin" && !(allowModerator && role==="moderator"))return {error:j({ok:false,error:"صلاحيات المدير الرئيسي فقط"},403)};
     return {session,role};
   }
@@ -1247,7 +1247,7 @@ export class SignalingRoom extends DurableObject {
     }finally{this.adminPasswordBusy=false;}
   }
 
-  // Private, ephemeral watch-room signaling. Media stays in WebRTC; no recording or SDP persistence.
+  // إشارات مؤقتة وخاصة لغرفة المشاهدة. تبقى الوسائط في WebRTC؛ ولا يوجد تسجيل أو حفظ دائم لـSDP.
   async watchRoomApi(request,body){
     if(request.method!=="POST")return j({ok:false,error:"طريقة الطلب غير مدعومة"},405);
     const session=await this.session(String(body.token||""));
@@ -1569,7 +1569,7 @@ export class SignalingRoom extends DurableObject {
     return j({ok:false,error:"إجراء البث غير صالح"},400);
   }
 
-  // v1.0.14: calendar date is authoritative; do not trust submitted numeric age.
+  // v1.0.14: تاريخ التقويم هو المعتمد؛ لا تثق بعمر رقمي يرسله المستخدم.
   birthDateAge(value){
     const raw=String(value||"").trim();
     if(!/^\d{4}-\d{2}-\d{2}$/.test(raw))return null;
@@ -1632,7 +1632,7 @@ export class SignalingRoom extends DurableObject {
     return `${visible}${"*".repeat(Math.max(2,name.length-visible.length))}@${domain}`;
   }
 
-  // Single durable record avoids unsupported TTL options and unbounded minute keys.
+  // سجل دائم واحد يتجنب خيارات TTL غير المدعومة ومفاتيح الدقائق غير المحدودة.
   async reserveGoogleEmailQuota(){
     const now=Date.now();
     const minute=Math.floor(now/60000);
@@ -1663,9 +1663,9 @@ export class SignalingRoom extends DurableObject {
     try{
       if(await this.sendGoogleEmailIfReady(email,code,adminSecurity?"admin":"verify"))return true;
     }catch(error){
-      // Owner enrollment must not be stranded by a failed/quota-limited Google
-      // transport when the already-configured secondary sender is available.
-      // Keep the same code, fixed owner recipient and session-bound proof.
+      // يجب ألا يتعطل تسجيل المالك بسبب فشل نقل Google أو بلوغ حصته
+      // ما دام المرسل الثانوي المعد مسبقًا متاحًا.
+      // احتفظ برمز التحقق نفسه وبمستلم المالك الثابت وإثبات مرتبط بالجلسة.
       if(!adminSecurity || !apiKey)throw error;
       primaryFailure=error;
       console.warn("Admin email primary transport unavailable; trying configured secondary sender");
@@ -1754,7 +1754,7 @@ export class SignalingRoom extends DurableObject {
 
   async adminStatistics(){
     const users=await this.allRecords("user:"),posts=await this.allRecords("post:");
-    // Calendar days use the owner's Saudi timezone, including the midnight boundary.
+    // تُحسب أيام التقويم حسب المنطقة الزمنية السعودية للمالك، بما فيها لحظة منتصف الليل.
     const dayKey=time=>new Date(Number(time)+3*3600000).toISOString().slice(0,10);
     const now=Date.now(),today=dayKey(now);
     const daily=Array.from({length:7},(_,i)=>({date:dayKey(now-(6-i)*86400000),users:0,posts:0}));
@@ -1803,7 +1803,7 @@ export class SignalingRoom extends DurableObject {
           postIds:[],storyIds:[],mediaBatches:0,nextBatch:0,deletedMedia:0};
         await this.ctx.storage.put("admin-delete:job",job);
       }
-      // Keep the gate durable across failures and restarts; drain writes already authorized.
+      // أبقِ بوابة الإيقاف دائمة عبر الأعطال وإعادة التشغيل؛ وأكمل عمليات الكتابة المصرح بها مسبقًا.
       await Promise.allSettled([...this.activeOperations]);
       this.disconnectAccount(target,"account-deleted");
       if(job.phase==="inventory"){
@@ -1816,7 +1816,7 @@ export class SignalingRoom extends DurableObject {
         job.cursor=page.size===150?[...page.keys()].at(-1):null;
         if(!job.cursor)job.phase="media_inventory";
       }else if(job.phase==="media_inventory"){
-        // Inventory completes BEFORE deleting R2 keys, so pagination cannot skip objects.
+        // اكتمل جرد العناصر قبل حذف مفاتيح R2؛ حتى لا يؤدي ترقيم الصفحات إلى تخطي ملفات.
         const page=await this.env.MEDIA_BUCKET.list({limit:300,include:["customMetadata"],...(job.cursor?{cursor:job.cursor}:{})});
         const keys=page.objects.filter(o=>o.customMetadata?.owner===target).map(o=>o.key);
         if(keys.length){await this.ctx.storage.put(`admin-delete-media:${job.mediaBatches}`,keys);job.mediaBatches++;}
@@ -1827,7 +1827,7 @@ export class SignalingRoom extends DurableObject {
           const key=`admin-delete-media:${job.nextBatch}`,keys=await this.ctx.storage.get(key)||[];
           if(keys.length)await this.env.MEDIA_BUCKET.delete(keys);
           job.deletedMedia+=keys.length;job.nextBatch++;
-          // Save progress before removing its manifest; repeated deletes are safe.
+          // احفظ التقدم قبل إزالة البيان؛ ويمكن تكرار عمليات الحذف بأمان.
           await this.ctx.storage.put("admin-delete:job",job);
           await this.ctx.storage.delete(key);
         }else{job.phase="cleanup";job.cursor=null;}
@@ -1935,7 +1935,7 @@ export class SignalingRoom extends DurableObject {
         note:"No secret values are exposed by this endpoint."
       });
     }
-    // Google Client ID is public; never return any secret here.
+    // معرّف عميل Google عام؛ لا تُعد أي سر هنا مطلقًا.
     if(url.pathname==="/api/google-config" && request.method==="GET"){
       const clientId=String(this.env.GOOGLE_CLIENT_ID||"").trim();
       return j({ok:true,enabled:!!clientId,clientId,nativeUsernameSignup:true,birthDateSignup:true});
@@ -1977,7 +1977,7 @@ export class SignalingRoom extends DurableObject {
           await this.env.MEDIA_BUCKET.put(key,bytes,{httpMetadata:{contentType},customMetadata:{owner:session.username,sha256}});
           return j({ok:true,url:`/media/${key}`,size:bytes.length,sha256,contentType});
         }
-        // R2 stores the binary stream; no base64 conversion or Durable Object storage.
+        // يخزّن R2 تدفق البيانات الثنائية؛ من دون تحويل base64 أو تخزين Durable Object.
         const object=await this.env.MEDIA_BUCKET.put(key,request.body,{
           httpMetadata:{contentType},
           customMetadata:{owner:session.username}
@@ -2086,7 +2086,7 @@ export class SignalingRoom extends DurableObject {
       const id=String(body.id||"");
       if(!/^admin-[a-f0-9-]{36}$/.test(id))return j({ok:false,error:"اختر تسجيلًا أضافته الإدارة"},400);
       await this.ctx.storage.delete("adhan-voice:"+id);
-      // Existing offline selections continue to work; never remove a user's downloaded audio.
+      // تظل اختيارات المستخدم المحفوظة دون اتصال صالحة؛ ولا تحذف أي صوت نزّله المستخدم.
       return j({ok:true});
     }
 
@@ -2428,8 +2428,8 @@ export class SignalingRoom extends DurableObject {
       let username=await this.ctx.storage.get(googleKey);
       if(username && !(await this.user(username)))username=null;
       if(!username){
-        // A verified Google identity can request the signup form without creating an account.
-        // Consent remains mandatory on the subsequent profile submission.
+        // تستطيع هوية Google التي تم التحقق منها طلب نموذج التسجيل من دون إنشاء حساب.
+        // تظل الموافقة إلزامية عند إرسال بيانات الملف الشخصي لاحقًا.
         if(!String(body.username||" ").trim())return j({ok:false,error:"USERNAME_REQUIRED: أكمل بيانات إنشاء الحساب",code:"USERNAME_REQUIRED"},409);
         if(body.legalAccepted!==true || body.legalVersion!=="2026-10-20")return j({ok:false,error:"يجب قراءة شروط الاستخدام وسياسة الخصوصية والموافقة عليهما قبل إنشاء الحساب"},400);
         const all=await this.ctx.storage.get("usernames")||[];
@@ -2439,7 +2439,7 @@ export class SignalingRoom extends DurableObject {
             return j({ok:false,error:"هذا البريد مرتبط بحساب موجود. ادخل بكلمة المرور القديمة أولًا؛ لن نربط الحساب تلقائيًا حفاظًا على أمانه."},409);
           }
         }
-        // AL-ATTA v1.0.10: New Google users select their own username.
+        // AL-ATTA v1.0.10: يختار مستخدمو Google الجدد اسم المستخدم بأنفسهم.
         const chosenUsername=String(body.username||"").trim().toLowerCase();
         if(!/^[a-z0-9_]{3,24}$/.test(chosenUsername)){
           return j({ok:false,error:"USERNAME_REQUIRED: اختر اسم مستخدم من 3 إلى 24 حرفًا إنجليزيًا أو رقمًا أو _",code:"USERNAME_REQUIRED"},409);
@@ -2543,7 +2543,7 @@ export class SignalingRoom extends DurableObject {
       }
       const requestId=crypto.randomUUID();
       await this.ctx.storage.put(key,Date.now(),{expirationTtl:70});
-      // Never disclose whether an email exists. Unknown accounts get a dummy ID.
+      // لا تكشف مطلقًا ما إذا كان البريد الإلكتروني موجودًا؛ تحصل الحسابات المجهولة على معرّف وهمي.
       if(found){
         const code=String(crypto.getRandomValues(new Uint32Array(1))[0]%1000000).padStart(6,'0');
         const pending={username:found.username,codeHash:await hashPassword(`reset:${requestId}:${code}`),attempts:0,expiresAt:Date.now()+600000};
@@ -2595,7 +2595,7 @@ export class SignalingRoom extends DurableObject {
       if(kind==="avatar")u.avatar=image; else u.cover=image;
       await this.ctx.storage.put(`user:${u.username}`,u);
 
-      // V13.42: every profile-photo/cover update creates a real feed post unconditionally.
+      // V13.42: ينشئ كل تحديث للصورة الشخصية أو الغلاف منشورًا فعليًا في الموجز دائمًا.
       const id=crypto.randomUUID();
       const post={
         id,
@@ -2649,8 +2649,8 @@ export class SignalingRoom extends DurableObject {
 
       await this.ctx.storage.put(`user:${u.username}`,u);
 
-      // V13.41: profile-media updates become real feed posts and return their IDs.
-      // This guarantees the post is created even if the browser refreshes immediately.
+      // V13.41: تتحول تحديثات وسائط الملف الشخصي إلى منشورات فعلية في الموجز وتعيد معرّفاتها.
+      // يضمن ذلك إنشاء المنشور حتى لو حدّث المتصفح الصفحة فورًا.
       const mediaPosts=[];
       if(avatarChanged)mediaPosts.push({text:"قام بتحديث صورته الشخصية.",image:u.avatar,kind:"profile_avatar"});
       if(coverChanged)mediaPosts.push({text:"قام بتحديث صورة الغلاف.",image:u.cover,kind:"profile_cover"});
@@ -2742,7 +2742,7 @@ export class SignalingRoom extends DurableObject {
       const key=prefix+'Tokens:'+s.username;
       const prior=await this.ctx.storage.get(key)||[];
       if(registering){
-        // One physical push token must not keep alerts from a previous login.
+        // يجب ألا يسمح رمز دفع فعلي واحد ببقاء تنبيهات جلسة دخول سابقة.
         if(previousOwner && previousOwner!==s.username){
           const oldKey=prefix+'Tokens:'+previousOwner;
           const oldTokens=await this.ctx.storage.get(oldKey)||[];
@@ -2761,7 +2761,7 @@ export class SignalingRoom extends DurableObject {
       return j({ok:true,registered:registering});
     }
 
-    // Authenticated, non-sensitive status for troubleshooting missing background ringing.
+    // حالة مصادق عليها وغير حساسة لتشخيص غياب الرنين في الخلفية.
     if(url.pathname==="/api/push/status" && request.method==="GET"){
       const session=await this.session(url.searchParams.get("token")||"");
       if(!session)return j({ok:false,error:"الجلسة منتهية"},401);
@@ -2782,7 +2782,7 @@ export class SignalingRoom extends DurableObject {
         registeredDevices:registered.length,lastCallPush});
     }
 
-    // User-triggered delivery check; FCM delivery is asynchronous, not guaranteed.
+    // فحص توصيل بدأه المستخدم؛ فتسليم FCM غير متزامن وغير مضمون.
     if(url.pathname==="/api/push/test" && request.method==="POST"){
       const session=await this.session(String(body.token||""));
       if(!session)return j({ok:false,error:"الجلسة منتهية"},401);
@@ -2796,7 +2796,7 @@ export class SignalingRoom extends DurableObject {
       const result=await (provider==='hms'?this.sendHmsToUser.bind(this):this.sendFcmToUser.bind(this))(session.username,{
         type:'push-test',to:session.username,from:'',eventId:crypto.randomUUID(),createdAt:String(Date.now())
       },'60s');
-      // This confirms FCM accepted the request, not that the phone displayed it.
+      // يؤكد هذا أن FCM قبل الطلب، لا أن الهاتف عرض الإشعار.
       if(!result.accepted)return j({ok:false,error:'تعذر إرسال الإشعار التجريبي ('+(result.error||'NO_ACCEPTED_DEVICE')+')',
         diagnostic:result.error||'NO_ACCEPTED_DEVICE'},502);
       return j({ok:true,provider,acceptedByProvider:result.accepted,acceptedByFirebase:provider==='fcm'?result.accepted:0,attempted:result.attempted});
@@ -2839,7 +2839,7 @@ export class SignalingRoom extends DurableObject {
         createdAt:now
       };
 
-      // Keep a short-lived queue for HTTP polling fallback.
+      // احتفظ بقائمة انتظار قصيرة الأجل كبديل لاستطلاع HTTP.
       const key=`callSignals:${to}`;
       const oldQueue=await this.ctx.storage.get(key)||[];
       const freshQueue=oldQueue.filter(x=>now-Number(x.createdAt||0)<120000);
@@ -2847,10 +2847,10 @@ export class SignalingRoom extends DurableObject {
       await this.ctx.storage.put(key,freshQueue.slice(-500));
 
       await this.recordCallEvent(s.username,to,event);
-      // Notify Android even if its app process is not running.
+      // أرسل تنبيهًا إلى Android حتى إن لم تكن عملية التطبيق تعمل.
       this.scheduleCallPush(to,event);
 
-      // Fast path: if WebSocket is alive, deliver immediately too.
+      // المسار السريع: إذا كان WebSocket متصلًا، فأرسل إليه فورًا أيضًا.
       const target=this.findUser(to);
       if(target)this.send(target,event);
 
@@ -2878,14 +2878,14 @@ export class SignalingRoom extends DurableObject {
       const now=Date.now();
       const queue=await this.ctx.storage.get(key)||[];
 
-      // Drop stale signaling. A call request older than this is no longer useful.
+      // احذف إشارات الاتصال القديمة؛ فالطلب الأقدم من ذلك لم يعد مفيدًا.
       const signals=queue.filter(x=>{
         const age=now-Number(x.createdAt||0);
         if(x.type==="call-request")return age<45000;
         return age<120000;
       });
 
-      // Reading the queue acknowledges it for polling.
+      // تعني قراءة قائمة الانتظار الإقرار بها لاستطلاع HTTP.
       await this.ctx.storage.put(key,[]);
 
       const permitted=[];
@@ -2940,7 +2940,7 @@ export class SignalingRoom extends DurableObject {
 
       const text=String(body.text||"").trim();
       if(text.length>50000)return j({ok:false,error:"المنشور يتجاوز 50000 حرف"},400);
-      // Keep legacy small inline images/videos, but store new large media as R2 URLs.
+      // احتفظ بالصور والفيديوهات الصغيرة المضمنة القديمة، وخزّن الوسائط الجديدة الكبيرة كروابط R2.
       const mediaValue=(value,legacyLimit)=>{
         const raw=String(value||"");
         if(raw.startsWith("/media/")){
@@ -2981,7 +2981,7 @@ export class SignalingRoom extends DurableObject {
       return j({ok:true,post});
     }
 
-    // v1.0.33: archive and restore are restricted to the original author.
+    // v1.0.33: تقتصر الأرشفة والاستعادة على صاحب المنشور الأصلي.
     if(url.pathname==="/api/post-archive" && request.method==="POST"){
       const s=await this.session(String(body.token||""));
       if(!s)return j({ok:false,error:"الجلسة منتهية"},401);
@@ -3290,7 +3290,7 @@ export class SignalingRoom extends DurableObject {
       return j({
         ok:true,
         user:u,
-        // Hide private friendships from aggregate counts shown to other people.
+        // أخفِ الصداقات الخاصة عن الأعداد الإجمالية الظاهرة للآخرين.
         friendCount:(await (async()=>{
           const names=await this.friends(username);
           if(username===s.username)return names.length;
@@ -3456,7 +3456,7 @@ export class SignalingRoom extends DurableObject {
         const m=messages[index];
         if(scope==="everyone"){
           if(m.from!==s.username)return j({ok:false,error:"يمكن للمرسل فقط الحذف لدى الطرفين"},403);
-          // Keep only a tombstone: late call events must not recreate the deleted history.
+          // احتفظ بعلامة حذف فقط؛ فلا تعيد أحداث المكالمات المتأخرة إنشاء السجل المحذوف.
           messages[index]={id:m.id,from:m.from,to:m.to,ts:m.ts,mediaType:m.mediaType,callId:m.callId,deletedForEveryone:true};
           await this.ctx.storage.put(key,messages);
         }else hidden.add(id);
@@ -3474,8 +3474,8 @@ export class SignalingRoom extends DurableObject {
       return j({ok:true,removed});
     }
 
-    // One network response for the inbox: never send 200 messages per peer.
-    // Apply the same mutual-friend / block policy as opening a conversation.
+    // استجابة شبكة واحدة لصندوق الوارد؛ لا ترسل 200 رسالة لكل جهة اتصال.
+    // طبّق سياسة الصداقة المتبادلة والحظر نفسها المستخدمة عند فتح المحادثة.
     if(url.pathname==="/api/inbox" && request.method==="GET"){
       const s=await this.session(url.searchParams.get("token")||"");
       if(!s)return j({ok:false,error:"الجلسة منتهية"},401);
@@ -3489,8 +3489,8 @@ export class SignalingRoom extends DurableObject {
         const user=await this.publicUser(peer);if(!user)continue;
         const key=[s.username,peer].sort().join(":");
         const messages=await this.ctx.storage.get(`messages:${key}`)||[];
-        // Expired call status is reflected in the preview without marking unseen
-        // messages delivered or writing the whole conversation on every refresh.
+        // اعكس حالة المكالمة المنتهية صلاحيتها في المعاينة من دون اعتبار
+        // الرسائل غير المقروءة مستلمة أو كتابة المحادثة كاملةً عند كل تحديث.
         this.finishExpiredCallEvents(messages);
         const visible=await this.visibleChatMessages(messages,s.username,peer);
         const last=visible.findLast(m=>m.mediaType!=="call-signal");
@@ -3840,7 +3840,7 @@ export class SignalingRoom extends DurableObject {
       }});
     }
 
-    // Protected scoped cleanup. No endpoint can remove the configured owner.
+    // تنظيف مقيّد ومحمي؛ لا يمكن لأي واجهة حذف المالك المحدد.
     if(url.pathname==="/api/admin/reset/plan" && request.method==="POST"){
       const auth=await this.requireAdmin(body.token||"");if(auth.error)return auth.error;
       if(!this.ownerEmail())return j({ok:false,error:"اضبط بريد المدير الرئيسي أولًا"},409);
@@ -3917,7 +3917,7 @@ export class SignalingRoom extends DurableObject {
       const auth=await this.requireAdmin(body.token||"");
       if(auth.error)return auth.error;
       const passwordError=await this.requireAdminPassword(body.adminPassword);if(passwordError)return passwordError;
-      // The export includes password hashes and session tokens. Treat it as SECRET.
+      // يتضمن التصدير بصمات كلمات المرور ورموز الجلسات؛ تعامل معه كسر.
       const limit=Math.max(1,Math.min(30,Number(body.limit)||15));
       const startAfter=String(body.startAfter||"");
       const entries=await this.ctx.storage.list({limit,...(startAfter?{startAfter}:{})});
@@ -4024,10 +4024,10 @@ export class SignalingRoom extends DurableObject {
         u.banned=action==="ban";u.disabled=action==="suspend";
         u.bannedAt=u.banned?Date.now():0;u.bannedBy=u.banned?auth.session.username:"";
         u.disabledAt=u.disabled?Date.now():0;u.disabledBy=u.disabled?auth.session.username:"";
-        // Reactivation requires a fresh login: old sessions must never come back to life.
+        // تتطلب إعادة التنشيط تسجيل دخول جديدًا؛ فلا تُعِد الجلسات القديمة إلى العمل.
         u.authVersion=Number(u.authVersion||0)+1;
         u.moderationVersion=Number(u.moderationVersion||0)+1;
-        // This separate state cannot be undone by an in-flight profile save with stale fields.
+        // لا يمكن حفظ الملف الشخصي أثناء التنفيذ إلغاء هذه الحالة المستقلة باستخدام حقول قديمة.
         await this.ctx.storage.put(`account-state:${target}`,{banned:u.banned,disabled:u.disabled,version:u.moderationVersion,changedAt:Date.now()});
         await this.ctx.storage.put(`user:${target}`,u);
         if(u.banned || u.disabled)this.disconnectAccount(target);
@@ -4199,7 +4199,7 @@ export class SignalingRoom extends DurableObject {
       for(const name of await this.friends(username)){
         if(await this.isBlockedBetween(username,name))continue;
         const u=await this.publicUser(name);
-        // A friend may be known directly but is never exposed on somebody else's list.
+        // قد تكون جهة الاتصال معروفة مباشرةً، لكن لا تُكشف في قائمة شخص آخر.
         if(u && (username===s.username || !u.accountHidden))result.push(u);
       }
       return j({ok:true,friends:result});
@@ -4313,8 +4313,8 @@ export class SignalingRoom extends DurableObject {
     }
   }
 
-  // One canonical per-call summary in the existing private conversation, NOT
-  // repeated signaling messages. HTTP and WebSocket copies share the call ID.
+  // ملخص موحد واحد لكل مكالمة داخل المحادثة الخاصة الحالية، لا
+  // رسائل إشارات متكررة. تشترك نسختا HTTP وWebSocket في معرّف المكالمة.
   async recordCallEvent(from,to,event){
     const id=String(event.callId||'').trim();
     if(!/^[A-Za-z0-9_-]{8,128}$/.test(id))return;
@@ -4326,7 +4326,7 @@ export class SignalingRoom extends DurableObject {
     let record=messages.find(m=>m.mediaType==='call-event' && m.callId===id);
     if(record?.deletedForEveryone)return;
     if(!record){
-      // A reply/end is not sufficient proof of who called whom.
+      // لا يكفي الرد أو الإنهاء وحده لإثبات هوية المتصل أو المتلقي.
       if(type!=='call-request')return;
       record={type:'chat',id:'call:'+id,from,to,mediaType:'call-event',
         media:'',text:'',callId:id,callType:event.callType==='video'?'video':'audio',
@@ -4342,8 +4342,8 @@ export class SignalingRoom extends DurableObject {
     await this.ctx.storage.put(storageKey,messages.slice(-300));
   }
 
-  // A call unanswered after its invitation expires becomes a missed-call entry.
-  // This runs during chat/inbox reads, even when both devices were offline.
+  // تصبح المكالمة التي لم يُرد عليها قبل انتهاء الدعوة إدخالًا لمكالمة فائتة.
+  // ينفذ هذا أثناء قراءة المحادثة أو صندوق الوارد، حتى إن كان الجهازان غير متصلين.
   finishExpiredCallEvents(messages){
     const now=Date.now();let changed=false;
     for(const m of messages){
@@ -4353,8 +4353,8 @@ export class SignalingRoom extends DurableObject {
     return changed;
   }
 
-  // Phone foreground polling fallback: persist only the small invitation/cancellation
-  // events, not ICE/SDP media signaling, and never expose them without authentication.
+  // بديل استطلاع الهاتف أثناء الواجهة الأمامية: احفظ أحداث الدعوة والإلغاء الصغيرة فقط،
+  // لا إشارات وسائط ICE/SDP؛ ولا تعرضها مطلقًا من دون مصادقة.
   async queuePhoneCallEvent(to,event){
     if(!["call-request","call-reject","hangup"].includes(event.type) || !event.callId)return;
     const now=Date.now();
@@ -4365,8 +4365,8 @@ export class SignalingRoom extends DurableObject {
     await this.ctx.storage.put(key,recent.slice(-60));
   }
 
-  // FCM tokens are stored per authenticated account, not exposed via user profiles.
-  // Firebase's service-account JSON belongs ONLY in a Cloudflare Worker secret.
+  // تُحفظ رموز FCM لكل حساب مصادق عليه ولا تُعرض في الملفات الشخصية.
+  // يجب أن تبقى بيانات اعتماد Firebase الخاصة بحساب الخدمة سرًا داخل Cloudflare Worker فقط.
   async fcmAccessToken(){
     const raw=this.env.FIREBASE_SERVICE_ACCOUNT_JSON;
     if(!raw)return null;
@@ -4411,8 +4411,8 @@ export class SignalingRoom extends DurableObject {
       const project=String(this.env.FIREBASE_PROJECT_ID||sa.project_id||'');
       if(!project || project!==sa.project_id)throw Error('Firebase project ID mismatch');
       const url='https://fcm.googleapis.com/v1/projects/'+encodeURIComponent(project)+'/messages:send';
-      // Firebase reserves data key "from"; keep it in our internal call/chat
-      // events, but rename it only in the outgoing FCM payload.
+      // يحجز Firebase مفتاح البيانات «from»؛ أبقه في
+      // أحداث المكالمات والمحادثات الداخلية، وغيّر اسمه فقط في حمولة FCM الصادرة.
       const fcmData={...data};
       if(Object.prototype.hasOwnProperty.call(fcmData,'from')){
         fcmData.sender=String(fcmData.from??'');
@@ -4422,14 +4422,14 @@ export class SignalingRoom extends DurableObject {
       for(const deviceToken of tokens.slice(-5)){
         attempted++;
         try {
-          // Call invitations must have a visible OS notification when Android
-          // suspends our process. Data-only messages can be delayed/deprioritized
-          // by Doze/OEM background restrictions, even if push-test works.
-          // The service handles this same payload while the app is foregrounded;
-          // Android displays the notification itself when it is backgrounded.
+          // يجب أن تظهر للمكالمة الواردة رسالة نظام مرئية عندما يعلّق Android
+          // عمليتنا. قد تتأخر الرسائل التي تحتوي بيانات فقط أو تقل أولويتها
+          // بسبب Doze أو قيود الخلفية لدى الشركة المصنّعة، حتى لو نجح اختبار الدفع.
+          // تعالج الخدمة الحمولة نفسها عندما يكون التطبيق في الواجهة؛
+          // ويعرض Android الإشعار بنفسه عندما يكون التطبيق في الخلفية.
           const android={priority:'HIGH',ttl};
-          // Only explicitly opted-in, capable native clients render their own persistent call card.
-          // Legacy clients retain the proven OS notification delivery.
+          // لا تنشئ البطاقة الدائمة بنفسها إلا التطبيقات الأصلية القادرة التي فعّلها المستخدم صراحةً.
+          // وتحتفظ الإصدارات القديمة بطريقة تسليم إشعار النظام المثبتة.
           const callWindow=await this.ctx.storage.get('fcmCallWindow:'+deviceToken)===true;
           if(fcmData.type==='call-request' && !callWindow){
             android.notification={
@@ -4455,7 +4455,7 @@ export class SignalingRoom extends DurableObject {
             Array.isArray(item.fieldViolations)?item.fieldViolations.map(v=>v.field):[])
             .filter(v=>typeof v==='string').slice(0,3).join(',');
           lastError='FCM_HTTP_'+resp.status;
-          // Don't log registration tokens, credentials or the whole response body.
+          // لا تسجّل رموز التسجيل أو بيانات الاعتماد أو كامل جسم الاستجابة.
           console.warn('FCM delivery rejected:',resp.status,safeReason,field);
         }catch(_){survivors.push(deviceToken);lastError='FCM_NETWORK_ERROR';}
       }
@@ -4521,8 +4521,8 @@ export class SignalingRoom extends DurableObject {
       createdAt:String(event.createdAt||Date.now())
     },'45s');
     if(event.type==='call-request'){
-      // Keep just the last delivery outcome for the recipient's diagnostic menu.
-      // Do not store or expose user ids, FCM tokens, call ids, or credentials.
+      // احتفظ بنتيجة التسليم الأخيرة فقط لقائمة التشخيص لدى المستلم.
+      // لا تخزّن ولا تكشف معرّفات المستخدم أو رموز FCM أو معرّفات المكالمات أو بيانات الاعتماد.
       await this.ctx.storage.put('lastCallPushResult:'+to,{
         timestamp:Date.now(),attempted:result.attempted||0,
         accepted:result.accepted||0,error:String(result.error||'').slice(0,48)
@@ -4530,8 +4530,8 @@ export class SignalingRoom extends DurableObject {
     }
   }
 
-  // Social/message push is sent only after the authenticated event was stored.
-  // No chat body or user token is included in the FCM data payload.
+  // لا يُرسل إشعار دفع اجتماعي أو رسالة إلا بعد تخزين الحدث المصادق عليه.
+  // ولا تتضمن حمولة FCM نص المحادثة أو رمز المستخدم.
   scheduleUserPush(to,event){
     if(!this.env.FIREBASE_SERVICE_ACCOUNT_JSON)return;
     if(!['chat','friend-request','friend-accepted','like','reaction','comment',
@@ -4561,8 +4561,8 @@ export class SignalingRoom extends DurableObject {
   }
 
   scheduleCallPush(to,event){
-    // Avoid duplicate notifications when the same call is sent via HTTP and WS.
-    // Never delay or fail actual call signaling because push is unavailable.
+    // تجنب تكرار الإشعارات عند إرسال المكالمة عبر HTTP وWS معًا.
+    // لا تؤخر إشارات المكالمة الفعلية ولا تفشلها عند تعذر الإشعارات الفورية.
     if(!this.env.FIREBASE_SERVICE_ACCOUNT_JSON ||
       !['call-request','hangup','call-reject'].includes(event.type))return;
     const now=Date.now();
@@ -4597,8 +4597,8 @@ export class SignalingRoom extends DurableObject {
   }
 
   async handleSocketMessage(ws,message){
-    // Native/chat text and SDP fit below the same API limit. Close oversized
-    // packets before decoding/parsing them, including binary WebSocket messages.
+    // يتناسب نص الدردشة وSDP الأصليان مع حد API نفسه. أغلق
+    // الحزم الزائدة قبل فكها أو تحليلها، بما في ذلك رسائل WebSocket الثنائية.
     if((typeof message==="string"?message.length:message.byteLength)>MAX_API_JSON_BYTES){
       try{ws.close(1009,"Message too large");}catch{}return;
     }
@@ -4663,7 +4663,7 @@ export class SignalingRoom extends DurableObject {
         this.send(target,payload);
       }
 
-      // Always confirm to sender: message is stored even if recipient is offline.
+      // أكّد للمرسل دائمًا أن الرسالة حُفظت، حتى إن كان المستلم غير متصل.
       this.send(ws,{
         ...payload,
         stored:true,
@@ -4718,8 +4718,8 @@ export class SignalingRoom extends DurableObject {
         this.send(ws,{type:"call-reject",from:to,to:from,callId:String(msg.callId||""),reason:"busy",signalId:crypto.randomUUID(),createdAt:Date.now()});return;
       }
       const target=this.findUser(to);
-      // Queue incoming invitations even when the sender could only use WebSocket.
-      // The HTTP copy has the same signalId and is deduplicated by queuePhoneCallEvent.
+      // ضع الدعوات الواردة في قائمة الانتظار حتى عند تعذر الإرسال للمرسل إلا عبر WebSocket.
+      // تشترك نسخة HTTP في signalId نفسه ويزيل queuePhoneCallEvent تكرارها.
       const event={
         type:msg.type, from, to, callId:String(msg.callId||""),
         callType:msg.callType==="video"?"video":"audio",
@@ -4801,7 +4801,7 @@ export default {
         return new Response("Invalid media path",{status:400});
       }
       if(!["GET","HEAD"].includes(request.method))return new Response("Method not allowed",{status:405,headers:{allow:"GET, HEAD"}});
-      // Ordinary images/full downloads need only one R2 read; seeking needs metadata first.
+      // تكفي قراءة واحدة من R2 للصور والتنزيل الكامل؛ أما البحث في موضع الفيديو فيحتاج البيانات الوصفية أولًا.
       const meta=request.method==="HEAD" || request.headers.has("range")
         ?await env.MEDIA_BUCKET.head(key):await env.MEDIA_BUCKET.get(key);
       if(!meta)return new Response("Not found",{status:404});
@@ -4810,8 +4810,8 @@ export default {
       headers.set("x-content-type-options","nosniff");
       const type=String(headers.get("content-type")||"").split(";")[0].trim().toLowerCase();
       if(!RASTER_IMAGE_TYPES.has(type) && !type.startsWith("video/") && !type.startsWith("audio/") && type!=="application/pdf"){
-        // Protect existing SVG/HTML/XML objects uploaded before the raster-only
-        // rule. A direct link must never execute script on the application's origin.
+        // احمِ ملفات SVG/HTML/XML الحالية المرفوعة قبل حصر الصور بالأنواع الثابتة.
+        // يجب ألا ينفذ رابط مباشر تعليمات برمجية من أصل التطبيق.
         headers.set("content-security-policy","sandbox; default-src 'none'");
         headers.set("content-disposition","attachment");
       }
@@ -4820,8 +4820,8 @@ export default {
       headers.set("cache-control","public, max-age=31536000, immutable");
       headers.set("content-length",String(meta.size));
       if(request.method==="HEAD")return new Response(null,{headers});
-      // Android's frame extractor seeks within MP4s. Returning the whole file for
-      // every Range request leaves older video posts with a black preview.
+      // يبحث مستخرج الإطارات في Android داخل ملفات MP4. وإرجاع الملف كاملًا
+      // لكل طلب Range يترك معاينة منشورات الفيديو الأقدم سوداء.
       let range;
       const raw=request.headers.get("range");
       const ifRange=request.headers.get("if-range");
@@ -4845,7 +4845,7 @@ export default {
       return new Response(obj.body,{status:range?206:200,headers});
     }
 
-    // YouTube Data API requests are server-side. Never expose YOUTUBE_API_KEY.
+    // تُرسل طلبات YouTube Data API من الخادم؛ لا تكشف YOUTUBE_API_KEY مطلقًا.
     if(url.pathname==="/api/youtube" && request.method==="GET"){
       const key=String(env.YOUTUBE_API_KEY||"").trim();
       if(!key)return Response.json({ok:false,error:"مفتاح YouTube غير مُعد"},{status:503});
@@ -4883,7 +4883,7 @@ export default {
           publishedAt:v.snippet?.publishedAt||""
         })).filter(v=>/^[A-Za-z0-9_-]{11}$/.test(v.id||""));
         const result=Response.json({ok:true,items,nextPageToken:data.nextPageToken||""},{headers:{"Cache-Control":"public, max-age=600"}});
-        // Cache is per Cloudflare edge; search still costs 100 YouTube quota units on cache miss.
+        // التخزين المؤقت مستقل لكل نقطة Cloudflare؛ ويظل البحث يستهلك 100 وحدة من حصة YouTube عند غياب نتيجة مخزنة.
         await cache.put(cacheKey,result.clone());
         return result;
       }catch(e){
@@ -4897,7 +4897,7 @@ export default {
       return env.SIGNALING.get(id).fetch(request);
     }
 
-    // One source of truth for the APK button: public/index.html.
+    // مصدر الحقيقة الوحيد لزر APK هو cloudflare-site/public/index.html.
     return env.ASSETS.fetch(request);
   }
 };

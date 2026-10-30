@@ -14,7 +14,7 @@ class PrayerCalculationTest {
     private val configured = PrayerSettings(place = raleigh, confirmedPlace = true, enabled = true, hanafi = true)
 
     @Test fun reproducesUpstreamPublishedNorthAmericaFixture() {
-        // Batoul Apps' PrayerTimesTest.testPrayerTimes, Java branch, 2015-07-12.
+        // من الاختبار PrayerTimesTest.testPrayerTimes لتطبيق Batoul Apps، فرع Java، بتاريخ 2015-07-12.
         val formatter = DateTimeFormatter.ofPattern("HH:mm", Locale.ROOT).withZone(ZoneId.of(raleigh.zone))
         val times = PrayerCalculation.day(configured, LocalDate.of(2015, 7, 12))
         assertEquals(listOf("04:42", "06:08", "13:21", "18:22", "20:32", "21:57"), times.map { formatter.format(Instant.ofEpochMilli(it.at)) })

@@ -101,7 +101,7 @@ internal fun HadithLibraryScreen(query: String, modifier: Modifier = Modifier,
         } catch (cancelled: CancellationException) { throw cancelled }
         catch (failure: Exception) {
             Log.e("AlattaHadith", "Library initialization failed on device", failure)
-            // Keep private paths/session data out of the screenshot and clipboard.
+            // لا تُظهر المسارات الخاصة أو بيانات الجلسة في لقطة الشاشة أو الحافظة.
             val origin = generateSequence(failure as Throwable?) { it.cause }.last()
             val kind = when (origin) {
                 is android.database.sqlite.SQLiteException -> "SQLite"

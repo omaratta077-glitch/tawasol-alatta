@@ -1,8 +1,8 @@
 package com.alatta.nativeapp
 
-/** Store only an 11-character YouTube video ID as an internal post attachment.
- * Never store a visible watch URL or download/re-host another publisher's video.
- * Both the composer and feed use the existing official embedded YouTube player.
+/** احفظ في مرفق المنشور الداخلي معرّف فيديو YouTube ذي 11 حرفًا فقط.
+ * لا تحفظ رابط مشاهدة ظاهرًا، ولا تنزّل فيديو ناشر آخر أو تعيد استضافته.
+ * يستخدم كل من محرر المنشور والموجز مشغّل YouTube الرسمي المضمّن الحالي.
  */
 private val YOUTUBE_POST_ID = Regex("[A-Za-z0-9_-]{11}")
 private val YOUTUBE_POST_MARKER = Regex("""(?m)^\[\[alatta-youtube:([A-Za-z0-9_-]{11})\]\][ \t]*$""")

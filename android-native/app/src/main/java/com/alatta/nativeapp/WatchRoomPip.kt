@@ -14,10 +14,10 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 
-/** Refresh visible call content after the system confirms PiP, even when an OEM callback is delayed. */
+/** حدّث محتوى المكالمة الظاهر بعد تأكيد النظام وضع PiP، حتى إن تأخر إشعار الشركة المصنّعة. */
 interface WatchRoomPipStateHost { fun syncWatchRoomPipState() }
 
-/** Explicit user-triggered PiP before opening a channel; independent of room ownership and leave hints. */
+/** وضع PiP يبدأ بطلب صريح من المستخدم قبل فتح قناة؛ مستقل عن ملكية الغرفة وإشارات المغادرة. */
 internal object WatchRoomPip {
     enum class Failure { STARTING, PERMISSION, UNAVAILABLE, ROOM_ENDED }
 
@@ -51,7 +51,7 @@ internal object WatchRoomPip {
         if (!WatchRoomController.active) return@withContext Failure.ROOM_ENDED
         if (!entered) return@withContext Failure.UNAVAILABLE
         (activity as? WatchRoomPipStateHost)?.syncWatchRoomPipState()
-        // Let the PiP callback replace the app chrome with the participants before handing off the channel.
+        // دع رد PiP يستبدل واجهة التطبيق بالمشاركين قبل نقل القناة.
         delay(60)
         if (!WatchRoomController.active) Failure.ROOM_ENDED
         else if (activity.isDestroyed || !activity.isInPictureInPictureMode) Failure.UNAVAILABLE else null
@@ -60,6 +60,6 @@ internal object WatchRoomPip {
     fun settingsIntent(context: Context) = Intent("android.settings.PICTURE_IN_PICTURE_SETTINGS",
         Uri.parse("package:${context.packageName}"))
 
-    /** A channel must not replace the participant Activity inside its pinned task. */
+    /** لا يجوز للقناة أن تستبدل Activity المشاركين داخل المهمة المثبتة. */
     fun playerIntent(request: Intent) = Intent(request).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
 }

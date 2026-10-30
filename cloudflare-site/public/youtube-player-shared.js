@@ -1,4 +1,4 @@
-/* Single YouTube embed factory shared by the website and the Android WebView page. */
+/* منشئ تضمين YouTube واحد مشترك بين الموقع وصفحة WebView في Android. */
 (function(global){
   'use strict';
   function create(id,title){

@@ -82,7 +82,7 @@ private fun installedVersion(context: Context): String {
     return context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "0.0.0"
 }
 
-/** Human-readable result for manual checking, not just silent "no updates". */
+/** نتيجة واضحة للمستخدم عند الفحص اليدوي، بدلًا من إظهار «لا توجد تحديثات» بصمت. */
 private data class ReleaseInspection(val available: AvailableAppUpdate?, val status: String)
 
 private suspend fun inspectRelease(context: Context): ReleaseInspection = withContext(Dispatchers.IO) {
@@ -198,7 +198,7 @@ private fun openInstaller(context: Context, update: AvailableAppUpdate): Boolean
     return true
 }
 
-/** In-app APK download; Android's official package installer performs user-approved installation. */
+/** تنزيل APK من داخل التطبيق؛ ويُجري مُثبّت أندرويد الرسمي التثبيت بعد موافقة المستخدم. */
 @Composable
 internal fun AppUpdatePrompt(manualCheckRequest: Int = 0) {
     val context = LocalContext.current
@@ -308,7 +308,7 @@ internal fun AppUpdatePrompt(manualCheckRequest: Int = 0) {
             UpdateStage.FAILED -> "إعادة المحاولة"
         }
 
-        // Custom dark/gold modal: Material 3 default AlertDialog uses the system color scheme.
+        // نافذة مخصصة داكنة وذهبية؛ لأن AlertDialog الافتراضي في Material 3 يستخدم ألوان النظام.
         CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
             Dialog(onDismissRequest = { update = null }) {
                 Surface(
