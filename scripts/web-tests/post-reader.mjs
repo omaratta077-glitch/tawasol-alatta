@@ -7,7 +7,7 @@ const requests=[];w.fetch=async(url,opts={})=>{const u=new URL(url,'https://test
  if(u.pathname==='/api/post')return Response.json({ok:true,post:{id:'old-post',author:'real-user',authorInfo:{username:'real-user',fullName:'الاسم الحقيقي'},text:'منشور قديم',comments:[],likes:[]}});
  if(u.pathname==='/api/profile-public')return Response.json({ok:true,user:{username:u.searchParams.get('username'),fullName:'الاسم الحقيقي'},friendState:'friends'});
  return Response.json({ok:true,posts:[],users:[],requests:[],friends:[],notifications:[],stories:[]});};
-w.eval(read('icons.js'));const app=read('app.js'),end=app.indexOf('})();\n\n\n/* ===== V13.28');w.eval(app.slice(0,end)+`window.readerTest={renderPostText,bindPostMedia,needsPostReader};window.notificationTest={openNotificationTarget,setIncomingCallText,setup(){token='fixture';me={username:'me'}},incoming(peer){incomingFrom=peer}};`+app.slice(end));const api=w.notificationTest;api.setup();
+w.eval(read('icons.js'));const app=read('app.js'),end=app.indexOf('})();\n\n\n/* ===== دعم التثبيت في Android وPWA، الإصدار V13.28');w.eval(app.slice(0,end)+`window.readerTest={renderPostText,bindPostMedia,needsPostReader};window.notificationTest={openNotificationTarget,setIncomingCallText,setup(){token='fixture';me={username:'me'}},incoming(peer){incomingFrom=peer}};`+app.slice(end));const api=w.notificationTest;api.setup();
 
 const full='أذكار الصباح\n\n'+Array.from({length:35},(_,i)=>`الذكر ${i}\n`+'نص الذكر كاملًا '.repeat(25)).join('\n\n')+'\n\nآخر ذكر محفوظ <script>bad()</script>';
 const post={id:'dhikr-full',text:full};
