@@ -2,6 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import {catalogIngest} from '../../cloudflare-site/src/catalog-ingest.mjs';
+// قارن الشيفرة التنفيذية مع تجاهل اختلاف التعليقات فقط.
+const stripComments=value=>value.replace(/\/\*[\s\S]*?\*\//g,m=>m.replace(/[^\n]/g,"")).replace(/(^|\n)[ \t]*\/\/[^\n]*/g,"$1").replace(/[ \t]+\/\/[^\n]*/g,"").replace(/\n[ \t]*\n+/g,"\n").trim();
 const source=await readFile(new URL('../../cloudflare-site/src/worker.js',import.meta.url),'utf8');
 const moduleText=await readFile(new URL('../../cloudflare-site/src/catalog-check.mjs',import.meta.url),'utf8');
 const {default:worker}=await import('data:text/javascript;charset=utf-8,'+encodeURIComponent(source.replace('import { DurableObject } from "cloudflare:workers";','class DurableObject {}')));
@@ -68,7 +70,8 @@ test('missing sync secret blocks publication before source request',async()=>{
  assert.equal((await worker.fetch(form(),{...ctx.env,CATALOG_SYNC_KEY:undefined})).status,503);assert.equal(ctx.saves,0);
 });
 test('production bundle matches standalone module',()=>{
- assert.ok(source.includes('// BEGIN main catalog check\nconst mainCatalogCheck = (() => {\n'+moduleText.replace('export default {','return {')+'\n})();\n// END main catalog check'));
+ const expected='// BEGIN فحص الكتالوج الرئيسي\nconst mainCatalogCheck = (() => {\n'+moduleText.replace('export default {','return {')+'\n})();\n// END فحص الكتالوج الرئيسي';
+ assert.ok(stripComments(source).includes(stripComments(expected)));
  assert.ok(!moduleText.includes('workers.dev/api/internal/football-catalog-sync'));
 });
 
