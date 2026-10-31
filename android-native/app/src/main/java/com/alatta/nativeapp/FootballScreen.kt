@@ -66,6 +66,7 @@ internal fun FootballScreen(query: String, modifier: Modifier = Modifier,
     var watchEntryRequest by remember { mutableIntStateOf(0) }
     var broadcastExpanded by rememberSaveable { mutableStateOf(false) }
     val generation = CatalogAutoUpdater.generation
+    val freshYtvNumbers = YtvPublicNumberRefresh.entries
     LaunchedEffect(reload, generation) {
         // التحديث المتكرر لا يمسح القنوات المعروضة أو يوقف المشغّل عند كل فحص.
         if (catalog.channels.isEmpty()) loading = true
@@ -103,7 +104,8 @@ internal fun FootballScreen(query: String, modifier: Modifier = Modifier,
                         val sources = NativeChannelPlayback.load(token, channel.id)
                         onBeforePlayback(); nativeSession = NativePlaybackSession(channel, sources)
                     } else {
-                        YtvPlayer.openWithWatchRoom(context, channel.streamUrl, onBeforePlayback)
+                        val currentNumber = currentYtvChannelNumber(channel, catalog.channels, freshYtvNumbers)
+                        YtvPlayer.openWithWatchRoom(context, currentNumber, onBeforePlayback)
                             ?.let { playerFailure = it; return@launch }
                     }
                 }
