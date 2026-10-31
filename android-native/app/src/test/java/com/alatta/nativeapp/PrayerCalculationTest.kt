@@ -129,6 +129,20 @@ class PrayerCalculationTest {
         assertEquals(100, morning.single { it.id == "tasbih" }.target)
     }
 
+    @Test fun abuDardaPrayerIsPresentInBothDailyGroupsAndClearlyMarkedWeak() {
+        for (id in listOf("morning", "evening")) {
+            val list = dhikrGroups.single { it.id == id }.entries
+            val prayer = list.single { it.id == "trust-refuge-abu-darda" }
+            assertEquals(3, prayer.target)
+            assertTrue(prayer.text.contains("الْعَلِيِّ الْعَظِيمِ"))
+            assertTrue(prayer.text.contains("أَنْتَ آخِذٌ بِنَاصِيَتِهَا"))
+            assertTrue(prayer.source.contains("ضعيف"))
+            assertTrue(prayer.note.contains("لا يثبت له عدد مخصوص"))
+            val comprehensive = list.single { it.id == "all-good" }
+            assertTrue(comprehensive.note.contains("ما عاذ به"))
+        }
+    }
+
     @Test fun singleReadTargetsBecomeThreeOnlyForReaderWithoutChangingSource() {
         val entry = Dhikr("sample", "title", "text", 1, "source")
         val three = entry.forReader()
