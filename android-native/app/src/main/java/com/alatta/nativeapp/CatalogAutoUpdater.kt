@@ -44,7 +44,7 @@ internal object CatalogLinkStore {
 }
 
 internal object CatalogAutoUpdater {
-    const val FOREGROUND_REFRESH_MS = 30_000L
+    const val FOREGROUND_REFRESH_MS = 3_000L
     private val mutex = Mutex()
     private val attempts = mutableMapOf<String, Long>()
     var generation by mutableIntStateOf(0)
