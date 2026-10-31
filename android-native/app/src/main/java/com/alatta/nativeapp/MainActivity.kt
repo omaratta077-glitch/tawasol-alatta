@@ -1162,6 +1162,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
     var adminNextOffset by remember { mutableStateOf(-1) }
     var adminRole by remember { mutableStateOf("") }
     CatalogAutoRefreshEffect(token, myUsername, enabled = adminRole == "super_admin")
+    YtvNumberAutoRefreshEffect()
     var adminUsers by remember { mutableStateOf(emptyList<JSONObject>()) }
     var adminPosts by remember { mutableStateOf(emptyList<JSONObject>()) }
     var archivedPosts by remember { mutableStateOf(emptyList<JSONObject>()) }
