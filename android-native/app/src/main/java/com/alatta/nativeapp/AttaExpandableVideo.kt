@@ -174,6 +174,8 @@ internal fun AttaPostMediaViewer(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val isVideo = kind == "video"
+    // Reels are edge-to-edge; channels and ordinary media viewers keep their original FIT layout.
+    val reelsMode = includeYoutubePosts && live == null
     // وحدها نافذة الريلز تستقبل فيديوهات YouTube المنشورة؛ تبقى قنوات البث كما كانت.
     val items = remember(posts, kind, validatedChannelUrl, includeYoutubePosts) {
         if (includeYoutubePosts && isVideo && validatedChannelUrl == null) mixedPostReels(posts)
@@ -362,7 +364,8 @@ internal fun AttaPostMediaViewer(
         }
         BackHandler { if (sheet != null) sheet = null else dismissViewer("system_back") }
         // يشغل الفيديو كامل المساحة الآمنة، وتظهر التفاعلات الاجتماعية في شريط واحد.
-        Column(Modifier.fillMaxSize().background(Color.Black).safeDrawingPadding()) {
+        Column(Modifier.fillMaxSize().background(Color.Black)
+            .then(if (reelsMode) Modifier else Modifier.safeDrawingPadding())) {
             Box(Modifier.weight(1f).fillMaxWidth().clipToBounds()
                 .pointerInput(reel.key) {
                     if (includeYoutubePosts) {
@@ -379,7 +382,8 @@ internal fun AttaPostMediaViewer(
                     AndroidView(factory = { ctx -> PlayerView(ctx).apply {
                         this.player = player
                         useController = false
-                        resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+                        resizeMode = if (reelsMode) AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+                            else AspectRatioFrameLayout.RESIZE_MODE_FIT
                     } }, update = { it.player = player },
                         modifier = if (live != null) Modifier.align(Alignment.Center).fillMaxWidth().aspectRatio(16f / 9f)
                             else Modifier.fillMaxSize())
@@ -411,26 +415,19 @@ internal fun AttaPostMediaViewer(
                         if (caption.isNotBlank()) Text(caption, color = Color.White, fontSize = 13.sp,
                             maxLines = 3, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                     }
-                    Row(Modifier.align(Alignment.TopCenter).fillMaxWidth()
-                        .background(Color(0x66000000)).padding(10.dp),
-                        verticalAlignment = Alignment.CenterVertically) {
-                        Text("ريلز • ${index + 1} / ${items.size}", Modifier.weight(1f),
-                            color = Color.White, fontSize = 12.sp)
-                        IconButton(onClick = { changeVideo(-1) }, enabled = index > 0) {
-                            SiteIcon("chevron-up", tint = Color.White, size = 22.dp)
-                        }
-                        IconButton(onClick = { changeVideo(1) }, enabled = index < items.lastIndex) {
-                            SiteIcon("chevron-down", tint = Color.White, size = 22.dp)
-                        }
-                        IconButton(onClick = { dismissViewer("close_button") }) {
-                            SiteIcon("x", tint = Color.White, size = 22.dp)
-                        }
+                    // Reels have swipe navigation; only the close control stays in the upper corner.
+                    IconButton(onClick = { dismissViewer("close_button") },
+                        modifier = Modifier.align(AbsoluteAlignment.TopLeft).padding(8.dp)
+                            .background(Color(0x77000000), RoundedCornerShape(50))) {
+                        SiteIcon("x", tint = Color.White, size = 23.dp)
                     }
                 }
                 // ثبّت الشريط الاجتماعي الرأسي عند الحافة اليمنى الفعلية في تخطيطي RTL وLTR.
                 if ((player != null || youtubeId != null) && (sendReaction != null || onShare != null)) {
-                    Column(Modifier.align(AbsoluteAlignment.TopRight)
-                        .absolutePadding(top = 12.dp, right = 14.dp),
+                    Column((if (reelsMode) Modifier.align(AbsoluteAlignment.BottomRight)
+                        .absolutePadding(bottom = 145.dp, right = 14.dp)
+                    else Modifier.align(AbsoluteAlignment.TopRight)
+                        .absolutePadding(top = 12.dp, right = 14.dp)),
                         verticalArrangement = Arrangement.spacedBy(10.dp),
                         horizontalAlignment = Alignment.CenterHorizontally) {
                         if (sendReaction != null && loadInteractions != null) {

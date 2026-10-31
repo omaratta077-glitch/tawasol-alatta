@@ -63,6 +63,18 @@ assert.ok(knowledge.includes('onShareHadithPost') &&
     'Hadith share uses the existing Home post flow, without a separate publisher');
 const azkarScreen=fs.readFileSync('android-native/app/src/main/java/com/alatta/nativeapp/AzkarPrayerScreen.kt','utf8');
 const azkarCatalog=fs.readFileSync('android-native/app/src/main/java/com/alatta/nativeapp/AzkarCatalog.kt','utf8');
+const videoViewer=fs.readFileSync('android-native/app/src/main/java/com/alatta/nativeapp/AttaExpandableVideo.kt','utf8');
+assert.ok(videoViewer.includes('val reelsMode = includeYoutubePosts && live == null') &&
+  videoViewer.includes('if (reelsMode) AspectRatioFrameLayout.RESIZE_MODE_ZOOM') &&
+  videoViewer.includes('else AspectRatioFrameLayout.RESIZE_MODE_FIT') &&
+  videoViewer.includes('Modifier.align(AbsoluteAlignment.TopLeft)') &&
+  !videoViewer.includes('Text("ريلز •'),
+  'Reels fill vertical display without a top counter; live playback stays FIT');
+assert.ok(azkarScreen.includes('local.getInt("font_size", 23)') &&
+  azkarScreen.includes('textAlign = TextAlign.Center') &&
+  azkarScreen.includes('(fontSize * 1.75f).sp') &&
+  azkarScreen.includes('Modifier.wrapContentWidth().clip(RoundedCornerShape(12.dp))'),
+  'Dhikr has restored classic text alignment and a content-width title badge');
 assert.ok(!azkarScreen.includes('مشاركة كمنشور داخل التطبيق') &&
   !azkarScreen.includes('بحث في الأذكار') && !azkarScreen.includes('onQueryChange') &&
   native.includes('tab != "الأذكار" &&') &&
