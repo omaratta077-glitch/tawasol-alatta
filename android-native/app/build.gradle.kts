@@ -24,9 +24,9 @@ android {
         applicationId = "com.alatta.nativeapp"
         minSdk = 26
         targetSdk = 35
-        // الإصدار 1.0.210: السماح لمضيف التحويل المؤكد h33 فقط وتصحيح تشخيص Media3، دون تعديل YTV.
-        versionCode = 310
-        versionName = "1.0.210"
+        // الإصدار 1.0.211: تنسيق البث المباشر والأذكار؛ لا تغيير في مشغّل القنوات المعتاد.
+        versionCode = 311
+        versionName = "1.0.211"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("boolean", "IS_APPGALLERY", appGalleryBuild.toString())
         val hmsId = (System.getenv("ALATTA_HMS_APP_ID") ?: "").trim().takeIf { it.matches(Regex("[0-9]{1,20}")) } ?: ""
