@@ -2875,6 +2875,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                 var showComments by remember(postId) { mutableStateOf(false) }
                                 var showReactors by remember(postId) { mutableStateOf(false) }
                                 var showFullscreenVideo by remember(postId) { mutableStateOf(false) }
+                                var openedReelKind by remember(postId) { mutableStateOf("video") }
                                 val remoteLiked = p.optBoolean("likedByMe")
                                 val remoteReaction = p.optString("myReaction")
                                 val serverReaction = if (remoteReaction.isNotBlank()) remoteReaction
@@ -2945,7 +2946,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                     }
                                     youtubePostId(p.optString("text"))?.let { videoId ->
                                         YoutubePostMedia(videoId, false,
-                                            onPlay = { showFullscreenVideo = true; youtubePlayRequested = false },
+                                            onPlay = { openedReelKind = "youtube"; showFullscreenVideo = true; youtubePlayRequested = false },
                                             onStop = {})
                                     }
                                     val image = media(p.optString("image")); val video = media(p.optString("video"))
@@ -2958,15 +2959,30 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                         contentScale = ContentScale.Crop)
                                     if (video.isNotBlank()) {
                                         AttaExpandableVideo(video, image.takeIf { it.isNotBlank() },
-                                            onOpen = { showFullscreenVideo = true })
+                                            onOpen = { openedReelKind = "video"; showFullscreenVideo = true })
                                     }
-                                    // جميع المقاطع المنشورة، بما فيها YouTube، تفتح العارض المختلط نفسه.
+                                    facebookReelUrl(p.optString("text"))?.let { _ ->
+                                        Box(Modifier.fillMaxWidth().padding(vertical = 6.dp)
+                                            .aspectRatio(16f / 9f)
+                                            .clip(RoundedCornerShape(12.dp))
+                                            .background(Color.Black)
+                                            .border(1.dp, Border, RoundedCornerShape(12.dp))
+                                            .clickable { openedReelKind = "facebook"; showFullscreenVideo = true },
+                                            contentAlignment = Alignment.Center) {
+                                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                                SiteIcon("play-circle", size = 44.dp, tint = GoldLight)
+                                                Text("تشغيل فيديو فيسبوك داخل الريلز", color = GoldLight, fontSize = 13.sp)
+                                            }
+                                        }
+                                    }
+                                    // الفيديوهات المنشورة، ومنها YouTube وفيسبوك العامة، تفتح الريلز الموحد.
                                     if (showFullscreenVideo) {
                                         AttaPostMediaViewer(
                                                 posts = posts, startId = postId, kind = "video",
                                                 onDismiss = { showFullscreenVideo = false },
                                                 includeYoutubePosts = true,
-                                                startYoutube = video.isBlank() && youtubePostId(p.optString("text")) != null,
+                                                startYoutube = openedReelKind == "youtube",
+                                                startFacebook = openedReelKind == "facebook",
                                                 youtubePlayerContent = { id -> YouTubePlayer(id) },
                                                 loadInteractions = { id, kind, offset ->
                                                     get("/api/post-interactions?postId=${enc(id)}&kind=${enc(kind)}&offset=$offset")
