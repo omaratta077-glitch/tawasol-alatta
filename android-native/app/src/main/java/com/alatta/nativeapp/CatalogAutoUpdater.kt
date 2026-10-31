@@ -80,7 +80,7 @@ internal object CatalogAutoUpdater {
     )
     suspend fun refresh(context: Context, token: String, owner: String, force: Boolean = false): CatalogSyncResult? =
         withContext(Dispatchers.IO) { mutex.withLock {
-            if (owner.isBlank() || token.isBlank()) return@withLock null
+            if (owner.isBlank() || token.isBlank()) return@withLock CatalogSyncResult(message = "سجّل دخول المدير الرئيسي لتحديث أرقام القنوات.")
             val links = CatalogLinkStore.read(context, owner)
             if (!force) {
                 val issue = catalogSyncIssue(token.isNotBlank(), owner.isNotBlank(),
