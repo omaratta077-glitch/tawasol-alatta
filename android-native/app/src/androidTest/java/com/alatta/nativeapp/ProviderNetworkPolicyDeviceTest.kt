@@ -12,6 +12,8 @@ class ProviderNetworkPolicyDeviceTest {
     @Test fun externalPlayerHandoffKeepsHttpDeniedForEveryHost() {
         val policy = NetworkSecurityPolicy.getInstance()
         assertFalse("HTTP is denied by default", policy.isCleartextTrafficPermitted)
+        assertTrue("Observed HLS redirect must be allowed", policy.isCleartextTrafficPermitted("h33.cacheverto.buzz"))
+        assertFalse("Other cacheverto hosts stay blocked", policy.isCleartextTrafficPermitted("h34.cacheverto.buzz"))
         for (host in listOf("def001.ycnapi.com", "ycnapi.com", "sub.def001.ycnapi.com", "def001.ycnapi.com.example.org",
             "deft.yacinelive.com", "def.yacinelive.com", "youtube.com", "example.org", "127.0.0.1")) {
             assertFalse("HTTP must stay denied for $host", policy.isCleartextTrafficPermitted(host))
