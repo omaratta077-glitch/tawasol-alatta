@@ -96,6 +96,69 @@ internal object CatalogAutoUpdater {
     } }
 }
 
+/**
+ * تحديث أرقام قنوات YTV عند أي مستخدم بمجرد فتح العطا.
+ * يستعمل قائمة القنوات العامة التي ظهرت في الاختبار لمسار categories/4/channels،
+ * بلا حساب مدير أو مفتاح قراءة أو كتابة لكتالوج Cloudflare. إن لم تُعد القائمة
+ * JSON قابلا للقراءة تُترك الأرقام المنشورة دون تخمين أو تجاوز لقيود المصدر.
+ */
+internal object YtvPublicNumberRefresh {
+    const val INTERVAL_MS = 3_000L
+    private const val PUBLIC_SECTION_ID = "4"
+    var entries by mutableStateOf(emptyList<YacineCatalogProbe.Entry>())
+        private set
+    var lastResult by mutableStateOf("لم يتم فحص أرقام YTV بعد")
+        private set
+
+    suspend fun refresh() {
+        val result = YacineCatalogProbe.fetch(YacineCatalogProbe.Kind.CHANNELS, PUBLIC_SECTION_ID)
+        if (result.state == YacineCatalogProbe.State.LIST) {
+            // لا تغيّر القائمة إلا بعد استلام قائمة صحيحة وفريدة المعرّفات.
+            if (entries != result.entries) entries = result.entries
+            lastResult = "تم فحص ${result.entries.size} رقم قناة"
+        } else {
+            lastResult = "تعذر تحديث أرقام YTV: ${result.state} ${result.code ?: ""}"
+        }
+    }
+}
+
+private fun normalizedYtvName(value: String): String =
+    value.lowercase(java.util.Locale.ROOT).filter(Char::isLetterOrDigit)
+
+/** لا نستبدل الأرقام باسم متشابه أو مكرر، ولا نغيّر قنوات Media3. */
+internal fun currentYtvChannelNumber(channel: FootballChannel, catalog: List<FootballChannel>,
+    sourceEntries: List<YacineCatalogProbe.Entry>): String {
+    if (channel.format != "ytv") return channel.streamUrl
+    val key = normalizedYtvName(channel.name)
+    if (key.isBlank() || catalog.count { it.format == "ytv" && normalizedYtvName(it.name) == key } != 1)
+        return channel.streamUrl
+    val match = sourceEntries.filter { normalizedYtvName(it.name) == key }
+        .singleOrNull() ?: return channel.streamUrl
+    return YtvPlayer.channelId(match.id) ?: channel.streamUrl
+}
+
+/** تستمر أثناء ظهور العطا لأي مستخدم، حتى قبل تسجيل الدخول؛ لا حاجة لأي إعداد. */
+@Composable
+internal fun YtvNumberAutoRefreshEffect() {
+    val context = LocalContext.current
+    val lifecycle = context.mediaActivity()?.lifecycle
+    LaunchedEffect(lifecycle) {
+        if (lifecycle == null) return@LaunchedEffect
+        lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            while (isActive) {
+                try {
+                    YtvPublicNumberRefresh.refresh()
+                } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                    throw cancelled
+                } catch (_: Exception) {
+                    // يحتفظ بالمعرّفات الناجحة الأخيرة عند انقطاع الشبكة.
+                }
+                delay(YtvPublicNumberRefresh.INTERVAL_MS)
+            }
+        }
+    }
+}
+
 /** ينشر هاتف المالك المعرّفات المحفوظة لبقية المستخدمين؛ ولا تغادر إعدادات الخدمة الهاتف. */
 @Composable
 internal fun CatalogAutoRefreshEffect(token: String, owner: String, enabled: Boolean) {

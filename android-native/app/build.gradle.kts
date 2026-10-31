@@ -24,9 +24,9 @@ android {
         applicationId = "com.alatta.nativeapp"
         minSdk = 26
         targetSdk = 35
-        // الإصدار 1.0.204: إعادة تشغيل القنوات كما كانت والتحديث التلقائي كل 3 ثوانٍ، مع عزل تجربة البث المباشر.
-        versionCode = 304
-        versionName = "1.0.204"
+        // الإصدار 1.0.207: تحديث أرقام قنوات YTV تلقائيًا لكل مستخدم عند فتح التطبيق دون تغيير Media3.
+        versionCode = 307
+        versionName = "1.0.207"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("boolean", "IS_APPGALLERY", appGalleryBuild.toString())
         val hmsId = (System.getenv("ALATTA_HMS_APP_ID") ?: "").trim().takeIf { it.matches(Regex("[0-9]{1,20}")) } ?: ""
