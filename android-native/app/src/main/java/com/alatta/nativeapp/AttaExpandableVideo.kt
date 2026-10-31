@@ -127,9 +127,9 @@ internal fun mixedPostReels(posts: List<JSONObject>): List<AttaReelEntry> = buil
     for (post in posts) {
         val postId = post.optString("id")
         val videoUrl = media(post.optString("video"))
-        if (videoUrl.isNotBlank()) add(AttaReelEntry(post, "$"+"{postId}:video", videoUrl = videoUrl))
+        if (videoUrl.isNotBlank()) add(AttaReelEntry(post, "$postId:video", videoUrl = videoUrl))
         youtubePostId(post.optString("text"))?.let { ytId ->
-            add(AttaReelEntry(post, "$"+"{postId}:youtube:$"+"ytId", youtubeId = ytId))
+            add(AttaReelEntry(post, "${postId}:youtube:$ytId", youtubeId = ytId))
         }
     }
 }.distinctBy { it.key }
@@ -413,7 +413,7 @@ internal fun AttaPostMediaViewer(
                     Row(Modifier.align(Alignment.TopCenter).fillMaxWidth()
                         .background(Color(0x66000000)).padding(10.dp),
                         verticalAlignment = Alignment.CenterVertically) {
-                        Text("ريلز • "+"$"+"{index + 1} / "+"$"+"{items.size}", Modifier.weight(1f),
+                        Text("ريلز • ${index + 1} / ${items.size}", Modifier.weight(1f),
                             color = Color.White, fontSize = 12.sp)
                         IconButton(onClick = { changeVideo(-1) }, enabled = index > 0) {
                             SiteIcon("chevron-up", tint = Color.White, size = 22.dp)
