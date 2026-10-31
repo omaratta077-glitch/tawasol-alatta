@@ -2735,6 +2735,23 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                 activeYoutubePostId = ""; youtubeId = id; youtubePlayRequested = true
                                 navigate("يوتيوب")
                             })
+                        "ريلز العطا" -> AttaReelsScreen(
+                            posts = posts, modifier = Modifier.weight(1f),
+                            onExit = { if (visited.isNotEmpty()) tab = visited.removeAt(visited.lastIndex) else tab = "الرئيسية" },
+                            onAdd = { openHomeComposer() },
+                            onReact = { id ->
+                                task { post("/api/post-react", JSONObject().put("postId", id).put("reaction", "like")); load("الرئيسية") }
+                            },
+                            onComments = { _ ->
+                                navigate("الرئيسية")
+                                featureMessage = "افتح التعليقات أسفل الفيديو في المنشور."
+                            },
+                            onShare = { id ->
+                                task { post("/api/post-share", JSONObject().put("postId", id).put("text", "")); load("الرئيسية") }
+                            },
+                            onSave = { id ->
+                                task { post("/api/post-save", JSONObject().put("postId", id)); load("الرئيسية") }
+                            })
                         "الرئيسية", "استكشاف", "المحفوظات" -> {
                             PullToRefreshBox(
                                 isRefreshing = screenLoading,
@@ -2766,6 +2783,16 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                 item { SectionTitle("المنشورات") }
                             }
                             if (tab == "الرئيسية") {
+                                item {
+                                    Row(Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        verticalAlignment = Alignment.CenterVertically) {
+                                        PremiumOutlineAction("play", "ريلز العطا") { navigate("ريلز العطا") }
+                                        Text("فيديوهات من العطا وروابط عامة من فيسبوك", color = Muted, fontSize = 11.sp,
+                                            maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                            modifier = Modifier.weight(1f))
+                                    }
+                                }
                                 item {
                                     CardBox {
                                         Row(verticalAlignment = Alignment.CenterVertically,
