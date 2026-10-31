@@ -101,39 +101,39 @@ class PrayerCalculationTest {
         }
     }
 
-    @Test fun morningAndEveningStartWithRequestedVersesAndSalawatPrecedesTawhid() {
+    @Test fun morningAndEveningHaveOneGeneralSalawatAtPositionThirty() {
         for (id in listOf("morning", "evening")) {
             val entries = dhikrGroups.first { it.id == id }.entries
             assertEquals(listOf("fatiha", "kursi", "baqarah-ending"), entries.take(3).map { it.id })
-            val salawat = entries.first { it.id == "salawat-ten" }
-            assertEquals(10, salawat.target)
-            assertTrue(salawat.text.contains("صَلِّ وَسَلِّمْ وَبَارِكْ عَلَى سَيِّدِنَا مُحَمَّدٍ"))
-            assertTrue(entries.indexOf(salawat) < entries.indexOfFirst { it.id == "kingdom" })
+            val salawat = entries[29]
+            assertEquals("salawat-daily", salawat.id)
+            assertEquals(1, salawat.target)
+            assertTrue(salawat.text.contains("صَلِّ عَلَى مُحَمَّدٍ"))
+            assertEquals(1, entries.count { it.title.contains("الصلاة على النبي") })
         }
     }
 
-    @Test fun allSingleReadCardsNowHaveThreeCountGoalWithoutDuplicatingEntries() {
+    @Test fun singleReadCardsKeepOneCountAndGeneralShortDhikrUseOptionalTen() {
         for (group in dhikrGroups) {
-            assertTrue(group.id, group.entries.all { it.target >= 3 })
+            assertTrue(group.id, group.entries.all { it.target > 0 })
             assertEquals(group.id, group.entries.size, group.entries.map { it.id }.distinct().size)
         }
         val morning = dhikrGroups.single { it.id == "morning" }.entries
-        assertEquals(3, morning.single { it.id == "all-good" }.target)
-        assertTrue(morning.single { it.id == "all-good" }.source.contains("3846"))
-        assertTrue(morning.single { it.id == "all-good" }.text.contains("كُلِّهِ"))
-        val beloved = morning.single { it.id == "beloved-words" }
-        assertEquals(3, beloved.target)
-        assertTrue(beloved.text.contains("الْعَظِيمِ، سُبْحَانَ اللَّهِ وَبِحَمْدِهِ"))
-        assertTrue(beloved.note.contains("الكلمتين معًا"))
-        assertEquals(10, morning.single { it.id == "salawat-ten" }.target)
+        assertEquals(1, morning.single { it.id == "all-good" }.target)
+        assertEquals(1, morning.single { it.id == "beloved-words" }.target)
         assertEquals(100, morning.single { it.id == "tasbih" }.target)
+        val tasbih = dhikrGroups.single { it.id == "tasbih" }.entries
+        for (name in listOf("short-subhan", "short-hamd", "short-tahlil")) {
+            assertEquals(10, tasbih.single { it.id == name }.target)
+        }
+        assertEquals(33, dhikrGroups.single { it.id == "prayer" }.entries.single { it.id == "subhan" }.target)
     }
 
     @Test fun abuDardaPrayerIsPresentInBothDailyGroupsAndClearlyMarkedWeak() {
         for (id in listOf("morning", "evening")) {
             val list = dhikrGroups.single { it.id == id }.entries
             val prayer = list.single { it.id == "trust-refuge-abu-darda" }
-            assertEquals(3, prayer.target)
+            assertEquals(1, prayer.target)
             assertTrue(prayer.text.contains("الْعَلِيِّ الْعَظِيمِ"))
             assertTrue(prayer.text.contains("أَنْتَ آخِذٌ بِنَاصِيَتِهَا"))
             assertTrue(prayer.source.contains("ضعيف"))
@@ -143,14 +143,13 @@ class PrayerCalculationTest {
         }
     }
 
-    @Test fun singleReadTargetsBecomeThreeOnlyForReaderWithoutChangingSource() {
+    @Test fun singleReadTargetsStayOneWithoutChangingSource() {
         val entry = Dhikr("sample", "title", "text", 1, "source")
-        val three = entry.forReader()
+        val displayed = entry.forReader()
         assertEquals(1, entry.target)
-        assertEquals(3, three.target)
-        assertEquals(entry.text, three.text)
-        assertEquals(entry.source, three.source)
-        assertTrue(three.note.contains("اختياري"))
+        assertEquals(1, displayed.target)
+        assertEquals(entry.text, displayed.text)
+        assertEquals(entry.source, displayed.source)
         assertEquals(7, entry.copy(target = 7).forReader().target)
     }
 

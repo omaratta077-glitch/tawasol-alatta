@@ -3,12 +3,8 @@ package com.alatta.nativeapp
 internal data class Dhikr(val id: String, val title: String, val text: String, val target: Int, val source: String, val note: String = "")
 internal data class DhikrGroup(val id: String, val title: String, val subtitle: String, val symbol: String, val entries: List<Dhikr>)
 
-// الأعداد المنقولة من المراجع تبقى في تعريف الذكر؛ عدّ التطبيق الافتراضي لا يقل عن 3.
-// لا يُنسب هذا الحد إلى السنة عند عدم ورود عدد مخصوص.
-private const val THREE_READS_NOTE = "هدف 3 تكرارات داخل التطبيق اختياري، وليس عددًا مسنونًا مخصوصًا."
-internal fun Dhikr.forReader(): Dhikr = if (target == 1) copy(
-    target = 3, note = listOf(note, THREE_READS_NOTE).filter(String::isNotBlank).joinToString(" ")
-) else this
+// الحفاظ على العدد الأصلي؛ الذكر الذي هدفه مرة واحدة لا يتحول تلقائيًا إلى ثلاث.
+internal fun Dhikr.forReader(): Dhikr = this
 
 private fun dhikrSearchText(value: String): String = value
     .replace(Regex("[\\u0610-\\u061A\\u064B-\\u065F\\u0670\\u06D6-\\u06ED]"), "")
@@ -51,10 +47,9 @@ private fun dailyAdhkar(evening: Boolean): List<Dhikr> {
     val singular = if (evening) "أَمْسَيْتُ" else "أَصْبَحْتُ"
     val period = if (evening) "اللَّيْلَةِ" else "الْيَوْمِ"
     val after = if (evening) "بَعْدَهَا" else "بَعْدَهُ"
-    return listOf(
+    val entries = listOf(
         fatiha, ayatKursi, baqarahEnding,
         ikhlas, falaq, nas,
-        Dhikr("salawat-ten", "الصلاة على النبي ﷺ عشر مرات", "اللَّهُمَّ صَلِّ وَسَلِّمْ وَبَارِكْ عَلَى سَيِّدِنَا مُحَمَّدٍ", 10, "ذكر عام • العدد المقترح 10"),
         Dhikr("kingdom", if (evening) "أمسينا وأمسى الملك لله" else "أصبحنا وأصبح الملك لله",
             "$time وَ${if (evening) "أَمْسَى" else "أَصْبَحَ"} الْمُلْكُ لِلَّهِ، وَالْحَمْدُ لِلَّهِ، لَا إِلَٰهَ إِلَّا اللَّهُ وَحْدَهُ لَا شَرِيكَ لَهُ، لَهُ الْمُلْكُ وَلَهُ الْحَمْدُ، وَهُوَ عَلَى كُلِّ شَيْءٍ قَدِيرٌ. رَبِّ أَسْأَلُكَ خَيْرَ هَذِهِ $period وَخَيْرَ مَا $after، وَأَعُوذُ بِكَ مِنْ شَرِّ هَذِهِ $period وَشَرِّ مَا $after. رَبِّ أَعُوذُ بِكَ مِنَ الْكَسَلِ وَسُوءِ الْكِبَرِ، رَبِّ أَعُوذُ بِكَ مِنْ عَذَابٍ فِي النَّارِ وَعَذَابٍ فِي الْقَبْرِ".let {
                 // تتغير صيغة اسم الإشارة العربية بحسب كلمة «اليوم» المذكرة.
@@ -85,6 +80,9 @@ private fun dailyAdhkar(evening: Boolean): List<Dhikr> {
         Dhikr("tawhid-day", "التوحيد مائة مرة في اليوم", "لَا إِلَٰهَ إِلَّا اللَّهُ وَحْدَهُ لَا شَرِيكَ لَهُ، لَهُ الْمُلْكُ وَلَهُ الْحَمْدُ، وَهُوَ عَلَى كُلِّ شَيْءٍ قَدِيرٌ", 100, "صحيح البخاري • 3293؛ صحيح مسلم • 2691؛ ذكر يومي"),
         Dhikr("repent-day", "الاستغفار مائة مرة في اليوم", "أَسْتَغْفِرُ اللَّهَ وَأَتُوبُ إِلَيْهِ", 100, "صحيح مسلم • 2702؛ ذكر يومي")
     )
+    // الصلاة على النبي ذكر عام واحد في الترتيب الثلاثين، بلا نسخة ثانية في مقدمة القائمة.
+    val salawat = entries.single { it.id == "salawat-daily" }
+    return entries.filterNot { it.id == salawat.id }.toMutableList().apply { add(29, salawat) }
 }
 
 internal val dhikrGroups = listOf(
@@ -110,6 +108,10 @@ internal val dhikrGroups = listOf(
         Dhikr("guidance", "الهدى والعفاف", "اللَّهُمَّ إِنِّي أَسْأَلُكَ الْهُدَى وَالتُّقَى وَالْعَفَافَ وَالْغِنَى", 1, "صحيح مسلم"),
         Dhikr("dhikr", "حسن العبادة", "اللَّهُمَّ أَعِنِّي عَلَى ذِكْرِكَ وَشُكْرِكَ وَحُسْنِ عِبَادَتِكَ", 1, "رواه أبو داود والنسائي"))),
     DhikrGroup("tasbih", "المسبحة", "تسبيح واستغفار وصلاة على النبي", "beads", listOf(
+        // أهداف عامة اختيارية (10) بخلاف الأذكار الواردة بعد الصلاة أو المائة المنقولة.
+        Dhikr("short-subhan", "سبحان الله", "سُبْحَانَ اللَّهِ", 10, "ذكر عام • هدف عدّ اختياري"),
+        Dhikr("short-hamd", "الحمد لله", "الْحَمْدُ لِلَّهِ", 10, "ذكر عام • هدف عدّ اختياري"),
+        Dhikr("short-tahlil", "لا إله إلا الله", "لَا إِلَٰهَ إِلَّا اللَّهُ", 10, "ذكر عام • هدف عدّ اختياري"),
         tasbih, Dhikr("forgive", "الاستغفار", "أَسْتَغْفِرُ اللَّهَ وَأَتُوبُ إِلَيْهِ", 100, "صحيح مسلم"),
         Dhikr("tawhid", "ذكر التوحيد", "لَا إِلَٰهَ إِلَّا اللَّهُ وَحْدَهُ لَا شَرِيكَ لَهُ، لَهُ الْمُلْكُ وَلَهُ الْحَمْدُ، وَهُوَ عَلَى كُلِّ شَيْءٍ قَدِيرٌ", 100, "متفق عليه"),
         Dhikr("salawat", "الصلاة على النبي ﷺ", "اللَّهُمَّ صَلِّ عَلَى مُحَمَّدٍ وَعَلَى آلِ مُحَمَّدٍ", 100, "الصلاة على النبي ﷺ • العدد هدف للمسبحة")))
