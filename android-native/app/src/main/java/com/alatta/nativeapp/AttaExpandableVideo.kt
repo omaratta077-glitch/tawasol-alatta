@@ -401,8 +401,9 @@ internal fun AttaPostMediaViewer(
                 }
                 if (includeYoutubePosts && live == null) {
                     val authorInfo = current.optJSONObject("authorInfo")
-                    val authorName = authorInfo?.optString("fullName")?.ifBlank { authorInfo.optString("displayName") }
-                        ?.ifBlank { current.optString("author") } ?: current.optString("author")
+                    val authorName = authorInfo?.optString("fullName").orEmpty()
+                        .ifBlank { authorInfo?.optString("displayName").orEmpty() }
+                        .ifBlank { current.optString("author") }
                     val caption = visibleYoutubePostText(current.optString("text")).trim()
                     Column(Modifier.align(Alignment.BottomStart).fillMaxWidth(.77f)
                         .padding(start = 16.dp, bottom = 158.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
