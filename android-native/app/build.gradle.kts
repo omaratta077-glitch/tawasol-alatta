@@ -24,9 +24,9 @@ android {
         applicationId = "com.alatta.nativeapp"
         minSdk = 26
         targetSdk = 35
-        // الإصدار 1.0.205: الأذكار والقنوات كما هي، مع جلب تحديث Cloudflare المنشور لكل مستخدم كل 10 ثوانٍ.
-        versionCode = 307
-        versionName = "1.0.207"
+        // الإصدار 1.0.208: بث HLS/DASH مباشر عبر Media3 داخل تبويب البث المباشر، مع الحفاظ على YTV.
+        versionCode = 308
+        versionName = "1.0.208"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("boolean", "IS_APPGALLERY", appGalleryBuild.toString())
         val hmsId = (System.getenv("ALATTA_HMS_APP_ID") ?: "").trim().takeIf { it.matches(Regex("[0-9]{1,20}")) } ?: ""

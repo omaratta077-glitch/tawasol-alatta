@@ -53,6 +53,19 @@ internal object NativeChannelPlayback {
         }.also { require(it.map { source -> source.index }.distinct().size == it.size) }
     }
 
+    /** Use the already-published HTTPS HLS/DASH source without a second player or resolver.
+     * A trusted catalog entry is still validated before it reaches Media3.
+     */
+    internal fun fromPublishedChannel(channel: FootballChannel): List<NativeChannelSource> {
+        require(channel.enabled && channel.format in setOf("hls", "dash")) { "قناة بث مباشر غير صالحة" }
+        val url = requireNotNull(footballSafeUrl(channel.streamUrl)) { "رابط بث HTTPS غير صالح" }
+        val payload = JSONObject().put("sources", JSONArray().put(
+            JSONObject().put("index", 0).put("url", url)
+                .put("headers", JSONObject()).put("mimeType", footballMime(channel.format))
+        ))
+        return parse(payload)
+    }
+
     suspend fun load(token: String, stableChannelId: String): List<NativeChannelSource> = withContext(Dispatchers.IO) {
         // تذهب جلسة المستخدم إلى خادم العطا فقط، ويُجلب رابط جديد عند كل تشغيل.
         parse(attaApi("/api/football/playback", JSONObject().put("token", token).put("channelId", stableChannelId)))

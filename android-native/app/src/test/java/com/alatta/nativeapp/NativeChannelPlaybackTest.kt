@@ -36,6 +36,30 @@ class NativeChannelPlaybackTest {
             try { NativeChannelPlayback.parse(payload(headers = headers)); fail("Expected invalid headers") } catch (_: IllegalArgumentException) { }
         }
     }
+    @Test fun liveTabUsesPublishedHttpsHlsAndDashWithoutProxy() {
+        for ((format, suffix, mime) in listOf(
+            Triple("hls", "index.m3u8", "application/x-mpegURL"),
+            Triple("dash", "manifest.mpd", "application/dash+xml"))) {
+            val url = "https://licensed.example/live/$suffix"
+            val channel = FootballChannel("stable", "Live", "sports", "licensed",
+                "https://licensed.example", url, format, true)
+            val source = NativeChannelPlayback.fromPublishedChannel(channel).single()
+            assertEquals(url, source.url)
+            assertEquals(mime, source.mimeType)
+            assertEquals(NativeChannelPlayback.FALLBACK_USER_AGENT, source.headers["User-Agent"])
+        }
+    }
+
+    @Test fun directLiveRejectsPlaintextInactiveAndYtvChannels() {
+        val base = FootballChannel("stable", "Live", "sports", "licensed",
+            "https://licensed.example", "https://licensed.example/live/index.m3u8", "hls", true)
+        for (channel in listOf(base.copy(streamUrl = "http://licensed.example/live/index.m3u8"),
+            base.copy(enabled = false), base.copy(format = "ytv", streamUrl = "1424"))) {
+            try { NativeChannelPlayback.fromPublishedChannel(channel); fail("Expected rejection") }
+            catch (_: IllegalArgumentException) {}
+        }
+    }
+
     @Test fun errorReportUsesNumericCodeWithoutExceptionMessageOrUrls() {
         val failure = PlaybackException("https://private.example/?token=secret", null, PlaybackException.ERROR_CODE_TIMEOUT)
         assertEquals(PlaybackException.ERROR_CODE_TIMEOUT to null, NativeChannelPlayback.failure(failure))

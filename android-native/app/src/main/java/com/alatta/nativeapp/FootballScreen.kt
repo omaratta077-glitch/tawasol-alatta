@@ -107,6 +107,13 @@ internal fun FootballScreen(query: String, modifier: Modifier = Modifier,
                             ?.let { playerFailure = it; return@launch }
                     }
                 }
+                "hls", "dash" -> {
+                    if (nativePlayback) {
+                        if (callInProgress) { error = "أنهِ المكالمة أولًا لتشغيل القناة."; return@launch }
+                        val sources = NativeChannelPlayback.fromPublishedChannel(channel)
+                        onBeforePlayback(); nativeSession = NativePlaybackSession(channel, sources)
+                    } else { onBeforePlayback(); selected = channel }
+                }
                 else -> { onBeforePlayback(); selected = channel }
             }
             recent = footballRecent(recent, channel.id)
