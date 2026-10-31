@@ -103,6 +103,7 @@ class NativeChannelTransportTest {
         assertEquals("cdn.example", blockedCleartextHost("Cleartext HTTP traffic to http://cdn.example/live/index.m3u8?t=private-token not permitted"))
         assertNull(blockedCleartextHost("Cleartext HTTP traffic to http://127.0.0.1/private not permitted"))
         assertNull(blockedCleartextHost("Cleartext HTTP traffic rejected"))
+        assertNull(blockedCleartextHost("Cleartext HTTP traffic not permitted. See https://developer.android.com/guide/topics/media/issues/cleartext"))
         assertNull(blockedCleartextHost("http://user:secret@cdn.example/live"))
     }
 
