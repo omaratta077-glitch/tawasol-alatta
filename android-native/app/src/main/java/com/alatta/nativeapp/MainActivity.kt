@@ -2957,12 +2957,12 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                             .border(.6.dp, Border.copy(alpha = .75f), RoundedCornerShape(11.dp)),
                                         contentScale = ContentScale.Crop)
                                     if (video.isNotBlank()) {
-                                        // افتح مشغّل Media3 الوحيد مع قائمة فيديوهات الموجز كاملة،
-                                        // حتى ينتقل السحب الرأسي إلى فيديو المنشور التالي.
                                         AttaExpandableVideo(video, image.takeIf { it.isNotBlank() },
                                             onOpen = { showFullscreenVideo = true })
-                                        if (showFullscreenVideo) {
-                                            AttaPostMediaViewer(
+                                    }
+                                    // جميع المقاطع المنشورة، بما فيها YouTube، تفتح العارض المختلط نفسه.
+                                    if (showFullscreenVideo) {
+                                        AttaPostMediaViewer(
                                                 posts = posts, startId = postId, kind = "video",
                                                 onDismiss = { showFullscreenVideo = false },
                                                 includeYoutubePosts = true,
@@ -2993,7 +2993,6 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                                     openPublicProfile(user)
                                                 }
                                             )
-                                        }
                                     }
                                     p.optJSONObject("sharedPost")?.let { shared ->
                                         val visibleSharedText = visibleYoutubePostText(visibleMushafPostText(shared.optString("text"), BASE))
