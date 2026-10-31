@@ -63,6 +63,7 @@ internal fun FootballScreen(query: String, modifier: Modifier = Modifier,
     var nativeSession by remember { mutableStateOf<NativePlaybackSession?>(null) }
     var lastChannelReport by remember { mutableStateOf<String?>(null) }
     var playerFailure by remember { mutableStateOf<YtvPlayer.Failure?>(null) }
+    var ytvHandoffStatus by remember { mutableStateOf("") }
     var watchEntryRequest by remember { mutableIntStateOf(0) }
     var broadcastExpanded by rememberSaveable { mutableStateOf(false) }
     val generation = CatalogAutoUpdater.generation
@@ -105,8 +106,17 @@ internal fun FootballScreen(query: String, modifier: Modifier = Modifier,
                         onBeforePlayback(); nativeSession = NativePlaybackSession(channel, sources)
                     } else {
                         val currentNumber = currentYtvChannelNumber(channel, catalog.channels, freshYtvNumbers)
-                        YtvPlayer.openWithWatchRoom(context, currentNumber, onBeforePlayback)
-                            ?.let { playerFailure = it; return@launch }
+                        val fromFreshList = currentNumber != channel.streamUrl ||
+                            freshYtvNumbers.any { it.id == currentNumber }
+                        val sourceLabel = if (fromFreshList) "قائمة المصدر" else "الرقم المحفوظ"
+                        ytvHandoffStatus = "محاولة فتح ${channel.name} في YTV: رقم ${currentNumber} ($sourceLabel)"
+                        YtvPlayer.openWithWatchRoom(context, currentNumber, onBeforePlayback)?.let {
+                            playerFailure = it
+                            ytvHandoffStatus = "تعذر إرسال القناة إلى YTV: ${it.explanation} • رقم ${currentNumber}"
+                            return@launch
+                        }
+                        // لا يمكن للعطا معرفة نتيجة تشغيل فيديو داخل تطبيق خارجي عبر startActivity.
+                        ytvHandoffStatus = "أُرسل رقم ${currentNumber} إلى YTV لقناة ${channel.name}. نجاح الإرسال لا يؤكد تشغيل الفيديو."
                     }
                 }
                 else -> { onBeforePlayback(); selected = channel }
@@ -121,6 +131,8 @@ internal fun FootballScreen(query: String, modifier: Modifier = Modifier,
     }
     FootballContent(catalog, query, favorites, recent, loading || openingChannel, error, isAdmin, callInProgress, modifier,
         onReload = { reload++ }, onManage = onManage, onPlay = { play(it) }, onPlayDirect = { play(it, nativePlayback = true) },
+        ytvDiagnostics = "تحديث أرقام YTV: ${YtvPublicNumberRefresh.lastResult}" +
+            if (ytvHandoffStatus.isBlank()) "" else "\n$ytvHandoffStatus",
         onFavorite = { id ->
             favorites = if (id in favorites) favorites - id else favorites + id
             preferences.edit().putStringSet("favorites", favorites.toSet()).apply()
@@ -159,7 +171,7 @@ internal fun FootballContent(catalog: FootballCatalog, query: String, favorites:
     onReload: () -> Unit, onManage: () -> Unit, onPlay: (FootballChannel) -> Unit, onFavorite: (String) -> Unit,
     livePanel: @Composable () -> Unit = {}, onWatch: () -> Unit = {}, watchEnabled: Boolean = true,
     onBroadcast: () -> Unit = {}, broadcastExpanded: Boolean = false,
-    onPlayDirect: ((FootballChannel) -> Unit)? = null) {
+    onPlayDirect: ((FootballChannel) -> Unit)? = null, ytvDiagnostics: String = "") {
     var tab by rememberSaveable { mutableStateOf("القنوات") }
     var showSchedule by rememberSaveable { mutableStateOf(false) }
     var category by rememberSaveable { mutableStateOf("") }
@@ -206,6 +218,8 @@ internal fun FootballContent(catalog: FootballCatalog, query: String, favorites:
         livePanel()
         if (loading) LinearProgressIndicator(Modifier.fillMaxWidth(), color = PremiumGold)
         if (error.isNotBlank()) Text(error, color = Color(0xFFFFB4A9), fontSize = 12.sp)
+        if (tab != "البث المباشر" && ytvDiagnostics.isNotBlank())
+            Text(ytvDiagnostics, color = PremiumMuted, fontSize = 11.sp, maxLines = 3)
         if (directTab) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             FilterChip(selected = !showSchedule, onClick = { showSchedule = false }, label = { Text("بث القنوات", fontSize = 12.sp) })
             FilterChip(selected = showSchedule, onClick = { showSchedule = true }, label = { Text("جدول اليوم", fontSize = 12.sp) })
