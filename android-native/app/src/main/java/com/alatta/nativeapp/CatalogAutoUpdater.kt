@@ -45,6 +45,8 @@ internal object CatalogLinkStore {
 
 internal object CatalogAutoUpdater {
     const val FOREGROUND_REFRESH_MS = 30_000L
+    // كل المستخدمين يسحبون الكتالوج المنشور من Cloudflare؛ لا يطلبون بيانات المصدر ولا ينشرونها.
+    const val SHARED_CATALOG_REFRESH_MS = 10_000L
     private val mutex = Mutex()
     private val attempts = mutableMapOf<String, Long>()
     var generation by mutableIntStateOf(0)
