@@ -44,7 +44,9 @@ internal object CatalogLinkStore {
 }
 
 internal object CatalogAutoUpdater {
+    // تحديث عرض القنوات لا يتغير؛ التردد الأسرع مخصص لمزامنة أرقامها فقط.
     const val FOREGROUND_REFRESH_MS = 30_000L
+    const val CHANNEL_NUMBERS_REFRESH_MS = 3_000L
     private val mutex = Mutex()
     private val attempts = mutableMapOf<String, Long>()
     var generation by mutableIntStateOf(0)
@@ -72,13 +74,11 @@ internal object CatalogAutoUpdater {
             val links = CatalogLinkStore.read(context, owner)
             if (!force && (!CatalogLinkStore.automatic(context, owner) || !CatalogFormatSettings.configured(context))) return@withLock null
             val now = SystemClock.elapsedRealtime()
-            if (!force && attempts[owner]?.let { now - it < FOREGROUND_REFRESH_MS } == true) return@withLock null
+            if (!force && attempts[owner]?.let { now - it < CHANNEL_NUMBERS_REFRESH_MS } == true) return@withLock null
             attempts[owner] = now
-            service(context, token, owner).refreshSection(links) {
-                val mask = CatalogFormatSettings.read(context)?.toByteArray(Charsets.US_ASCII)
-                val result = YacineCatalogProbe.fetch(YacineCatalogProbe.Kind.CATEGORIES, responseMask = mask)
-                catalogDefaultSection(result)
-            }.also { messages = messages + (owner to it.message) }
+            // راقب أرقام القنوات المرتبطة فقط، ولا تضف أو تستبدل عناصر القائمة.
+            service(context, token, owner).refresh(links)
+                .also { messages = messages + (owner to it.message) }
         } }
     suspend fun bind(context: Context, token: String, owner: String, channelId: String,
         categoryId: String, entry: YacineCatalogProbe.Entry): CatalogSyncResult = withContext(Dispatchers.IO) { mutex.withLock {
@@ -113,7 +113,7 @@ internal fun CatalogAutoRefreshEffect(token: String, owner: String, enabled: Boo
         lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
             while (isActive) {
                 CatalogAutoUpdater.refresh(context.applicationContext, token, owner)
-                delay(CatalogAutoUpdater.FOREGROUND_REFRESH_MS)
+                delay(CatalogAutoUpdater.CHANNEL_NUMBERS_REFRESH_MS)
             }
         }
     }
