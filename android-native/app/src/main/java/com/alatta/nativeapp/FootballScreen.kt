@@ -81,7 +81,7 @@ internal fun FootballScreen(query: String, modifier: Modifier = Modifier,
     }
     LaunchedEffect(Unit) {
         val lifecycle = context.mediaActivity()?.lifecycle
-        while (true) { delay(CatalogAutoUpdater.FOREGROUND_REFRESH_MS); if (lifecycle?.currentState?.isAtLeast(Lifecycle.State.STARTED) == true) reload++ }
+        while (true) { delay(CatalogAutoUpdater.SHARED_CATALOG_REFRESH_MS); if (lifecycle?.currentState?.isAtLeast(Lifecycle.State.STARTED) == true) reload++ }
     }
     // القنوات المعتادة تفتح بالمشغّل السابق؛ تجربة Media3 داخل تبويب البث المباشر فقط.
     fun play(channel: FootballChannel, nativePlayback: Boolean = false) {
