@@ -28,8 +28,11 @@ private fun dnsFailureHost(message: String?): String? {
 /** Parse only the hostname from Media3's cleartext policy error; never copy its URL or query. */
 internal fun blockedCleartextHost(message: String?): String? {
     val text = message ?: return null
-    val url = Regex("""(?i)https?://[a-z0-9.-]+(?::[0-9]{1,5})?""").find(text)?.value ?: return null
-    return safeMediaHost(runCatching { java.net.URI(url).host }.getOrNull())
+    // Android Media3's standard cleartext error links to developer.android.com;
+    // that documentation URL is not the destination of the failed request.
+    val target = Regex("""(?i)(?:cleartext(?:\\s+http)?\\s+traffic\\s+to|traffic\\s+to)\\s+(https?://[a-z0-9.-]+(?::[0-9]{1,5})?)""")
+        .find(text)?.groupValues?.getOrNull(1) ?: return null
+    return safeMediaHost(runCatching { java.net.URI(target).host }.getOrNull())
 }
 
 internal fun safeMediaFailure(error: Throwable): SafeMediaFailure {
