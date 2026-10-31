@@ -112,6 +112,34 @@ class PrayerCalculationTest {
         }
     }
 
+    @Test fun allSingleReadCardsNowHaveThreeCountGoalWithoutDuplicatingEntries() {
+        for (group in dhikrGroups) {
+            assertTrue(group.id, group.entries.all { it.target >= 3 })
+            assertEquals(group.id, group.entries.size, group.entries.map { it.id }.distinct().size)
+        }
+        val morning = dhikrGroups.single { it.id == "morning" }.entries
+        assertEquals(3, morning.single { it.id == "all-good" }.target)
+        assertTrue(morning.single { it.id == "all-good" }.source.contains("3846"))
+        assertTrue(morning.single { it.id == "all-good" }.text.contains("كُلِّهِ"))
+        val beloved = morning.single { it.id == "beloved-words" }
+        assertEquals(3, beloved.target)
+        assertTrue(beloved.text.contains("الْعَظِيمِ، سُبْحَانَ اللَّهِ وَبِحَمْدِهِ"))
+        assertTrue(beloved.note.contains("الكلمتين معًا"))
+        assertEquals(10, morning.single { it.id == "salawat-ten" }.target)
+        assertEquals(100, morning.single { it.id == "tasbih" }.target)
+    }
+
+    @Test fun singleReadTargetsBecomeThreeOnlyForReaderWithoutChangingSource() {
+        val entry = Dhikr("sample", "title", "text", 1, "source")
+        val three = entry.forReader()
+        assertEquals(1, entry.target)
+        assertEquals(3, three.target)
+        assertEquals(entry.text, three.text)
+        assertEquals(entry.source, three.source)
+        assertTrue(three.note.contains("اختياري"))
+        assertEquals(7, entry.copy(target = 7).forReader().target)
+    }
+
     @Test fun ArabicSearchFindsUnvowelledAndHamzaVariants() {
         assertTrue(matchesDhikrQuery("أَسْتَغْفِرُ اللَّهَ", "استغفر"))
         assertTrue(matchesDhikrQuery("سُبْحَانَ اللَّهِ وَبِحَمْدِهِ", "سبحان الله"))
