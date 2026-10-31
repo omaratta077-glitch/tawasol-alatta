@@ -118,6 +118,22 @@ internal fun AttaExpandableVideo(url: String, posterUrl: String? = null, onOpen:
     )
 }
 
+/** عنصر واحد في ريلز العطا: إمّا ملف فيديو أو فيديو YouTube مرفق بمنشور.
+ * تُحفظ هويّة المنشور الحقيقية للتعليقات والتفاعل؛ المفتاح الخاص يمنع ضياع فيديو إن وُجد النوعان بمنشور واحد.
+ */
+internal data class AttaReelEntry(val post: JSONObject, val key: String, val videoUrl: String = "", val youtubeId: String? = null)
+
+internal fun mixedPostReels(posts: List<JSONObject>): List<AttaReelEntry> = buildList {
+    for (post in posts) {
+        val postId = post.optString("id")
+        val videoUrl = media(post.optString("video"))
+        if (videoUrl.isNotBlank()) add(AttaReelEntry(post, "$"+"{postId}:video", videoUrl = videoUrl))
+        youtubePostId(post.optString("text"))?.let { ytId ->
+            add(AttaReelEntry(post, "$"+"{postId}:youtube:$"+"ytId", youtubeId = ytId))
+        }
+    }
+}.distinctBy { it.key }
+
 /** مشغّل ملء شاشة واحد ومشغّل Media3 واحد طوال قائمة الفيديوهات كلها. */
 internal data class MediaPlaybackSnapshot(val stage: String, val state: Int = Player.STATE_IDLE,
     val playWhenReady: Boolean = false, val isLoading: Boolean = false, val isPlaying: Boolean = false,
@@ -150,18 +166,34 @@ internal fun AttaPostMediaViewer(
     stopPlayback: Boolean = false,
     dataSourceFactory: androidx.media3.datasource.DataSource.Factory? = null,
     playbackKey: Any? = null,
-    validatedChannelUrl: String? = null
+    validatedChannelUrl: String? = null,
+    includeYoutubePosts: Boolean = false,
+    startYoutube: Boolean = false,
+    youtubePlayerContent: (@Composable (String) -> Unit)? = null
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val isVideo = kind == "video"
-    val items = remember(posts, kind, validatedChannelUrl) { posts.filter { (validatedChannelUrl ?: media(it.optString(kind))).isNotBlank() }.distinctBy { it.optString("id") } }
+    // وحدها نافذة الريلز تستقبل فيديوهات YouTube المنشورة؛ تبقى قنوات البث كما كانت.
+    val items = remember(posts, kind, validatedChannelUrl, includeYoutubePosts) {
+        if (includeYoutubePosts && isVideo && validatedChannelUrl == null) mixedPostReels(posts)
+        else posts.filter { (validatedChannelUrl ?: media(it.optString(kind))).isNotBlank() }
+            .distinctBy { it.optString("id") }
+            .map { AttaReelEntry(it, it.optString("id"), validatedChannelUrl ?: media(it.optString(kind))) }
+    }
     if (items.isEmpty()) return
-    var index by remember(startId, kind) { mutableIntStateOf(items.indexOfFirst { it.optString("id") == startId }.coerceAtLeast(0)) }
-    val current = items[index.coerceIn(items.indices)]
+    var index by remember(startId, kind, includeYoutubePosts, startYoutube) {
+        mutableIntStateOf(items.indexOfFirst { it.post.optString("id") == startId &&
+            (if (startYoutube) it.youtubeId != null else it.youtubeId == null) }
+            .takeIf { it >= 0 } ?: items.indexOfFirst { it.post.optString("id") == startId }.coerceAtLeast(0))
+    }
+    val reel = items[index.coerceIn(items.indices)]
+    val current = reel.post
     val id = current.optString("id")
-    val url = validatedChannelUrl ?: media(current.optString(kind))
-    val stateKey = playbackKey ?: id
+    val url = reel.videoUrl
+    val youtubeId = reel.youtubeId
+    val nativeVideo = isVideo && youtubeId == null
+    val stateKey = playbackKey ?: reel.key
     var sheet by remember(stateKey) { mutableStateOf<String?>(null) }
     var controls by remember(stateKey) { mutableStateOf(true) }
     var playing by remember(playbackKey) { mutableStateOf(false) }
@@ -179,9 +211,9 @@ internal fun AttaPostMediaViewer(
     val currentPlaybackErrorMessage by rememberUpdatedState(playbackErrorMessage)
     val currentDiagnosticReport by rememberUpdatedState(diagnosticReport)
     var playbackEverStarted by remember(url, playbackKey) { mutableStateOf(false) }
-    var sources by remember(isVideo, live != null, requestHeaders, dataSourceFactory, playbackKey) { mutableStateOf<androidx.media3.datasource.DataSource.Factory?>(null) }
-    LaunchedEffect(isVideo, live != null, requestHeaders, dataSourceFactory, playbackKey) {
-        if (isVideo) {
+    var sources by remember(nativeVideo, live != null, requestHeaders, dataSourceFactory, playbackKey) { mutableStateOf<androidx.media3.datasource.DataSource.Factory?>(null) }
+    LaunchedEffect(nativeVideo, live != null, requestHeaders, dataSourceFactory, playbackKey) {
+        if (nativeVideo) {
             onPlaybackSnapshot?.invoke(MediaPlaybackSnapshot("transport_initializing"))
             try {
                 sources = withContext(Dispatchers.IO) { dataSourceFactory ?: VideoTransport.factory(context, live != null, requestHeaders) }
@@ -193,8 +225,8 @@ internal fun AttaPostMediaViewer(
             }
         }
     }
-    val player = remember(isVideo, sources, playbackKey) {
-        if (isVideo && sources != null) ExoPlayer.Builder(context)
+    val player = remember(nativeVideo, sources, playbackKey) {
+        if (nativeVideo && sources != null) ExoPlayer.Builder(context)
             .setMediaSourceFactory(androidx.media3.exoplayer.source.DefaultMediaSourceFactory(requireNotNull(sources)))
             .setLoadControl(VideoTransport.loadControl(live != null)).build() else null
     }
@@ -263,7 +295,7 @@ internal fun AttaPostMediaViewer(
     LaunchedEffect(player, stopPlayback) {
         if (stopPlayback) { player?.stop(); failed = currentPlaybackErrorMessage ?: "انتهت محاولة التشغيل."; controls = true }
     }
-    LaunchedEffect(player, id, url, live?.mimeType, sourceMimeType, playbackKey) {
+    LaunchedEffect(player, reel.key, url, live?.mimeType, sourceMimeType, playbackKey) {
         videoHeights = emptyList()
         player?.takeUnless { stopPlayback }?.apply {
             val item = MediaItem.Builder().setUri(url).apply { (sourceMimeType ?: live?.mimeType)?.takeIf { it.isNotBlank() }?.let { setMimeType(it) } }.build()
@@ -293,7 +325,13 @@ internal fun AttaPostMediaViewer(
     LaunchedEffect(playing, controls, sheet, qualityMenu) { if (playing && controls && sheet == null && !qualityMenu) { delay(2500); controls = false } }
     val changeVideo: (Int) -> Unit = { delta ->
         val next = index + delta
-        if (next in items.indices) { continuePlayback = player?.playWhenReady == true; player?.pause(); index = next; failed = ""; controls = true }
+        if (next in items.indices) {
+            continuePlayback = if (youtubeId != null) true else player?.playWhenReady == true
+            player?.pause()
+            index = next
+            failed = ""
+            controls = true
+        }
     }
     val react: (String) -> Unit = { choice ->
         if (!reacting && sendReaction != null && loadInteractions != null) scope.launch {
@@ -325,7 +363,18 @@ internal fun AttaPostMediaViewer(
         BackHandler { if (sheet != null) sheet = null else dismissViewer("system_back") }
         // يشغل الفيديو كامل المساحة الآمنة، وتظهر التفاعلات الاجتماعية في شريط واحد.
         Column(Modifier.fillMaxSize().background(Color.Black).safeDrawingPadding()) {
-            Box(Modifier.weight(1f).fillMaxWidth().clipToBounds()) {
+            Box(Modifier.weight(1f).fillMaxWidth().clipToBounds()
+                .pointerInput(reel.key) {
+                    if (includeYoutubePosts) {
+                        var drag = 0f
+                        detectVerticalDragGestures(
+                            onDragStart = { drag = 0f },
+                            onDragCancel = { drag = 0f },
+                            onDragEnd = { if (abs(drag) > 80.dp.toPx()) changeVideo(if (drag < 0) 1 else -1) },
+                            onVerticalDrag = { change, amount -> change.consume(); drag += amount }
+                        )
+                    }
+                }) {
                 if (player != null) {
                     AndroidView(factory = { ctx -> PlayerView(ctx).apply {
                         this.player = player
@@ -334,15 +383,13 @@ internal fun AttaPostMediaViewer(
                     } }, update = { it.player = player },
                         modifier = if (live != null) Modifier.align(Alignment.Center).fillMaxWidth().aspectRatio(16f / 9f)
                             else Modifier.fillMaxSize())
-                    var drag by remember(id) { mutableFloatStateOf(0f) }
-                    Box(Modifier.fillMaxSize().clickable { controls = !controls }
-                        .pointerInput(id) { detectVerticalDragGestures(
-                            onDragStart = { drag = 0f },
-                            onDragCancel = { drag = 0f },
-                            onDragEnd = { if (abs(drag) > 80.dp.toPx()) changeVideo(if (drag < 0) 1 else -1); drag = 0f },
-                            onVerticalDrag = { change, amount -> change.consume(); drag += amount }
-                        ) })
+                    Box(Modifier.fillMaxSize().clickable { controls = !controls })
                     // استخدم زر التشغيل والإيقاف المركزي الوحيد في صف عناصر التحكم أدناه.
+                } else if (youtubeId != null && youtubePlayerContent != null) {
+                    // احتفظ بالمشغل الأصلي للموقع: إطار يوتيوب واحد داخل شاشة ريلز عمودية.
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        key(reel.key) { youtubePlayerContent(youtubeId) }
+                    }
                 } else if (!isVideo) AttaZoomableImage(url, "صورة المنشور", onTap = { controls = !controls })
                 if (live != null && controls) Row(Modifier.align(Alignment.TopCenter).fillMaxWidth()
                     .background(Color(0xBB000000)).padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -352,8 +399,29 @@ internal fun AttaPostMediaViewer(
                     }
                     IconButton(onClick = { dismissViewer("close_button") }) { SiteIcon("x", tint = Color.White, size = 22.dp) }
                 }
+                if (includeYoutubePosts && live == null) {
+                    val authorInfo = current.optJSONObject("authorInfo")
+                    val authorName = authorInfo?.optString("fullName")?.ifBlank { authorInfo.optString("displayName") }
+                        ?.ifBlank { current.optString("author") } ?: current.optString("author")
+                    val caption = visibleYoutubePostText(current.optString("text")).trim()
+                    Column(Modifier.align(Alignment.BottomStart).fillMaxWidth(.77f)
+                        .padding(start = 16.dp, bottom = 158.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                        Text(authorName, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                        if (caption.isNotBlank()) Text(caption, color = Color.White, fontSize = 13.sp,
+                            maxLines = 3, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                    }
+                    Row(Modifier.align(Alignment.TopCenter).fillMaxWidth()
+                        .background(Color(0x66000000)).padding(10.dp),
+                        verticalAlignment = Alignment.CenterVertically) {
+                        Text("ريلز • "+"$"+"{index + 1} / "+"$"+"{items.size}", Modifier.weight(1f),
+                            color = Color.White, fontSize = 12.sp)
+                        IconButton(onClick = { dismissViewer("close_button") }) {
+                            SiteIcon("x", tint = Color.White, size = 22.dp)
+                        }
+                    }
+                }
                 // ثبّت الشريط الاجتماعي الرأسي عند الحافة اليمنى الفعلية في تخطيطي RTL وLTR.
-                if (player != null && (sendReaction != null || onShare != null)) {
+                if ((player != null || youtubeId != null) && (sendReaction != null || onShare != null)) {
                     Column(Modifier.align(AbsoluteAlignment.TopRight)
                         .absolutePadding(top = 12.dp, right = 14.dp),
                         verticalArrangement = Arrangement.spacedBy(10.dp),
