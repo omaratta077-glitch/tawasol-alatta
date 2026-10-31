@@ -47,9 +47,20 @@ internal fun attaFacebookReelLink(text: String): String? {
     return null
 }
 
+/** Reuse the existing YouTube ID resolver and the marker used by post shares. */
+internal fun attaYoutubeReelId(text: String): String? {
+    youtubePostId(text)?.let { return it }
+    for (match in Regex("""https?://[^\s<>"']+""", RegexOption.IGNORE_CASE).findAll(text)) {
+        val url = match.value.trimEnd('.', ',', ';', ')', ']', '،', '؛')
+        footballYoutubeId(url)?.let { return it }
+    }
+    return null
+}
+
 internal fun attaReelPosts(posts: List<JSONObject>): List<JSONObject> =
     posts.filter { post -> post.optString("id").isNotBlank() &&
-        (post.optString("video").isNotBlank() || attaFacebookReelLink(post.optString("text")) != null) }
+        (post.optString("video").isNotBlank() || attaFacebookReelLink(post.optString("text")) != null ||
+            attaYoutubeReelId(post.optString("text")) != null) }
         .distinctBy { it.optString("id") }
 
 /** Uses the existing Media3 viewer for native videos and Facebook's official embedded player. */
@@ -72,25 +83,25 @@ internal fun AttaReelsScreen(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(7.dp)) {
             TextButton(onClick = onExit) { SiteIcon("arrow-right", tint = Color.White, size = 20.dp) }
-            Text("ريلز العطا", color = GoldLight, fontWeight = FontWeight.Bold,
+            Text("ريلز العطا", color = PremiumGoldLight, fontWeight = FontWeight.Bold,
                 fontSize = 18.sp, modifier = Modifier.weight(1f))
             TextButton(onClick = onAdd) {
-                SiteIcon("plus", tint = GoldLight, size = 18.dp)
+                SiteIcon("plus", tint = PremiumGoldLight, size = 18.dp)
                 Spacer(Modifier.width(4.dp))
-                Text("مشاركة فيديو", color = GoldLight)
+                Text("مشاركة فيديو", color = PremiumGoldLight)
             }
         }
         if (reels.isEmpty()) {
             Column(Modifier.fillMaxSize().padding(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center) {
-                SiteIcon("play", tint = GoldLight, size = 46.dp)
+                SiteIcon("play", tint = PremiumGoldLight, size = 46.dp)
                 Spacer(Modifier.height(14.dp))
                 Text("لسه مفيش ريلز في المنشورات المحمّلة", color = Color.White)
-                Text("شارك فيديو من العطا أو رابط ريلز عام من فيسبوك في منشور، وهيظهر هنا.",
+                Text("شارك فيديو من العطا أو رابط يوتيوب أو ريلز فيسبوك عام في منشور، وهيظهر هنا.",
                     color = Color.LightGray, fontSize = 13.sp)
                 Spacer(Modifier.height(14.dp))
-                Button(onClick = onAdd, colors = ButtonDefaults.buttonColors(containerColor = GoldLight)) {
+                Button(onClick = onAdd, colors = ButtonDefaults.buttonColors(containerColor = PremiumGoldLight)) {
                     Text("شارك أول ريلز", color = Color.Black)
                 }
             }
@@ -99,6 +110,8 @@ internal fun AttaReelsScreen(
                 val post = reels[page]
                 val facebook = attaFacebookReelLink(post.optString("text"))
                     ?.takeIf { post.optString("video").isBlank() }
+                val youtube = attaYoutubeReelId(post.optString("text"))
+                    ?.takeIf { post.optString("video").isBlank() && facebook == null }
                 val id = post.optString("id")
                 val author = post.optJSONObject("authorInfo")
                 val authorName = author?.optString("fullName")?.takeIf { it.isNotBlank() }
@@ -108,6 +121,12 @@ internal fun AttaReelsScreen(
                     if (page == pager.currentPage) {
                         if (facebook != null) {
                             AttaFacebookReelEmbed(facebook, Modifier.fillMaxSize().padding(bottom = 108.dp))
+                        } else if (youtube != null) {
+                            Box(Modifier.fillMaxSize().padding(horizontal = 8.dp, vertical = 82.dp),
+                                contentAlignment = Alignment.Center) {
+                                // Only the visible reel instantiates the existing official YouTube player.
+                                YoutubePostMedia(youtube, playing = true, onPlay = {}, onStop = {})
+                            }
                         } else {
                             Box(Modifier.fillMaxSize().padding(horizontal = 8.dp, vertical = 82.dp),
                                 contentAlignment = Alignment.Center) {
@@ -118,9 +137,10 @@ internal fun AttaReelsScreen(
                     }
                     Column(Modifier.align(Alignment.BottomStart).fillMaxWidth()
                         .background(Color(0xE6000000)).padding(12.dp)) {
-                        Text(authorName, color = GoldLight, fontWeight = FontWeight.Bold,
+                        Text(authorName, color = PremiumGoldLight, fontWeight = FontWeight.Bold,
                             maxLines = 1, overflow = TextOverflow.Ellipsis)
                         Text(if (facebook != null) "فيديو عام من فيسبوك • المشغّل الرسمي"
+                            else if (youtube != null) "فيديو يوتيوب • المشغّل الرسمي"
                             else "فيديو من منشورات العطا • اضغط للتشغيل",
                             color = Color.LightGray, fontSize = 11.sp)
                         Text(post.optString("text"), color = Color.White, fontSize = 12.sp,
@@ -135,7 +155,7 @@ internal fun AttaReelsScreen(
                         }
                     }
                     Text((page + 1).toString() + " / " + reels.size,
-                        color = GoldLight, fontSize = 11.sp,
+                        color = PremiumGoldLight, fontSize = 11.sp,
                         modifier = Modifier.align(Alignment.TopEnd).padding(14.dp))
                 }
             }
@@ -147,7 +167,7 @@ internal fun AttaReelsScreen(
 private fun AttaReelAction(icon: String, label: String, onClick: () -> Unit) {
     Column(Modifier.clickable(onClick = onClick).padding(horizontal = 7.dp, vertical = 4.dp),
         horizontalAlignment = Alignment.CenterHorizontally) {
-        SiteIcon(icon, tint = GoldLight, size = 22.dp)
+        SiteIcon(icon, tint = PremiumGoldLight, size = 22.dp)
         Text(label, color = Color.White, fontSize = 11.sp)
     }
 }
@@ -187,7 +207,7 @@ private fun AttaFacebookReelEmbed(link: String, modifier: Modifier = Modifier) {
         TextButton(onClick = {
             runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(link))) }
         }, modifier = Modifier.align(Alignment.CenterHorizontally)) {
-            Text("فتح الفيديو على فيسبوك إذا تعذر التضمين", color = GoldLight, fontSize = 12.sp)
+            Text("فتح الفيديو على فيسبوك إذا تعذر التضمين", color = PremiumGoldLight, fontSize = 12.sp)
         }
     }
 }
