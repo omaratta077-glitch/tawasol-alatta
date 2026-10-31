@@ -105,7 +105,7 @@ internal fun AdminFootballPanel(token: String, owner: String) {
                         Text("تحديث قائمة beIN تلقائيًا", color = PremiumGoldLight, fontSize = 13.sp)
                     }
                     if (automatic || links.isNotEmpty()) {
-                        Text("تُجلب قنوات قسم 1080 كاملة. التحقق كل 3 ثوانٍ أثناء ظهور العطا، ودوريًا في الخلفية حسب نظام الهاتف.",
+                        Text("تتم مزامنة أرقام قنوات قسم 1080 كل 3 ثوانٍ أثناء ظهور العطا، مع إبقاء تحديث عرض القائمة كل 30 ثانية. التحديث في الخلفية حسب نظام الهاتف.",
                             color = PremiumMuted, fontSize = 12.sp)
                         TextButton(enabled = !busy, onClick = { scope.launch {
                             busy = true
