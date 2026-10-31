@@ -331,7 +331,9 @@ internal fun AttaPostMediaViewer(
                         this.player = player
                         useController = false
                         resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-                    } }, update = { it.player = player }, modifier = Modifier.fillMaxSize().offset(y = (-12).dp))
+                    } }, update = { it.player = player },
+                        modifier = if (live != null) Modifier.align(Alignment.Center).fillMaxWidth().aspectRatio(16f / 9f)
+                            else Modifier.fillMaxSize())
                     var drag by remember(id) { mutableFloatStateOf(0f) }
                     Box(Modifier.fillMaxSize().clickable { controls = !controls }
                         .pointerInput(id) { detectVerticalDragGestures(
@@ -394,7 +396,7 @@ internal fun AttaPostMediaViewer(
                 // تختفي عناصر التحكم في التشغيل تلقائيًا؛ ويبقى الشريط الاجتماعي الرأسي ظاهرًا.
                 if ((player != null || diagnosticReport != null) && controls) Column(
                     Modifier.align(Alignment.BottomCenter).fillMaxWidth()
-                        .padding(bottom = 72.dp) // Lift playback controls without resizing video.
+                        .padding(bottom = if (live != null) 20.dp else 72.dp) // Compact live controls without resizing media.
                         .background(Brush.verticalGradient(listOf(Color.Transparent, Color(0xAA000000))))
                         .padding(start = 16.dp, top = 6.dp, end = 16.dp, bottom = 14.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
