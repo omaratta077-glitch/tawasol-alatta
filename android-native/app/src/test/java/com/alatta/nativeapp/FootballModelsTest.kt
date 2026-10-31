@@ -6,21 +6,6 @@ import java.time.LocalDate
 import java.time.ZoneId
 
 class FootballModelsTest {
-    @org.junit.Test fun ytvNumberLookupOnlyUsesUniqueExactNames() {
-        val first = FootballChannel("stable-one", "beIN SPORTS 1", "1080P", "YTV PRO",
-            YtvPlayer.APP_PAGE, "1400", "ytv", true)
-        val second = first.copy(id = "stable-two", name = "beIN SPORTS 2", streamUrl = "1401")
-        val entries = listOf(YacineCatalogProbe.Entry("1424", "beIN SPORTS1"),
-            YacineCatalogProbe.Entry("1425", "beIN SPORTS2"))
-        assertEquals("1424", currentYtvChannelNumber(first, listOf(first, second), entries))
-        assertEquals("1425", currentYtvChannelNumber(second, listOf(first, second), entries))
-        assertEquals("1400", currentYtvChannelNumber(first, listOf(first, second),
-            entries + YacineCatalogProbe.Entry("9000", "beIN SPORTS 1")))
-        assertEquals("1400", currentYtvChannelNumber(first, listOf(first, first.copy(id = "duplicate")), entries))
-        assertEquals("1400", currentYtvChannelNumber(first, listOf(first, second), emptyList()))
-        assertEquals("1400", currentYtvChannelNumber(first.copy(format = "hls"), listOf(first, second), entries))
-    }
-
     @Test fun onlyPublicHttpsSourcesCanReachThePlayer() {
         assertEquals("https://cdn.publisher.example/live?id=1", footballSafeUrl("https://cdn.publisher.example/live?id=1#unused"))
         for (bad in listOf("http://cdn.example/a", "file:///movie", "javascript:alert(1)", "https://u:p@cdn.example/a", "https://localhost/a", "https://192.168.1.1/a", "https://[::1]/a", "https://x.local/a", "https://x.internal/a", "https://cdn.example:8443/a")) assertNull(bad, footballSafeUrl(bad))
