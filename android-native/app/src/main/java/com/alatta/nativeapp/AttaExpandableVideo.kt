@@ -311,11 +311,11 @@ internal fun AttaPostMediaViewer(
             catch (_: Exception) { /* Reading media remains available during an API outage. */ }
         }
     }
-    LaunchedEffect(player, id, qualityCap) {
+    LaunchedEffect(player, reel.key, qualityCap) {
         if (live != null && player != null) player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
             .setMaxVideoSize(Int.MAX_VALUE, if (qualityCap == 0) Int.MAX_VALUE else qualityCap).build()
     }
-    LaunchedEffect(player, id) {
+    LaunchedEffect(player, reel.key) {
         while (player != null) {
             duration = player.duration.coerceAtLeast(0)
             progress = if (duration > 0) (player.currentPosition.toFloat() / duration).coerceIn(0f, 1f) else 0f
@@ -415,6 +415,12 @@ internal fun AttaPostMediaViewer(
                         verticalAlignment = Alignment.CenterVertically) {
                         Text("ريلز • "+"$"+"{index + 1} / "+"$"+"{items.size}", Modifier.weight(1f),
                             color = Color.White, fontSize = 12.sp)
+                        IconButton(onClick = { changeVideo(-1) }, enabled = index > 0) {
+                            SiteIcon("chevron-up", tint = Color.White, size = 22.dp)
+                        }
+                        IconButton(onClick = { changeVideo(1) }, enabled = index < items.lastIndex) {
+                            SiteIcon("chevron-down", tint = Color.White, size = 22.dp)
+                        }
                         IconButton(onClick = { dismissViewer("close_button") }) {
                             SiteIcon("x", tint = Color.White, size = 22.dp)
                         }
