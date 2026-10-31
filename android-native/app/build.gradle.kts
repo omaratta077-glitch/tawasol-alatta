@@ -24,9 +24,9 @@ android {
         applicationId = "com.alatta.nativeapp"
         minSdk = 26
         targetSdk = 35
-        // الإصدار 1.0.208: بث HLS/DASH مباشر عبر Media3 داخل تبويب البث المباشر، مع الحفاظ على YTV.
-        versionCode = 308
-        versionName = "1.0.208"
+        // الإصدار 1.0.209: تشخيص خادم HTTP المحظور داخل بث Media3، دون تغيير تشغيل YTV.
+        versionCode = 309
+        versionName = "1.0.209"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("boolean", "IS_APPGALLERY", appGalleryBuild.toString())
         val hmsId = (System.getenv("ALATTA_HMS_APP_ID") ?: "").trim().takeIf { it.matches(Regex("[0-9]{1,20}")) } ?: ""
