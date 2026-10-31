@@ -24,7 +24,7 @@ android {
         applicationId = "com.alatta.nativeapp"
         minSdk = 26
         targetSdk = 35
-        // الإصدار 1.0.205: مراجعة جوامع الدعاء وعدادات الأذكار مع إبقاء تكرارات السنة الأصلية.
+        // الإصدار 1.0.205: الأذكار والموقع وتحديث أرقام YTV لكل المستخدمين وتشخيص المزامنة.
         versionCode = 305
         versionName = "1.0.205"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
