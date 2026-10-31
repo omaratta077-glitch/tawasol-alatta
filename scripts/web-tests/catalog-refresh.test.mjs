@@ -22,7 +22,7 @@ test('missing required config does not arm alarm or fetch',async()=>{
 test('start saves immediately and arms independent persistent next run',async()=>{
  let calls=0;const {instance,ctx}=job({async fetch(request,settings,save){calls++;assert.equal(new URLSearchParams(await request.text()).get('publish'),'yes');return Response.json({published:true,sourceHTTP:200,publishResult:{changed:1,matched:20}});}});
  const start=Date.now();const result=await(await instance.fetch(request())).json();
- assert.equal(result.enabled,true);assert.equal(result.lastSaved,true);assert.equal(result.changed,1);assert.equal(calls,1);assert.ok(ctx.alarm>=start+30000);assert.ok(result.lastSuccess);
+ assert.equal(result.enabled,true);assert.equal(result.lastSaved,true);assert.equal(result.changed,1);assert.equal(calls,1);assert.ok(ctx.alarm>=start+10000);assert.equal(result.intervalMs,10000);assert.ok(result.lastSuccess);
  assert.ok(!JSON.stringify(result).includes(env.PROBE_KEY));
  await instance.alarm();assert.equal(calls,2);assert.equal(ctx.data.get('catalog:auto').enabled,true);
 });
