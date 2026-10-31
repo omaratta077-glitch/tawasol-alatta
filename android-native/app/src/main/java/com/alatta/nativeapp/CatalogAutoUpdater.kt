@@ -43,6 +43,16 @@ internal object CatalogLinkStore {
     }
 }
 
+/** سبب توقف تحديث الأرقام على هاتف المدير، دون إفشاء بيانات جلسة أو إعداد القراءة. */
+internal fun catalogSyncIssue(hasSession: Boolean, hasOwner: Boolean, automatic: Boolean,
+    linkedCount: Int, formatReadable: Boolean): String? = when {
+    !hasSession || !hasOwner -> "سجّل دخول المدير الرئيسي لتحديث أرقام القنوات."
+    !automatic -> "التحديث التلقائي للأرقام متوقف من إعدادات القنوات."
+    linkedCount == 0 -> "لا توجد قنوات مرتبطة بمصدر أرقام على هذا الهاتف؛ الربط لا ينتقل تلقائيًا بين الأجهزة."
+    !formatReadable -> "إعداد قراءة رد المصدر غير موجود أو تعذر فتحه على هذا الهاتف؛ راجع إعداد القراءة."
+    else -> null
+}
+
 internal object CatalogAutoUpdater {
     // تحديث عرض القنوات لا يتغير؛ التردد الأسرع مخصص لمزامنة أرقامها فقط.
     const val FOREGROUND_REFRESH_MS = 30_000L
@@ -70,9 +80,16 @@ internal object CatalogAutoUpdater {
     )
     suspend fun refresh(context: Context, token: String, owner: String, force: Boolean = false): CatalogSyncResult? =
         withContext(Dispatchers.IO) { mutex.withLock {
-            if (owner.isBlank() || token.isBlank()) return@withLock null
+            if (owner.isBlank() || token.isBlank()) return@withLock CatalogSyncResult(message = "سجّل دخول المدير الرئيسي لتحديث أرقام القنوات.")
             val links = CatalogLinkStore.read(context, owner)
-            if (!force && (!CatalogLinkStore.automatic(context, owner) || !CatalogFormatSettings.configured(context))) return@withLock null
+            if (!force) {
+                val issue = catalogSyncIssue(token.isNotBlank(), owner.isNotBlank(),
+                    CatalogLinkStore.automatic(context, owner), links.size,
+                    CatalogFormatSettings.read(context) != null)
+                if (issue != null) return@withLock CatalogSyncResult(message = issue).also {
+                    messages = messages + (owner to it.message)
+                }
+            }
             val now = SystemClock.elapsedRealtime()
             if (!force && attempts[owner]?.let { now - it < CHANNEL_NUMBERS_REFRESH_MS } == true) return@withLock null
             attempts[owner] = now
