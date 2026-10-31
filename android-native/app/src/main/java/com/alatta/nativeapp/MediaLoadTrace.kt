@@ -25,6 +25,13 @@ private fun dnsFailureHost(message: String?): String? {
     return safeMediaHost(quoted ?: bare)
 }
 
+/** Parse only the hostname from Media3's cleartext policy error; never copy its URL or query. */
+internal fun blockedCleartextHost(message: String?): String? {
+    val text = message ?: return null
+    val url = Regex("""(?i)https?://[a-z0-9.-]+(?::[0-9]{1,5})?""").find(text)?.value ?: return null
+    return safeMediaHost(runCatching { java.net.URI(url).host }.getOrNull())
+}
+
 internal fun safeMediaFailure(error: Throwable): SafeMediaFailure {
     val kinds = mutableListOf<String>()
     var status: Int? = null
@@ -36,6 +43,7 @@ internal fun safeMediaFailure(error: Throwable): SafeMediaFailure {
         if (value is HttpDataSource.InvalidResponseCodeException) status = value.responseCode
         if (value is DataSourceException && reason == null) reason = value.reason
         if (value is java.net.UnknownHostException && dnsHost == null) dnsHost = dnsFailureHost(value.message)
+        if (value is HttpDataSource.CleartextNotPermittedException && dnsHost == null) dnsHost = blockedCleartextHost(value.message)
         val kind = when (value) {
             is HttpDataSource.InvalidResponseCodeException -> "HTTP_STATUS"
             is HttpDataSource.InvalidContentTypeException -> "HTTP_CONTENT_TYPE"
