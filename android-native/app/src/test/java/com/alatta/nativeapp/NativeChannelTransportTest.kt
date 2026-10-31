@@ -99,6 +99,13 @@ class NativeChannelTransportTest {
         assertEquals("edge.cdn.example", safeMediaFailure(java.net.UnknownHostException("edge.cdn.example: lookup failed")).dnsHost)
     }
 
+    @Test fun blockedCleartextHostShowsOnlyPublicHostAndNeverSignedQuery() {
+        assertEquals("cdn.example", blockedCleartextHost("Cleartext HTTP traffic to http://cdn.example/live/index.m3u8?t=private-token not permitted"))
+        assertNull(blockedCleartextHost("Cleartext HTTP traffic to http://127.0.0.1/private not permitted"))
+        assertNull(blockedCleartextHost("Cleartext HTTP traffic rejected"))
+        assertNull(blockedCleartextHost("http://user:secret@cdn.example/live"))
+    }
+
     @Test fun diagnosticHostFieldsCannotCopyUrlsTokensIpsOrPrivateNames() {
         for (value in listOf("https://cdn.example/path?token=private-token", "user:password@cdn.example",
             "cdn.example/path", "cdn.example?token=private-token", "127.0.0.1", "192.168.1.1", "[::1]",
