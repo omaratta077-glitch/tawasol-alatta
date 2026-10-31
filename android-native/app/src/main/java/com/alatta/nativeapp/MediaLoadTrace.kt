@@ -30,7 +30,7 @@ internal fun blockedCleartextHost(message: String?): String? {
     val text = message ?: return null
     // Android Media3's standard cleartext error links to developer.android.com;
     // that documentation URL is not the destination of the failed request.
-    val target = Regex("""(?i)(?:cleartext(?:\\s+http)?\\s+traffic\\s+to|traffic\\s+to)\\s+(https?://[a-z0-9.-]+(?::[0-9]{1,5})?)""")
+    val target = Regex("""(?i)(?:cleartext(?:\s+http)?\s+traffic\s+to|traffic\s+to)\s+(https?://[a-z0-9.-]+(?::[0-9]{1,5})?)""")
         .find(text)?.groupValues?.getOrNull(1) ?: return null
     return safeMediaHost(runCatching { java.net.URI(target).host }.getOrNull())
 }
