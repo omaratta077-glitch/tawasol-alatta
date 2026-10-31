@@ -152,7 +152,7 @@ internal fun AzkarPrayerScreen(modifier: Modifier = Modifier, onSharePost: (Stri
     var locationJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
     var locating by remember { mutableStateOf(false) }
     var enableAfterLocation by rememberSaveable { mutableStateOf(false) }
-    var fontSize by remember { mutableIntStateOf(local.getInt("font_size", 21).coerceIn(18, 32)) }
+    var fontSize by remember { mutableIntStateOf(local.getInt("font_size", 23).coerceIn(18, 32)) }
     val counts = remember { mutableStateMapOf<String, Int>() }
     val playing by AdhanPlaybackService.playing.collectAsState()
     val lifecycle = (context as? ComponentActivity)?.lifecycle
@@ -308,15 +308,16 @@ internal fun AzkarPrayerScreen(modifier: Modifier = Modifier, onSharePost: (Stri
                     PrayerCard(innerPadding = 10.dp) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text("${index + 1} • ${entry.title}",
-                                Modifier.weight(1f).clip(RoundedCornerShape(12.dp))
+                                Modifier.wrapContentWidth().clip(RoundedCornerShape(12.dp))
                                     .background(prayerTeal.copy(alpha = .55f))
                                     .border(1.dp, PremiumBorder, RoundedCornerShape(12.dp))
                                     .padding(horizontal = 12.dp, vertical = 9.dp),
                                 color = PremiumGoldLight, fontWeight = FontWeight.Bold)
+                            Spacer(Modifier.weight(1f))
                             if (count >= entry.target) SiteIcon("check", tint = prayerSoft, size = 22.dp)
                         }
                         Text(entry.text, color = Color.White, fontSize = fontSize.sp,
-                            lineHeight = (fontSize * 1.5f).sp, textAlign = TextAlign.Justify,
+                            lineHeight = (fontSize * 1.75f).sp, textAlign = TextAlign.Center,
                             modifier = Modifier.fillMaxWidth())
                         Text(entry.source, color = PremiumMuted, fontSize = 12.sp)
                         if (entry.note.isNotBlank()) Text(entry.note, color = prayerSoft, fontSize = 12.sp)
