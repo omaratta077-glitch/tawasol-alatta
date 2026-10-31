@@ -45,7 +45,7 @@ class YoutubePostShareTest {
     @Test fun publicFacebookReelsJoinMixedFeedWithoutPrivateLinks() {
         val publicReel = "https://www.facebook.com/reel/123456789012345"
         assertEquals(publicReel, facebookReelUrl("فيديو رائع $publicReel"))
-        assertEquals("https://www.facebook.com/watch?v=12345", facebookReelUrl("https://m.facebook.com/watch/?v=12345"))
+        assertEquals("https://www.facebook.com/watch/?v=12345", facebookReelUrl("https://m.facebook.com/watch/?v=12345"))
         assertEquals("https://fb.watch/abcDe12/", facebookReelUrl("https://fb.watch/abcDe12/"))
         for (url in listOf("https://evil.facebook.com/reel/123", "https://facebook.com.evil.test/reel/123",
             "http://www.facebook.com/reel/123", "https://www.facebook.com/profile.php?id=123")) {
