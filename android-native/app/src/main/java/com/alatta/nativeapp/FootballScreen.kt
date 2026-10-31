@@ -67,19 +67,24 @@ internal fun FootballScreen(query: String, modifier: Modifier = Modifier,
     var broadcastExpanded by rememberSaveable { mutableStateOf(false) }
     val generation = CatalogAutoUpdater.generation
     LaunchedEffect(reload, generation) {
-        loading = true; error = ""
+        // التحديث المتكرر لا يمسح القنوات المعروضة أو يوقف المشغّل عند كل فحص.
+        if (catalog.channels.isEmpty()) loading = true
         try {
-            catalog = FootballRepository.load()
-            if (selected != null && catalog.channels.none { it.id == selected?.id && it.enabled }) selected = null
+            val next = FootballRepository.load()
+            if (next != catalog) catalog = next
+            if (selected != null && next.channels.none { it.id == selected?.id && it.enabled }) selected = null
+            error = ""
         } catch (cancelled: CancellationException) { throw cancelled }
-        catch (_: Exception) { error = "تعذر تحديث القائمة. يمكنك إعادة المحاولة." }
-        finally { loading = false }
+        catch (_: Exception) {
+            if (catalog.channels.isEmpty()) error = "تعذر تحديث القائمة. يمكنك إعادة المحاولة."
+        } finally { loading = false }
     }
     LaunchedEffect(Unit) {
         val lifecycle = context.mediaActivity()?.lifecycle
         while (true) { delay(CatalogAutoUpdater.FOREGROUND_REFRESH_MS); if (lifecycle?.currentState?.isAtLeast(Lifecycle.State.STARTED) == true) reload++ }
     }
-    fun play(channel: FootballChannel) {
+    // القنوات المعتادة تفتح بالمشغّل السابق؛ تجربة Media3 داخل تبويب البث المباشر فقط.
+    fun play(channel: FootballChannel, nativePlayback: Boolean = false) {
         if (openingChannel) return
         openingChannel = true
         playbackScope.launch {
@@ -93,9 +98,14 @@ internal fun FootballScreen(query: String, modifier: Modifier = Modifier,
                 }
                 "ytv" -> {
                     if (callInProgress) { error = "أنهِ المكالمة أولًا لتشغيل القناة."; return@launch }
-                    if (token.isBlank()) { error = "سجّل الدخول لتشغيل القناة."; return@launch }
-                    val sources = NativeChannelPlayback.load(token, channel.id)
-                    onBeforePlayback(); nativeSession = NativePlaybackSession(channel, sources)
+                    if (nativePlayback) {
+                        if (token.isBlank()) { error = "سجّل الدخول لتشغيل القناة."; return@launch }
+                        val sources = NativeChannelPlayback.load(token, channel.id)
+                        onBeforePlayback(); nativeSession = NativePlaybackSession(channel, sources)
+                    } else {
+                        YtvPlayer.openWithWatchRoom(context, channel.streamUrl, onBeforePlayback)
+                            ?.let { playerFailure = it; return@launch }
+                    }
                 }
                 else -> { onBeforePlayback(); selected = channel }
             }
@@ -108,7 +118,7 @@ internal fun FootballScreen(query: String, modifier: Modifier = Modifier,
         }
     }
     FootballContent(catalog, query, favorites, recent, loading || openingChannel, error, isAdmin, callInProgress, modifier,
-        onReload = { reload++ }, onManage = onManage, onPlay = { play(it) }, onPlayDirect = { play(it) },
+        onReload = { reload++ }, onManage = onManage, onPlay = { play(it) }, onPlayDirect = { play(it, nativePlayback = true) },
         onFavorite = { id ->
             favorites = if (id in favorites) favorites - id else favorites + id
             preferences.edit().putStringSet("favorites", favorites.toSet()).apply()
