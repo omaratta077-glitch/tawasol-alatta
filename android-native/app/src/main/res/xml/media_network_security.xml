@@ -10,5 +10,7 @@
         <domain includeSubdomains="true">vidorise.buzz</domain>
         <domain includeSubdomains="true">vidunex.buzz</domain>
         <domain includeSubdomains="true">castavion.buzz</domain>
+        <!-- الخادم النهائي المثبت من Location: 302 بتاريخ 2026-10-31؛ لا نسمح للنطاق كله. -->
+        <domain includeSubdomains="false">h33.cacheverto.buzz</domain>
     </domain-config>
 </network-security-config>
