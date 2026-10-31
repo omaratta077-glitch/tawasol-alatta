@@ -43,20 +43,8 @@ internal object CatalogLinkStore {
     }
 }
 
-/** سبب توقف تحديث الأرقام على هاتف المدير، دون إفشاء بيانات جلسة أو إعداد القراءة. */
-internal fun catalogSyncIssue(hasSession: Boolean, hasOwner: Boolean, automatic: Boolean,
-    linkedCount: Int, formatReadable: Boolean): String? = when {
-    !hasSession || !hasOwner -> "سجّل دخول المدير الرئيسي لتحديث أرقام القنوات."
-    !automatic -> "التحديث التلقائي للأرقام متوقف من إعدادات القنوات."
-    linkedCount == 0 -> "لا توجد قنوات مرتبطة بمصدر أرقام على هذا الهاتف؛ الربط لا ينتقل تلقائيًا بين الأجهزة."
-    !formatReadable -> "إعداد قراءة رد المصدر غير موجود أو تعذر فتحه على هذا الهاتف؛ راجع إعداد القراءة."
-    else -> null
-}
-
 internal object CatalogAutoUpdater {
-    // تحديث عرض القنوات لا يتغير؛ التردد الأسرع مخصص لمزامنة أرقامها فقط.
     const val FOREGROUND_REFRESH_MS = 30_000L
-    const val CHANNEL_NUMBERS_REFRESH_MS = 3_000L
     private val mutex = Mutex()
     private val attempts = mutableMapOf<String, Long>()
     var generation by mutableIntStateOf(0)
@@ -80,22 +68,17 @@ internal object CatalogAutoUpdater {
     )
     suspend fun refresh(context: Context, token: String, owner: String, force: Boolean = false): CatalogSyncResult? =
         withContext(Dispatchers.IO) { mutex.withLock {
-            if (owner.isBlank() || token.isBlank()) return@withLock CatalogSyncResult(message = "سجّل دخول المدير الرئيسي لتحديث أرقام القنوات.")
+            if (owner.isBlank() || token.isBlank()) return@withLock null
             val links = CatalogLinkStore.read(context, owner)
-            if (!force) {
-                val issue = catalogSyncIssue(token.isNotBlank(), owner.isNotBlank(),
-                    CatalogLinkStore.automatic(context, owner), links.size,
-                    CatalogFormatSettings.read(context) != null)
-                if (issue != null) return@withLock CatalogSyncResult(message = issue).also {
-                    messages = messages + (owner to it.message)
-                }
-            }
+            if (!force && (!CatalogLinkStore.automatic(context, owner) || !CatalogFormatSettings.configured(context))) return@withLock null
             val now = SystemClock.elapsedRealtime()
-            if (!force && attempts[owner]?.let { now - it < CHANNEL_NUMBERS_REFRESH_MS } == true) return@withLock null
+            if (!force && attempts[owner]?.let { now - it < FOREGROUND_REFRESH_MS } == true) return@withLock null
             attempts[owner] = now
-            // راقب أرقام القنوات المرتبطة فقط، ولا تضف أو تستبدل عناصر القائمة.
-            service(context, token, owner).refresh(links)
-                .also { messages = messages + (owner to it.message) }
+            service(context, token, owner).refreshSection(links) {
+                val mask = CatalogFormatSettings.read(context)?.toByteArray(Charsets.US_ASCII)
+                val result = YacineCatalogProbe.fetch(YacineCatalogProbe.Kind.CATEGORIES, responseMask = mask)
+                catalogDefaultSection(result)
+            }.also { messages = messages + (owner to it.message) }
         } }
     suspend fun bind(context: Context, token: String, owner: String, channelId: String,
         categoryId: String, entry: YacineCatalogProbe.Entry): CatalogSyncResult = withContext(Dispatchers.IO) { mutex.withLock {
@@ -111,69 +94,6 @@ internal object CatalogAutoUpdater {
             if (it) { generation++; attempts.remove(owner); messages = messages + (owner to if (enabled) "تم تفعيل تحديث قائمة القنوات تلقائيًا" else "تم إيقاف التحديث التلقائي") }
         }
     } }
-}
-
-/**
- * تحديث أرقام قنوات YTV عند أي مستخدم بمجرد فتح العطا.
- * يستعمل قائمة القنوات العامة التي ظهرت في الاختبار لمسار categories/4/channels،
- * بلا حساب مدير أو مفتاح قراءة أو كتابة لكتالوج Cloudflare. إن لم تُعد القائمة
- * JSON قابلا للقراءة تُترك الأرقام المنشورة دون تخمين أو تجاوز لقيود المصدر.
- */
-internal object YtvPublicNumberRefresh {
-    const val INTERVAL_MS = 3_000L
-    private const val PUBLIC_SECTION_ID = "4"
-    var entries by mutableStateOf(emptyList<YacineCatalogProbe.Entry>())
-        private set
-    var lastResult by mutableStateOf("لم يتم فحص أرقام YTV بعد")
-        private set
-
-    suspend fun refresh() {
-        val result = YacineCatalogProbe.fetch(YacineCatalogProbe.Kind.CHANNELS, PUBLIC_SECTION_ID)
-        if (result.state == YacineCatalogProbe.State.LIST) {
-            // لا تغيّر القائمة إلا بعد استلام قائمة صحيحة وفريدة المعرّفات.
-            if (entries != result.entries) entries = result.entries
-            lastResult = "تم فحص ${result.entries.size} رقم قناة"
-        } else {
-            lastResult = "تعذر تحديث أرقام YTV: ${result.state} ${result.code ?: ""}"
-        }
-    }
-}
-
-private fun normalizedYtvName(value: String): String =
-    value.lowercase(java.util.Locale.ROOT).filter(Char::isLetterOrDigit)
-
-/** لا نستبدل الأرقام باسم متشابه أو مكرر، ولا نغيّر قنوات Media3. */
-internal fun currentYtvChannelNumber(channel: FootballChannel, catalog: List<FootballChannel>,
-    sourceEntries: List<YacineCatalogProbe.Entry>): String {
-    if (channel.format != "ytv") return channel.streamUrl
-    val key = normalizedYtvName(channel.name)
-    if (key.isBlank() || catalog.count { it.format == "ytv" && normalizedYtvName(it.name) == key } != 1)
-        return channel.streamUrl
-    val match = sourceEntries.filter { normalizedYtvName(it.name) == key }
-        .singleOrNull() ?: return channel.streamUrl
-    return YtvPlayer.channelId(match.id) ?: channel.streamUrl
-}
-
-/** تستمر أثناء ظهور العطا لأي مستخدم، حتى قبل تسجيل الدخول؛ لا حاجة لأي إعداد. */
-@Composable
-internal fun YtvNumberAutoRefreshEffect() {
-    val context = LocalContext.current
-    val lifecycle = context.mediaActivity()?.lifecycle
-    LaunchedEffect(lifecycle) {
-        if (lifecycle == null) return@LaunchedEffect
-        lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
-            while (isActive) {
-                try {
-                    YtvPublicNumberRefresh.refresh()
-                } catch (cancelled: kotlinx.coroutines.CancellationException) {
-                    throw cancelled
-                } catch (_: Exception) {
-                    // يحتفظ بالمعرّفات الناجحة الأخيرة عند انقطاع الشبكة.
-                }
-                delay(YtvPublicNumberRefresh.INTERVAL_MS)
-            }
-        }
-    }
 }
 
 /** ينشر هاتف المالك المعرّفات المحفوظة لبقية المستخدمين؛ ولا تغادر إعدادات الخدمة الهاتف. */
@@ -193,7 +113,7 @@ internal fun CatalogAutoRefreshEffect(token: String, owner: String, enabled: Boo
         lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
             while (isActive) {
                 CatalogAutoUpdater.refresh(context.applicationContext, token, owner)
-                delay(CatalogAutoUpdater.CHANNEL_NUMBERS_REFRESH_MS)
+                delay(CatalogAutoUpdater.FOREGROUND_REFRESH_MS)
             }
         }
     }

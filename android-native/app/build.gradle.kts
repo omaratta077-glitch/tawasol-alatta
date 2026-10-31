@@ -24,9 +24,9 @@ android {
         applicationId = "com.alatta.nativeapp"
         minSdk = 26
         targetSdk = 35
-        // الإصدار 1.0.205: الأذكار والموقع وتحديث أرقام YTV لكل المستخدمين وتشخيص المزامنة.
-        versionCode = 305
-        versionName = "1.0.205"
+        // الإصدار 1.0.205: الأذكار كما هي، مع استعادة مزامنة قنوات 203 والإبقاء على فصل Media3.
+        versionCode = 306
+        versionName = "1.0.206"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("boolean", "IS_APPGALLERY", appGalleryBuild.toString())
         val hmsId = (System.getenv("ALATTA_HMS_APP_ID") ?: "").trim().takeIf { it.matches(Regex("[0-9]{1,20}")) } ?: ""
