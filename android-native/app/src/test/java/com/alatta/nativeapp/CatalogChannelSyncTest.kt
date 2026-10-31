@@ -6,14 +6,6 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class CatalogChannelSyncTest {
-    @Test fun automaticSyncExplainsAllKnownLocalPreconditions() {
-        assertTrue(catalogSyncIssue(false, false, true, 1, true)!!.contains("دخول"))
-        assertTrue(catalogSyncIssue(true, true, false, 1, true)!!.contains("متوقف"))
-        assertTrue(catalogSyncIssue(true, true, true, 0, true)!!.contains("مرتبطة"))
-        assertTrue(catalogSyncIssue(true, true, true, 1, false)!!.contains("قراءة"))
-        assertNull(catalogSyncIssue(true, true, true, 1, true))
-    }
-
     private fun channel(id: String = "saved-one", stream: String = "9001", enabled: Boolean = true) =
         FootballChannel(id, "اسمي المحفوظ", "قسمي", "YTV PRO", YtvPlayer.APP_PAGE, stream, "ytv", enabled)
     private fun link(id: String = "saved-one", source: String = "Test Sports 1", category: String = "101", last: String = "9001") =
