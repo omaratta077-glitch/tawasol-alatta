@@ -65,9 +65,9 @@ private val prayerShape = RoundedCornerShape(22.dp)
 private val arabic = Locale("ar")
 
 @Composable
-private fun PrayerCard(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
+private fun PrayerCard(modifier: Modifier = Modifier, innerPadding: Dp = 16.dp, content: @Composable ColumnScope.() -> Unit) {
     Column(modifier.fillMaxWidth().clip(prayerShape).background(PremiumPanel)
-        .border(1.dp, PremiumBorder.copy(alpha = .55f), prayerShape).padding(16.dp),
+        .border(1.dp, PremiumBorder.copy(alpha = .55f), prayerShape).padding(innerPadding),
         verticalArrangement = Arrangement.spacedBy(10.dp), content = content)
 }
 
@@ -152,7 +152,7 @@ internal fun AzkarPrayerScreen(modifier: Modifier = Modifier, onSharePost: (Stri
     var locationJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
     var locating by remember { mutableStateOf(false) }
     var enableAfterLocation by rememberSaveable { mutableStateOf(false) }
-    var fontSize by remember { mutableIntStateOf(local.getInt("font_size", 23).coerceIn(18, 32)) }
+    var fontSize by remember { mutableIntStateOf(local.getInt("font_size", 21).coerceIn(18, 32)) }
     val counts = remember { mutableStateMapOf<String, Int>() }
     val playing by AdhanPlaybackService.playing.collectAsState()
     val lifecycle = (context as? ComponentActivity)?.lifecycle
@@ -283,23 +283,41 @@ internal fun AzkarPrayerScreen(modifier: Modifier = Modifier, onSharePost: (Stri
         }
         if (group != null) {
             val entries = group.entries
-            LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(14.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 7.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 item {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("${entries.size} ذكرًا ودعاءً • التقدّم محفوظ لليوم", Modifier.weight(1f), color = PremiumMuted, fontSize = 12.sp)
-                        TextButton(onClick = { fontSize = (fontSize - 1).coerceAtLeast(18); local.edit().putInt("font_size", fontSize).apply() }) { Text("أ−", color = PremiumGold) }
-                        TextButton(onClick = { fontSize = (fontSize + 1).coerceAtMost(32); local.edit().putInt("font_size", fontSize).apply() }) { Text("أ+", color = PremiumGold) }
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                        // الترتيب الأول في RTL يعرض الأزرار الدائرية على اليمين.
+                        IconButton(onClick = { fontSize = (fontSize + 1).coerceAtMost(32); local.edit().putInt("font_size", fontSize).apply() },
+                            modifier = Modifier.size(43.dp).clip(CircleShape).background(PremiumPanel)
+                                .border(1.dp, PremiumGold, CircleShape).semantics { contentDescription = "تكبير خط الذكر" }) {
+                            Text("أ+", color = PremiumGoldLight, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                        }
+                        IconButton(onClick = { fontSize = (fontSize - 1).coerceAtLeast(18); local.edit().putInt("font_size", fontSize).apply() },
+                            modifier = Modifier.size(43.dp).clip(CircleShape).background(PremiumPanel)
+                                .border(1.dp, PremiumGold, CircleShape).semantics { contentDescription = "تصغير خط الذكر" }) {
+                            Text("أ−", color = PremiumGoldLight, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                        }
+                        Text("${entries.size} ذكرًا ودعاءً • التقدّم محفوظ لليوم", Modifier.weight(1f),
+                            color = PremiumMuted, fontSize = 11.sp, textAlign = TextAlign.End)
                     }
                 }
                 itemsIndexed(entries, key = { _, entry -> entry.id }) { index, entry ->
                     val key = "${group.id}:${entry.id}"
                     val count = counts[key] ?: local.getInt(key, 0).coerceIn(0, entry.target)
-                    PrayerCard {
+                    PrayerCard(innerPadding = 10.dp) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("${index + 1} • ${entry.title}", Modifier.weight(1f), color = PremiumGoldLight, fontWeight = FontWeight.Bold)
+                            Text("${index + 1} • ${entry.title}",
+                                Modifier.weight(1f).clip(RoundedCornerShape(12.dp))
+                                    .background(prayerTeal.copy(alpha = .55f))
+                                    .border(1.dp, PremiumBorder, RoundedCornerShape(12.dp))
+                                    .padding(horizontal = 12.dp, vertical = 9.dp),
+                                color = PremiumGoldLight, fontWeight = FontWeight.Bold)
                             if (count >= entry.target) SiteIcon("check", tint = prayerSoft, size = 22.dp)
                         }
-                        Text(entry.text, color = Color.White, fontSize = fontSize.sp, lineHeight = (fontSize * 1.75).sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+                        Text(entry.text, color = Color.White, fontSize = fontSize.sp,
+                            lineHeight = (fontSize * 1.5f).sp, textAlign = TextAlign.Justify,
+                            modifier = Modifier.fillMaxWidth())
                         Text(entry.source, color = PremiumMuted, fontSize = 12.sp)
                         if (entry.note.isNotBlank()) Text(entry.note, color = prayerSoft, fontSize = 12.sp)
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
