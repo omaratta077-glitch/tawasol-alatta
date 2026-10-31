@@ -74,9 +74,9 @@ for (const groupId of ['morning', 'evening']) {
   const groupBlock=azkarCatalog.slice(groupStart, nextGroup < 0 ? undefined : nextGroup);
   assert.ok(groupBlock.includes('dailyAdhkar('), `${groupId} uses the daily catalog`);
 }
-assert.ok(azkarCatalog.indexOf('fatiha, ayatKursi, baqarahEnding') < azkarCatalog.indexOf('Dhikr("salawat-ten"') &&
-  azkarCatalog.indexOf('Dhikr("salawat-ten"') < azkarCatalog.indexOf('Dhikr("kingdom"'),
-  'Morning and evening order begins with the requested verses and places ten salawat before tawhid');
+assert.ok(azkarCatalog.includes('fatiha, ayatKursi, baqarahEnding') &&
+  azkarCatalog.includes('add(29, salawat)') && !azkarCatalog.includes('Dhikr("salawat-ten"'),
+  'Daily groups keep their verses and display the unique general salawat in position 30');
 const hadith=fs.readFileSync('android-native/app/src/main/java/com/alatta/nativeapp/HadithLibrary.kt','utf8');
 assert.ok(hadith.includes('verifiedCopy(target, expectedBytes, hash)'), 'Hadith copy verified by actual SHA-256');
 assert.ok(!hadith.includes('PRAGMA quick_check", null') && !hadith.includes('require(db.version == 1)'),
