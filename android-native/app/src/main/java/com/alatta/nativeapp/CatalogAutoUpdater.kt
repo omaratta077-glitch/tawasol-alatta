@@ -76,11 +76,9 @@ internal object CatalogAutoUpdater {
             val now = SystemClock.elapsedRealtime()
             if (!force && attempts[owner]?.let { now - it < CHANNEL_NUMBERS_REFRESH_MS } == true) return@withLock null
             attempts[owner] = now
-            service(context, token, owner).refreshSection(links) {
-                val mask = CatalogFormatSettings.read(context)?.toByteArray(Charsets.US_ASCII)
-                val result = YacineCatalogProbe.fetch(YacineCatalogProbe.Kind.CATEGORIES, responseMask = mask)
-                catalogDefaultSection(result)
-            }.also { messages = messages + (owner to it.message) }
+            // راقب أرقام القنوات المرتبطة فقط، ولا تضف أو تستبدل عناصر القائمة.
+            service(context, token, owner).refresh(links)
+                .also { messages = messages + (owner to it.message) }
         } }
     suspend fun bind(context: Context, token: String, owner: String, channelId: String,
         categoryId: String, entry: YacineCatalogProbe.Entry): CatalogSyncResult = withContext(Dispatchers.IO) { mutex.withLock {
