@@ -121,7 +121,7 @@ internal fun AttaExpandableVideo(url: String, posterUrl: String? = null, onOpen:
 /** عنصر واحد في ريلز العطا: إمّا ملف فيديو أو فيديو YouTube مرفق بمنشور.
  * تُحفظ هويّة المنشور الحقيقية للتعليقات والتفاعل؛ المفتاح الخاص يمنع ضياع فيديو إن وُجد النوعان بمنشور واحد.
  */
-internal data class AttaReelEntry(val post: JSONObject, val key: String, val videoUrl: String = "", val youtubeId: String? = null)
+internal data class AttaReelEntry(val post: JSONObject, val key: String, val videoUrl: String = "", val youtubeId: String? = null, val facebookUrl: String? = null)
 
 internal fun mixedPostReels(posts: List<JSONObject>): List<AttaReelEntry> = buildList {
     for (post in posts) {
@@ -130,6 +130,9 @@ internal fun mixedPostReels(posts: List<JSONObject>): List<AttaReelEntry> = buil
         if (videoUrl.isNotBlank()) add(AttaReelEntry(post, "$postId:video", videoUrl = videoUrl))
         youtubePostId(post.optString("text"))?.let { ytId ->
             add(AttaReelEntry(post, "${postId}:youtube:$ytId", youtubeId = ytId))
+        }
+        facebookReelUrl(post.optString("text"))?.let { fbUrl ->
+            add(AttaReelEntry(post, "${postId}:facebook", facebookUrl = fbUrl))
         }
     }
 }.distinctBy { it.key }
@@ -169,6 +172,7 @@ internal fun AttaPostMediaViewer(
     validatedChannelUrl: String? = null,
     includeYoutubePosts: Boolean = false,
     startYoutube: Boolean = false,
+    startFacebook: Boolean = false,
     youtubePlayerContent: (@Composable (String) -> Unit)? = null
 ) {
     val context = LocalContext.current
@@ -182,17 +186,22 @@ internal fun AttaPostMediaViewer(
             .map { AttaReelEntry(it, it.optString("id"), validatedChannelUrl ?: media(it.optString(kind))) }
     }
     if (items.isEmpty()) return
-    var index by remember(startId, kind, includeYoutubePosts, startYoutube) {
+    var index by remember(startId, kind, includeYoutubePosts, startYoutube, startFacebook) {
         mutableIntStateOf(items.indexOfFirst { it.post.optString("id") == startId &&
-            (if (startYoutube) it.youtubeId != null else it.youtubeId == null) }
-            .takeIf { it >= 0 } ?: items.indexOfFirst { it.post.optString("id") == startId }.coerceAtLeast(0))
+            when {
+                startFacebook -> it.facebookUrl != null
+                startYoutube -> it.youtubeId != null
+                else -> it.youtubeId == null && it.facebookUrl == null
+            } }.takeIf { it >= 0 } ?:
+            items.indexOfFirst { it.post.optString("id") == startId }.coerceAtLeast(0))
     }
     val reel = items[index.coerceIn(items.indices)]
     val current = reel.post
     val id = current.optString("id")
     val url = reel.videoUrl
     val youtubeId = reel.youtubeId
-    val nativeVideo = isVideo && youtubeId == null
+    val facebookUrl = reel.facebookUrl
+    val nativeVideo = isVideo && youtubeId == null && facebookUrl == null
     val stateKey = playbackKey ?: reel.key
     var sheet by remember(stateKey) { mutableStateOf<String?>(null) }
     var controls by remember(stateKey) { mutableStateOf(true) }
@@ -390,6 +399,10 @@ internal fun AttaPostMediaViewer(
                     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         key(reel.key) { youtubePlayerContent(youtubeId) }
                     }
+                } else if (facebookUrl != null) {
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        key(reel.key) { FacebookEmbeddedReel(facebookUrl) }
+                    }
                 } else if (!isVideo) AttaZoomableImage(url, "صورة المنشور", onTap = { controls = !controls })
                 if (live != null && controls) Row(Modifier.align(Alignment.TopCenter).fillMaxWidth()
                     .background(Color(0xBB000000)).padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -428,7 +441,7 @@ internal fun AttaPostMediaViewer(
                     }
                 }
                 // ثبّت الشريط الاجتماعي الرأسي عند الحافة اليمنى الفعلية في تخطيطي RTL وLTR.
-                if ((player != null || youtubeId != null) && (sendReaction != null || onShare != null)) {
+                if ((player != null || youtubeId != null || facebookUrl != null) && (sendReaction != null || onShare != null)) {
                     Column(Modifier.align(AbsoluteAlignment.TopRight)
                         .absolutePadding(top = 12.dp, right = 14.dp),
                         verticalArrangement = Arrangement.spacedBy(10.dp),
