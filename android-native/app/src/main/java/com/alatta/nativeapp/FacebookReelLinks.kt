@@ -1,5 +1,8 @@
 package com.alatta.nativeapp
 
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.ui.unit.dp
 import java.net.URI
 import java.net.URLEncoder
 
@@ -38,3 +41,66 @@ internal fun facebookReelUrl(text: String): String? =
 internal fun facebookEmbedUrl(publicVideoUrl: String): String =
     "https://www.facebook.com/plugins/video.php?href=" +
         URLEncoder.encode(publicVideoUrl, "UTF-8") + "&show_text=false&width=500"
+
+
+@androidx.compose.runtime.Composable
+internal fun FacebookEmbeddedReel(publicVideoUrl: String) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val embed = androidx.compose.runtime.remember(publicVideoUrl) { facebookEmbedUrl(publicVideoUrl) }
+    val webView = androidx.compose.runtime.remember(context, embed) {
+        android.webkit.WebView(context).apply {
+            setBackgroundColor(android.graphics.Color.BLACK)
+            settings.javaScriptEnabled = true
+            settings.domStorageEnabled = true
+            settings.mediaPlaybackRequiresUserGesture = true
+            settings.allowFileAccess = false
+            settings.allowContentAccess = false
+            settings.setSupportZoom(false)
+            settings.loadWithOverviewMode = true
+            settings.useWideViewPort = true
+            webChromeClient = android.webkit.WebChromeClient()
+            webViewClient = object : android.webkit.WebViewClient() {
+                override fun shouldOverrideUrlLoading(
+                    view: android.webkit.WebView?, request: android.webkit.WebResourceRequest?
+                ): Boolean {
+                    if (request?.isForMainFrame != true) return false
+                    val host = request.url.host.orEmpty().lowercase()
+                    // امنع التنقل داخل المشغل إلى صفحات غير تابعة لفيسبوك.
+                    return host !in setOf("facebook.com", "www.facebook.com", "m.facebook.com")
+                }
+            }
+            loadUrl(embed)
+        }
+    }
+    androidx.compose.runtime.DisposableEffect(webView) {
+        onDispose {
+            webView.stopLoading()
+            (webView.parent as? android.view.ViewGroup)?.removeView(webView)
+            webView.destroy()
+        }
+    }
+    androidx.compose.foundation.layout.Column(
+        modifier = androidx.compose.ui.Modifier.fillMaxWidth(),
+        horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally
+    ) {
+        androidx.compose.material3.Text(
+            "فيديو فيسبوك عام",
+            color = androidx.compose.ui.graphics.Color.White
+        )
+        androidx.compose.ui.viewinterop.AndroidView(
+            factory = { viewContext ->
+                (webView.parent as? android.view.ViewGroup)?.removeView(webView)
+                webView
+            },
+            modifier = androidx.compose.ui.Modifier
+                .fillMaxWidth()
+                .height(420.dp)
+        )
+        androidx.compose.material3.TextButton(onClick = {
+            val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(publicVideoUrl))
+            runCatching { context.startActivity(intent) }
+        }) {
+            androidx.compose.material3.Text("فتح الفيديو الأصلي إذا منع فيسبوك التضمين")
+        }
+    }
+}
