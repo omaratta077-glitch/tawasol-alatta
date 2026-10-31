@@ -2944,9 +2944,9 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                         quranReadingRange = pages; quranPage = pages.first; navigate("القرآن")
                                     }
                                     youtubePostId(p.optString("text"))?.let { videoId ->
-                                        YoutubePostMedia(videoId, activeYoutubePostId == postId,
-                                            onPlay = { youtubePlayRequested = false; activeYoutubePostId = postId },
-                                            onStop = { if (activeYoutubePostId == postId) activeYoutubePostId = "" })
+                                        YoutubePostMedia(videoId, false,
+                                            onPlay = { showFullscreenVideo = true; youtubePlayRequested = false },
+                                            onStop = {})
                                     }
                                     val image = media(p.optString("image")); val video = media(p.optString("video"))
                                     val mushafPages = parseMushafPostAttachment(p.optString("text"), BASE)?.pages
@@ -2965,6 +2965,9 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                             AttaPostMediaViewer(
                                                 posts = posts, startId = postId, kind = "video",
                                                 onDismiss = { showFullscreenVideo = false },
+                                                includeYoutubePosts = true,
+                                                startYoutube = video.isBlank() && youtubePostId(p.optString("text")) != null,
+                                                youtubePlayerContent = { id -> YouTubePlayer(id) },
                                                 loadInteractions = { id, kind, offset ->
                                                     get("/api/post-interactions?postId=${enc(id)}&kind=${enc(kind)}&offset=$offset")
                                                 },
