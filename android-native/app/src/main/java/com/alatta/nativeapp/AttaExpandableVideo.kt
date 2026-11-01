@@ -134,6 +134,10 @@ internal fun mixedPostReels(posts: List<JSONObject>): List<AttaReelEntry> = buil
     }
 }.distinctBy { it.key }
 
+/** ريلز العطا يستخدم فيديوهات المنشورات المرفوعة فقط؛ يظل YouTube في العارض الأصلي 16:9. */
+internal fun uploadedPostReels(posts: List<JSONObject>): List<AttaReelEntry> =
+    mixedPostReels(posts).filter { it.youtubeId == null && it.videoUrl.isNotBlank() }
+
 /** مشغّل ملء شاشة واحد ومشغّل Media3 واحد طوال قائمة الفيديوهات كلها. */
 internal data class MediaPlaybackSnapshot(val stage: String, val state: Int = Player.STATE_IDLE,
     val playWhenReady: Boolean = false, val isLoading: Boolean = false, val isPlaying: Boolean = false,
@@ -168,6 +172,7 @@ internal fun AttaPostMediaViewer(
     playbackKey: Any? = null,
     validatedChannelUrl: String? = null,
     includeYoutubePosts: Boolean = false,
+    reelsOnly: Boolean = false,
     startYoutube: Boolean = false,
     youtubePlayerContent: (@Composable (String) -> Unit)? = null
 ) {
@@ -175,16 +180,17 @@ internal fun AttaPostMediaViewer(
     val scope = rememberCoroutineScope()
     val isVideo = kind == "video"
     // Reels are edge-to-edge; channels and ordinary media viewers keep their original FIT layout.
-    val reelsMode = includeYoutubePosts && live == null
-    // وحدها نافذة الريلز تستقبل فيديوهات YouTube المنشورة؛ تبقى قنوات البث كما كانت.
-    val items = remember(posts, kind, validatedChannelUrl, includeYoutubePosts) {
-        if (includeYoutubePosts && isVideo && validatedChannelUrl == null) mixedPostReels(posts)
+    val reelsMode = (reelsOnly || includeYoutubePosts) && live == null
+    // صفحة الريلز تعرض فيديوهات العطا الأصلية فقط؛ فيديوهات YouTube تحتفظ بنسبة 16:9 داخل منشوراتها.
+    val items = remember(posts, kind, validatedChannelUrl, includeYoutubePosts, reelsOnly) {
+        if (reelsOnly && isVideo && validatedChannelUrl == null) uploadedPostReels(posts)
+        else if (includeYoutubePosts && isVideo && validatedChannelUrl == null) mixedPostReels(posts)
         else posts.filter { (validatedChannelUrl ?: media(it.optString(kind))).isNotBlank() }
             .distinctBy { it.optString("id") }
             .map { AttaReelEntry(it, it.optString("id"), validatedChannelUrl ?: media(it.optString(kind))) }
     }
     if (items.isEmpty()) return
-    var index by remember(startId, kind, includeYoutubePosts, startYoutube) {
+    var index by remember(startId, kind, includeYoutubePosts, reelsOnly, startYoutube) {
         mutableIntStateOf(items.indexOfFirst { it.post.optString("id") == startId &&
             (if (startYoutube) it.youtubeId != null else it.youtubeId == null) }
             .takeIf { it >= 0 } ?: items.indexOfFirst { it.post.optString("id") == startId }.coerceAtLeast(0))
@@ -368,7 +374,7 @@ internal fun AttaPostMediaViewer(
             .then(if (reelsMode) Modifier else Modifier.safeDrawingPadding())) {
             Box(Modifier.weight(1f).fillMaxWidth().clipToBounds()
                 .pointerInput(reel.key) {
-                    if (includeYoutubePosts) {
+                    if (reelsMode) {
                         var drag = 0f
                         detectVerticalDragGestures(
                             onDragStart = { drag = 0f },
@@ -404,17 +410,22 @@ internal fun AttaPostMediaViewer(
                     }
                     IconButton(onClick = { dismissViewer("close_button") }) { SiteIcon("x", tint = Color.White, size = 22.dp) }
                 }
-                if (includeYoutubePosts && live == null) {
+                if (reelsMode && live == null) {
                     val authorInfo = current.optJSONObject("authorInfo")
                     val authorName = authorInfo?.optString("fullName").orEmpty()
                         .ifBlank { authorInfo?.optString("displayName").orEmpty() }
                         .ifBlank { current.optString("author") }
                     val caption = visibleYoutubePostText(current.optString("text")).trim()
+                    // نحو 10dp فوق حافة عارض الريلز، بدل ترك فراغ أسود كبير أسفل الاسم.
                     Column(Modifier.align(Alignment.BottomStart).fillMaxWidth(.77f)
-                        .padding(start = 16.dp, bottom = 130.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                        Text(authorName, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                        if (caption.isNotBlank()) Text(caption, color = Color.White, fontSize = 13.sp,
-                            maxLines = 3, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                        .padding(start = 16.dp, bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text(authorName, color = Color.White, fontWeight = FontWeight.Bold,
+                            fontSize = 19.sp, lineHeight = 24.sp,
+                            modifier = Modifier.background(Color(0x77000000), RoundedCornerShape(6.dp))
+                                .padding(horizontal = 5.dp, vertical = 2.dp))
+                        if (caption.isNotBlank()) Text(caption, color = Color.White, fontSize = 15.sp,
+                            lineHeight = 20.sp,
+                            maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                     }
                     // Reels have swipe navigation; only the close control stays in the upper corner.
                     IconButton(onClick = { dismissViewer("close_button") },
@@ -444,7 +455,8 @@ internal fun AttaPostMediaViewer(
                                     contentAlignment = Alignment.Center) {
                                     SiteIcon("message-circle", size = 23.dp, tint = PremiumGoldLight)
                                 }
-                                Text(comments.toString(), color = PremiumGoldLight, fontSize = 11.sp)
+                                Text(comments.toString(), color = PremiumGoldLight, fontSize = 13.sp,
+                                    fontWeight = FontWeight.SemiBold)
                             }
                         }
                         if (onShare != null) {
