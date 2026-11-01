@@ -1,11 +1,11 @@
 
 (()=>{
 const $=id=>document.getElementById(id);
-const youtubePostMarker=/^\[\[alatta-youtube:([A-Za-z0-9_-]{11})\]\][ \t]*$/m;
+const youtubePostMarker=/^\[\[alatta-youtube(-short)?:([A-Za-z0-9_-]{11})\]\][ \t]*$/m;
 function youtubePostInfo(text){
   const raw=String(text||'');
   const match=raw.match(youtubePostMarker);
-  return {id:match?match[1]:'',text:raw.replace(youtubePostMarker,'').replace(/\n{3,}/g,'\n\n').trim()};
+  return {id:match?match[2]:'',short:!!(match&&match[1]),text:raw.replace(youtubePostMarker,'').replace(/\n{3,}/g,'\n\n').trim()};
 }
 function youtubePostFrame(post){
   const id=youtubePostInfo(post.text).id;
