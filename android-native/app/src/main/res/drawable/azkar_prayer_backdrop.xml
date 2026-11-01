@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="420dp" android:height="275dp"
+    android:viewportWidth="420" android:viewportHeight="275">
+    <!-- Offline architectural illustration: lantern, mosque window and Quran on black-gold. -->
+    <path android:pathData="M0,0 L420,0 L420,275 L0,275 Z" android:fillColor="#0A0908"/>
+    <path android:pathData="M0,0 L220,0 L220,275 L0,275 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient android:startX="0" android:startY="0" android:endX="216" android:endY="225"
+                android:startColor="#49321A" android:centerColor="#24170C" android:endColor="#090909"
+                android:type="linear"/>
+        </aapt:attr>
+    </path>
+    <!-- Ornamental stone window, deliberately subdued beneath the text. -->
+    <path android:pathData="M12,263 L12,78 C21,41 58,19 95,10 C139,27 163,58 177,91 L177,263"
+        android:fillColor="#261709" android:strokeColor="#795328" android:strokeWidth="2"/>
+    <path android:pathData="M26,250 L26,85 C39,56 67,39 95,27 C129,42 151,66 163,91 L163,250 Z"
+        android:fillColor="#281E15" android:strokeColor="#A47332" android:strokeWidth="1.4"/>
+    <path android:pathData="M95,28 L95,255 M28,107 L163,107 M28,165 L163,165 M30,213 L161,213"
+        android:strokeColor="#8A5A2E" android:strokeWidth="1.1" android:fillColor="#00000000"/>
+    <path android:pathData="M36,107 L36,87 C55,62 77,51 95,43 C122,53 139,71 151,90 L151,107 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient android:startX="60" android:startY="53" android:endX="136" android:endY="126"
+                android:startColor="#6A4B26" android:endColor="#10110E" android:type="linear"/>
+        </aapt:attr>
+    </path>
+    <path android:pathData="M40,114 L151,114 L151,248 L40,248 Z" android:fillColor="#182225"/>
+    <!-- Warm focal glow behind the brass lantern. -->
+    <path android:pathData="M7,34 L190,34 L190,270 L7,270 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient android:type="radial" android:centerX="91" android:centerY="161"
+                android:gradientRadius="110" android:startColor="#80FBC54F"
+                android:centerColor="#44D48A2C" android:endColor="#00000000"/>
+        </aapt:attr>
+    </path>
+    <!-- Lantern suspension, crown, frame and gold glass. -->
+    <path android:pathData="M91,32 L91,66" android:strokeColor="#F7D778" android:strokeWidth="2.8"/>
+    <path android:pathData="M84,69 C84,61 98,61 98,69 C98,77 84,77 84,69 Z"
+        android:strokeColor="#F7D778" android:strokeWidth="2.6" android:fillColor="#2F1C0B"/>
+    <path android:pathData="M58,103 L91,77 L124,103 L119,203 L63,203 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient android:type="linear" android:startX="62" android:startY="91"
+                android:endX="121" android:endY="200" android:startColor="#F4C363"
+                android:centerColor="#C99029" android:endColor="#4A2A0D"/>
+        </aapt:attr>
+    </path>
+    <path android:pathData="M68,113 L114,113 L111,192 L71,192 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient android:type="radial" android:centerX="91" android:centerY="158"
+                android:gradientRadius="58" android:startColor="#FFF3AB"
+                android:centerColor="#F0B84C" android:endColor="#A36322"/>
+        </aapt:attr>
+    </path>
+    <path android:pathData="M91,107 L91,199 M70,135 L113,135 M71,171 L112,171"
+        android:strokeColor="#603D18" android:strokeWidth="3" android:fillColor="#00000000"/>
+    <path android:pathData="M57,101 L91,75 L125,101 L120,204 L62,204 Z"
+        android:strokeColor="#FFE59B" android:strokeWidth="3" android:fillColor="#00000000"/>
+    <path android:pathData="M49,204 L134,204 L139,216 L44,216 Z" android:fillColor="#A96B24"
+        android:strokeColor="#FFD37C" android:strokeWidth="2"/>
+    <path android:pathData="M41,221 L143,221 L148,226 L37,226 Z" android:fillColor="#DA9B38"/>
+    <!-- A closed embossed Quran on its low wooden stand. -->
+    <path android:pathData="M5,251 L58,229 L137,252 L88,273 Z"
+        android:fillColor="#5C3519" android:strokeColor="#B38241" android:strokeWidth="2"/>
+    <path android:pathData="M19,242 L92,221 L153,240 L77,262 Z"
+        android:fillColor="#151B19" android:strokeColor="#D5A04B" android:strokeWidth="3"/>
+    <path android:pathData="M31,241 L92,227 L141,241 L76,256 Z"
+        android:fillColor="#161613" android:strokeColor="#E7B85E" android:strokeWidth="1.4"/>
+    <path android:pathData="M69,241 L88,233 L106,241 L87,249 Z"
+        android:fillColor="#574020" android:strokeColor="#F4C967" android:strokeWidth="1.8"/>
+    <path android:pathData="M78,241 L88,236 L98,241 L88,246 Z"
+        android:fillColor="#C4933A" android:strokeColor="#F6D47A" android:strokeWidth="1.2"/>
+    <!-- Dark vignette protects real-time prayer text from visual noise. -->
+    <path android:pathData="M145,0 L420,0 L420,275 L145,275 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient android:startX="145" android:startY="0" android:endX="265" android:endY="0"
+                android:startColor="#00000000" android:centerColor="#D90B0A09"
+                android:endColor="#F808090A" android:type="linear"/>
+        </aapt:attr>
+    </path>
+    <path android:pathData="M0,0 L420,0 L420,275 L0,275 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient android:startX="0" android:startY="0" android:endX="0" android:endY="275"
+                android:startColor="#4B000000" android:centerColor="#00000000"
+                android:endColor="#7E000000" android:type="linear"/>
+        </aapt:attr>
+    </path>
+</vector>
