@@ -35,6 +35,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.dp
@@ -173,7 +174,7 @@ internal fun AttaPostMediaViewer(
     playbackKey: Any? = null,
     validatedChannelUrl: String? = null,
     reelsOnly: Boolean = false,
-    youtubeShortContent: (@Composable (String, Int, Boolean, (Boolean) -> Unit) -> Unit)? = null,
+    youtubeShortContent: (@Composable (String, Int, Boolean, (Boolean) -> Unit, (Float, Float) -> Unit) -> Unit)? = null,
     nextReelsCursor: String? = null,
     onLoadMoreReels: (() -> Unit)? = null
 ) {
@@ -384,6 +385,22 @@ internal fun AttaPostMediaViewer(
             controls = true
         }
     }
+    // رصد سحب الشورت داخل WebView الأصلي؛ لا نعطّل نقر زر تشغيل YouTube الرسمي.
+    val shortSwipeThreshold = with(LocalDensity.current) { 88.dp.toPx() }
+    var shortDragX by remember(stateKey) { mutableFloatStateOf(0f) }
+    var shortDragY by remember(stateKey) { mutableFloatStateOf(0f) }
+    var shortDragHandled by remember(stateKey) { mutableStateOf(false) }
+    val onShortDrag: (Float, Float) -> Unit = { dx, dy ->
+        if (!shortDragHandled) {
+            shortDragX += dx
+            shortDragY += dy
+            if (abs(shortDragY) >= shortSwipeThreshold &&
+                abs(shortDragY) > abs(shortDragX) * 1.5f) {
+                shortDragHandled = true
+                changeVideo(if (shortDragY < 0f) 1 else -1)
+            }
+        }
+    }
     val react: (String) -> Unit = { choice ->
         if (!reacting && sendReaction != null && loadInteractions != null) scope.launch {
             reacting = true; failed = ""
@@ -417,7 +434,7 @@ internal fun AttaPostMediaViewer(
             .then(if (reelsMode) Modifier else Modifier.safeDrawingPadding())) {
             Box(Modifier.weight(1f).fillMaxWidth().clipToBounds()
                 .pointerInput(reel.key) {
-                    if (reelsMode) {
+                    if (reelsMode && youtubeId == null) {
                         var drag = 0f
                         detectVerticalDragGestures(
                             onDragStart = { drag = 0f },
@@ -475,14 +492,15 @@ internal fun AttaPostMediaViewer(
                     // نفس YouTubePlayer الرسمي الذي يستخدمه التطبيق، لكن في مساحة 9:16.
                     // لا نحجب زر بدء YouTube الأصلي قبل التشغيل الأول.
                     key(reel.key) {
-                        youtubeShortContent(youtubeId, youtubeCommand, youtubeCommandPlay) { active ->
-                            youtubePlaying = active
-                            if (active) youtubeStarted = true
-                        }
+                        youtubeShortContent(youtubeId, youtubeCommand, youtubeCommandPlay,
+                            { active ->
+                                youtubePlaying = active
+                                if (active) youtubeStarted = true
+                            }, onShortDrag)
                     }
-                    if (youtubeStarted) Box(Modifier.fillMaxSize().clickable {
-                        toggleReelPlayback()
-                    })
+                    // منطقة لمس وسطى صغيرة؛ باقى المساحة تظل متاحة لإيماءة السحب والiframe.
+                    if (youtubeStarted) Box(Modifier.align(Alignment.Center).size(92.dp)
+                        .clickable { toggleReelPlayback() })
                 } else if (!isVideo) AttaZoomableImage(url, "صورة المنشور", onTap = { controls = !controls })
                 if (reelsOnly && controls && (player != null || (youtubeId != null && youtubeStarted))) {
                     Box(Modifier.align(Alignment.Center).size(66.dp)
