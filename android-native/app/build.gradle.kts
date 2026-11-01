@@ -24,9 +24,9 @@ android {
         applicationId = "com.alatta.nativeapp"
         minSdk = 26
         targetSdk = 35
-        // الإصدار 1.0.235: ضبط ذكر كلمتان حبيبتان إلى الرحمن إلى سبحان الله وبحمده سبحان الله العظيم 10 مرات في الصباح والمساء مع الحفاظ على بقية الأذكار.
-        versionCode = 335
-        versionName = "1.0.235"
+        // الإصدار 1.0.236: المحافظة على تنسيق أذكار 234 والكلمتين الصحيحتين، وتوحيد التوحيد الأخير على 100 مرة ومشاركته بصورة سوداء وذهبية أو كمنشور.
+        versionCode = 336
+        versionName = "1.0.236"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("boolean", "IS_APPGALLERY", appGalleryBuild.toString())
         val hmsId = (System.getenv("ALATTA_HMS_APP_ID") ?: "").trim().takeIf { it.matches(Regex("[0-9]{1,20}")) } ?: ""
