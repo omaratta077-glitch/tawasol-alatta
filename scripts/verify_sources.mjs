@@ -68,7 +68,10 @@ const navItems=chromeUi.split('val destinations = listOf(',2)[1].split('val scro
 assert.ok(navItems.includes('Triple("ريلز", "video", "ريلز")') &&
   !navItems.includes('Triple("الرسائل"') &&
   chromeUi.includes('PremiumTopItem("message-circle", "الرسائل"') &&
-  native.includes('"ريلز" -> {') && native.includes('uploadedPostReels(posts)') &&
+  native.includes('"ريلز" -> {') && native.includes('uploadedPostReels(reelPosts)') &&
+  native.includes('collectUploadedReels(reset = true)') &&
+  native.includes('FeedPages.fetch(::get, next)') &&
+  native.includes('onLoadMoreReels = {') &&
   native.includes('reelsOnly = true') &&
   native.includes('includeYoutubePosts = true') &&
   native.includes('visible = chromeVisible && tab != "القرآن"') &&
@@ -86,6 +89,8 @@ const videoViewer=fs.readFileSync('android-native/app/src/main/java/com/alatta/n
 assert.ok(videoViewer.includes('val reelsMode = (reelsOnly || includeYoutubePosts) && live == null') &&
   videoViewer.includes('mixedPostReels(posts).filter { it.youtubeId == null && it.videoUrl.isNotBlank() }') &&
   videoViewer.includes('bottom = 12.dp') &&
+  videoViewer.includes('LaunchedEffect(reelsOnly, index, items.size, nextReelsCursor)') &&
+  videoViewer.includes('onLoadMoreReels?.invoke()') &&
   videoViewer.includes('fontSize = 19.sp, lineHeight = 24.sp') &&
   videoViewer.includes('Modifier.align(Alignment.Center).fillMaxWidth().aspectRatio(16f / 9f)') &&
   videoViewer.includes('Column(Modifier.align(AbsoluteAlignment.TopRight)') &&
