@@ -1251,6 +1251,8 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
     var reelCursor by remember(token) { mutableStateOf<String?>(null) }
     var reelMoreLoading by remember { mutableStateOf(false) }
     var reelMoreError by remember { mutableStateOf("") }
+    // تحقق مستقل من مدة الشورت؛ لا يُحذف أو يُعدَّل أي منشور على الخادم.
+    var shortEligibility by remember(token) { mutableStateOf(emptyMap<String, Boolean>()) }
     var stories by remember { mutableStateOf(emptyList<JSONObject>()) }
     var storyText by remember { mutableStateOf("") }
     var storyMediaUri by remember { mutableStateOf<Uri?>(null) }
@@ -1693,6 +1695,21 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
             visited++
             if (next == null || uploadedPostReels(collected).size - beforeCount >= 2) break
         } while (visited < 6)
+        val checked = shortEligibility.toMutableMap()
+        // البصمات القديمة التي صنّفت محاضرات طويلة "Shorts" لا تظهر في الريلز.
+        val toCheck = collected.mapNotNull { youtubeShortPostId(it.optString("text")) }
+            .distinct().filterNot { checked.containsKey(it) }.take(20)
+        for (shortId in toCheck) {
+            try {
+                val verification = withContext(Dispatchers.IO) {
+                    api("/api/youtube-short?id=${enc(shortId)}")
+                }
+                if (verification.optBoolean("ok"))
+                    checked[shortId] = verification.optBoolean("eligible", false)
+            } catch (cancelled: CancellationException) { throw cancelled }
+              catch (_: Exception) { /* عند تعذر الشبكة لا نعطل فيديوهات العطا الأصلية. */ }
+        }
+        shortEligibility = checked
         reelPosts = collected.distinctBy { it.optString("id") }
         reelCursor = next
     }
@@ -2914,7 +2931,12 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                             })
                         "ريلز" -> {
                             // Uses the same single mixed reels viewer from post cards; it is NOT a second player.
-                            val reelEntries = remember(reelPosts) { uploadedPostReels(reelPosts) }
+                            val rejectedShortIds = remember(shortEligibility) {
+                                shortEligibility.filterValues { !it }.keys
+                            }
+                            val reelEntries = remember(reelPosts, rejectedShortIds) {
+                                uploadedPostReels(reelPosts, rejectedShortIds)
+                            }
                             Box(Modifier.weight(1f).fillMaxWidth().background(Black),
                                 contentAlignment = Alignment.Center) {
                                 if (reelEntries.isEmpty()) {
@@ -2956,6 +2978,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                         kind = "video",
                                         onDismiss = { navigate("الرئيسية") },
                                         reelsOnly = true,
+                                        rejectedShortIds = rejectedShortIds,
                                         youtubeShortContent = { shortId, command, shouldPlay, changed, onShortsDrag ->
                                             YouTubePlayer(shortId, onMiniDrag = onShortsDrag,
                                                 portrait = true, playbackCommand = command,
