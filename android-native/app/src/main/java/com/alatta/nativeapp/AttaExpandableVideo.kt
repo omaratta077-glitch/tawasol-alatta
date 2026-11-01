@@ -411,7 +411,7 @@ internal fun AttaPostMediaViewer(
                         .ifBlank { current.optString("author") }
                     val caption = visibleYoutubePostText(current.optString("text")).trim()
                     Column(Modifier.align(Alignment.BottomStart).fillMaxWidth(.77f)
-                        .padding(start = 16.dp, bottom = 158.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                        .padding(start = 16.dp, bottom = 130.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                         Text(authorName, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
                         if (caption.isNotBlank()) Text(caption, color = Color.White, fontSize = 13.sp,
                             maxLines = 3, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
@@ -442,15 +442,15 @@ internal fun AttaPostMediaViewer(
                                     .background(Color(0xAA080808))
                                     .border(1.dp, PremiumGold, RoundedCornerShape(50)),
                                     contentAlignment = Alignment.Center) {
-                                    SiteIcon("message-circle", size = 23.dp, tint = Color.White)
+                                    SiteIcon("message-circle", size = 23.dp, tint = PremiumGoldLight)
                                 }
-                                Text(comments.toString(), color = Color.White, fontSize = 11.sp)
+                                Text(comments.toString(), color = PremiumGoldLight, fontSize = 11.sp)
                             }
                         }
                         if (onShare != null) {
                             Box(Modifier.size(44.dp).clip(RoundedCornerShape(50))
                                 .background(Color(0xAA080808))
-                                .border(1.dp, Color(0xFFE6B94E), RoundedCornerShape(50))
+                                .border(1.dp, PremiumGold, RoundedCornerShape(50))
                                 .clickable {
                                     scope.launch {
                                         try { onShare(id) }
@@ -460,7 +460,7 @@ internal fun AttaPostMediaViewer(
                                         }
                                     }
                                 }, contentAlignment = Alignment.Center) {
-                                SiteIcon("send", size = 24.dp, tint = Color.White)
+                                SiteIcon("send", size = 24.dp, tint = PremiumGoldLight)
                             }
                         }
                     }
