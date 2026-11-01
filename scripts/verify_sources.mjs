@@ -73,7 +73,9 @@ assert.ok(navItems.includes('Triple("ريلز", "video", "ريلز")') &&
   native.includes('FeedPages.fetch(::get, next)') &&
   native.includes('onLoadMoreReels = {') &&
   native.includes('reelsOnly = true') &&
-  native.includes('includeYoutubePosts = true') &&
+  native.includes('YoutubePostMedia(videoId, activeYoutubePostId == postId') &&
+  native.includes('if (showFullscreenVideo && video.isNotBlank())') &&
+  !native.includes('includeYoutubePosts = true') &&
   native.includes('visible = chromeVisible && tab != "القرآن"') &&
   native.includes('chromeVisible = tab != "القرآن"'),
   'Only uploaded videos appear in Reels; YouTube stays 16:9 and only Mushaf hides app navigation');
@@ -86,8 +88,11 @@ assert.ok(mushafReader.includes('AnimatedVisibility(visible = readerControlsVisi
   mushafReader.includes('pageZoom = (pageZoom + .15f).coerceAtMost(2f)'),
   'Single Quran reader hides its toolbar on idle and supports SVG zoom and ornate page numbers');
 const videoViewer=fs.readFileSync('android-native/app/src/main/java/com/alatta/nativeapp/AttaExpandableVideo.kt','utf8');
-assert.ok(videoViewer.includes('val reelsMode = (reelsOnly || includeYoutubePosts) && live == null') &&
-  videoViewer.includes('mixedPostReels(posts).filter { it.youtubeId == null && it.videoUrl.isNotBlank() }') &&
+assert.ok(videoViewer.includes('val reelsMode = reelsOnly && live == null') &&
+  videoViewer.includes('internal fun uploadedPostReels(posts: List<JSONObject>)') &&
+  !videoViewer.includes('mixedPostReels(') &&
+  !videoViewer.includes('youtubePlayerContent') &&
+  !videoViewer.includes('includeYoutubePosts') &&
   videoViewer.includes('if (controls && player != null) 192.dp else 72.dp') &&
   videoViewer.includes('BoxWithConstraints(Modifier.fillMaxSize())') &&
   videoViewer.includes('override fun onVideoSizeChanged') &&
@@ -99,11 +104,11 @@ assert.ok(videoViewer.includes('val reelsMode = (reelsOnly || includeYoutubePost
   videoViewer.includes('Modifier.align(Alignment.Center).fillMaxWidth().aspectRatio(16f / 9f)') &&
   videoViewer.includes('Column(Modifier.align(AbsoluteAlignment.TopRight)') &&
   !videoViewer.includes('AbsoluteAlignment.BottomRight') &&
-  videoViewer.includes('if (reelsMode) AspectRatioFrameLayout.RESIZE_MODE_ZOOM') &&
-  videoViewer.includes('else AspectRatioFrameLayout.RESIZE_MODE_FIT') &&
+  !videoViewer.includes('RESIZE_MODE_ZOOM') &&
+  videoViewer.includes('resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT') &&
   videoViewer.includes('Modifier.align(AbsoluteAlignment.TopLeft)') &&
   !videoViewer.includes('Text("ريلز •'),
-  'Uploaded Reels use source aspect ratio without cropping and keep author visible; YouTube stays 16:9 and live playback remains FIT');
+  'Only native uploads enter the portrait viewer; YouTube runs inline 16:9 and cannot create a duplicate Reels dialog');
 assert.ok(azkarScreen.includes('local.getInt("font_size", 23)') &&
   azkarScreen.includes('textAlign = TextAlign.Center') &&
   azkarScreen.includes('(fontSize * 1.75f).sp') &&
