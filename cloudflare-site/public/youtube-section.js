@@ -55,7 +55,7 @@ panel.querySelector('.atta-youtube-form').after(frame);
 const shareOverlay=document.createElement('div');
 shareOverlay.className='atta-yt-share-options';
 shareOverlay.style.cssText='position:fixed;inset:0;z-index:2147483600;display:none;align-items:center;justify-content:center;padding:16px;background:#000b';
-shareOverlay.innerHTML='<section role="dialog" aria-modal="true" aria-label="مشاركة فيديو يوتيوب" dir="rtl" style="width:min(100%,390px);border:1px solid #e2b85b;border-radius:22px;background:#0a0d0e;color:#f4d779;box-shadow:0 14px 55px #000a;padding:18px;box-sizing:border-box;display:grid;gap:12px;font-family:inherit"><h3 style="margin:0">مشاركة فيديو يوتيوب</h3><p class="atta-yt-share-title" style="color:white;margin:0;overflow-wrap:anywhere"></p><button type="button" data-share="post" style="background:#191711;color:#f4d779;border:1px solid #e2b85b;border-radius:12px;padding:12px;font:inherit">مشاركة كمنشور</button><button type="button" data-share="reels" style="background:#dfb65e;color:#111;border:1px solid #e2b85b;border-radius:12px;padding:12px;font:inherit;font-weight:bold">مشاركة في الريلز</button><small style="color:#b6b9ba">الريلز للفيديوهات القصيرة حتى 3 دقائق فقط.</small><p class="atta-yt-share-message" role="status" aria-live="polite" style="margin:0;color:#ffb3ad"></p><button type="button" data-share="cancel" style="color:#f4d779;background:transparent;border:0;padding:8px;font:inherit">إلغاء</button></section>';
+shareOverlay.innerHTML='<section role="dialog" aria-modal="true" aria-label="مشاركة فيديو يوتيوب" dir="rtl" style="width:min(100%,390px);border:1px solid #e2b85b;border-radius:22px;background:#0a0d0e;color:#f4d779;box-shadow:0 14px 55px #000a;padding:18px;box-sizing:border-box;display:grid;gap:12px;font-family:inherit"><h3 style="margin:0">مشاركة فيديو يوتيوب</h3><p class="atta-yt-share-title" style="color:white;margin:0;overflow-wrap:anywhere"></p><button type="button" data-share="post" style="background:#191711;color:#f4d779;border:1px solid #e2b85b;border-radius:12px;padding:12px;font:inherit">مشاركة كمنشور</button><button type="button" data-share="reels" style="background:#dfb65e;color:#111;border:1px solid #e2b85b;border-radius:12px;padding:12px;font:inherit;font-weight:bold">مشاركة في الريلز</button><small style="color:#b6b9ba">الريلز يقبل الفيديوهات القصيرة والطويلة إذا كان يوتيوب يسمح بالتضمين.</small><p class="atta-yt-share-message" role="status" aria-live="polite" style="margin:0;color:#ffb3ad"></p><button type="button" data-share="cancel" style="color:#f4d779;background:transparent;border:0;padding:8px;font:inherit">إلغاء</button></section>';
 document.body.append(shareOverlay);
 const postChoice=shareOverlay.querySelector('[data-share=post]');
 const reelsChoice=shareOverlay.querySelector('[data-share=reels]');
@@ -81,13 +81,13 @@ reelsChoice.addEventListener('click',async()=>{
  if(!selectedVideo||shareChecking)return;
  const video=selectedVideo;
  shareChecking=true;postChoice.disabled=true;reelsChoice.disabled=true;
- shareMessage.textContent='جارٍ التحقق من مدة الفيديو...';
+ shareMessage.textContent='جارٍ التحقق من إمكانية تضمين الفيديو...';
  try{
   const response=await fetch('/api/youtube-short?id='+encodeURIComponent(video.id));
   const data=await response.json().catch(()=>({}));
   if(!response.ok||!data.ok)throw Error(data.error||'تعذر التحقق من الفيديو');
   if(!data.eligible){
-   shareMessage.textContent='الفيديو أطول من 3 دقائق أو لا يسمح بالتضمين. يمكنك مشاركته كمنشور.';
+   shareMessage.textContent='يوتيوب لا يسمح بتضمين هذا الفيديو. يمكنك مشاركته كمنشور.';
    return;
   }
   selectedVideo=null;shareOverlay.style.display='none';
