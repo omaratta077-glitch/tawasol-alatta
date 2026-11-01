@@ -1198,6 +1198,11 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
     var quranPage by remember { mutableIntStateOf(1) }
     var quranReadingRange by remember { mutableStateOf<IntRange?>(null) }
     var posts by remember { mutableStateOf(emptyList<JSONObject>()) }
+    // الريلز تتصفح المنشورات الأقدم بشكل مستقل؛ لا تُفرغ قائمة الرئيسية.
+    var reelPosts by remember(token) { mutableStateOf(emptyList<JSONObject>()) }
+    var reelCursor by remember(token) { mutableStateOf<String?>(null) }
+    var reelMoreLoading by remember { mutableStateOf(false) }
+    var reelMoreError by remember { mutableStateOf("") }
     var stories by remember { mutableStateOf(emptyList<JSONObject>()) }
     var storyText by remember { mutableStateOf("") }
     var storyMediaUri by remember { mutableStateOf<Uri?>(null) }
@@ -1625,6 +1630,25 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
         if (uri != null) sendSelectedChatMedia(uri, "file")
     }
 
+    suspend fun collectUploadedReels(reset: Boolean) {
+        // البحث محصور في ست صفحات بكل دفعة، وضمن صلاحيات واجهة /api/posts المعتادة.
+        // قد يكون أول فيديو في صفحة أقدم من أحدث 10 منشورات.
+        val existing = if (reset) posts else reelPosts
+        val collected = existing.toMutableList()
+        val beforeCount = if (reset) 0 else uploadedPostReels(existing).size
+        var next = if (reset) null else reelCursor
+        var visited = 0
+        do {
+            val page = FeedPages.fetch(::get, next)
+            collected.addAll(page.posts)
+            next = page.nextCursor
+            visited++
+            if (next == null || uploadedPostReels(collected).size - beforeCount >= 2) break
+        } while (visited < 6)
+        reelPosts = collected.distinctBy { it.optString("id") }
+        reelCursor = next
+    }
+
     suspend fun load(which: String) {
         when (which) {
             "الرئيسية" -> {
@@ -1647,10 +1671,10 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                 }
             }
             "استكشاف" -> posts = get("/api/explore").arr("posts")
-            // Reuse the existing authenticated home feed; no extra reels API or video player.
+            // اقرأ منشورات أخرى عند الحاجة بدل الحكم على غياب الفيديو من أول عشر منشورات.
             "ريلز" -> {
-                val page = FeedPages.fetch(::get)
-                posts = FeedPages.merge(posts, page)
+                reelMoreError = ""
+                collectUploadedReels(reset = true)
             }
             "الأصدقاء" -> { users = get("/api/users?q=${enc(search)}").arr("users"); friends = get("/api/friends").arr("friends"); requests = get("/api/friend-requests").arr("requests") }
             "الرسائل" -> {
@@ -2842,15 +2866,36 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                             })
                         "ريلز" -> {
                             // Uses the same single mixed reels viewer from post cards; it is NOT a second player.
-                            val reelEntries = remember(posts) { uploadedPostReels(posts) }
+                            val reelEntries = remember(reelPosts) { uploadedPostReels(reelPosts) }
                             Box(Modifier.weight(1f).fillMaxWidth().background(Black),
                                 contentAlignment = Alignment.Center) {
                                 if (reelEntries.isEmpty()) {
                                     Column(horizontalAlignment = Alignment.CenterHorizontally,
                                         verticalArrangement = Arrangement.spacedBy(12.dp)) {
                                         SiteIcon("video", size = 46.dp, tint = GoldLight)
-                                        Text(if (screenLoading) "جارٍ تحميل الريلز…" else "لا توجد فيديوهات مرفوعة على العطا ضمن المنشورات المحمّلة",
-                                            color = GoldLight)
+                                        Text(
+                                            if (screenLoading || reelMoreLoading) "جارٍ البحث عن الفيديوهات في منشورات العطا…"
+                                            else if (reelCursor != null) "لم يظهر فيديو في المنشورات التي فُحصت. يمكن البحث في الأقدم."
+                                            else "لا توجد فيديوهات مرفوعة ضمن المنشورات المتاحة لحسابك.",
+                                            color = GoldLight, textAlign = TextAlign.Center,
+                                            modifier = Modifier.padding(horizontal = 16.dp)
+                                        )
+                                        if (reelMoreError.isNotBlank())
+                                            Text(reelMoreError, color = Color(0xFFFFB4AB), fontSize = 12.sp)
+                                        if (!screenLoading && !reelMoreLoading && reelCursor != null)
+                                            TextButton(onClick = {
+                                                task {
+                                                    reelMoreLoading = true
+                                                    try {
+                                                        collectUploadedReels(reset = false)
+                                                        reelMoreError = ""
+                                                    } catch (cancelled: CancellationException) {
+                                                        throw cancelled
+                                                    } catch (e: Exception) {
+                                                        reelMoreError = loadingFailureMessage(e)
+                                                    } finally { reelMoreLoading = false }
+                                                }
+                                            }) { Text("البحث في منشورات أقدم", color = GoldLight) }
                                         if (!screenLoading) TextButton(onClick = { navigate("الرئيسية") }) {
                                             Text("العودة للرئيسية", color = GoldLight)
                                         }
@@ -2858,11 +2903,27 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                 } else {
                                     val first = reelEntries.first()
                                     AttaPostMediaViewer(
-                                        posts = posts,
+                                        posts = reelPosts,
                                         startId = first.post.optString("id"),
                                         kind = "video",
                                         onDismiss = { navigate("الرئيسية") },
                                         reelsOnly = true,
+                                        nextReelsCursor = reelCursor,
+                                        onLoadMoreReels = {
+                                            if (!reelMoreLoading && reelCursor != null) {
+                                                task {
+                                                    reelMoreLoading = true
+                                                    try {
+                                                        collectUploadedReels(reset = false)
+                                                        reelMoreError = ""
+                                                    } catch (cancelled: CancellationException) {
+                                                        throw cancelled
+                                                    } catch (e: Exception) {
+                                                        reelMoreError = loadingFailureMessage(e)
+                                                    } finally { reelMoreLoading = false }
+                                                }
+                                            }
+                                        },
                                         loadInteractions = { postId, kind, offset ->
                                             get("/api/post-interactions?postId=${enc(postId)}&kind=${enc(kind)}&offset=$offset")
                                         },
