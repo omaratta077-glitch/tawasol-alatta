@@ -173,6 +173,8 @@ internal fun AttaPostMediaViewer(
     validatedChannelUrl: String? = null,
     includeYoutubePosts: Boolean = false,
     reelsOnly: Boolean = false,
+    nextReelsCursor: String? = null,
+    onLoadMoreReels: (() -> Unit)? = null,
     startYoutube: Boolean = false,
     youtubePlayerContent: (@Composable (String) -> Unit)? = null
 ) {
@@ -194,6 +196,12 @@ internal fun AttaPostMediaViewer(
         mutableIntStateOf(items.indexOfFirst { it.post.optString("id") == startId &&
             (if (startYoutube) it.youtubeId != null else it.youtubeId == null) }
             .takeIf { it >= 0 } ?: items.indexOfFirst { it.post.optString("id") == startId }.coerceAtLeast(0))
+    }
+    // عند اقتراب نهاية الريلز، استكمل منشورات الخادم الأقدم بدل إظهار قائمة فارغة.
+    LaunchedEffect(reelsOnly, index, items.size, nextReelsCursor) {
+        if (reelsOnly && nextReelsCursor != null && index >= items.size - 2) {
+            onLoadMoreReels?.invoke()
+        }
     }
     val reel = items[index.coerceIn(items.indices)]
     val current = reel.post
