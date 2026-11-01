@@ -14,6 +14,7 @@ on:
       - 'scripts/check_core.py'
       - 'scripts/verify_sources.mjs'
       - 'scripts/test_quran_reader.mjs'
+      - 'scripts/web-tests/youtube-mobile.mjs'
 
 permissions:
   contents: write
