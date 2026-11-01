@@ -121,22 +121,15 @@ internal fun AttaExpandableVideo(url: String, posterUrl: String? = null, onOpen:
 /** عنصر واحد في ريلز العطا: إمّا ملف فيديو أو فيديو YouTube مرفق بمنشور.
  * تُحفظ هويّة المنشور الحقيقية للتعليقات والتفاعل؛ المفتاح الخاص يمنع ضياع فيديو إن وُجد النوعان بمنشور واحد.
  */
-internal data class AttaReelEntry(val post: JSONObject, val key: String, val videoUrl: String = "", val youtubeId: String? = null)
+internal data class AttaReelEntry(val post: JSONObject, val key: String, val videoUrl: String)
 
-internal fun mixedPostReels(posts: List<JSONObject>): List<AttaReelEntry> = buildList {
-    for (post in posts) {
-        val postId = post.optString("id")
-        val videoUrl = media(post.optString("video"))
-        if (videoUrl.isNotBlank()) add(AttaReelEntry(post, "$postId:video", videoUrl = videoUrl))
-        youtubePostId(post.optString("text"))?.let { ytId ->
-            add(AttaReelEntry(post, "${postId}:youtube:$ytId", youtubeId = ytId))
-        }
-    }
-}.distinctBy { it.key }
-
-/** ريلز العطا يستخدم فيديوهات المنشورات المرفوعة فقط؛ يظل YouTube في العارض الأصلي 16:9. */
+/** الريلز مخصصة لملفات الفيديو المنشورة على العطا فقط؛ لا تخلط فيديو YouTube داخلها. */
 internal fun uploadedPostReels(posts: List<JSONObject>): List<AttaReelEntry> =
-    mixedPostReels(posts).filter { it.youtubeId == null && it.videoUrl.isNotBlank() }
+    posts.mapNotNull { post ->
+        val url = media(post.optString("video"))
+        if (url.isBlank()) null
+        else AttaReelEntry(post, post.optString("id") + ":video", url)
+    }.distinctBy { it.key }
 
 /** مشغّل ملء شاشة واحد ومشغّل Media3 واحد طوال قائمة الفيديوهات كلها. */
 internal data class MediaPlaybackSnapshot(val stage: String, val state: Int = Player.STATE_IDLE,
