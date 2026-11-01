@@ -846,6 +846,7 @@ private class AttaYoutubeFullscreenChrome(
     val ctx = LocalContext.current
     var loading by remember(safeId) { mutableStateOf(true) }
     var frameLoaded by remember(safeId) { mutableStateOf(false) }
+    var playerReload by remember(safeId) { mutableIntStateOf(0) }
     var playbackConfirmed by remember(safeId) { mutableStateOf(false) }
     var error by remember(safeId) { mutableStateOf("") }
     var lastEvent by remember(safeId) { mutableStateOf("بدء التحميل") }
@@ -967,9 +968,13 @@ private class AttaYoutubeFullscreenChrome(
     }
     // تحميل iframe لا يثبت بدء التشغيل، كما أن انتهاء مهلة 20 ثانية لا يعني عطل المشغّل.
     // أوقف مؤشر التحميل بهدوء، ودع مشغّل الموقع المضمّن الحالي يعرض عناصر التحكم.
-    LaunchedEffect(webView, safeId) {
+    LaunchedEffect(webView, safeId, playerReload) {
         kotlinx.coroutines.delay(20000)
-        if (!playbackConfirmed) loading = false
+        // لا تعرض شاشة دخول الويب للمستخدم عند تأخر JavaScript أو iframe.
+        if (!frameLoaded && error.isBlank()) {
+            loading = false
+            error = "لم يكتمل تجهيز الفيديو. تحقق من الإنترنت ثم أعد المحاولة."
+        } else if (!playbackConfirmed) loading = false
     }
     DisposableEffect(webView, chrome) {
         val owner = ctx as? ComponentActivity
@@ -1003,23 +1008,44 @@ private class AttaYoutubeFullscreenChrome(
                 (touchHost.parent as? ViewGroup)?.removeView(touchHost)
                 touchHost
             }, update = { it.onDrag = onMiniDrag }, modifier = Modifier.fillMaxSize())
-            // بدل أول شاشة سوداء صماء: معاينة الفيديو أثناء تجهيز iframe.
-            // يُرفع الغطاء تمامًا فور اكتمال تحميل مشغّل YouTube الأصلي.
-            if (portrait && !frameLoaded && error.isBlank()) {
-                coil.compose.AsyncImage(
-                    model = "https://i.ytimg.com/vi/$safeId/hqdefault.jpg",
-                    contentDescription = null,
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop
-                )
-                Box(Modifier.fillMaxSize().background(Color(0x77000000)))
-                Column(horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    CircularProgressIndicator(color = Gold, modifier = Modifier.size(27.dp))
-                    Text("جاري تجهيز فيديو يوتيوب", color = GoldLight, fontSize = 13.sp)
+            // لا تظهر الصفحة الرئيسية أو شاشة تسجيل دخول الموقع إطلاقًا أثناء
+            // تركيب iframe؛ الغطاء الأصلي يبقى فوق WebView في الأفقي والرأسي.
+            if (!frameLoaded || error.isNotBlank()) {
+                Box(Modifier.fillMaxSize().background(Color.Black),
+                    contentAlignment = Alignment.Center) {
+                    coil.compose.AsyncImage(
+                        model = "https://i.ytimg.com/vi/$safeId/hqdefault.jpg",
+                        contentDescription = null, modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Fit
+                    )
+                    Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = .56f)))
+                    Column(horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                        modifier = Modifier.padding(horizontal = 18.dp)) {
+                        if (error.isBlank()) {
+                            CircularProgressIndicator(color = Gold, modifier = Modifier.size(29.dp))
+                            Text("جاري تجهيز فيديو يوتيوب داخل العطا",
+                                color = GoldLight, fontSize = 13.sp)
+                        } else {
+                            Text(error, color = Color(0xFFFFB7B7),
+                                fontSize = 13.sp, textAlign = TextAlign.Center)
+                            OutlinedButton(
+                                onClick = {
+                                    frameLoaded = false
+                                    playbackConfirmed = false
+                                    loading = true
+                                    error = ""
+                                    lastEvent = "إعادة التحميل"
+                                    playerReload++
+                                    webView.loadUrl("$BASE/")
+                                },
+                                border = BorderStroke(1.dp, Gold),
+                                shape = RoundedCornerShape(16.dp)) {
+                                Text("إعادة تشغيل الفيديو", color = GoldLight)
+                            }
+                        }
+                    }
                 }
-            } else if (loading) {
-                CircularProgressIndicator(color = Gold, modifier = Modifier.size(30.dp))
             }
         }
     }
@@ -1029,8 +1055,7 @@ private class AttaYoutubeFullscreenChrome(
     BoxWithConstraints(if (portrait) Modifier.fillMaxSize() else Modifier.fillMaxWidth()) {
         PlayerSurface(if (portrait) Modifier.fillMaxSize()
             else Modifier.fillMaxWidth().height(if (compact) 200.dp else (maxWidth * 9f / 16f).coerceAtLeast(200.dp)))
-        if (portrait && error.isNotBlank()) Text(error, color = Color(0xFFFFB7B7),
-            fontSize = 12.sp, modifier = Modifier.align(Alignment.BottomCenter).padding(14.dp))
+        // تظهر أخطاء تشغيل الفيديو داخل غطاء مشغل العطا فقط، لا فوق صفحة الويب.
     }
 }
 
