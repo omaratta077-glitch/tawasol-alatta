@@ -425,17 +425,29 @@ internal fun AzkarPrayerScreen(modifier: Modifier = Modifier, onSharePost: (Stri
             LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 7.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 item {
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                        // الترتيب الأول في RTL يعرض الأزرار الدائرية على اليمين.
-                        IconButton(onClick = { fontSize = (fontSize + 1).coerceAtMost(32); local.edit().putInt("font_size", fontSize).apply() },
-                            modifier = Modifier.size(30.dp).clip(CircleShape).background(PremiumPanel)
-                                .border(1.dp, PremiumGold, CircleShape).semantics { contentDescription = "تكبير خط الذكر" }) {
-                            Text("+", color = PremiumGoldLight, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        // دوائر 27dp داخل مساحة لمس 44dp مع مسافة بين الزرين؛ بلا تداخل.
+                        Box(Modifier.size(44.dp).clickable {
+                            fontSize = (fontSize + 1).coerceAtMost(32)
+                            local.edit().putInt("font_size", fontSize).apply()
+                        }.semantics { contentDescription = "تكبير خط الذكر" },
+                            contentAlignment = Alignment.Center) {
+                            Box(Modifier.size(27.dp).clip(CircleShape).background(PremiumPanel)
+                                .border(1.dp, PremiumGold, CircleShape),
+                                contentAlignment = Alignment.Center) {
+                                Text("+", color = PremiumGoldLight, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                            }
                         }
-                        IconButton(onClick = { fontSize = (fontSize - 1).coerceAtLeast(18); local.edit().putInt("font_size", fontSize).apply() },
-                            modifier = Modifier.size(30.dp).clip(CircleShape).background(PremiumPanel)
-                                .border(1.dp, PremiumGold, CircleShape).semantics { contentDescription = "تصغير خط الذكر" }) {
-                            Text("−", color = PremiumGoldLight, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                        Box(Modifier.size(44.dp).clickable {
+                            fontSize = (fontSize - 1).coerceAtLeast(18)
+                            local.edit().putInt("font_size", fontSize).apply()
+                        }.semantics { contentDescription = "تصغير خط الذكر" },
+                            contentAlignment = Alignment.Center) {
+                            Box(Modifier.size(27.dp).clip(CircleShape).background(PremiumPanel)
+                                .border(1.dp, PremiumGold, CircleShape),
+                                contentAlignment = Alignment.Center) {
+                                Text("−", color = PremiumGoldLight, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                            }
                         }
                         Text("${entries.size} ذكرًا ودعاءً • التقدّم محفوظ لليوم", Modifier.weight(1f),
                             color = PremiumMuted, fontSize = 11.sp, textAlign = TextAlign.End)
@@ -470,6 +482,13 @@ internal fun AzkarPrayerScreen(modifier: Modifier = Modifier, onSharePost: (Stri
                                 if (count >= entry.target) SiteIcon("check", tint = prayerSoft, size = 22.dp)
                             }
                         }
+                        // الاستعاذة تُعرض مستقلة قبل الآيتين دون تعديل النص القرآني المخزّن.
+                        if (entry.id == "kursi" || entry.id == "baqarah-ending") {
+                            Text("أَعُوذُ بِاللَّهِ مِنَ الشَّيْطَانِ الرَّجِيمِ",
+                                color = PremiumGoldLight, fontSize = (fontSize * 0.83f).sp,
+                                lineHeight = (fontSize * 1.35f).sp,
+                                textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+                        }
                         Text(entry.text, color = Color.White, fontSize = fontSize.sp,
                             lineHeight = (fontSize * 1.75f).sp, textAlign = TextAlign.Center,
                             modifier = Modifier.fillMaxWidth())
@@ -489,8 +508,21 @@ internal fun AzkarPrayerScreen(modifier: Modifier = Modifier, onSharePost: (Stri
                             }.semantics { contentDescription = "تكرار ${entry.title}: $count من ${entry.target}" }, contentAlignment = Alignment.Center) {
                                 CircularProgressIndicator(progress = { count.toFloat() / entry.target }, modifier = Modifier.fillMaxSize().padding(5.dp), color = PremiumGold, trackColor = Color.White.copy(alpha = .10f), strokeWidth = 3.dp)
                                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Text("$count / ${entry.target}", color = PremiumGoldLight, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                                    Text(if (count >= entry.target) "اكتمل الذكر" else "اضغط للتكرار", color = Color.White, fontSize = 11.sp)
+                                    // 100 / 100 يظل داخل الدائرة، حتى عند تفعيل خط هاتف كبير.
+                                    Text("$count / ${entry.target}",
+                                        color = PremiumGoldLight,
+                                        fontSize = when {
+                                            entry.target >= 100 -> 14.sp
+                                            entry.target >= 10 -> 16.sp
+                                            else -> 18.sp
+                                        },
+                                        fontWeight = FontWeight.Bold,
+                                        textAlign = TextAlign.Center, maxLines = 1,
+                                        softWrap = false,
+                                        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp))
+                                    Text(if (count >= entry.target) "اكتمل الذكر" else "اضغط للتكرار",
+                                        color = Color.White, fontSize = 10.sp,
+                                        maxLines = 1, textAlign = TextAlign.Center)
                                 }
                             }
                             TextButton(onClick = { counts[key] = 0; local.edit().putInt(key, 0).apply() }) {
