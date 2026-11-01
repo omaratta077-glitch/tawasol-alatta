@@ -24,9 +24,9 @@ android {
         applicationId = "com.alatta.nativeapp"
         minSdk = 26
         targetSdk = 35
-        // الإصدار 1.0.229: YouTube Shorts المنشورة في الريلز عبر المشغّل المضمن الأصلي، وزر تشغيل وإيقاف وسطي يختفي تلقائيًا.
-        versionCode = 329
-        versionName = "1.0.229"
+        // الإصدار 1.0.230: دعم YouTube Shorts المنشورة في الريلز مع تمرير السحب داخل WebView وزر تشغيل وإيقاف بمنتصف الشاشة يختفي تلقائيًا.
+        versionCode = 330
+        versionName = "1.0.230"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("boolean", "IS_APPGALLERY", appGalleryBuild.toString())
         val hmsId = (System.getenv("ALATTA_HMS_APP_ID") ?: "").trim().takeIf { it.matches(Regex("[0-9]{1,20}")) } ?: ""
