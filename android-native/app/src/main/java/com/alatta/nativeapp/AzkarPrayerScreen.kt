@@ -232,7 +232,8 @@ private fun PrayerSymbol(symbol: String, size: Dp = 36.dp, tint: Color = Premium
 }
 
 @Composable
-internal fun AzkarPrayerScreen(modifier: Modifier = Modifier, onSharePost: (String) -> Unit) {
+internal fun AzkarPrayerScreen(modifier: Modifier = Modifier, onSharePost: (String) -> Unit,
+    onShareImagePost: (DhikrGroup, Dhikr) -> Unit = { _, _ -> }) {
     val context = LocalContext.current
     val local = remember { context.getSharedPreferences("alatta_azkar", Context.MODE_PRIVATE) }
     var settings by remember { mutableStateOf(PrayerStore.read(context)) }
@@ -274,18 +275,14 @@ internal fun AzkarPrayerScreen(modifier: Modifier = Modifier, onSharePost: (Stri
                     }
                     Button(onClick = {
                         shareChoice = null
-                        try {
-                            shareDhikrGoldImage(context, selectedGroup, selectedEntry)
-                        } catch (e: Exception) {
-                            message = "تعذرت مشاركة صورة الذكر: ${e.message ?: "حاول مجددًا"}"
-                        }
+                        onShareImagePost(selectedGroup, selectedEntry)
                     }, modifier = Modifier.fillMaxWidth(),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = PremiumGold, contentColor = Color.Black),
                         shape = RoundedCornerShape(14.dp)) {
                         SiteIcon("image", tint = Color.Black, size = 20.dp)
                         Spacer(Modifier.width(8.dp))
-                        Text("مشاركة الذكر بصورة ذهبية")
+                        Text("نشر الذكر بصورة ذهبية داخل العطا")
                     }
                 }
             },
