@@ -93,6 +93,15 @@ assert.ok(uploadedPostDialog.includes('reelsOnly = true') &&
   native.includes('reelsOnly = true') &&
   !native.includes('includeYoutubePosts = true'),
   'Home uploaded video and Reels use one portrait viewer; YouTube never opens in the media dialog');
+const youtubeShare=fs.readFileSync('android-native/app/src/main/java/com/alatta/nativeapp/YoutubePostShare.kt','utf8');
+assert.ok(youtubeShare.includes('alatta-youtube(-short)?') &&
+  youtubeShare.includes('fun youtubeShortPostId(') &&
+  native.includes('youtubeShortContent = { shortId, command, shouldPlay, changed ->') &&
+  native.includes('YouTubePlayer(shortId, portrait = true,') &&
+  native.includes('youtubePostDraftIsShort = true') &&
+  native.includes('playbackCommand = command') &&
+  native.includes('event == "PAUSED" || event == "ENDED"'),
+  'YouTube Shorts require explicit post type and reuse existing site embed with play/pause signals');
 const videoViewer=fs.readFileSync('android-native/app/src/main/java/com/alatta/nativeapp/AttaExpandableVideo.kt','utf8');
 assert.ok(videoViewer.includes('val reelsMode = reelsOnly && live == null') &&
   videoViewer.includes('internal fun uploadedPostReels(posts: List<JSONObject>)') &&
@@ -101,7 +110,12 @@ assert.ok(videoViewer.includes('val reelsMode = reelsOnly && live == null') &&
   !videoViewer.includes('includeYoutubePosts') &&
   videoViewer.includes('startId = "attachment", kind = "video", onDismiss = { expanded = false },') &&
   videoViewer.includes('reelsOnly = true // يفتح نفس عارض الريلز') &&
-  videoViewer.includes('if (controls && player != null) 154.dp else 60.dp') &&
+  videoViewer.includes('if (controls && player != null) 122.dp else 60.dp') &&
+  videoViewer.includes('youtubeShortContent(youtubeId, youtubeCommand, youtubeCommandPlay)') &&
+  videoViewer.includes('youtubeShortPostId(post.optString("text"))') &&
+  videoViewer.includes('if (player != null && !reelsOnly) Row(') &&
+  videoViewer.includes('if (reelsOnly && controls && (player != null || (youtubeId != null && youtubeStarted)))') &&
+  videoViewer.includes('delay(if (reelsOnly) 1500L else 2500L)') &&
   videoViewer.includes('BoxWithConstraints(Modifier.fillMaxSize())') &&
   videoViewer.includes('override fun onVideoSizeChanged') &&
   videoViewer.includes('Modifier.align(Alignment.Center)') &&
@@ -122,7 +136,7 @@ assert.ok(videoViewer.includes('val reelsMode = reelsOnly && live == null') &&
   videoViewer.includes('resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT') &&
   videoViewer.includes('Modifier.align(AbsoluteAlignment.TopLeft)') &&
   !videoViewer.includes('Text("ريلز •'),
-  'One native video player; Reels center uncropped video with a subdued cached backdrop and compact overlay controls');
+  'Reels reuse one Media3 player or the canonical YouTube iframe for explicitly shared Shorts, with transient center controls');
 assert.ok(azkarScreen.includes('local.getInt("font_size", 23)') &&
   azkarScreen.includes('textAlign = TextAlign.Center') &&
   azkarScreen.includes('(fontSize * 1.75f).sp') &&
