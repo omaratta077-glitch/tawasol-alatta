@@ -24,9 +24,9 @@ android {
         applicationId = "com.alatta.nativeapp"
         minSdk = 26
         targetSdk = 35
-        // الإصدار 1.0.222: ريلز الفيديوهات المرفوعة فقط مع إبقاء يوتيوب أفقيًا، وتحسين موضع الاسم والعدادات وإخفاء أشرطة الريلز فقط.
-        versionCode = 322
-        versionName = "1.0.222"
+        // الإصدار 1.0.223: إخفاء الهيدر والشريط السفلي في المصحف فقط، وتكبير الصفحة باللمس وأزرار التحكم، وتجميل رقم الصفحة الذهبي.
+        versionCode = 323
+        versionName = "1.0.223"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("boolean", "IS_APPGALLERY", appGalleryBuild.toString())
         val hmsId = (System.getenv("ALATTA_HMS_APP_ID") ?: "").trim().takeIf { it.matches(Regex("[0-9]{1,20}")) } ?: ""
