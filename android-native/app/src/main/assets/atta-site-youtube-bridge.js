@@ -48,7 +48,10 @@
       .atta-youtube-panel{box-sizing:border-box!important;width:100%!important;height:100%!important;min-height:100%!important;max-width:none!important;max-height:none!important;padding:0!important;margin:0!important;border:0!important;border-radius:0!important;overflow:hidden!important;box-shadow:none!important;background:#000!important}
       .atta-youtube-panel > :not(.atta-youtube-frame){display:none!important}
       .atta-youtube-frame{display:block!important;width:100%!important;height:100%!important;min-height:100%!important;max-height:none!important;margin:0!important;padding:0!important;border:0!important;border-radius:0!important;overflow:hidden!important;background:#000!important}
-      .atta-youtube-frame iframe{position:absolute!important;inset:0!important;display:block!important;width:100%!important;height:100%!important;border:0!important}`;
+      .atta-youtube-frame{display:flex!important;align-items:center!important;justify-content:center!important}
+      .atta-youtube-frame iframe{position:relative!important;inset:auto!important;display:block!important;width:100%!important;height:auto!important;aspect-ratio:16/9!important;max-height:100%!important;border:0!important}
+      @media (orientation:landscape){.atta-youtube-frame iframe{width:min(100%,177.78vh)!important;height:100%!important;aspect-ratio:16/9!important}}
+    `;
     document.head.appendChild(css);
     overlay.hidden = false;
     // يضع الموقع عادةً التركيز في حقل البحث؛ لا تفتح لوحة المفاتيح فوق الفيديو.
