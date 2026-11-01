@@ -136,7 +136,7 @@ assert.ok(
   videoViewer.includes('else if (reelsOnly) 37.dp') &&
   videoViewer.includes('if (reelsOnly && controls && player != null)') &&
   !videoViewer.includes('RESIZE_MODE_ZOOM') &&
-  (videoViewer.match(/ExoPlayer.Builder\\(/g) || []).length === 1,
+  (videoViewer.match(/ExoPlayer\.Builder\(/g) || []).length === 1,
   'One FIT Media3 player; Reels accept uploaded, YouTube and public Meta videos with swipe paging and in-screen refresh');
 assert.ok(azkarScreen.includes('local.getInt("font_size", 23)') &&
   azkarScreen.includes('textAlign = TextAlign.Center') &&
