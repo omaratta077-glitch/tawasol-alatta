@@ -78,7 +78,7 @@ assert.ok(navItems.includes('Triple("ريلز", "video", "ريلز")') &&
   !native.includes('includeYoutubePosts = true') &&
   native.includes('visible = chromeVisible && tab != "القرآن"') &&
   native.includes('chromeVisible = tab != "القرآن"'),
-  'Only uploaded videos appear in Reels; YouTube stays 16:9 and only Mushaf hides app navigation');
+  'Uploaded, YouTube and public social videos are discoverable in Reels, with native navigation retained');
 
 const mushafReader = fs.readFileSync('android-native/app/src/main/java/com/alatta/nativeapp/AttaQuranReader.kt','utf8');
 assert.ok(mushafReader.includes('AnimatedVisibility(visible = readerControlsVisible') &&
@@ -107,7 +107,8 @@ assert.ok(!native.includes('youtube_verified_short_link') &&
   siteYoutube.includes('postChoice.addEventListener') &&
   siteYoutube.includes('reelsChoice.addEventListener') &&
   workerSource.includes('url.pathname==="/api/youtube-short"') &&
-  workerSource.includes('seconds<=180') &&
+  workerSource.includes('video.status?.embeddable===true') &&
+  !workerSource.includes('seconds<=180') &&
   workerSource.includes('ids.length>25') &&
   native.includes('api("/api/youtube-short?ids='),
   'One existing YouTube share button offers Post/Reels on app and site, without separate Shorts paste form');
@@ -120,7 +121,7 @@ assert.ok(youtubeShare.includes('alatta-youtube(-short)?') &&
   native.includes('youtubePostDraftIsShort = true') &&
   native.includes('playbackCommand = command') &&
   native.includes('event == "PAUSED" || event == "ENDED"'),
-  'YouTube Shorts require explicit post type and reuse existing site embed with play/pause signals');
+  'YouTube Reels use one official embedded player with play/pause signals');
 const videoViewer=fs.readFileSync('android-native/app/src/main/java/com/alatta/nativeapp/AttaExpandableVideo.kt','utf8');
 assert.ok(videoViewer.includes('val reelsMode = reelsOnly && live == null') &&
   videoViewer.includes('internal fun uploadedPostReels(') &&
@@ -136,7 +137,10 @@ assert.ok(videoViewer.includes('val reelsMode = reelsOnly && live == null') &&
   videoViewer.includes('youtubeShortContent(youtubeId, youtubeCommand, youtubeCommandPlay,') &&
   videoViewer.includes('val onShortDrag: (Float, Float) -> Unit = { dx, dy ->') &&
   videoViewer.includes('if (reelsMode && youtubeId == null)') &&
-  videoViewer.includes('youtubeShortPostId(post.optString("text"))') &&
+  videoViewer.includes('youtubePostId(post.optString("text"))') &&
+  videoViewer.includes('socialVideoInPost(post.optString("text"))') &&
+  videoViewer.includes('onRefreshReels?.invoke()') &&
+  videoViewer.includes('SocialVideoPostEmbed(social, Modifier.fillMaxSize()') &&
   videoViewer.includes('if (player != null && !reelsOnly) Row(') &&
   videoViewer.includes('if (reelsOnly && controls && player != null)') &&
   !videoViewer.includes('if (youtubeStarted) Box(Modifier.align(Alignment.Center)') &&
@@ -148,7 +152,7 @@ assert.ok(videoViewer.includes('val reelsMode = reelsOnly && live == null') &&
   videoViewer.includes('reelBackdrop?.let { frame ->') &&
   videoViewer.includes('VideoPostPreview.remote(context, url)') &&
   videoViewer.includes('Modifier.fillMaxSize().blur(30.dp)') &&
-  videoViewer.includes('else if (reelsOnly) 14.dp') &&
+  videoViewer.includes('else if (reelsOnly) 37.dp') &&
   !videoViewer.includes('Alignment.TopCenter else Alignment.Center') &&
   (videoViewer.match(/ExoPlayer.Builder\(/g) || []).length === 1 &&
   videoViewer.includes('resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT') &&
@@ -205,22 +209,34 @@ assert.ok(azkarScreen.includes('ContentScale.FillBounds') &&
   'Azkar controls have separated 27dp circles, 100-count digits fit and istiadhah precedes the verses');
 const dhikrShare = fs.readFileSync('android-native/app/src/main/java/com/alatta/nativeapp/DhikrShare.kt','utf8');
 const filePathsXml = fs.readFileSync('android-native/app/src/main/res/xml/atta_update_file_paths.xml','utf8');
-assert.ok(azkarScreen.includes('shareDhikrGoldImage(context, selectedGroup, selectedEntry)') &&
-  azkarScreen.includes('مشاركة الذكر بصورة ذهبية') &&
+assert.ok(azkarScreen.includes('onShareImagePost(selectedGroup, selectedEntry)') &&
+  azkarScreen.includes('نشر الذكر بصورة ذهبية داخل العطا') &&
   azkarScreen.includes('مشاركة الذكر كمنشور') &&
   azkarScreen.includes('sharePost(true)') &&
   dhikrShare.includes('android.graphics.Bitmap.createBitmap') &&
-  dhikrShare.includes('android.content.Intent.ACTION_SEND') &&
-  dhikrShare.includes('formatDhikrShare(group, entry)') &&
-  dhikrShare.includes('getUriForFile(') &&
+  dhikrShare.includes('createDhikrGoldPostImage(') &&
+  dhikrShare.includes('android.net.Uri.fromFile(image)') &&
+  !dhikrShare.includes('android.content.Intent.ACTION_SEND') &&
+  native.includes('onShareDhikrImagePost = { group, entry ->') &&
+  native.includes('pickedMime = "image/png"') &&
   filePathsXml.includes('<cache-path name="dhikr_gold_cards" path="share_cards/" />'),
-  'One native dhikr share dialog offers complete in-app posting or real gold-black PNG sharing');
+  'Gold dhikr card is an actual PNG attached to the AL-ATTA post composer, never a system external share');
 assert.ok(azkarScreen.includes('AzkarHeaderPlaque(Modifier.weight(1f))') &&
   azkarScreen.includes('val goldStyle = true') &&
   azkarScreen.includes('azkar_prayer_backdrop') &&
   azkarScreen.includes('page = category.id') &&
   !azkarScreen.includes('أذكار بعدد تكرار أكثر من 10'),
   'Azkar preserves full passages with gold-black styling and only the ornamental header, not a category divider');
+const socialEmbed=fs.readFileSync('android-native/app/src/main/java/com/alatta/nativeapp/SocialVideoEmbed.kt','utf8');
+assert.ok(socialEmbed.includes('socialVideoUrl(') &&
+  socialEmbed.includes('SocialVideoPostEmbed(') &&
+  socialEmbed.includes('MiniPlayerTouchHost(context)') &&
+  socialEmbed.includes('https://www.facebook.com/plugins/video.php?href=') &&
+  socialEmbed.includes('instagram.com') &&
+  native.includes('socialVideoDraftUrl') &&
+  native.includes('SocialVideoPostEmbed(social, Modifier.fillMaxWidth())') &&
+  native.includes('onRefreshReels = {'),
+  'Public Instagram/Facebook videos use only their official embedded players; Reels have in-place refresh');
 const hadith=fs.readFileSync('android-native/app/src/main/java/com/alatta/nativeapp/HadithLibrary.kt','utf8');
 assert.ok(hadith.includes('verifiedCopy(target, expectedBytes, hash)'), 'Hadith copy verified by actual SHA-256');
 assert.ok(!hadith.includes('PRAGMA quick_check", null') && !hadith.includes('require(db.version == 1)'),
