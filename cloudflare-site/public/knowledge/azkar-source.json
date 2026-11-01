@@ -1,5 +1,5 @@
 {
   "source": "android-native/app/src/main/java/com/alatta/nativeapp/AzkarCatalog.kt",
-  "sha256": "2e090bbbadc5222226540dff59b8fe2e9c9ec43aa18fb1612eac1f6029bc14d9",
-  "export": "AL-ATTA v1.0.234: native morning/evening Adhkar catalog preserved with custom targets; end order salawat, tawhid, tasbih and istighfar 100. Quran text unchanged; istiadhah rendered separately."
+  "sha256": "dd36119daba99f5a053296b64772d38368110446744b587a9042b9b86880106c",
+  "export": "AL-ATTA v1.0.235: restored two beloved phrases (Subhan Allah wa bihamdihi; Subhan Allah al-Azim) at 10 repetitions in morning and evening; other existing dhikr goals unchanged."
 }
