@@ -120,6 +120,62 @@ private fun AzkarHeaderPlaque(modifier: Modifier = Modifier, label: String = "ا
     }
 }
 
+/** زخارف الصفحة الرئيسية للأذكار تُرسم بالكود لتظل خفيفة ولا تضيف صورًا إلى APK. */
+@Composable
+private fun AzkarHomeLantern() {
+    Canvas(Modifier.size(width = 84.dp, height = 132.dp)) {
+        val w = size.width
+        val h = size.height
+        val stroke = Stroke(2.dp.toPx())
+        val center = w / 2f
+        val gold = PremiumGoldLight
+        drawCircle(
+            brush = Brush.radialGradient(
+                listOf(Color(0x77F2BE44), Color(0x10E6B94E), Color.Transparent),
+                center = Offset(center, h * .58f), radius = w * .70f
+            ),
+            radius = w * .70f, center = Offset(center, h * .58f)
+        )
+        drawLine(gold, Offset(center, 0f), Offset(center, h * .12f), stroke.width)
+        drawCircle(gold, radius = w * .045f, center = Offset(center, h * .13f), style = stroke)
+        drawPath(Path().apply {
+            moveTo(w * .25f, h * .31f)
+            quadraticBezierTo(center, h * .07f, w * .75f, h * .31f)
+            lineTo(w * .75f, h * .80f)
+            lineTo(w * .25f, h * .80f)
+            close()
+        }, gold, style = stroke)
+        drawRect(
+            brush = Brush.verticalGradient(listOf(Color(0x55F8C951), Color(0x22C78D26))),
+            topLeft = Offset(w * .29f, h * .34f),
+            size = Size(w * .42f, h * .44f)
+        )
+        for (i in 1..3) {
+            val x = w * (0.25f + i * .125f)
+            drawLine(gold.copy(alpha = .75f), Offset(x, h * .34f), Offset(x, h * .78f), stroke.width * .65f)
+        }
+        drawLine(gold, Offset(w * .19f, h * .82f), Offset(w * .81f, h * .82f), stroke.width * 2f)
+        drawLine(gold, Offset(w * .12f, h * .89f), Offset(w * .88f, h * .89f), stroke.width * 2f)
+    }
+}
+
+@Composable
+private fun AzkarHomeAction(label: String, icon: String, onClick: () -> Unit) {
+    val shape = RoundedCornerShape(28.dp)
+    Row(Modifier.fillMaxWidth().height(54.dp).clip(shape)
+        .background(Brush.horizontalGradient(listOf(Color(0xFF11100D), Color(0xFF08090A))))
+        .border(1.dp, PremiumGold, shape)
+        .clickable(onClick = onClick).padding(horizontal = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Center) {
+        SiteIcon(icon, tint = PremiumGoldLight, size = 20.dp)
+        Spacer(Modifier.width(7.dp))
+        Text(label, color = PremiumGoldLight, fontSize = 14.sp,
+            fontWeight = FontWeight.Bold, maxLines = 1,
+            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+    }
+}
+
 /** رموز صغيرة مرسومة بالكود؛ بلا رسوم أو خطوط أو إعلانات أو كود منسوخ من التطبيق المرجعي. */
 @Composable
 private fun PrayerSymbol(symbol: String, size: Dp = 36.dp, tint: Color = PremiumGold) {
@@ -136,13 +192,20 @@ private fun PrayerSymbol(symbol: String, size: Dp = 36.dp, tint: Color = Premium
                         Offset(w / 2 + cos(angle).toFloat() * w * .44f, w / 2 + sin(angle).toFloat() * w * .44f), w * .055f)
                 }
             }
-            "moon", "sleep" -> drawPath(Path().apply {
+            "moon" -> drawPath(Path().apply {
                 moveTo(w * .65f, w * .10f)
                 cubicTo(w * .02f, w * .02f, w * .05f, w * .98f, w * .72f, w * .86f)
                 cubicTo(w * .92f, w * .82f, w * .98f, w * .66f, w * .92f, w * .51f)
                 cubicTo(w * .53f, w * .65f, w * .32f, w * .29f, w * .65f, w * .10f)
                 close()
             }, tint, style = stroke)
+            "sleep" -> {
+                drawLine(tint, Offset(w * .12f, w * .28f), Offset(w * .12f, w * .85f), w * .06f)
+                drawLine(tint, Offset(w * .12f, w * .65f), Offset(w * .88f, w * .65f), w * .06f)
+                drawLine(tint, Offset(w * .88f, w * .65f), Offset(w * .88f, w * .85f), w * .06f)
+                drawCircle(tint, w * .09f, Offset(w * .28f, w * .51f), style = stroke)
+                drawLine(tint, Offset(w * .39f, w * .52f), Offset(w * .85f, w * .52f), w * .10f)
+            }
             "mosque" -> {
                 drawPath(Path().apply {
                     moveTo(w * .16f, w * .88f); lineTo(w * .16f, w * .45f)
@@ -318,7 +381,14 @@ internal fun AzkarPrayerScreen(modifier: Modifier = Modifier, onSharePost: (Stri
     Column(modifier.fillMaxSize().background(PremiumBackground)) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically) {
-            if (group != null) {
+            if (page == "home") {
+                Image(painter = painterResource(id = R.drawable.logo_premium),
+                    contentDescription = "شعار تواصل العطا",
+                    modifier = Modifier.size(46.dp).clip(CircleShape)
+                        .border(1.dp, PremiumGold, CircleShape))
+                Spacer(Modifier.width(8.dp))
+                AzkarHeaderPlaque(Modifier.weight(1f), label = "الأذكار والعبادات")
+            } else if (group != null) {
                 // بجانب أيقونة التطبيق، يُكتب «الأذكار» فقط داخل الزخرفة في الأعلى.
                 Image(painter = painterResource(id = R.drawable.logo_premium),
                     contentDescription = "شعار تواصل العطا",
@@ -433,21 +503,70 @@ internal fun AzkarPrayerScreen(modifier: Modifier = Modifier, onSharePost: (Stri
         } else LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(14.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             if (page == "home" || page == "times") {
                 item {
-                    Column(Modifier.fillMaxWidth().clip(prayerShape).background(Brush.linearGradient(listOf(prayerTeal, Color(0xFF0B2425)))).padding(22.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                            Text(if (settings.confirmedPlace) settings.place.name else "اختر مدينتك", Modifier.weight(1f).clickable { chooseCity = true }, color = prayerSoft, fontSize = 14.sp)
-                            PrayerSymbol("mosque", 48.dp)
+                    val goldHome = page == "home"
+                    val summaryShape = RoundedCornerShape(28.dp)
+                    Column(Modifier.fillMaxWidth().clip(summaryShape)
+                        .background(if (goldHome)
+                            Brush.horizontalGradient(listOf(Color(0xFF1A1209), Color(0xFF090A0B), Color(0xFF12100B)))
+                        else Brush.linearGradient(listOf(prayerTeal, Color(0xFF0B2425))))
+                        .then(if (goldHome) Modifier.border(1.3.dp, PremiumGold, summaryShape) else Modifier)
+                        .padding(if (goldHome) 16.dp else 22.dp),
+                        verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+                            PrayerSymbol("mosque", if (goldHome) 32.dp else 48.dp,
+                                if (goldHome) PremiumGoldLight else PremiumGold)
+                            Column(Modifier.weight(1f)) {
+                                if (goldHome) Text("موقعي الحالي", color = PremiumGoldLight,
+                                    fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                                Text(if (settings.confirmedPlace) settings.place.name else "اختر مدينتك",
+                                    Modifier.clickable { chooseCity = true },
+                                    color = if (goldHome) PremiumGoldLight else prayerSoft, fontSize = 14.sp)
+                            }
                         }
-                        Text(if (settings.confirmedPlace && next != null) "الصلاة القادمة • ${next.title}" else "مواقيت الصلاة والأذان", color = Color.White, fontSize = 17.sp)
-                        if (settings.confirmedPlace && next != null) {
-                            Text(formatPrayerTime(next.at, zone), color = PremiumGoldLight, fontSize = 39.sp, fontWeight = FontWeight.Bold)
-                            val remaining = ((next.at - now).coerceAtLeast(0) / 1000)
-                            Text(String.format(arabic, "المتبقي %02d:%02d:%02d", remaining / 3600, remaining / 60 % 60, remaining % 60), color = Color.White, fontSize = 16.sp)
-                        } else Text("حدد المدينة لعرض المواقيت الصحيحة", color = PremiumGoldLight, fontSize = 18.sp)
-                        Text(date.format(DateTimeFormatter.ofPattern("EEEE، d MMMM", arabic)) + " • " + runCatching { HijrahDate.from(date).format(DateTimeFormatter.ofPattern("d MMMM yyyy", arabic)) + " هـ" }.getOrDefault(""), color = prayerSoft, fontSize = 12.sp)
+                        if (goldHome) Spacer(Modifier.fillMaxWidth().height(1.dp)
+                            .background(PremiumGold.copy(alpha = .5f)))
+                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                                Text(if (settings.confirmedPlace && next != null)
+                                    "الصلاة القادمة • ${next.title}" else "مواقيت الصلاة والأذان",
+                                    color = Color.White, fontSize = if (goldHome) 18.sp else 17.sp,
+                                    fontWeight = if (goldHome) FontWeight.Bold else FontWeight.Normal)
+                                if (settings.confirmedPlace && next != null) {
+                                    Text(formatPrayerTime(next.at, zone), color = PremiumGoldLight,
+                                        fontSize = if (goldHome) 36.sp else 39.sp,
+                                        fontWeight = FontWeight.Bold)
+                                    val remaining = ((next.at - now).coerceAtLeast(0) / 1000)
+                                    Text(String.format(arabic, "المتبقي %02d:%02d:%02d",
+                                        remaining / 3600, remaining / 60 % 60, remaining % 60),
+                                        color = Color.White, fontSize = 15.sp)
+                                } else Text("حدد المدينة لعرض المواقيت الصحيحة",
+                                    color = PremiumGoldLight, fontSize = 16.sp)
+                            }
+                            if (goldHome) AzkarHomeLantern()
+                        }
+                        Text(date.format(DateTimeFormatter.ofPattern("EEEE، d MMMM", arabic)) +
+                            " • " + runCatching {
+                                HijrahDate.from(date).format(DateTimeFormatter.ofPattern("d MMMM yyyy", arabic)) + " هـ"
+                            }.getOrDefault(""),
+                            color = if (goldHome) PremiumGoldLight else prayerSoft, fontSize = 12.sp)
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(if (active) "الأذان مفعّل" else "الأذان متوقف", Modifier.weight(1f), color = Color.White, fontSize = 13.sp)
-                            Switch(active, onCheckedChange = { if (it) enableAdhan() else { enableAfterLocation = false; save(settings.copy(enabled = false)) } })
+                            Text(if (active) "الأذان مفعّل" else "الأذان متوقف",
+                                Modifier.weight(1f), color = Color.White, fontSize = 14.sp)
+                            Switch(active,
+                                colors = SwitchDefaults.colors(
+                                    checkedThumbColor = Color(0xFF141007),
+                                    checkedTrackColor = PremiumGoldLight,
+                                    checkedBorderColor = PremiumGold,
+                                    uncheckedThumbColor = PremiumMuted,
+                                    uncheckedTrackColor = Color(0xFF101112),
+                                    uncheckedBorderColor = PremiumBorder
+                                ),
+                                onCheckedChange = {
+                                    if (it) enableAdhan()
+                                    else { enableAfterLocation = false; save(settings.copy(enabled = false)) }
+                                })
                         }
                     }
                 }
@@ -455,20 +574,47 @@ internal fun AzkarPrayerScreen(modifier: Modifier = Modifier, onSharePost: (Stri
             }
             if (page == "home") {
                 item {
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedButton(onClick = { page = "times" }, modifier = Modifier.weight(1f)) { Text("مواقيت الصلاة", color = PremiumGoldLight) }
-                        OutlinedButton(onClick = { page = "settings" }, modifier = Modifier.weight(1f)) { Text("إعدادات الأذان", color = PremiumGoldLight) }
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+                        Box(Modifier.weight(1f)) {
+                            AzkarHomeAction("مواقيت الصلاة", "book-open") { page = "times" }
+                        }
+                        Box(Modifier.weight(1f)) {
+                            AzkarHomeAction("إعدادات الأذان", "menu") { page = "settings" }
+                        }
                     }
                 }
-                item { Text("أذكارك اليومية", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold) }
+                item {
+                    AzkarHeaderPlaque(Modifier.fillMaxWidth().padding(vertical = 6.dp),
+                        label = "أذكارك اليومية")
+                }
                 items(dhikrGroups.chunked(2)) { row ->
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         row.forEach { category ->
-                            Column(Modifier.weight(1f).clip(prayerShape).background(PremiumPanel)
-                                .border(1.dp, PremiumBorder.copy(alpha = .40f), prayerShape).clickable { page = category.id }.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(9.dp)) {
-                                Box(Modifier.size(68.dp).background(prayerTeal.copy(alpha = .7f), CircleShape), contentAlignment = Alignment.Center) { PrayerSymbol(category.symbol, 35.dp) }
-                                Text(category.title, color = PremiumGoldLight, fontWeight = FontWeight.Bold, fontSize = 17.sp)
-                                Text(category.subtitle, color = PremiumMuted, fontSize = 11.sp, textAlign = TextAlign.Center)
+                            val featured = category.id == "morning"
+                            val tileShape = RoundedCornerShape(24.dp)
+                            Column(Modifier.weight(1f).heightIn(min = 165.dp).clip(tileShape)
+                                .background(if (featured)
+                                    Brush.verticalGradient(listOf(Color(0xFFFFDE77), Color(0xFFE3A52D)))
+                                else Brush.verticalGradient(listOf(Color(0xFF141413), Color(0xFF07090A))))
+                                .border(1.2.dp, PremiumGold, tileShape)
+                                .clickable { page = category.id }
+                                .padding(horizontal = 8.dp, vertical = 15.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                                Box(Modifier.size(65.dp).clip(CircleShape)
+                                    .background(if (featured) Color(0xFF15110D) else Color(0xFF17140F))
+                                    .border(1.1.dp, PremiumGold, CircleShape),
+                                    contentAlignment = Alignment.Center) {
+                                    PrayerSymbol(category.symbol, 34.dp, PremiumGoldLight)
+                                }
+                                Text(category.title,
+                                    color = if (featured) Color(0xFF100F0A) else PremiumGoldLight,
+                                    fontWeight = FontWeight.Bold, fontSize = 17.sp,
+                                    maxLines = 2, textAlign = TextAlign.Center)
+                                Text(category.subtitle,
+                                    color = if (featured) Color(0xFF3C2C13) else PremiumMuted,
+                                    fontSize = 12.sp, textAlign = TextAlign.Center,
+                                    maxLines = 3)
                             }
                         }
                         if (row.size == 1) Spacer(Modifier.weight(1f))
