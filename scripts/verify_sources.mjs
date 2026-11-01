@@ -88,7 +88,11 @@ assert.ok(mushafReader.includes('AnimatedVisibility(visible = readerControlsVisi
 const videoViewer=fs.readFileSync('android-native/app/src/main/java/com/alatta/nativeapp/AttaExpandableVideo.kt','utf8');
 assert.ok(videoViewer.includes('val reelsMode = (reelsOnly || includeYoutubePosts) && live == null') &&
   videoViewer.includes('mixedPostReels(posts).filter { it.youtubeId == null && it.videoUrl.isNotBlank() }') &&
-  videoViewer.includes('bottom = 12.dp') &&
+  videoViewer.includes('bottom = if (reelsOnly) 88.dp else 56.dp') &&
+  videoViewer.includes('BoxWithConstraints(Modifier.fillMaxSize())') &&
+  videoViewer.includes('override fun onVideoSizeChanged') &&
+  videoViewer.includes('videoAspectRatio < 1f') &&
+  videoViewer.includes('resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT') &&
   videoViewer.includes('LaunchedEffect(reelsOnly, index, items.size, nextReelsCursor)') &&
   videoViewer.includes('onLoadMoreReels?.invoke()') &&
   videoViewer.includes('fontSize = 19.sp, lineHeight = 24.sp') &&
@@ -99,7 +103,7 @@ assert.ok(videoViewer.includes('val reelsMode = (reelsOnly || includeYoutubePost
   videoViewer.includes('else AspectRatioFrameLayout.RESIZE_MODE_FIT') &&
   videoViewer.includes('Modifier.align(AbsoluteAlignment.TopLeft)') &&
   !videoViewer.includes('Text("ريلز •'),
-  'Uploaded Reels stay vertical with bottom author; YouTube stays 16:9 and live playback remains FIT');
+  'Uploaded Reels use source aspect ratio without cropping and keep author visible; YouTube stays 16:9 and live playback remains FIT');
 assert.ok(azkarScreen.includes('local.getInt("font_size", 23)') &&
   azkarScreen.includes('textAlign = TextAlign.Center') &&
   azkarScreen.includes('(fontSize * 1.75f).sp') &&
