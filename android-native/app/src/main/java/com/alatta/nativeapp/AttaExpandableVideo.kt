@@ -123,15 +123,21 @@ internal fun AttaExpandableVideo(url: String, posterUrl: String? = null, onOpen:
 /** عنصر واحد في ريلز العطا: إمّا ملف فيديو أو فيديو YouTube مرفق بمنشور.
  * تُحفظ هويّة المنشور الحقيقية للتعليقات والتفاعل؛ المفتاح الخاص يمنع ضياع فيديو إن وُجد النوعان بمنشور واحد.
  */
-internal data class AttaReelEntry(val post: JSONObject, val key: String, val videoUrl: String)
+internal data class AttaReelEntry(val post: JSONObject, val key: String, val videoUrl: String = "", val youtubeId: String? = null)
 
-/** الريلز مخصصة لملفات الفيديو المنشورة على العطا فقط؛ لا تخلط فيديو YouTube داخلها. */
-internal fun uploadedPostReels(posts: List<JSONObject>): List<AttaReelEntry> =
-    posts.mapNotNull { post ->
+/** الريلز تضم فيديوهات العطا المرفوعة وYouTube Shorts التي نُشرت صراحة كشورت.
+ * مقاطع YouTube الأفقية العادية لا تظهر هنا، ولا تُنزَّل أو تُعاد استضافتها.
+ */
+internal fun uploadedPostReels(posts: List<JSONObject>): List<AttaReelEntry> = buildList {
+    for (post in posts) {
+        val postId = post.optString("id")
         val url = media(post.optString("video"))
-        if (url.isBlank()) null
-        else AttaReelEntry(post, post.optString("id") + ":video", url)
-    }.distinctBy { it.key }
+        if (url.isNotBlank()) add(AttaReelEntry(post, "$postId:video", videoUrl = url))
+        youtubeShortPostId(post.optString("text"))?.let { shortId ->
+            add(AttaReelEntry(post, "$postId:short:$shortId", youtubeId = shortId))
+        }
+    }
+}.distinctBy { it.key }
 
 /** مشغّل ملء شاشة واحد ومشغّل Media3 واحد طوال قائمة الفيديوهات كلها. */
 internal data class MediaPlaybackSnapshot(val stage: String, val state: Int = Player.STATE_IDLE,
@@ -167,6 +173,7 @@ internal fun AttaPostMediaViewer(
     playbackKey: Any? = null,
     validatedChannelUrl: String? = null,
     reelsOnly: Boolean = false,
+    youtubeShortContent: (@Composable (String, Int, Boolean, (Boolean) -> Unit) -> Unit)? = null,
     nextReelsCursor: String? = null,
     onLoadMoreReels: (() -> Unit)? = null
 ) {
@@ -196,8 +203,13 @@ internal fun AttaPostMediaViewer(
     val current = reel.post
     val id = current.optString("id")
     val url = reel.videoUrl
-    val nativeVideo = isVideo
+    val youtubeId = reel.youtubeId
+    val nativeVideo = isVideo && youtubeId == null
     val stateKey = playbackKey ?: reel.key
+    var youtubePlaying by remember(stateKey) { mutableStateOf(false) }
+    var youtubeStarted by remember(stateKey) { mutableStateOf(false) }
+    var youtubeCommand by remember(stateKey) { mutableIntStateOf(0) }
+    var youtubeCommandPlay by remember(stateKey) { mutableStateOf(true) }
     var sheet by remember(stateKey) { mutableStateOf<String?>(null) }
     var controls by remember(stateKey) { mutableStateOf(true) }
     var playing by remember(playbackKey) { mutableStateOf(false) }
@@ -342,7 +354,26 @@ internal fun AttaPostMediaViewer(
             delay(350)
         }
     }
-    LaunchedEffect(playing, controls, sheet, qualityMenu) { if (playing && controls && sheet == null && !qualityMenu) { delay(2500); controls = false } }
+    LaunchedEffect(playing, controls, sheet, qualityMenu, reelsOnly, stateKey) {
+        if (controls && sheet == null && !qualityMenu && (reelsOnly || playing)) {
+            delay(if (reelsOnly) 1500L else 2500L)
+            controls = false
+        }
+    }
+    // زر وسط الفيديو بدل التشغيل/الإيقاف المكرر في أسفل الريلز.
+    val toggleReelPlayback: () -> Unit = {
+        if (youtubeId != null) {
+            youtubeCommandPlay = !youtubePlaying
+            youtubeCommand += 1
+        } else if (player != null && !stopPlayback) {
+            if (playing) player.pause() else {
+                if (player.playbackState == Player.STATE_ENDED) player.seekTo(0)
+                if (player.playerError != null) { failed = ""; player.prepare() }
+                player.play()
+            }
+        }
+        controls = true
+    }
     val changeVideo: (Int) -> Unit = { delta ->
         val next = index + delta
         if (next in items.indices) {
@@ -397,9 +428,12 @@ internal fun AttaPostMediaViewer(
                     }
                 }) {
                 if (reelsOnly) {
-                    // لا نكبّر الفيديو ولا نقصّ أطرافه. نملأ المساحات الفارغة بصورة خلفية
-                    // غير متحركة من معاينة الفيديو، لا بمشغّل ثانٍ أو شريط أسود ضخم.
-                    reelBackdrop?.let { frame ->
+                    // خلفية ثابتة فقط، لا تستخدم مشغّلًا آخر لتعبئة الشاشة.
+                    if (youtubeId != null) {
+                        coil.compose.AsyncImage(model = "https://i.ytimg.com/vi/$youtubeId/hqdefault.jpg",
+                            contentDescription = null, modifier = Modifier.fillMaxSize().blur(30.dp),
+                            contentScale = ContentScale.Crop)
+                    } else reelBackdrop?.let { frame ->
                         Image(frame.asImageBitmap(), contentDescription = null,
                             modifier = Modifier.fillMaxSize().blur(30.dp),
                             contentScale = ContentScale.Crop)
@@ -434,9 +468,32 @@ internal fun AttaPostMediaViewer(
                             modifier = if (live != null) Modifier.align(Alignment.Center).fillMaxWidth().aspectRatio(16f / 9f)
                                 else Modifier.fillMaxSize())
                     }
-                    Box(Modifier.fillMaxSize().clickable { controls = !controls })
-                    // استخدم زر التشغيل والإيقاف المركزي الوحيد في صف عناصر التحكم أدناه.
+                    Box(Modifier.fillMaxSize().clickable {
+                        if (reelsOnly) toggleReelPlayback() else controls = !controls
+                    })
+                } else if (youtubeId != null && youtubeShortContent != null && reelsOnly) {
+                    // نفس YouTubePlayer الرسمي الذي يستخدمه التطبيق، لكن في مساحة 9:16.
+                    // لا نحجب زر بدء YouTube الأصلي قبل التشغيل الأول.
+                    key(reel.key) {
+                        youtubeShortContent(youtubeId, youtubeCommand, youtubeCommandPlay) { active ->
+                            youtubePlaying = active
+                            if (active) youtubeStarted = true
+                        }
+                    }
+                    if (youtubeStarted) Box(Modifier.fillMaxSize().clickable {
+                        toggleReelPlayback()
+                    })
                 } else if (!isVideo) AttaZoomableImage(url, "صورة المنشور", onTap = { controls = !controls })
+                if (reelsOnly && controls && (player != null || (youtubeId != null && youtubeStarted))) {
+                    Box(Modifier.align(Alignment.Center).size(66.dp)
+                        .clip(RoundedCornerShape(50))
+                        .background(Color(0xA5000000))
+                        .border(1.2.dp, PremiumGoldLight, RoundedCornerShape(50))
+                        .clickable { toggleReelPlayback() }, contentAlignment = Alignment.Center) {
+                        SiteIcon(if (if (youtubeId != null) youtubePlaying else playing) "pause" else "play",
+                            size = 30.dp, tint = Color.White)
+                    }
+                }
                 if (live != null && controls) Row(Modifier.align(Alignment.TopCenter).fillMaxWidth()
                     .background(Color(0xBB000000)).padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
@@ -454,7 +511,7 @@ internal fun AttaPostMediaViewer(
                     // الاسم والوصف فوق منطقة الإيماءات وشريط تشغيل الفيديو؛ لا يختفيان أسفل الشاشة.
                     Column(Modifier.align(Alignment.BottomStart).fillMaxWidth(.77f)
                         .padding(start = 16.dp,
-                            bottom = if (reelsOnly) (if (controls && player != null) 154.dp else 60.dp) else 56.dp),
+                            bottom = if (reelsOnly) (if (controls && player != null) 122.dp else 60.dp) else 56.dp),
                         verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Text(authorName, color = Color.White, fontWeight = FontWeight.Bold,
                             fontSize = 19.sp, lineHeight = 24.sp,
@@ -472,7 +529,7 @@ internal fun AttaPostMediaViewer(
                     }
                 }
                 // ثبّت الشريط الاجتماعي الرأسي عند الحافة اليمنى الفعلية في تخطيطي RTL وLTR.
-                if (player != null && (sendReaction != null || onShare != null)) {
+                if ((player != null || youtubeId != null) && (sendReaction != null || onShare != null)) {
                     // Reactions, comments and share stay at upper-right as before v1.0.212.
                     Column(Modifier.align(AbsoluteAlignment.TopRight)
                         .absolutePadding(top = 12.dp, right = 14.dp),
@@ -576,7 +633,7 @@ internal fun AttaPostMediaViewer(
                             color = Color.White, fontSize = 11.sp,
                             fontWeight = FontWeight.Light, lineHeight = 13.sp)
                     }
-                    if (player != null) Row(Modifier.fillMaxWidth(),
+                    if (player != null && !reelsOnly) Row(Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceEvenly,
                         verticalAlignment = Alignment.CenterVertically) {
                         if (live != null) TextButton(enabled = !stopPlayback, onClick = { player.seekToDefaultPosition(); player.play() }) {
