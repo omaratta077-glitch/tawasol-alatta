@@ -114,7 +114,8 @@ internal fun AttaExpandableVideo(url: String, posterUrl: String? = null, onOpen:
     }
     if (expanded) AttaPostMediaViewer(
         posts = listOf(JSONObject().put("id", "attachment").put("video", url)),
-        startId = "attachment", kind = "video", onDismiss = { expanded = false }
+        startId = "attachment", kind = "video", onDismiss = { expanded = false },
+        reelsOnly = true // يفتح نفس عارض الريلز، لا تخطيط ملء شاشة ثانٍ.
     )
 }
 
