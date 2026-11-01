@@ -44,7 +44,7 @@ for(const mobile of [true,false]){
  share.click();menu.querySelector('[data-share=reels]').click();
  await new Promise(r=>setTimeout(r,0));
  assert.equal(shared,undefined,'Long videos cannot be shared as Reels');
- assert.match(menu.querySelector('.atta-yt-share-message').textContent,/أطول من 3 دقائق/);
+ assert.match(menu.querySelector('.atta-yt-share-message').textContent,/لا يسمح بتضمين/);
  menu.querySelector('[data-share=cancel]').click();
  assert.equal(menu.style.display,'none');
  if(mobile){
