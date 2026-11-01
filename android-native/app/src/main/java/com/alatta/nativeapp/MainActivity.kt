@@ -61,6 +61,20 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.positionChange
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
+import kotlin.math.abs
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -2426,10 +2440,87 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
         }
     }
 
+    // مراقبة غير مستهلكة للمس، تحترم الفيديو والريلز والمصحف والتمرير الأفقي الداخلي.
+    val swipeSections = remember {
+        listOf("الرئيسية", "ريلز", "الملف", "القرآن", "الأحاديث",
+            "الأذكار", "الرياضة", "يوتيوب", "القائمة")
+    }
+    var chromeVisible by remember { mutableStateOf(true) }
+    var lastChromeMotion by remember { mutableLongStateOf(android.os.SystemClock.uptimeMillis()) }
+    fun revealChrome() {
+        chromeVisible = true
+        val t = android.os.SystemClock.uptimeMillis()
+        if (t - lastChromeMotion >= 140L) lastChromeMotion = t
+    }
+    LaunchedEffect(tab, token, chatWith) {
+        if (token.isNotBlank()) revealChrome()
+    }
+    LaunchedEffect(lastChromeMotion, tab, token) {
+        if (token.isNotBlank()) {
+            delay(2100L)
+            chromeVisible = false
+        }
+    }
+    val chromeScrollObserver = remember {
+        object : NestedScrollConnection {
+            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                if (source == NestedScrollSource.UserInput && abs(available.y) > 1f) {
+                    revealChrome()
+                }
+                return Offset.Zero
+            }
+        }
+    }
+    val onSectionSwipe by rememberUpdatedState(newValue = { direction: Int ->
+        if (token.isNotBlank() && profilePeer.isBlank() &&
+            !(tab == "الرسائل" && chatWith.isNotBlank()) && !youtubePipMode) {
+            val index = swipeSections.indexOf(tab)
+            val candidate = index + direction
+            if (index >= 0 && candidate in swipeSections.indices) {
+                navigate(swipeSections[candidate])
+                revealChrome()
+            }
+        }
+    })
+    val chromeGestureModifier =
+        if (token.isNotBlank() && !youtubePipMode && profilePeer.isBlank() &&
+            !(tab == "الرسائل" && chatWith.isNotBlank())) {
+            Modifier.nestedScroll(chromeScrollObserver).pointerInput(tab, chatWith) {
+                val minSwipe = 94.dp.toPx()
+                val minVertical = viewConfiguration.touchSlop * .65f
+                awaitEachGesture {
+                    val first = awaitFirstDown(requireUnconsumed = false,
+                        pass = PointerEventPass.Initial)
+                    revealChrome()
+                    var dx = 0f
+                    var dy = 0f
+                    var childCapturedHorizontal = false
+                    while (true) {
+                        val event = awaitPointerEvent(PointerEventPass.Final)
+                        val change = event.changes.firstOrNull { it.id == first.id } ?: break
+                        val move = change.positionChange()
+                        dx += move.x
+                        dy += move.y
+                        if (change.isConsumed && abs(move.x) > abs(move.y) &&
+                            abs(move.x) > 1f) childCapturedHorizontal = true
+                        if (abs(move.y) >= minVertical) revealChrome()
+                        if (!change.pressed) {
+                            if (!childCapturedHorizontal && abs(dx) >= minSwipe &&
+                                abs(dx) > abs(dy) * 1.6f) {
+                                onSectionSwipe(if (dx < 0f) 1 else -1)
+                            }
+                            break
+                        }
+                    }
+                }
+            }
+        } else Modifier
+
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
         MaterialTheme(colorScheme = darkColorScheme(primary = Gold, background = Black, surface = Panel, onSurface = White, onBackground = White)) {
             Box(Modifier.fillMaxSize().background(Black)) {
-            Column(if (youtubePipMode) Modifier.size(0.dp) else Modifier.fillMaxSize().background(Black).safeDrawingPadding()) {
+            Column(if (youtubePipMode) Modifier.size(0.dp) else Modifier.fillMaxSize()
+                .background(Black).safeDrawingPadding().then(chromeGestureModifier)) {
                 if (token.isBlank()) {
                     // مرّر شاشة تسجيل الدخول فقط؛ واترك تنقل Android دون عائق.
                     Column(
@@ -2649,11 +2740,17 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                     // عنوان دائم ومصادق عليه، مستقل عن علامة التبويب المحددة.
                     // يُبقي شعار AL-ATTA بجانب اسم التطبيق لا اسم المستخدم،
                     // مع أيقونات الرسائل والإشعارات وYouTube بلا إطارات.
-                    if (tab == "الرئيسية") PremiumHeader(
-                        current = tab,
-                        unreadNotifications = notifications.count { !it.optBoolean("read", false) },
-                        onNavigate = ::navigate
-                    )
+                    AnimatedVisibility(
+                        visible = chromeVisible && tab == "الرئيسية",
+                        enter = expandVertically() + fadeIn(),
+                        exit = shrinkVertically() + fadeOut()
+                    ) {
+                        PremiumHeader(
+                            current = tab,
+                            unreadNotifications = notifications.count { !it.optBoolean("read", false) },
+                            onNavigate = ::navigate
+                        )
+                    }
                     if (tab == "الرئيسية" || tab == "استكشاف") {
                         if (tab == "استكشاف") {
                             OutlinedTextField(
@@ -2667,8 +2764,14 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                             )
                         } // Home uses the search icon in the single-line header; no second search bar.
                     }
-                    if (tab != "الرئيسية" && tab != "الرسائل" && tab != "القرآن" && tab != "الأذكار" && tab != "الرياضة" &&
-                        !(compactYoutubeLayout && tab == "يوتيوب" && youtubePlayRequested)) {
+                    AnimatedVisibility(
+                        visible = chromeVisible && tab != "الرئيسية" &&
+                            tab != "الرسائل" && tab != "القرآن" && tab != "الأذكار" &&
+                            tab != "الرياضة" &&
+                            !(compactYoutubeLayout && tab == "يوتيوب" && youtubePlayRequested),
+                        enter = expandVertically() + fadeIn(),
+                        exit = shrinkVertically() + fadeOut()
+                    ) {
                         Row(Modifier.fillMaxWidth().height(47.dp)
                             .padding(horizontal = 12.dp, vertical = 3.dp),
                             verticalAlignment = Alignment.CenterVertically,
@@ -3881,7 +3984,11 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                             }
                         }
                     }
-                    if (tab != "الرسائل" || chatWith.isBlank()) PremiumBottomNav(tab, ::navigate)
+                    AnimatedVisibility(
+                        visible = chromeVisible && (tab != "الرسائل" || chatWith.isBlank()),
+                        enter = expandVertically() + fadeIn(),
+                        exit = shrinkVertically() + fadeOut()
+                    ) { PremiumBottomNav(tab, ::navigate) }
                 }
 
             }
