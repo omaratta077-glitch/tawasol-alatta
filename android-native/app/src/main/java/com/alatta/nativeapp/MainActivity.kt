@@ -1236,7 +1236,9 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
     var youtubePostDraftId by remember { mutableStateOf("") }
     var youtubePostDraftTitle by remember { mutableStateOf("") }
     var youtubePostDraftIsShort by remember { mutableStateOf(false) }
-    var youtubeShortUrl by remember { mutableStateOf("") }
+    // كل فيديو له زر مشاركة واحد وخياران بدل حقل إدخال Shorts المنفصل.
+    var youtubeShareSelection by remember { mutableStateOf<Pair<String, String>?>(null) }
+    var youtubeShareChecking by remember { mutableStateOf(false) }
     var activeYoutubePostId by remember { mutableStateOf("") }
     // أعد تحميل الرئيسية من دون بدء عمل تمرير من عنصر تنقل خارج الشاشة.
     var homeRefreshRequest by remember { mutableIntStateOf(0) }
@@ -2255,6 +2257,96 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
         },
         dismissButton = { TextButton(onClick = { featureMessage = "" }) { Text("إغلاق") } }
     )
+    youtubeShareSelection?.let { (shareId, shareTitle) ->
+        AlertDialog(
+            onDismissRequest = {
+                if (!youtubeShareChecking) youtubeShareSelection = null
+            },
+            containerColor = Panel,
+            titleContentColor = GoldLight,
+            textContentColor = White,
+            shape = RoundedCornerShape(22.dp),
+            title = { Text("مشاركة فيديو يوتيوب", fontWeight = FontWeight.Bold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                    Text(shareTitle.ifBlank { "فيديو يوتيوب" }, color = White,
+                        maxLines = 2, overflow = TextOverflow.Ellipsis, fontSize = 13.sp)
+                    Text("اختر مكان ظهور الفيديو في العطا", color = Muted, fontSize = 12.sp)
+                    OutlinedButton(
+                        enabled = !youtubeShareChecking,
+                        onClick = {
+                            youtubeShareSelection = null
+                            youtubePlayRequested = false
+                            activeYoutubePostId = ""
+                            youtubePostDraftId = shareId
+                            youtubePostDraftTitle = shareTitle
+                            youtubePostDraftIsShort = false
+                            openHomeComposer()
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        border = BorderStroke(1.dp, Gold),
+                        shape = RoundedCornerShape(14.dp)
+                    ) {
+                        SiteIcon("file-text", tint = GoldLight, size = 20.dp)
+                        Spacer(Modifier.width(8.dp))
+                        Text("مشاركة كمنشور", color = GoldLight)
+                    }
+                    Button(
+                        enabled = !youtubeShareChecking,
+                        onClick = {
+                            youtubeShareChecking = true
+                            task {
+                                try {
+                                    val verification = withContext(Dispatchers.IO) {
+                                        api("/api/youtube-short?id=${enc(shareId)}")
+                                    }
+                                    youtubeShareSelection = null
+                                    if (verification.optBoolean("ok") &&
+                                        verification.optBoolean("eligible", false)) {
+                                        youtubePlayRequested = false
+                                        activeYoutubePostId = ""
+                                        youtubePostDraftId = shareId
+                                        youtubePostDraftTitle = shareTitle
+                                        youtubePostDraftIsShort = true
+                                        openHomeComposer()
+                                    } else {
+                                        featureMessage = "الفيديو أطول من 3 دقائق أو غير متاح للتضمين؛ يمكنك مشاركته كمنشور عادي."
+                                    }
+                                } catch (cancelled: CancellationException) {
+                                    throw cancelled
+                                } catch (e: Exception) {
+                                    youtubeShareSelection = null
+                                    featureMessage = e.message ?: "تعذر التحقق من الفيديو للريلز"
+                                } finally {
+                                    youtubeShareChecking = false
+                                }
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Gold, contentColor = Color.Black),
+                        shape = RoundedCornerShape(14.dp)
+                    ) {
+                        if (youtubeShareChecking) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(18.dp), strokeWidth = 2.dp,
+                                color = Color.Black)
+                        } else SiteIcon("video", tint = Color.Black, size = 20.dp)
+                        Spacer(Modifier.width(8.dp))
+                        Text(if (youtubeShareChecking) "جارٍ التحقق من الفيديو…" else "مشاركة في الريلز")
+                    }
+                    Text("الريلز للفيديوهات القصيرة حتى 3 دقائق فقط.",
+                        color = Muted, fontSize = 11.sp)
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { youtubeShareSelection = null },
+                    enabled = !youtubeShareChecking) {
+                    Text("إلغاء", color = GoldLight)
+                }
+            }
+        )
+    }
     if (showStoryComposer) AlertDialog(
         onDismissRequest = { showStoryComposer = false },
         containerColor = Panel,
@@ -3960,44 +4052,6 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                     }
                                 }
                             }
-                            item(key = "youtube_verified_short_link") {
-                                CardBox {
-                                    Text("إضافة YouTube Shorts للريلز", color = GoldLight,
-                                        fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                                    Text("الصق رابطًا من youtube.com/shorts، وليس فيديو يوتيوب عاديًا.",
-                                        color = Muted, fontSize = 12.sp, lineHeight = 18.sp)
-                                    OutlinedTextField(
-                                        value = youtubeShortUrl,
-                                        onValueChange = { youtubeShortUrl = it.take(500) },
-                                        label = { Text("رابط YouTube Shorts") },
-                                        modifier = Modifier.fillMaxWidth(),
-                                        singleLine = true
-                                    )
-                                    val shortId = Regex(
-                                        """https?://(?:www\.|m\.)?youtube\.com/shorts/([A-Za-z0-9_-]{11})(?:[/?#].*)?"""
-                                    ).matchEntire(youtubeShortUrl.trim())?.groupValues?.getOrNull(1)
-                                    TextButton(enabled = shortId != null && !busy, onClick = {
-                                        if (shortId != null) task {
-                                            val verification = api("/api/youtube-short?id=${enc(shortId)}")
-                                            if (!verification.optBoolean("eligible", false)) {
-                                                featureMessage = "الفيديو ليس Shorts صالحًا للريلز أو يتجاوز 3 دقائق. استخدم مشاركته كفيديو يوتيوب عادي."
-                                            } else {
-                                                youtubePlayRequested = false
-                                                activeYoutubePostId = ""
-                                                youtubePostDraftId = shortId
-                                                youtubePostDraftTitle = "YouTube Short"
-                                                youtubePostDraftIsShort = true
-                                                youtubeShortUrl = ""
-                                                openHomeComposer()
-                                            }
-                                        }
-                                    }) {
-                                        SiteIcon("video", tint = GoldLight, size = 19.dp)
-                                        Spacer(Modifier.width(5.dp))
-                                        Text("تجهيز الشورت للنشر", color = GoldLight)
-                                    }
-                                }
-                            }
                             items(youtubeItems) { v -> CardBox {
                                 val id = v.optString("id")
                                 val pickVideo = {
@@ -4019,15 +4073,10 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                 Text(v.optString("channel"), color = Color.LightGray, fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 if (id.matches(Regex("[A-Za-z0-9_-]{11}"))) {
                                     IconButton(modifier = Modifier.size(48.dp)
-                                        .semantics { contentDescription = "مشاركة الفيديو كمنشور في الرئيسية" },
+                                        .semantics { contentDescription = "اختيار مشاركة كمنشور أو في الريلز" },
                                         onClick = {
-                                            youtubePlayRequested = false
-                                            activeYoutubePostId = ""
-                                            youtubePostDraftId = id
-                                            youtubePostDraftTitle = v.optString("title").take(160)
-                                            youtubePostDraftIsShort = false
-                                            openHomeComposer()
-                                        }) { SiteIcon("share", size = 20.dp) }
+                                            youtubeShareSelection = id to v.optString("title").take(160)
+                                        }) { SiteIcon("share", size = 20.dp, tint = GoldLight) }
                                 }
                             } }
                         }
