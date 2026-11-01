@@ -222,6 +222,8 @@ internal fun AttaPostMediaViewer(
     var selected by remember(stateKey) { mutableStateOf(current.optString("myReaction").ifBlank { if (current.optBoolean("likedByMe")) "like" else "" }) }
     var reacting by remember(stateKey) { mutableStateOf(false) }
     var videoHeights by remember(playbackKey) { mutableStateOf(emptyList<Int>()) }
+    // أبعاد الفيديو الفعلية تمنع تكبير الريلز الذي كان يقصّ جانبي الصورة.
+    var videoAspectRatio by remember(playbackKey) { mutableFloatStateOf(9f / 16f) }
     var qualityCap by remember(stateKey) { mutableIntStateOf(0) }
     var qualityMenu by remember(stateKey) { mutableStateOf(false) }
     val currentPlaybackErrorMessage by rememberUpdatedState(playbackErrorMessage)
@@ -269,6 +271,12 @@ internal fun AttaPostMediaViewer(
                 if (value && !playbackEverStarted) { playbackEverStarted = true; startedCallback?.invoke() }
             }
             override fun onPlaybackStateChanged(state: Int) { buffering = state == Player.STATE_BUFFERING }
+            override fun onVideoSizeChanged(videoSize: androidx.media3.common.VideoSize) {
+                if (videoSize.width > 0 && videoSize.height > 0) {
+                    videoAspectRatio = (videoSize.width.toFloat() *
+                        videoSize.pixelWidthHeightRatio / videoSize.height.toFloat()).coerceIn(.35f, 2.5f)
+                }
+            }
             override fun onPlayerError(error: PlaybackException) {
                 failed = currentPlaybackErrorMessage ?: "تعذر تشغيل الفيديو. أعد المحاولة أو تحقق من الاتصال."; controls = true
                 failureCallback?.invoke(error)
@@ -313,6 +321,7 @@ internal fun AttaPostMediaViewer(
     }
     LaunchedEffect(player, reel.key, url, live?.mimeType, sourceMimeType, playbackKey) {
         videoHeights = emptyList()
+        videoAspectRatio = 9f / 16f
         player?.takeUnless { stopPlayback }?.apply {
             val item = MediaItem.Builder().setUri(url).apply { (sourceMimeType ?: live?.mimeType)?.takeIf { it.isNotBlank() }?.let { setMimeType(it) } }.build()
             pause(); clearMediaItems(); setMediaItem(item); prepare()
@@ -393,14 +402,34 @@ internal fun AttaPostMediaViewer(
                     }
                 }) {
                 if (player != null) {
-                    AndroidView(factory = { ctx -> PlayerView(ctx).apply {
-                        this.player = player
-                        useController = false
-                        resizeMode = if (reelsMode) AspectRatioFrameLayout.RESIZE_MODE_ZOOM
-                            else AspectRatioFrameLayout.RESIZE_MODE_FIT
-                    } }, update = { it.player = player },
-                        modifier = if (live != null) Modifier.align(Alignment.Center).fillMaxWidth().aspectRatio(16f / 9f)
-                            else Modifier.fillMaxSize())
+                    if (reelsOnly) {
+                        // للمقاطع الرأسية: تبدأ الصورة من أعلى وتظهر بأبعادها الصحيحة.
+                        // عند اختلاف النسبة نترك المساحة الزائدة أسفل الفيديو بدل قص الوجوه والجوانب.
+                        BoxWithConstraints(Modifier.fillMaxSize()) {
+                            val displayHeight = (maxWidth / videoAspectRatio.coerceAtLeast(.35f))
+                                .coerceAtMost(maxHeight)
+                            AndroidView(factory = { ctx -> PlayerView(ctx).apply {
+                                this.player = player
+                                useController = false
+                                resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+                            } }, update = {
+                                it.player = player
+                                it.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+                            }, modifier = Modifier.align(
+                                if (videoAspectRatio < 1f) Alignment.TopCenter else Alignment.Center
+                            ).fillMaxWidth().height(displayHeight))
+                        }
+                    } else {
+                        // الفيديوهات العادية والبث المباشر لا تتغير أبعادها.
+                        AndroidView(factory = { ctx -> PlayerView(ctx).apply {
+                            this.player = player
+                            useController = false
+                            resizeMode = if (reelsMode) AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+                                else AspectRatioFrameLayout.RESIZE_MODE_FIT
+                        } }, update = { it.player = player },
+                            modifier = if (live != null) Modifier.align(Alignment.Center).fillMaxWidth().aspectRatio(16f / 9f)
+                                else Modifier.fillMaxSize())
+                    }
                     Box(Modifier.fillMaxSize().clickable { controls = !controls })
                     // استخدم زر التشغيل والإيقاف المركزي الوحيد في صف عناصر التحكم أدناه.
                 } else if (youtubeId != null && youtubePlayerContent != null) {
@@ -424,9 +453,10 @@ internal fun AttaPostMediaViewer(
                         .ifBlank { authorInfo?.optString("displayName").orEmpty() }
                         .ifBlank { current.optString("author") }
                     val caption = visibleYoutubePostText(current.optString("text")).trim()
-                    // نحو 10dp فوق حافة عارض الريلز، بدل ترك فراغ أسود كبير أسفل الاسم.
+                    // الاسم والوصف فوق منطقة الإيماءات وشريط تشغيل الفيديو؛ لا يختفيان أسفل الشاشة.
                     Column(Modifier.align(Alignment.BottomStart).fillMaxWidth(.77f)
-                        .padding(start = 16.dp, bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        .padding(start = 16.dp, bottom = if (reelsOnly) 88.dp else 56.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Text(authorName, color = Color.White, fontWeight = FontWeight.Bold,
                             fontSize = 19.sp, lineHeight = 24.sp,
                             modifier = Modifier.background(Color(0x77000000), RoundedCornerShape(6.dp))
