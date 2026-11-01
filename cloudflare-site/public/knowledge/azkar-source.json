@@ -1,5 +1,5 @@
 {
   "source": "android-native/app/src/main/java/com/alatta/nativeapp/AzkarCatalog.kt",
-  "sha256": "44f6322041eac124812d4634da1c1df2126d9dfe142145153ca5118ef152ce06",
-  "export": "AL-ATTA 1.0.221: approved native Azkar catalog with original repetitions, long-count reordering and final ten-count salawat; Fatiha basmala display refinement."
+  "sha256": "2e090bbbadc5222226540dff59b8fe2e9c9ec43aa18fb1612eac1f6029bc14d9",
+  "export": "AL-ATTA v1.0.234: native morning/evening Adhkar catalog preserved with custom targets; end order salawat, tawhid, tasbih and istighfar 100. Quran text unchanged; istiadhah rendered separately."
 }
