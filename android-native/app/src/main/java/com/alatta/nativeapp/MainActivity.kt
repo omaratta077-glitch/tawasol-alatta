@@ -3945,7 +3945,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                         singleLine = true
                                     )
                                     val shortId = Regex(
-                                        """https?://(?:www\\.|m\\.)?youtube\\.com/shorts/([A-Za-z0-9_-]{11})(?:[/?#].*)?"""
+                                        """https?://(?:www\.|m\.)?youtube\.com/shorts/([A-Za-z0-9_-]{11})(?:[/?#].*)?"""
                                     ).matchEntire(youtubeShortUrl.trim())?.groupValues?.getOrNull(1)
                                     TextButton(enabled = shortId != null && !busy, onClick = {
                                         if (shortId != null) task {
