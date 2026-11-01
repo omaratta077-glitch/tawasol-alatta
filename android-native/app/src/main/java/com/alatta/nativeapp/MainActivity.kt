@@ -834,7 +834,14 @@ private class AttaYoutubeFullscreenChrome(
  * باستخدام youtube-player-shared.js من أصل الموقع عبر HTTPS.
  * يربط JavaScript المحلي التفاعلات والتشخيص فقط، ولا ينشئ إطار iframe.
  */
-@Composable private fun YouTubePlayer(id: String, onMiniDrag: ((Float, Float) -> Unit)? = null) {
+@Composable private fun YouTubePlayer(
+    id: String,
+    onMiniDrag: ((Float, Float) -> Unit)? = null,
+    portrait: Boolean = false,
+    playbackCommand: Int = 0,
+    commandShouldPlay: Boolean = true,
+    onPlaybackChanged: ((Boolean) -> Unit)? = null
+) {
     val safeId = id.takeIf { Regex("[A-Za-z0-9_-]{11}").matches(it) } ?: return
     val ctx = LocalContext.current
     var loading by remember(safeId) { mutableStateOf(true) }
@@ -842,6 +849,7 @@ private class AttaYoutubeFullscreenChrome(
     var playbackConfirmed by remember(safeId) { mutableStateOf(false) }
     var error by remember(safeId) { mutableStateOf("") }
     var lastEvent by remember(safeId) { mutableStateOf("بدء التحميل") }
+    val currentPlaybackChanged by rememberUpdatedState(onPlaybackChanged)
 
     // يحرّك جسر DOM صغير زر الموقع الحالي ونموذج البحث.
     // لا تُضمَّن نسخة ثانية من iframe في APK Android.
@@ -865,6 +873,10 @@ private class AttaYoutubeFullscreenChrome(
                     playbackConfirmed = true
                     loading = false
                     error = ""
+                    currentPlaybackChanged?.invoke(true)
+                }
+                event == "PAUSED" || event == "ENDED" -> {
+                    currentPlaybackChanged?.invoke(false)
                 }
                 event.startsWith("PLAYER_ERROR:") -> {
                     loading = false
@@ -933,6 +945,21 @@ private class AttaYoutubeFullscreenChrome(
             loadUrl("$BASE/")
         }
     }
+    // أوامر الإيقاف/التشغيل للشورتس تمر إلى iframe الموجود عبر postMessage،
+    // بلا إنشاء WebView أو iframe أو مشغّل YouTube جديد.
+    LaunchedEffect(webView, portrait, playbackCommand, frameLoaded) {
+        if (portrait && playbackCommand > 0 && frameLoaded) {
+            val method = if (commandShouldPlay) "playVideo" else "pauseVideo"
+            webView.evaluateJavascript("""
+                (function(){
+                  const f=document.querySelector('.atta-youtube-frame iframe');
+                  if(!f || !f.contentWindow)return;
+                  f.contentWindow.postMessage(JSON.stringify({event:'command',func:'$method',args:[]}),
+                    'https://www.youtube-nocookie.com');
+                })()
+            """.trimIndent(), null)
+        }
+    }
     val touchHost = remember(ctx, safeId) {
         MiniPlayerTouchHost(ctx).apply {
             addView(webView, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
@@ -983,8 +1010,11 @@ private class AttaYoutubeFullscreenChrome(
     // لم يتغير مسار التشغيل في v1.0.57 عمدًا؛ فما زال موقع HTTPS
     // ينشئ iframe الوحيد عبر جسر الموقع الحالي.
     val compact = LocalConfiguration.current.screenHeightDp < 480
-    BoxWithConstraints(Modifier.fillMaxWidth()) {
-        PlayerSurface(Modifier.fillMaxWidth().height(if (compact) 200.dp else (maxWidth * 9f / 16f).coerceAtLeast(200.dp)))
+    BoxWithConstraints(if (portrait) Modifier.fillMaxSize() else Modifier.fillMaxWidth()) {
+        PlayerSurface(if (portrait) Modifier.fillMaxSize()
+            else Modifier.fillMaxWidth().height(if (compact) 200.dp else (maxWidth * 9f / 16f).coerceAtLeast(200.dp)))
+        if (portrait && error.isNotBlank()) Text(error, color = Color(0xFFFFB7B7),
+            fontSize = 12.sp, modifier = Modifier.align(Alignment.BottomCenter).padding(14.dp))
     }
 }
 
@@ -1189,6 +1219,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
     var mushafPostDraft by remember { mutableStateOf<MushafPostDraft?>(null) }
     var youtubePostDraftId by remember { mutableStateOf("") }
     var youtubePostDraftTitle by remember { mutableStateOf("") }
+    var youtubePostDraftIsShort by remember { mutableStateOf(false) }
     var activeYoutubePostId by remember { mutableStateOf("") }
     // أعد تحميل الرئيسية من دون بدء عمل تمرير من عنصر تنقل خارج الشاشة.
     var homeRefreshRequest by remember { mutableIntStateOf(0) }
@@ -2876,7 +2907,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                         Text(
                                             if (screenLoading || reelMoreLoading) "جارٍ البحث عن الفيديوهات في منشورات العطا…"
                                             else if (reelCursor != null) "لم يظهر فيديو في المنشورات التي فُحصت. يمكن البحث في الأقدم."
-                                            else "لا توجد فيديوهات مرفوعة ضمن المنشورات المتاحة لحسابك.",
+                                            else "لا توجد فيديوهات مرفوعة أو Shorts مشتركة ضمن المنشورات المتاحة لحسابك.",
                                             color = GoldLight, textAlign = TextAlign.Center,
                                             modifier = Modifier.padding(horizontal = 16.dp)
                                         )
@@ -2908,6 +2939,11 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                         kind = "video",
                                         onDismiss = { navigate("الرئيسية") },
                                         reelsOnly = true,
+                                        youtubeShortContent = { shortId, command, shouldPlay, changed ->
+                                            YouTubePlayer(shortId, portrait = true,
+                                                playbackCommand = command, commandShouldPlay = shouldPlay,
+                                                onPlaybackChanged = changed)
+                                        },
                                         nextReelsCursor = reelCursor,
                                         onLoadMoreReels = {
                                             if (!reelMoreLoading && reelCursor != null) {
@@ -3007,7 +3043,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                                         "أزل المرفق الآخر قبل نشر فيديو يوتيوب"
                                                     }
                                                     if (sharedMushaf != null) require(postText.length <= 4500) { "اكتب وصفًا أقصر من 4500 حرف" }
-                                                    if (sharedYoutube.isNotBlank()) postText = attachYoutubeToPost(postText, sharedYoutube)
+                                                    if (sharedYoutube.isNotBlank()) postText = attachYoutubeToPost(postText, sharedYoutube, youtubePostDraftIsShort)
                                                     pickedUri?.let { uri ->
                                                         val mime = pickedMime.ifBlank { "image/jpeg" }
                                                         val url = withContext(Dispatchers.IO) {
@@ -3031,7 +3067,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                                     }
                                                     post("/api/posts", JSONObject().put("text", postText).put("image", image).put("video", video))
                                                     sharedMushaf?.discard(); mushafPostDraft = null
-                                                    youtubePostDraftId = ""; youtubePostDraftTitle = ""
+                                                    youtubePostDraftId = ""; youtubePostDraftTitle = ""; youtubePostDraftIsShort = false
                                                     draft = ""; pickedUri = null; load("الرئيسية")
                                                     homeScrollTarget = 1
                                                     homeFirstPostRequest++
@@ -3042,14 +3078,15 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                         })
                                         pickedUri?.let { Text("مرفق: ${it.lastPathSegment ?: "ملف"}", color = GoldLight, fontSize = 11.sp) }
                                         youtubePostDraftId.takeIf { it.isNotBlank() }?.let { videoId ->
-                                            Text("فيديو يوتيوب مرفق", color = GoldLight, fontSize = 12.sp)
+                                            Text(if (youtubePostDraftIsShort) "YouTube Short — سيظهر في الريلز"
+                                                else "فيديو يوتيوب مرفق", color = GoldLight, fontSize = 12.sp)
                                             AsyncImage("https://i.ytimg.com/vi/$videoId/hqdefault.jpg",
                                                 "معاينة فيديو يوتيوب", Modifier.fillMaxWidth().aspectRatio(16f / 9f),
                                                 contentScale = ContentScale.Fit)
                                             if (youtubePostDraftTitle.isNotBlank())
                                                 Text(youtubePostDraftTitle, color = White, fontSize = 12.sp)
                                             TextButton(onClick = {
-                                                youtubePostDraftId = ""; youtubePostDraftTitle = ""
+                                                youtubePostDraftId = ""; youtubePostDraftTitle = ""; youtubePostDraftIsShort = false
                                             }) { Text("إزالة فيديو يوتيوب", color = Muted) }
                                         }
                                         mushafPostDraft?.let { shared ->
@@ -3897,16 +3934,23 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                     modifier = Modifier.clickable(onClick = pickVideo))
                                 Text(v.optString("channel"), color = Color.LightGray, fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 if (id.matches(Regex("[A-Za-z0-9_-]{11}"))) {
-                                    IconButton(modifier = Modifier.size(48.dp).semantics { contentDescription = "مشاركة الفيديو كمنشور في الرئيسية" }, onClick = {
-                                        youtubePlayRequested = false
-                                        activeYoutubePostId = ""
-                                        youtubePostDraftId = id
-                                        youtubePostDraftTitle = v.optString("title").take(160)
-                                        // يجهّز اختيار الفيديو مربع الكتابة الحالي في الرئيسية.
-                                        // يُحمّل موجز الرئيسية من أثر الواجهة بعد التنقل.
-                                        openHomeComposer()
-                                    }) {
-                                        SiteIcon("share", size = 20.dp)
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        IconButton(modifier = Modifier.size(48.dp).semantics { contentDescription = "مشاركة الفيديو كمنشور في الرئيسية" }, onClick = {
+                                            youtubePlayRequested = false
+                                            activeYoutubePostId = ""
+                                            youtubePostDraftId = id
+                                            youtubePostDraftTitle = v.optString("title").take(160)
+                                            youtubePostDraftIsShort = false
+                                            openHomeComposer()
+                                        }) { SiteIcon("share", size = 20.dp) }
+                                        TextButton(onClick = {
+                                            youtubePlayRequested = false
+                                            activeYoutubePostId = ""
+                                            youtubePostDraftId = id
+                                            youtubePostDraftTitle = v.optString("title").take(160)
+                                            youtubePostDraftIsShort = true
+                                            openHomeComposer()
+                                        }) { Text("نشر كشورت في الريلز", color = GoldLight, fontSize = 12.sp) }
                                     }
                                 }
                             } }
