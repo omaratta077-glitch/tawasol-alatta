@@ -67,27 +67,49 @@ private val prayerShape = RoundedCornerShape(22.dp)
 private val arabic = Locale("ar")
 
 @Composable
-private fun PrayerCard(modifier: Modifier = Modifier, innerPadding: Dp = 16.dp, content: @Composable ColumnScope.() -> Unit) {
-    Column(modifier.fillMaxWidth().clip(prayerShape).background(PremiumPanel)
-        .border(1.dp, PremiumBorder.copy(alpha = .55f), prayerShape).padding(innerPadding),
+private fun PrayerCard(
+    modifier: Modifier = Modifier,
+    innerPadding: Dp = 16.dp,
+    goldStyle: Boolean = false,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    // صباحًا ومساءً: الأسود والذهبي فقط، دون تغيير محتوى الذكر أو واجهات الصلاة الأخرى.
+    val panelColor = if (goldStyle) Color(0xFF090A0A) else PremiumPanel
+    val borderColor = if (goldStyle) PremiumGold else PremiumBorder.copy(alpha = .55f)
+    Column(modifier.fillMaxWidth().clip(prayerShape).background(panelColor)
+        .border(1.dp, borderColor, prayerShape).padding(innerPadding),
         verticalArrangement = Arrangement.spacedBy(10.dp), content = content)
 }
 
-/** زخرفة عنوان الأذكار بجانب شعار التطبيق؛ لا تفصل الآيات ولا تغيّر ترتيبها. */
+/** زخرفة مطابقة لفكرة الإطار والخطوط الذهبية بالصورة، في الهيدر فقط. */
 @Composable
 private fun AzkarHeaderPlaque(modifier: Modifier = Modifier) {
+    @Composable fun Ornament() {
+        Canvas(Modifier.size(20.dp, 20.dp)) {
+            val cy = size.height / 2f
+            val cx = size.width / 2f
+            val thickness = 1.25.dp.toPx()
+            drawLine(PremiumGold, Offset(0f, cy), Offset(size.width, cy), thickness)
+            drawCircle(PremiumGoldLight, radius = 3.2.dp.toPx(),
+                center = Offset(cx, cy), style = Stroke(thickness))
+            drawLine(PremiumGoldLight, Offset(cx, cy - 5.dp.toPx()),
+                Offset(cx + 4.dp.toPx(), cy), thickness)
+            drawLine(PremiumGoldLight, Offset(cx, cy + 5.dp.toPx()),
+                Offset(cx - 4.dp.toPx(), cy), thickness)
+        }
+    }
     Row(modifier, verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        horizontalArrangement = Arrangement.spacedBy(0.dp)) {
         Box(Modifier.weight(1f).height(1.dp).background(PremiumGold))
-        Text("❖", color = PremiumGoldLight, fontSize = 12.sp)
-        Box(Modifier.clip(RoundedCornerShape(22.dp))
-            .background(PremiumPanel)
-            .border(1.dp, PremiumGold, RoundedCornerShape(22.dp))
-            .padding(horizontal = 15.dp, vertical = 6.dp), contentAlignment = Alignment.Center) {
+        Ornament()
+        Box(Modifier.clip(RoundedCornerShape(50))
+            .background(Color(0xFF090A0A))
+            .border(1.dp, PremiumGoldLight, RoundedCornerShape(50))
+            .padding(horizontal = 18.dp, vertical = 5.dp), contentAlignment = Alignment.Center) {
             Text("الأذكار", color = PremiumGoldLight, fontWeight = FontWeight.Bold,
                 fontSize = 18.sp, maxLines = 1)
         }
-        Text("❖", color = PremiumGoldLight, fontSize = 12.sp)
+        Ornament()
         Box(Modifier.weight(1f).height(1.dp).background(PremiumGold))
     }
 }
@@ -311,6 +333,8 @@ internal fun AzkarPrayerScreen(modifier: Modifier = Modifier, onSharePost: (Stri
                     maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
             }
         }
+        if (group != null) Spacer(Modifier.fillMaxWidth().padding(horizontal = 14.dp)
+            .height(1.dp).background(PremiumGold.copy(alpha = .35f)))
         if (message.isNotBlank()) Row(Modifier.fillMaxWidth().background(prayerTeal).padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(message, Modifier.weight(1f), color = Color.White, fontSize = 13.sp)
             IconButton(onClick = { message = "" }, modifier = Modifier.size(32.dp)) { SiteIcon("x", size = 18.dp) }
@@ -321,6 +345,7 @@ internal fun AzkarPrayerScreen(modifier: Modifier = Modifier, onSharePost: (Stri
         }
         if (group != null) {
             val entries = group.entries
+            val goldStyle = group.id == "morning" || group.id == "evening"
             LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 7.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 item {
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
@@ -343,25 +368,31 @@ internal fun AzkarPrayerScreen(modifier: Modifier = Modifier, onSharePost: (Stri
                 itemsIndexed(entries, key = { _, entry -> entry.id }) { index, entry ->
                     val key = "${group.id}:${entry.id}"
                     val count = counts[key] ?: local.getInt(key, 0).coerceIn(0, entry.target)
-                    PrayerCard(innerPadding = 10.dp) {
+                    PrayerCard(innerPadding = 10.dp, goldStyle = goldStyle) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text("${index + 1} • ${entry.title}",
                                 Modifier.wrapContentWidth().clip(RoundedCornerShape(12.dp))
-                                    .background(prayerTeal.copy(alpha = .55f))
-                                    .border(1.dp, PremiumBorder, RoundedCornerShape(12.dp))
+                                    .background(if (goldStyle) Color(0xFF1B170F) else prayerTeal.copy(alpha = .55f))
+                                    .border(1.dp, if (goldStyle) PremiumGold else PremiumBorder, RoundedCornerShape(12.dp))
                                     .padding(horizontal = 12.dp, vertical = 9.dp),
                                 color = PremiumGoldLight, fontWeight = FontWeight.Bold)
                             Spacer(Modifier.weight(1f))
-                            if (count >= entry.target) SiteIcon("check", tint = prayerSoft, size = 22.dp)
+                            if (count >= entry.target) SiteIcon("check", tint = if (goldStyle) PremiumGoldLight else prayerSoft, size = 22.dp)
                         }
                         Text(entry.text, color = Color.White, fontSize = fontSize.sp,
                             lineHeight = (fontSize * 1.75f).sp, textAlign = TextAlign.Center,
                             modifier = Modifier.fillMaxWidth())
-                        Text(entry.source, color = PremiumMuted, fontSize = 12.sp)
-                        if (entry.note.isNotBlank()) Text(entry.note, color = prayerSoft, fontSize = 12.sp)
+                        Text(entry.source, color = if (goldStyle) PremiumGoldLight.copy(alpha = .8f) else PremiumMuted, fontSize = 12.sp)
+                        if (entry.note.isNotBlank()) Text(entry.note,
+                            color = if (goldStyle) PremiumGoldLight.copy(alpha = .7f) else prayerSoft, fontSize = 12.sp)
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                            TextButton(onClick = { shareChoice = group to entry }) { SiteIcon("share", size = 21.dp) }
-                            Box(Modifier.size(108.dp).clip(CircleShape).background(prayerTeal).clickable(enabled = count < entry.target) {
+                            TextButton(onClick = { shareChoice = group to entry }) {
+                                SiteIcon("share", tint = if (goldStyle) PremiumGoldLight else PremiumGold, size = 21.dp)
+                            }
+                            Box(Modifier.size(108.dp).clip(CircleShape)
+                                .background(if (goldStyle) Color(0xFF11100D) else prayerTeal)
+                                .then(if (goldStyle) Modifier.border(1.dp, PremiumGold, CircleShape) else Modifier)
+                                .clickable(enabled = count < entry.target) {
                                 val nextCount = (count + 1).coerceAtMost(entry.target)
                                 counts[key] = nextCount; local.edit().putInt(key, nextCount).apply()
                             }.semantics { contentDescription = "تكرار ${entry.title}: $count من ${entry.target}" }, contentAlignment = Alignment.Center) {
@@ -371,7 +402,9 @@ internal fun AzkarPrayerScreen(modifier: Modifier = Modifier, onSharePost: (Stri
                                     Text(if (count >= entry.target) "اكتمل الذكر" else "اضغط للتكرار", color = Color.White, fontSize = 11.sp)
                                 }
                             }
-                            TextButton(onClick = { counts[key] = 0; local.edit().putInt(key, 0).apply() }) { SiteIcon("repeat", size = 21.dp) }
+                            TextButton(onClick = { counts[key] = 0; local.edit().putInt(key, 0).apply() }) {
+                                SiteIcon("repeat", tint = if (goldStyle) PremiumGoldLight else PremiumGold, size = 21.dp)
+                            }
                         }
                     }
                 }
