@@ -94,11 +94,11 @@ internal fun AttaExpandableVideo(url: String, posterUrl: String? = null, onOpen:
         // احتفظ دائمًا بالصورة المستخرجة أسفل الملصق البعيد الاختياري.
         preview?.let { frame ->
             Image(frame.asImageBitmap(), contentDescription = "معاينة الفيديو",
-                modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
         }
         if (!posterUrl.isNullOrBlank() && !posterFailed) {
             coil.compose.AsyncImage(model = remember(posterUrl) { coil.request.ImageRequest.Builder(context).data(posterUrl).allowHardware(false).build() }, contentDescription = "صورة معاينة الفيديو",
-                modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Fit,
                 onError = { posterFailed = true }, onSuccess = { state ->
                     // قد تكون صورة الغلاف في الإصدار v120 إطارًا أول أسود تم تحميله بنجاح.
                     val bitmap = (state.result.drawable as? android.graphics.drawable.BitmapDrawable)?.bitmap
@@ -235,7 +235,7 @@ internal fun AttaPostMediaViewer(
     var reacting by remember(stateKey) { mutableStateOf(false) }
     var videoHeights by remember(playbackKey) { mutableStateOf(emptyList<Int>()) }
     // أبعاد الفيديو الفعلية تمنع تكبير الريلز الذي كان يقصّ جانبي الصورة.
-    var videoAspectRatio by remember(playbackKey) { mutableFloatStateOf(9f / 16f) }
+    var videoAspectRatio by remember(playbackKey) { mutableFloatStateOf(16f / 9f) }
     var qualityCap by remember(stateKey) { mutableIntStateOf(0) }
     var qualityMenu by remember(stateKey) { mutableStateOf(false) }
     val currentPlaybackErrorMessage by rememberUpdatedState(playbackErrorMessage)
@@ -340,7 +340,7 @@ internal fun AttaPostMediaViewer(
     }
     LaunchedEffect(player, reel.key, url, live?.mimeType, sourceMimeType, playbackKey) {
         videoHeights = emptyList()
-        videoAspectRatio = 9f / 16f
+        videoAspectRatio = 16f / 9f
         player?.takeUnless { stopPlayback }?.apply {
             val item = MediaItem.Builder().setUri(url).apply { (sourceMimeType ?: live?.mimeType)?.takeIf { it.isNotBlank() }?.let { setMimeType(it) } }.build()
             pause(); clearMediaItems(); setMediaItem(item); prepare()
