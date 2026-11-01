@@ -24,9 +24,9 @@ android {
         applicationId = "com.alatta.nativeapp"
         minSdk = 26
         targetSdk = 35
-        // الإصدار 1.0.232: صورة معاينة عند تشغيل Shorts، تنظيم أدوات يوتيوب والعطا، والتحقق المجمع من مدة الشورتس لاستبعاد الفيديوهات الطويلة.
-        versionCode = 332
-        versionName = "1.0.232"
+        // الإصدار 1.0.233: إزالة مربع روابط Shorts وتوحيد زر المشاركة لاختيار النشر كمنشور أو في الريلز بالأسود والذهبي.
+        versionCode = 333
+        versionName = "1.0.233"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("boolean", "IS_APPGALLERY", appGalleryBuild.toString())
         val hmsId = (System.getenv("ALATTA_HMS_APP_ID") ?: "").trim().takeIf { it.matches(Regex("[0-9]{1,20}")) } ?: ""
