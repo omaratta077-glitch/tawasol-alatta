@@ -24,9 +24,9 @@ android {
         applicationId = "com.alatta.nativeapp"
         minSdk = 26
         targetSdk = 35
-        // الإصدار 1.0.220: إخفاء الهيدر والشريط عند الخمول، وإظهارهما عند التفاعل، والتنقل بين الأقسام بالسحب الأفقي.
-        versionCode = 320
-        versionName = "1.0.220"
+        // الإصدار 1.0.221: عرض صورة بطاقة الصلاة كاملة دون قص وتصغير زرّي تكبير وتصغير خط الأذكار.
+        versionCode = 321
+        versionName = "1.0.221"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("boolean", "IS_APPGALLERY", appGalleryBuild.toString())
         val hmsId = (System.getenv("ALATTA_HMS_APP_ID") ?: "").trim().takeIf { it.matches(Regex("[0-9]{1,20}")) } ?: ""
