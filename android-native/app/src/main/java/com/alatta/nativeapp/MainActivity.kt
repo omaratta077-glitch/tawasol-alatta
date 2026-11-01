@@ -3182,7 +3182,9 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                         AttaPostMediaViewer(
                                                 posts = posts, startId = postId, kind = "video",
                                                 onDismiss = { showFullscreenVideo = false },
-                                                 loadInteractions = { id, kind, offset ->
+                                                // نفس وضع الريلز للفيديو المرفوع في كل صفحات العطا.
+                                                reelsOnly = true,
+                                                loadInteractions = { id, kind, offset ->
                                                     get("/api/post-interactions?postId=${enc(id)}&kind=${enc(kind)}&offset=$offset")
                                                 },
                                                 sendReaction = { id, reaction, remove ->
