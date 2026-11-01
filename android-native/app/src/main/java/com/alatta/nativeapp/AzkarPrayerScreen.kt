@@ -241,17 +241,60 @@ internal fun AzkarPrayerScreen(modifier: Modifier = Modifier, onSharePost: (Stri
     var message by remember { mutableStateOf("") }
     var shareChoice by remember { mutableStateOf<Pair<DhikrGroup, Dhikr>?>(null) }
     shareChoice?.let { (selectedGroup, selectedEntry) ->
-        fun share(wholeGroup: Boolean) {
+        fun sharePost(wholeGroup: Boolean) {
             val text = formatDhikrShare(selectedGroup, if (wholeGroup) null else selectedEntry)
             shareChoice = null
             onSharePost(text)
         }
-        AlertDialog(onDismissRequest = { shareChoice = null },
-            title = { Text("مشاركة الأذكار") },
-            text = { Text("اختر النص الذي تريد مشاركته") },
-            confirmButton = { TextButton(onClick = { share(true) }) { Text("${selectedGroup.title} كاملة") } },
-            dismissButton = { TextButton(onClick = { share(false) }) { Text("الذكر الحالي فقط") } },
-            containerColor = PremiumBackground, titleContentColor = PremiumGoldLight, textContentColor = PremiumMuted)
+        AlertDialog(
+            onDismissRequest = { shareChoice = null },
+            containerColor = PremiumBackground,
+            titleContentColor = PremiumGoldLight,
+            textContentColor = PremiumMuted,
+            shape = RoundedCornerShape(22.dp),
+            title = { Text("مشاركة الأذكار", fontWeight = FontWeight.Bold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(11.dp)) {
+                    Text(selectedEntry.title, color = PremiumGoldLight,
+                        textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+                    OutlinedButton(onClick = { sharePost(false) },
+                        modifier = Modifier.fillMaxWidth(),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, PremiumGold),
+                        shape = RoundedCornerShape(14.dp)) {
+                        SiteIcon("share", tint = PremiumGoldLight, size = 20.dp)
+                        Spacer(Modifier.width(8.dp))
+                        Text("مشاركة الذكر كمنشور", color = PremiumGoldLight)
+                    }
+                    OutlinedButton(onClick = { sharePost(true) },
+                        modifier = Modifier.fillMaxWidth(),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, PremiumGold),
+                        shape = RoundedCornerShape(14.dp)) {
+                        Text("مشاركة ${selectedGroup.title} كاملة كمنشور",
+                            color = PremiumGoldLight, maxLines = 2)
+                    }
+                    Button(onClick = {
+                        shareChoice = null
+                        try {
+                            shareDhikrGoldImage(context, selectedGroup, selectedEntry)
+                        } catch (e: Exception) {
+                            message = "تعذرت مشاركة صورة الذكر: ${e.message ?: "حاول مجددًا"}"
+                        }
+                    }, modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = PremiumGold, contentColor = Color.Black),
+                        shape = RoundedCornerShape(14.dp)) {
+                        SiteIcon("image", tint = Color.Black, size = 20.dp)
+                        Spacer(Modifier.width(8.dp))
+                        Text("مشاركة الذكر بصورة ذهبية")
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { shareChoice = null }) {
+                    Text("إلغاء", color = PremiumGoldLight)
+                }
+            }
+        )
     }
     var chooseCity by remember { mutableStateOf(false) }
     var chooseMethod by remember { mutableStateOf(false) }
