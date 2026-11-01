@@ -78,7 +78,9 @@ for(const id of ['morning','evening']){
  assert.deepEqual(entries.slice(-7).map(e=>e.target),[10,10,10,10,10,100,100]);
  assert.equal(entries.find(e=>e.id==='worry-debt').target,3);
  assert.ok(entries.find(e=>e.id==='worry-debt').text.includes('قَهْرِ الرِّجَالِ'));
- assert.ok(entries.find(e=>e.id==='beloved-words').text.startsWith('سُبْحَانَ اللَّهِ،'));
+ assert.equal(entries.find(e=>e.id==='beloved-words').title,'كلمتان حبيبتان إلى الرحمن');
+ assert.equal(entries.find(e=>e.id==='beloved-words').text,'سُبْحَانَ اللَّهِ وَبِحَمْدِهِ، سُبْحَانَ اللَّهِ الْعَظِيمِ');
+ assert.equal(entries.find(e=>e.id==='beloved-words').target,10);
  assert.equal(entries.filter(e=>e.id==='salawat-daily').length,1);
  assert.equal(entries.filter(e=>e.id==='repent-day').length,1);
  assert.equal(new Set(entries.map(e=>e.id)).size,entries.length);
