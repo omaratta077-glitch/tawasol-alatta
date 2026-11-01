@@ -223,11 +223,16 @@ internal fun PremiumBottomNav(current: String, go: (String) -> Unit) {
             Column(
                 Modifier.width(66.dp).fillMaxHeight()
                     .background(
-                        if (selected) PremiumGold.copy(alpha = .20f)
-                        else Color(0xFF171A1D),
+                        if (selected) Brush.verticalGradient(
+                            listOf(Color(0xFF65451C), Color(0xFF2D230F), Color(0xFF1B170F)))
+                        else Brush.verticalGradient(
+                            listOf(Color(0xFF171A1D), Color(0xFF171A1D))),
                         RoundedCornerShape(13.dp)
                     )
                     .clip(RoundedCornerShape(13.dp))
+                    .border(if (selected) 1.dp else .5.dp,
+                        if (selected) PremiumGoldLight else PremiumBorder.copy(alpha = .30f),
+                        RoundedCornerShape(13.dp))
                     .attaGoldShine(selected)
                     .clickable { go(name) },
                 horizontalAlignment = Alignment.CenterHorizontally,
