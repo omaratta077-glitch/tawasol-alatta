@@ -21,6 +21,8 @@
       const d = typeof e.data === 'string' ? JSON.parse(e.data) : e.data;
       if (!d || typeof d !== 'object') return;
       if (d.event === 'onStateChange' && d.info === 1) log('PLAYING');
+      if (d.event === 'onStateChange' && d.info === 2) log('PAUSED');
+      if (d.event === 'onStateChange' && d.info === 0) log('ENDED');
       if (d.event === 'onError') log('PLAYER_ERROR:' + String(d.info));
     } catch (_) { /* non-YouTube messages are ignored */ }
   });
