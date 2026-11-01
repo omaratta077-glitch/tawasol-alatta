@@ -498,11 +498,10 @@ internal fun AttaPostMediaViewer(
                                 if (active) youtubeStarted = true
                             }, onShortDrag)
                     }
-                    // منطقة لمس وسطى صغيرة؛ باقى المساحة تظل متاحة لإيماءة السحب والiframe.
-                    if (youtubeStarted) Box(Modifier.align(Alignment.Center).size(92.dp)
-                        .clickable { toggleReelPlayback() })
+                    // YouTube يعرض زر التشغيل الأصلي في المنتصف؛ لا نضع فوقه زرًا ثانيًا.
+                    // تبقى المساحة حرة لسحب الشورت ولمس أدوات YouTube المضمّنة.
                 } else if (!isVideo) AttaZoomableImage(url, "صورة المنشور", onTap = { controls = !controls })
-                if (reelsOnly && controls && (player != null || (youtubeId != null && youtubeStarted))) {
+                if (reelsOnly && controls && player != null) {
                     Box(Modifier.align(Alignment.Center).size(66.dp)
                         .clip(RoundedCornerShape(50))
                         .background(Color(0xA5000000))
@@ -529,7 +528,9 @@ internal fun AttaPostMediaViewer(
                     // الاسم والوصف فوق منطقة الإيماءات وشريط تشغيل الفيديو؛ لا يختفيان أسفل الشاشة.
                     Column(Modifier.align(Alignment.BottomStart).fillMaxWidth(.77f)
                         .padding(start = 16.dp,
-                            bottom = if (reelsOnly) (if (controls && player != null) 122.dp else 60.dp) else 56.dp),
+                            bottom = if (youtubeId != null) 94.dp
+                                else if (reelsOnly) (if (controls && player != null) 122.dp else 60.dp)
+                                else 56.dp),
                         verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Text(authorName, color = Color.White, fontWeight = FontWeight.Bold,
                             fontSize = 19.sp, lineHeight = 24.sp,
@@ -548,9 +549,10 @@ internal fun AttaPostMediaViewer(
                 }
                 // ثبّت الشريط الاجتماعي الرأسي عند الحافة اليمنى الفعلية في تخطيطي RTL وLTR.
                 if ((player != null || youtubeId != null) && (sendReaction != null || onShare != null)) {
-                    // Reactions, comments and share stay at upper-right as before v1.0.212.
+                    // أبعد أدوات العطا عن عنوان وأزرار YouTube الأصلية أعلى الشورت.
                     Column(Modifier.align(AbsoluteAlignment.TopRight)
-                        .absolutePadding(top = 12.dp, right = 14.dp),
+                        .absolutePadding(top = if (youtubeId != null) 122.dp else 12.dp,
+                            right = 14.dp),
                         verticalArrangement = Arrangement.spacedBy(10.dp),
                         horizontalAlignment = Alignment.CenterHorizontally) {
                         if (sendReaction != null && loadInteractions != null) {
