@@ -162,7 +162,8 @@ quran_kotlin = ROOT / (android + "AttaQuranReader.kt")
 check("One full Quran reader with selectable verses and system back",
       quran_reader.is_file() and quran_kotlin.is_file() and
       'QuranReaderScreen(Modifier.weight(1f),' in main and
-      'visible = chromeVisible && tab != "ريلز" &&' in main and
+      'visible = chromeVisible && tab != "القرآن" &&' in main and
+      'chromeVisible = tab != "القرآن"' in main and
       '(tab != "الرسائل" || chatWith.isBlank())' in main and
       'PremiumBottomNav(tab, ::navigate)' in main and
       'AnimatedVisibility(' in main and
@@ -184,8 +185,14 @@ check("Quran downloadable pages and compact native controls",
       (ROOT / 'android-native/app/src/main/assets/mushaf/index.json').is_file() and
       'MushafPageStore.openPage(context,page,allowNetwork)' in quran_source and 'GZIPInputStream' not in quran_source and
       all(x in quran_source for x in ['فهرس المصحف الشريف', 'BackHandler', 'prefs.edit().putInt("page"',
-                                      'height(20.dp)', 'Text("صفحة $page"', 'Text("الحزب $hizb"',
+                                      'height(38.dp)', 'mushafArabicNumber(page)', 'Text("الحزب $hizb"',
                                       'onFling(', 'navigate(page + 1)', 'navigate(page - 1)']) and
       'Text("ملاحظاتي"' not in quran_source)
+check("Mushaf controls auto-hide and SVG zoom without altering the Quran source",
+      'AnimatedVisibility(visible = readerControlsVisible' in quran_source and
+      'ScaleGestureDetector(context' in quran_source and
+      'onZoomChanged = { pageZoom = it }' in quran_source and
+      'drawing.renderToCanvas(canvas, target)' in quran_source and
+      '❖  صفحة' in quran_source)
 if fails:raise SystemExit(f"FAIL: {len(fails)} checks failed")
 print('PASS: static repository check complete. APK build/device tests are still required.')
