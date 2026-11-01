@@ -70,8 +70,22 @@ assert.deepEqual([...d.querySelector('[data-reaction-picker]').querySelectorAll(
 assert.equal(d.querySelector('[data-post="reaction-0"]').querySelectorAll('[data-share-post]').length,1,'one native-style share action');
 postFixtures=[];
 // استخدم الفهارس الأصلية كاملة؛ بلا نص مختصر أو بديل مختلق.
-const azkar=JSON.parse(read('knowledge/azkar.json'));assert.equal(azkar.find(g=>g.id==='morning').entries.length,35);assert.equal(azkar.find(g=>g.id==='evening').entries.length,31);
-for(const id of ['morning','evening']){const entries=azkar.find(g=>g.id===id).entries;assert.deepEqual(entries.slice(0,3).map(e=>e.id),['fatiha','kursi','baqarah-ending']);assert.equal(entries[29].id,'salawat-daily');assert.equal(entries[29].target,1);assert.equal(entries.filter(e=>e.id==='salawat-daily').length,1);assert.equal(entries[6].id,'kingdom');assert.ok(entries.every(e=>e.target>=1));assert.ok(entries.find(e=>e.id==='trust-refuge-abu-darda').source.includes('ضعيف'));}
+const azkar=JSON.parse(read('knowledge/azkar.json'));assert.equal(azkar.find(g=>g.id==='morning').entries.length,35);assert.equal(azkar.find(g=>g.id==='evening').entries.length,32);
+for(const id of ['morning','evening']){
+ const entries=azkar.find(g=>g.id===id).entries;
+ assert.deepEqual(entries.slice(0,3).map(e=>e.id),['fatiha','kursi','baqarah-ending']);
+ assert.deepEqual(entries.slice(-7).map(e=>e.id),['hawqala','four-phrases','beloved-words','salawat-daily','tawhid','tasbih','repent-day']);
+ assert.deepEqual(entries.slice(-7).map(e=>e.target),[10,10,10,10,10,100,100]);
+ assert.equal(entries.find(e=>e.id==='worry-debt').target,3);
+ assert.ok(entries.find(e=>e.id==='worry-debt').text.includes('قَهْرِ الرِّجَالِ'));
+ assert.ok(entries.find(e=>e.id==='beloved-words').text.startsWith('سُبْحَانَ اللَّهِ،'));
+ assert.equal(entries.filter(e=>e.id==='salawat-daily').length,1);
+ assert.equal(entries.filter(e=>e.id==='repent-day').length,1);
+ assert.equal(new Set(entries.map(e=>e.id)).size,entries.length);
+ assert.equal(entries[6].id,'kingdom');
+ assert.ok(entries.every(e=>e.target>=1));
+ assert.ok(entries.find(e=>e.id==='trust-refuge-abu-darda').source.includes('ضعيف'));
+}
 w.AttaWeb.navigate('azkarPage');await tick();assert.equal(d.querySelectorAll('[data-dhikr-group]').length,6);
 const counter=d.querySelector('[data-dhikr-count]');counter.click();assert.ok(counter.textContent.startsWith('1 /'));
 d.querySelector('[data-dhikr-reset]').click();assert.ok(d.querySelector('[data-dhikr-count]').textContent.startsWith('0 /'));
