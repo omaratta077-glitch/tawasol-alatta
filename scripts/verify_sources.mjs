@@ -64,7 +64,7 @@ assert.ok(knowledge.includes('onShareHadithPost') &&
 const azkarScreen=fs.readFileSync('android-native/app/src/main/java/com/alatta/nativeapp/AzkarPrayerScreen.kt','utf8');
 const azkarCatalog=fs.readFileSync('android-native/app/src/main/java/com/alatta/nativeapp/AzkarCatalog.kt','utf8');
 const chromeUi=fs.readFileSync('android-native/app/src/main/java/com/alatta/nativeapp/PremiumChrome.kt','utf8');
-const navItems=chromeUi.split('val destinations = listOf(',2)[1].split(')',1)[0];
+const navItems=chromeUi.split('val destinations = listOf(',2)[1].split('val scroll =',1)[0];
 assert.ok(navItems.includes('Triple("ريلز", "video", "ريلز")') &&
   !navItems.includes('Triple("الرسائل"') &&
   chromeUi.includes('PremiumTopItem("message-circle", "الرسائل"') &&
