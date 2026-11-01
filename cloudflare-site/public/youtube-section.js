@@ -51,6 +51,10 @@ function showSuggestions(topic){
 showSuggestions('قرآن');
 panel.querySelector('.atta-yt-topics').after(suggestions);
 panel.querySelector('.atta-youtube-form').after(frame);
+const shortsForm=document.createElement('form');
+shortsForm.className='atta-yt-short-form';
+shortsForm.innerHTML='<label style="display:block;margin:8px 0;color:#f4d779">نشر YouTube Shorts في الريلز</label><input type="url" required placeholder="https://www.youtube.com/shorts/..." aria-label="رابط شورت من يوتيوب" style="max-width:100%;box-sizing:border-box"><button type="submit">التحقق وتجهيز الشورت</button>';
+panel.querySelector('.atta-yt-topics').after(shortsForm);
 placePanel();mobile.addEventListener?.('change',placePanel);
 document.addEventListener('atta:page',event=>{
  activePage=event.detail.pageId;
@@ -86,12 +90,8 @@ async function load(append=false){
    const item=document.createElement('article');item.className='atta-yt-result';item.append(card);
    const share=document.createElement('button');share.type='button';share.className='native-button atta-yt-share';share.setAttribute('aria-label','مشاركة الفيديو كمنشور في الرئيسية');share.title='مشاركة الفيديو كمنشور';share.innerHTML=window.AttaIcons?.icon?.('share')||'<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.6 10.5 6.8-4M8.6 13.5l6.8 4"/></svg>';
    share.onclick=()=>window.AttaWeb?.preparePost((v.title||'فيديو يوتيوب')+'\n[[alatta-youtube:'+v.id+']]');
-   const shortShare=document.createElement('button');
-   shortShare.type='button';shortShare.className='native-button atta-yt-share';
-   shortShare.textContent='نشر كشورت في الريلز';
-   shortShare.setAttribute('aria-label','مشاركة الفيديو في الريلز كشورت');
-   shortShare.onclick=()=>window.AttaWeb?.preparePost((v.title||'YouTube Short')+'\n[[alatta-youtube-short:'+v.id+']]');
-   item.append(share,shortShare);results.append(item);
+   // نتائج YouTube العادية لا تُصنَّف Shorts تلقائيًا.
+   item.append(share);results.append(item);
   }
   error.textContent=results.children.length?'':'لا توجد نتائج';more.hidden=!nextPageToken;if(!append&&results.children.length)results.scrollIntoView({behavior:'smooth',block:'nearest'});
  }catch(e){if(requestId===seq)error.textContent=e.message||'حدث خطأ أثناء البحث';}
@@ -102,6 +102,22 @@ btn.addEventListener('click',()=>{placePanel();if(inlineMode()){window.AttaWeb?.
 panel.querySelector('.atta-youtube-close').addEventListener('click',close);
 overlay.addEventListener('click',e=>{if(e.target===overlay)close();});
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!overlay.hidden)close();});
+shortsForm.addEventListener('submit',async e=>{
+ e.preventDefault();
+ const url=shortsForm.querySelector('input').value.trim();
+ const match=/^https?:\/\/(?:www\.|m\.)?youtube\.com\/shorts\/([A-Za-z0-9_-]{11})(?:[/?#].*)?$/.exec(url);
+ if(!match){error.textContent='الصق رابط YouTube Shorts الصحيح';return;}
+ const button=shortsForm.querySelector('button');button.disabled=true;
+ try{
+  const response=await fetch('/api/youtube-short?id='+encodeURIComponent(match[1]));
+  const result=await response.json().catch(()=>({}));
+  if(!response.ok||!result.ok)throw new Error(result.error||'تعذر التحقق من الفيديو');
+  if(!result.eligible){error.textContent='الفيديو ليس شورتًا مؤهلًا أو يتجاوز ثلاث دقائق';return;}
+  error.textContent='';
+  window.AttaWeb?.preparePost('YouTube Short\n[[alatta-youtube-short:'+match[1]+']]');
+ }catch(ex){error.textContent=ex.message||'تعذر التحقق من الشورت';}
+ finally{button.disabled=false;}
+});
 panel.querySelector('form').addEventListener('submit',e=>{e.preventDefault();const q=input.value.trim();const id=videoId(q);if(id){error.textContent='';play(id);return;}if(!q){query='';load();return;}query=q;load();});
 panel.querySelectorAll('[data-q]').forEach(b=>b.addEventListener('click',()=>{query=b.dataset.q;input.value=query;showSuggestions(b.textContent);load();}));
 more.addEventListener('click',()=>{if(nextPageToken)load(true);});
