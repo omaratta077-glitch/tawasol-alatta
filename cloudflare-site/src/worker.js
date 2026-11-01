@@ -4899,28 +4899,36 @@ export default {
     // تحقّق من مدة الفيديو قبل وسمه كشورت داخل العطا.
     // YouTube Data API لا يوفّر نسبة عرض الفيديو، لذا نطلب أيضًا رابط /shorts/ صريحًا من المستخدم.
     if(url.pathname==="/api/youtube-short" && request.method==="GET"){
-      const id=(url.searchParams.get("id")||"").trim();
-      if(!/^[A-Za-z0-9_-]{11}$/.test(id))
-        return Response.json({ok:false,error:"معرّف فيديو يوتيوب غير صالح"},{status:400});
+      const raw=(url.searchParams.get("ids")||url.searchParams.get("id")||"").trim();
+      const ids=[...new Set(raw.split(","))];
+      if(!ids.length||ids.length>25||ids.some(id=>!/^[A-Za-z0-9_-]{11}$/.test(id)))
+        return Response.json({ok:false,error:"معرّفات فيديو يوتيوب غير صالحة"},{status:400});
       const key=String(env.YOUTUBE_API_KEY||"").trim();
       if(!key)return Response.json({ok:false,error:"التحقق من شورتس غير متاح حاليًا"},{status:503});
       const cache=caches.default;
-      const cacheKey=new Request(new URL("/shorts-duration-cache/"+id,url.origin).toString());
+      const cacheKey=new Request(new URL("/shorts-duration-cache/"+[...ids].sort().join(","),url.origin).toString());
       const cached=await cache.match(cacheKey);
       if(cached)return cached;
       try{
-        const params=new URLSearchParams({key,id,part:"contentDetails,status"});
+        // YouTube videos.list يدعم حتى 50 معرّفًا مرة واحدة؛ نستخدم 25 بحد أقصى لكل دفعة.
+        const params=new URLSearchParams({key,id:ids.join(","),part:"contentDetails,status"});
         const upstream=await fetch("https://www.googleapis.com/youtube/v3/videos?"+params,
           {headers:{accept:"application/json"}});
         if(!upstream.ok)return Response.json({ok:false,error:"تعذّر التحقق من الشورت حاليًا"},{status:502});
         const data=await upstream.json();
-        const video=data.items?.[0];
-        const duration=String(video?.contentDetails?.duration||"");
-        const match=/^P(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?)?$/.exec(duration);
-        const seconds=match?Number(match[1]||0)*86400+Number(match[2]||0)*3600+
-          Number(match[3]||0)*60+Number(match[4]||0):0;
-        const eligible=Boolean(video&&seconds>0&&seconds<=180&&video.status?.embeddable===true);
-        const response=Response.json({ok:true,eligible,durationSeconds:seconds},
+        const videos=new Map((data.items||[]).map(video=>[video.id,video]));
+        const results={};
+        for(const id of ids){
+          const video=videos.get(id);
+          const duration=String(video?.contentDetails?.duration||"");
+          const match=/^P(?:(\\d+)D)?(?:T(?:(\\d+)H)?(?:(\\d+)M)?(?:(\\d+)S)?)?$/.exec(duration);
+          const seconds=match?Number(match[1]||0)*86400+Number(match[2]||0)*3600+
+            Number(match[3]||0)*60+Number(match[4]||0):0;
+          results[id]={eligible:Boolean(video&&seconds>0&&seconds<=180&&video.status?.embeddable===true),
+            durationSeconds:seconds};
+        }
+        const response=Response.json({ok:true,results,
+          ...(ids.length===1?results[ids[0]]:{})},
           {headers:{"Cache-Control":"public, max-age=3600"}});
         await cache.put(cacheKey,response.clone());
         return response;
