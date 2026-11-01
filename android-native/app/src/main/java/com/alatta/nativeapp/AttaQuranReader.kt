@@ -12,10 +12,17 @@ import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.runtime.DisposableEffect
 import android.view.GestureDetector
+import android.view.ScaleGestureDetector
 import android.view.MotionEvent
 import android.view.View
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -42,6 +49,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 
 /** مصحف Android واحد دون اتصال، مرسوم على Canvas مع عناصر تحكم ذهبية للقراءة. */
@@ -54,6 +62,18 @@ internal fun QuranReaderScreen(modifier: Modifier = Modifier, onExit: () -> Unit
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences("atta_native_mushaf", Context.MODE_PRIVATE) }
     var page by remember { mutableIntStateOf(initialPage.coerceIn(1,604)) }
+    var pageZoom by remember { mutableFloatStateOf(1f) }
+    var readerControlsVisible by remember { mutableStateOf(true) }
+    var lastReaderAction by remember { mutableLongStateOf(android.os.SystemClock.uptimeMillis()) }
+    fun showReaderControls() {
+        readerControlsVisible = true
+        lastReaderAction = android.os.SystemClock.uptimeMillis()
+    }
+    LaunchedEffect(page, lastReaderAction) {
+        delay(2600L)
+        readerControlsVisible = false
+    }
+    LaunchedEffect(page) { pageZoom = 1f; showReaderControls() }
     val scope = rememberCoroutineScope()
     var preparingShare by remember { mutableStateOf(false) }
     var downloadJob by remember { mutableStateOf<Job?>(null) }
@@ -164,6 +184,8 @@ internal fun QuranReaderScreen(modifier: Modifier = Modifier, onExit: () -> Unit
     Box(modifier.fillMaxSize().background(cream)) {
     Column(Modifier.fillMaxSize()) {
         // عنوان عربي مدمج بعرض ثابت؛ لتجنب التفاف كلمة «رجوع» عموديًا.
+        AnimatedVisibility(visible = readerControlsVisible,
+            enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
         Row(
             Modifier.fillMaxWidth().height(36.dp).padding(horizontal = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -189,6 +211,7 @@ internal fun QuranReaderScreen(modifier: Modifier = Modifier, onExit: () -> Unit
             IconButton(enabled = allowOnlineFeatures, onClick = { shareFrom = page.toString(); shareTo = page.toString(); sharePart = juz.toString(); pane = "share" },
                 modifier = Modifier.size(36.dp)) { SiteIcon("share", tint = gold, size = 19.dp) }
         }
+        }
         if (readingRange != null) Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp),
             verticalAlignment = Alignment.CenterVertically) {
             Text("صفحات ${readingRange.first}–${readingRange.last}", color = gold, fontSize = 11.sp,
@@ -200,8 +223,11 @@ internal fun QuranReaderScreen(modifier: Modifier = Modifier, onExit: () -> Unit
                 MushafPageView(context, page, changePage, { chosen ->
                     selectedAyah = chosen
                     playbackError = null
-                }, allowOnlineFeatures) { error = it }
-            }, modifier = Modifier.fillMaxWidth().weight(1f))
+                }, allowOnlineFeatures, { error = it },
+                    onInteraction = { showReaderControls() },
+                    onZoomChanged = { pageZoom = it })
+            }, update = { it.setZoom(pageZoom) },
+                modifier = Modifier.fillMaxWidth().weight(1f))
         }
         error?.let { message ->
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -209,16 +235,49 @@ internal fun QuranReaderScreen(modifier: Modifier = Modifier, onExit: () -> Unit
                 TextButton(onClick = { error = null; pageRetry++ }) { Text("إعادة التحميل", color = gold) }
             }
         }
-        // تذييل قراءة مدمج بلا ملاحظات أو أسهم تنقل أو عناصر تحكم ضخمة.
-        // يظل محرر الملاحظات متاحًا من نافذة الفهرس.
-        Row(
-            Modifier.fillMaxWidth().height(20.dp).padding(horizontal = 8.dp),
-            horizontalArrangement = Arrangement.Start,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text("صفحة $page", color = gold, fontSize = 12.sp)
-            Spacer(Modifier.width(10.dp))
-            Text("الحزب $hizb", color = gold, fontSize = 12.sp)
+        // رقم الصفحة في شارة ذهبية صغيرة، مع تكبير SVG دون تعديل آياته أو تقطيع النص.
+        AnimatedVisibility(visible = readerControlsVisible,
+            enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
+            Row(Modifier.fillMaxWidth().height(38.dp).padding(horizontal = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween) {
+                Text("الحزب $hizb", color = gold, fontSize = 11.sp)
+                Surface(
+                    shape = RoundedCornerShape(18.dp),
+                    color = Color(0xFF24180E),
+                    border = BorderStroke(1.dp, Color(0xFFCA9E49)),
+                    shadowElevation = 2.dp
+                ) {
+                    Text("❖  صفحة ${mushafArabicNumber(page)}  ❖",
+                        Modifier.padding(horizontal = 13.dp, vertical = 5.dp),
+                        fontSize = 13.sp, color = Color(0xFFF7D77B),
+                        maxLines = 1, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
+                }
+                Row(verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                    @Composable fun zoomControl(label: String, enabled: Boolean, action: () -> Unit) {
+                        Surface(onClick = action, enabled = enabled,
+                            modifier = Modifier.size(27.dp),
+                            shape = RoundedCornerShape(50),
+                            color = Color(0xFF24180E),
+                            border = BorderStroke(1.dp, Color(0xFFCA9E49))) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Text(label, color = if (enabled) Color(0xFFF7D77B) else Color(0xFFAA986D),
+                                    fontSize = 17.sp, lineHeight = 18.sp,
+                                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
+                            }
+                        }
+                    }
+                    zoomControl("−", pageZoom > 1.01f) {
+                        pageZoom = (pageZoom - .15f).coerceAtLeast(1f)
+                        showReaderControls()
+                    }
+                    zoomControl("+", pageZoom < 1.99f) {
+                        pageZoom = (pageZoom + .15f).coerceAtMost(2f)
+                        showReaderControls()
+                    }
+                }
+            }
         }
     }
     if (pane != null) Dialog(onDismissRequest = { pane = null }) {
@@ -453,7 +512,9 @@ private class MushafPageView(
     private val navigate: (Int) -> Unit,
     private val selectAyah: (Int) -> Unit,
     private val allowNetwork: Boolean,
-    private val reportError: (String) -> Unit
+    private val reportError: (String) -> Unit,
+    private val onInteraction: () -> Unit = {},
+    private val onZoomChanged: (Float) -> Unit = {}
 ) : View(context) {
     companion object {
         // لا تستطيع حركات السحب السريعة إنشاء عدد غير محدود من خيوط تحليل SVG.
@@ -467,6 +528,25 @@ private class MushafPageView(
     @Volatile private var markers: org.json.JSONArray? = null
     private var displayedViewport: RectF? = null
     private var pageCoordinates: RectF? = null
+    private var zoom = 1f
+    private var panX = 0f
+    private var panY = 0f
+    fun setZoom(value: Float) {
+        val next = value.coerceIn(1f, 2f)
+        if (kotlin.math.abs(next - zoom) < .001f) return
+        zoom = next
+        if (zoom <= 1f) { panX = 0f; panY = 0f }
+        invalidate()
+    }
+    private val scaleDetector = ScaleGestureDetector(context,
+        object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
+            override fun onScale(detector: ScaleGestureDetector): Boolean {
+                setZoom(zoom * detector.scaleFactor)
+                onZoomChanged(zoom)
+                onInteraction()
+                return true
+            }
+        })
     private val detector = GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
         override fun onDown(e: MotionEvent): Boolean = true
         override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
@@ -488,7 +568,14 @@ private class MushafPageView(
             if (nearest > 0) selectAyah(nearest)
             return nearest > 0
         }
+        override fun onScroll(e1: MotionEvent?, e2: MotionEvent, distanceX: Float, distanceY: Float): Boolean {
+            if (zoom <= 1.01f || scaleDetector.isInProgress) return false
+            panX -= distanceX; panY -= distanceY
+            invalidate()
+            return true
+        }
         override fun onFling(e1: MotionEvent?, e2: MotionEvent, velocityX: Float, velocityY: Float): Boolean {
+            if (zoom > 1.01f || scaleDetector.isInProgress) return false
             val start = e1 ?: return false
             if (kotlin.math.abs(e2.x - start.x) < 80f || kotlin.math.abs(velocityX) < 350f) return false
             // اتجاه الكتاب العربي: اسحب إلى اليمين للانتقال إلى الصفحة التالية.
@@ -524,14 +611,29 @@ private class MushafPageView(
         svg = null
         super.onDetachedFromWindow()
     }
-    override fun onTouchEvent(event: MotionEvent): Boolean = detector.onTouchEvent(event) || super.onTouchEvent(event)
+    override fun onTouchEvent(event: MotionEvent): Boolean {
+        if (event.actionMasked == MotionEvent.ACTION_DOWN) onInteraction()
+        val scaled = scaleDetector.onTouchEvent(event)
+        if (scaleDetector.isInProgress || event.pointerCount > 1) return true
+        return detector.onTouchEvent(event) || scaled || super.onTouchEvent(event)
+    }
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
         val drawing = svg ?: return
         val viewport = drawing.documentViewBox ?: RectF(0f, 0f, drawing.documentWidth, drawing.documentHeight)
         if (viewport.width() <= 0f || viewport.height() <= 0f) return
         val inset = 2f * resources.displayMetrics.density
-        val target = renderMushafDrawing(canvas, drawing, RectF(inset,inset,width-inset,height-inset))
+        val baseBounds = RectF(inset, inset, width - inset, height - inset)
+        val baseScale = minOf(baseBounds.width() / viewport.width(), baseBounds.height() / viewport.height())
+        if (baseScale <= 0f) return
+        val drawnWidth = viewport.width() * baseScale * zoom
+        val drawnHeight = viewport.height() * baseScale * zoom
+        panX = panX.coerceIn(-maxOf(0f, (drawnWidth - width) / 2f), maxOf(0f, (drawnWidth - width) / 2f))
+        panY = panY.coerceIn(-maxOf(0f, (drawnHeight - height) / 2f), maxOf(0f, (drawnHeight - height) / 2f))
+        val left = width / 2f - drawnWidth / 2f + panX
+        val top = height / 2f - drawnHeight / 2f + panY
+        val target = RectF(left, top, left + drawnWidth, top + drawnHeight)
+        drawing.renderToCanvas(canvas, target)
         pageCoordinates = RectF(viewport)
         displayedViewport = target
     }
