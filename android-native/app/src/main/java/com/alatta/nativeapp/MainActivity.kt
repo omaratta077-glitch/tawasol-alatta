@@ -860,6 +860,7 @@ private class AttaYoutubeFullscreenChrome(
     }
     val playOnSite = remember(safeId, bridgeJs) {
         bridgeJs.replace("__ALATTA_VIDEO_ID__", safeId)
+            .replace("__ALATTA_PORTRAIT__", portrait.toString())
     }
     val chrome = remember(ctx, safeId) {
         AttaYoutubeFullscreenChrome(ctx) { event ->
