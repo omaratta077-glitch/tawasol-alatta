@@ -24,9 +24,9 @@ android {
         applicationId = "com.alatta.nativeapp"
         minSdk = 26
         targetSdk = 35
-        // الإصدار 1.0.240: إخفاء شاشة تسجيل دخول الموقع نهائيًا أثناء تجهيز فيديو يوتيوب داخل التطبيق وعرض غلاف الفيديو والتحميل الذهبي مع خيار إعادة المحاولة، مع الحفاظ على تطوير مشاركة الأذكار والريلز وروابط فيسبوك وإنستجرام.
-        versionCode = 340
-        versionName = "1.0.240"
+        // الإصدار 1.0.241: إخفاء شاشة تسجيل دخول الموقع نهائيًا أثناء تجهيز فيديو يوتيوب داخل التطبيق وعرض غلاف الفيديو والتحميل الذهبي مع خيار إعادة المحاولة، مع الحفاظ على تطوير مشاركة الأذكار والريلز وروابط فيسبوك وإنستجرام.
+        versionCode = 341
+        versionName = "1.0.241"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("boolean", "IS_APPGALLERY", appGalleryBuild.toString())
         val hmsId = (System.getenv("ALATTA_HMS_APP_ID") ?: "").trim().takeIf { it.matches(Regex("[0-9]{1,20}")) } ?: ""
