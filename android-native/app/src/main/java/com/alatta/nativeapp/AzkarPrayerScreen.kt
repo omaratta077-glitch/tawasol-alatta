@@ -83,7 +83,7 @@ private fun PrayerCard(
 
 /** زخرفة مطابقة لفكرة الإطار والخطوط الذهبية بالصورة، في الهيدر فقط. */
 @Composable
-private fun AzkarHeaderPlaque(modifier: Modifier = Modifier) {
+private fun AzkarHeaderPlaque(modifier: Modifier = Modifier, label: String = "الأذكار", inCard: Boolean = false) {
     @Composable fun Ornament() {
         Canvas(Modifier.size(20.dp, 20.dp)) {
             val cy = size.height / 2f
@@ -102,12 +102,18 @@ private fun AzkarHeaderPlaque(modifier: Modifier = Modifier) {
         horizontalArrangement = Arrangement.spacedBy(0.dp)) {
         Box(Modifier.weight(1f).height(1.dp).background(PremiumGold))
         Ornament()
-        Box(Modifier.clip(RoundedCornerShape(50))
+        Box(Modifier.widthIn(max = if (inCard) 230.dp else 300.dp)
+            .clip(RoundedCornerShape(50))
             .background(Color(0xFF090A0A))
             .border(1.dp, PremiumGoldLight, RoundedCornerShape(50))
-            .padding(horizontal = 18.dp, vertical = 5.dp), contentAlignment = Alignment.Center) {
-            Text("الأذكار", color = PremiumGoldLight, fontWeight = FontWeight.Bold,
-                fontSize = 18.sp, maxLines = 1)
+            .padding(horizontal = if (inCard) 12.dp else 18.dp, vertical = 5.dp),
+            contentAlignment = Alignment.Center) {
+            Text(label, color = PremiumGoldLight, fontWeight = FontWeight.Bold,
+                fontSize = if (inCard) 15.sp else 18.sp,
+                lineHeight = if (inCard) 20.sp else 23.sp,
+                textAlign = TextAlign.Center,
+                maxLines = if (inCard) 4 else 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
         }
         Ornament()
         Box(Modifier.weight(1f).height(1.dp).background(PremiumGold))
@@ -352,14 +358,14 @@ internal fun AzkarPrayerScreen(modifier: Modifier = Modifier, onSharePost: (Stri
                         horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                         // الترتيب الأول في RTL يعرض الأزرار الدائرية على اليمين.
                         IconButton(onClick = { fontSize = (fontSize + 1).coerceAtMost(32); local.edit().putInt("font_size", fontSize).apply() },
-                            modifier = Modifier.size(43.dp).clip(CircleShape).background(PremiumPanel)
+                            modifier = Modifier.size(36.dp).clip(CircleShape).background(PremiumPanel)
                                 .border(1.dp, PremiumGold, CircleShape).semantics { contentDescription = "تكبير خط الذكر" }) {
-                            Text("أ+", color = PremiumGoldLight, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                            Text("+", color = PremiumGoldLight, fontWeight = FontWeight.Bold, fontSize = 19.sp)
                         }
                         IconButton(onClick = { fontSize = (fontSize - 1).coerceAtLeast(18); local.edit().putInt("font_size", fontSize).apply() },
-                            modifier = Modifier.size(43.dp).clip(CircleShape).background(PremiumPanel)
+                            modifier = Modifier.size(36.dp).clip(CircleShape).background(PremiumPanel)
                                 .border(1.dp, PremiumGold, CircleShape).semantics { contentDescription = "تصغير خط الذكر" }) {
-                            Text("أ−", color = PremiumGoldLight, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                            Text("−", color = PremiumGoldLight, fontWeight = FontWeight.Bold, fontSize = 19.sp)
                         }
                         Text("${entries.size} ذكرًا ودعاءً • التقدّم محفوظ لليوم", Modifier.weight(1f),
                             color = PremiumMuted, fontSize = 11.sp, textAlign = TextAlign.End)
@@ -369,15 +375,30 @@ internal fun AzkarPrayerScreen(modifier: Modifier = Modifier, onSharePost: (Stri
                     val key = "${group.id}:${entry.id}"
                     val count = counts[key] ?: local.getInt(key, 0).coerceIn(0, entry.target)
                     PrayerCard(innerPadding = 10.dp, goldStyle = goldStyle) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("${index + 1} • ${entry.title}",
-                                Modifier.wrapContentWidth().clip(RoundedCornerShape(12.dp))
-                                    .background(if (goldStyle) Color(0xFF1B170F) else prayerTeal.copy(alpha = .55f))
-                                    .border(1.dp, if (goldStyle) PremiumGold else PremiumBorder, RoundedCornerShape(12.dp))
-                                    .padding(horizontal = 12.dp, vertical = 9.dp),
-                                color = PremiumGoldLight, fontWeight = FontWeight.Bold)
-                            Spacer(Modifier.weight(1f))
-                            if (count >= entry.target) SiteIcon("check", tint = if (goldStyle) PremiumGoldLight else prayerSoft, size = 22.dp)
+                        if (goldStyle) {
+                            // العنوان نفسه في المنتصف دون إخفاء علامة إكمال الذكر داخل البطاقة.
+                            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                                AzkarHeaderPlaque(
+                                    modifier = Modifier.fillMaxWidth().padding(horizontal = 27.dp),
+                                    label = entry.title,
+                                    inCard = true
+                                )
+                                if (count >= entry.target) {
+                                    SiteIcon("check", modifier = Modifier.align(Alignment.CenterEnd),
+                                        tint = PremiumGoldLight, size = 22.dp)
+                                }
+                            }
+                        } else {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text("${index + 1} • ${entry.title}",
+                                    Modifier.wrapContentWidth().clip(RoundedCornerShape(12.dp))
+                                        .background(prayerTeal.copy(alpha = .55f))
+                                        .border(1.dp, PremiumBorder, RoundedCornerShape(12.dp))
+                                        .padding(horizontal = 12.dp, vertical = 9.dp),
+                                    color = PremiumGoldLight, fontWeight = FontWeight.Bold)
+                                Spacer(Modifier.weight(1f))
+                                if (count >= entry.target) SiteIcon("check", tint = prayerSoft, size = 22.dp)
+                            }
                         }
                         Text(entry.text, color = Color.White, fontSize = fontSize.sp,
                             lineHeight = (fontSize * 1.75f).sp, textAlign = TextAlign.Center,
