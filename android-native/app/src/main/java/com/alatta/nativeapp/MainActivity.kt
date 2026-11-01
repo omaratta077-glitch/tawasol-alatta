@@ -1685,7 +1685,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
     suspend fun collectUploadedReels(reset: Boolean) {
         // البحث محصور في ست صفحات بكل دفعة، وضمن صلاحيات واجهة /api/posts المعتادة.
         // قد يكون أول فيديو في صفحة أقدم من أحدث 10 منشورات.
-        val existing = if (reset) posts else reelPosts
+        val existing = if (reset) emptyList() else reelPosts
         val collected = existing.toMutableList()
         val beforeCount = if (reset) 0 else uploadedPostReels(existing).size
         var next = if (reset) null else reelCursor
@@ -1698,8 +1698,8 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
             if (next == null || uploadedPostReels(collected).size - beforeCount >= 2) break
         } while (visited < 6)
         val checked = shortEligibility.toMutableMap()
-        // البصمات القديمة التي صنّفت محاضرات طويلة "Shorts" لا تظهر في الريلز.
-        val toCheck = collected.mapNotNull { youtubeShortPostId(it.optString("text")) }
+        // تحقق من قبول YouTube التضمين فقط؛ لا نحدّد مدة الفيديو في الريلز.
+        val toCheck = collected.mapNotNull { youtubePostId(it.optString("text")) }
             .distinct().filterNot { checked.containsKey(it) }.take(20)
         if (toCheck.isNotEmpty()) {
             try {
@@ -2310,7 +2310,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                         youtubePostDraftIsShort = true
                                         openHomeComposer()
                                     } else {
-                                        featureMessage = "الفيديو أطول من 3 دقائق أو غير متاح للتضمين؛ يمكنك مشاركته كمنشور عادي."
+                                        featureMessage = "الفيديو غير متاح للتضمين بواسطة يوتيوب؛ يمكنك مشاركته كمنشور عادي."
                                     }
                                 } catch (cancelled: CancellationException) {
                                     throw cancelled
@@ -2335,7 +2335,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                         Spacer(Modifier.width(8.dp))
                         Text(if (youtubeShareChecking) "جارٍ التحقق من الفيديو…" else "مشاركة في الريلز")
                     }
-                    Text("الريلز للفيديوهات القصيرة حتى 3 دقائق فقط.",
+                    Text("يسمح الريلز بالفيديوهات الطويلة أيضًا ما دام يوتيوب يسمح بالتضمين.",
                         color = Muted, fontSize = 11.sp)
                 }
             },
@@ -3100,6 +3100,22 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                                 commandShouldPlay = shouldPlay, onPlaybackChanged = changed)
                                         },
                                         nextReelsCursor = reelCursor,
+                                        reelsLoading = reelMoreLoading,
+                                        onRefreshReels = {
+                                            if (!reelMoreLoading) {
+                                                task {
+                                                    reelMoreLoading = true
+                                                    try {
+                                                        collectUploadedReels(reset = true)
+                                                        reelMoreError = ""
+                                                    } catch (cancelled: CancellationException) {
+                                                        throw cancelled
+                                                    } catch (e: Exception) {
+                                                        reelMoreError = loadingFailureMessage(e)
+                                                    } finally { reelMoreLoading = false }
+                                                }
+                                            }
+                                        },
                                         onLoadMoreReels = {
                                             if (!reelMoreLoading && reelCursor != null) {
                                                 task {
