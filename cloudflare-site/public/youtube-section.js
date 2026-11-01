@@ -51,10 +51,50 @@ function showSuggestions(topic){
 showSuggestions('قرآن');
 panel.querySelector('.atta-yt-topics').after(suggestions);
 panel.querySelector('.atta-youtube-form').after(frame);
-const shortsForm=document.createElement('form');
-shortsForm.className='atta-yt-short-form';
-shortsForm.innerHTML='<label style="display:block;margin:8px 0;color:#f4d779">نشر YouTube Shorts في الريلز</label><input type="url" required placeholder="https://www.youtube.com/shorts/..." aria-label="رابط شورت من يوتيوب" style="max-width:100%;box-sizing:border-box"><button type="submit">التحقق وتجهيز الشورت</button>';
-panel.querySelector('.atta-yt-topics').after(shortsForm);
+// قائمة مشاركة ذهبية واحدة، بدلاً من الحقل اليدوي لشورتس.
+const shareOverlay=document.createElement('div');
+shareOverlay.className='atta-yt-share-options';
+shareOverlay.style.cssText='position:fixed;inset:0;z-index:2147483600;display:none;align-items:center;justify-content:center;padding:16px;background:#000b';
+shareOverlay.innerHTML='<section role="dialog" aria-modal="true" aria-label="مشاركة فيديو يوتيوب" dir="rtl" style="width:min(100%,390px);border:1px solid #e2b85b;border-radius:22px;background:#0a0d0e;color:#f4d779;box-shadow:0 14px 55px #000a;padding:18px;box-sizing:border-box;display:grid;gap:12px;font-family:inherit"><h3 style="margin:0">مشاركة فيديو يوتيوب</h3><p class="atta-yt-share-title" style="color:white;margin:0;overflow-wrap:anywhere"></p><button type="button" data-share="post" style="background:#191711;color:#f4d779;border:1px solid #e2b85b;border-radius:12px;padding:12px;font:inherit">مشاركة كمنشور</button><button type="button" data-share="reels" style="background:#dfb65e;color:#111;border:1px solid #e2b85b;border-radius:12px;padding:12px;font:inherit;font-weight:bold">مشاركة في الريلز</button><small style="color:#b6b9ba">الريلز للفيديوهات القصيرة حتى 3 دقائق فقط.</small><p class="atta-yt-share-message" role="status" aria-live="polite" style="margin:0;color:#ffb3ad"></p><button type="button" data-share="cancel" style="color:#f4d779;background:transparent;border:0;padding:8px;font:inherit">إلغاء</button></section>';
+document.body.append(shareOverlay);
+const postChoice=shareOverlay.querySelector('[data-share=post]');
+const reelsChoice=shareOverlay.querySelector('[data-share=reels]');
+const cancelChoice=shareOverlay.querySelector('[data-share=cancel]');
+const shareMessage=shareOverlay.querySelector('.atta-yt-share-message');
+const shareVideoTitle=shareOverlay.querySelector('.atta-yt-share-title');
+let selectedVideo=null,shareChecking=false;
+function closeShareOptions(){if(shareChecking)return;selectedVideo=null;shareOverlay.style.display='none';}
+function openShareOptions(video){
+ if(!/^[A-Za-z0-9_-]{11}$/.test(video.id||''))return;
+ selectedVideo=video;shareMessage.textContent='';
+ shareVideoTitle.textContent=video.title||'فيديو يوتيوب';
+ shareOverlay.style.display='flex';postChoice.focus();
+}
+cancelChoice.addEventListener('click',closeShareOptions);
+shareOverlay.addEventListener('click',event=>{if(event.target===shareOverlay)closeShareOptions();});
+postChoice.addEventListener('click',()=>{
+ if(!selectedVideo||shareChecking)return;
+ const video=selectedVideo;closeShareOptions();
+ window.AttaWeb?.preparePost((video.title||'فيديو يوتيوب')+'\n[[alatta-youtube:'+video.id+']]');
+});
+reelsChoice.addEventListener('click',async()=>{
+ if(!selectedVideo||shareChecking)return;
+ const video=selectedVideo;
+ shareChecking=true;postChoice.disabled=true;reelsChoice.disabled=true;
+ shareMessage.textContent='جارٍ التحقق من مدة الفيديو...';
+ try{
+  const response=await fetch('/api/youtube-short?id='+encodeURIComponent(video.id));
+  const data=await response.json().catch(()=>({}));
+  if(!response.ok||!data.ok)throw Error(data.error||'تعذر التحقق من الفيديو');
+  if(!data.eligible){
+   shareMessage.textContent='الفيديو أطول من 3 دقائق أو لا يسمح بالتضمين. يمكنك مشاركته كمنشور.';
+   return;
+  }
+  selectedVideo=null;shareOverlay.style.display='none';
+  window.AttaWeb?.preparePost((video.title||'YouTube Short')+'\n[[alatta-youtube-short:'+video.id+']]');
+ }catch(e){shareMessage.textContent=e.message||'تعذر التحقق من الفيديو';}
+ finally{shareChecking=false;postChoice.disabled=false;reelsChoice.disabled=false;}
+});
 placePanel();mobile.addEventListener?.('change',placePanel);
 document.addEventListener('atta:page',event=>{
  activePage=event.detail.pageId;
@@ -88,8 +128,8 @@ async function load(append=false){
    const channel=document.createElement('small');channel.textContent=v.channel||'';
    info.append(title,channel);card.append(img,info);card.addEventListener('click',()=>play(v.id));
    const item=document.createElement('article');item.className='atta-yt-result';item.append(card);
-   const share=document.createElement('button');share.type='button';share.className='native-button atta-yt-share';share.setAttribute('aria-label','مشاركة الفيديو كمنشور في الرئيسية');share.title='مشاركة الفيديو كمنشور';share.innerHTML=window.AttaIcons?.icon?.('share')||'<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.6 10.5 6.8-4M8.6 13.5l6.8 4"/></svg>';
-   share.onclick=()=>window.AttaWeb?.preparePost((v.title||'فيديو يوتيوب')+'\n[[alatta-youtube:'+v.id+']]');
+   const share=document.createElement('button');share.type='button';share.className='native-button atta-yt-share';share.setAttribute('aria-label','اختيار مشاركة كمنشور أو في الريلز');share.title='اختيار مكان المشاركة';share.innerHTML=window.AttaIcons?.icon?.('share')||'<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.6 10.5 6.8-4M8.6 13.5l6.8 4"/></svg>';
+   share.onclick=()=>openShareOptions(v);
    // نتائج YouTube العادية لا تُصنَّف Shorts تلقائيًا.
    item.append(share);results.append(item);
   }
@@ -101,23 +141,7 @@ function close(){overlay.hidden=true;frame.hidden=true;frame.replaceChildren();d
 btn.addEventListener('click',()=>{placePanel();if(inlineMode()){window.AttaWeb?.navigate('youtubePage');return;}overlay.dataset.oldOverflow=document.body.style.overflow;document.body.style.overflow='hidden';overlay.hidden=false;ensureLoaded();input.focus();});
 panel.querySelector('.atta-youtube-close').addEventListener('click',close);
 overlay.addEventListener('click',e=>{if(e.target===overlay)close();});
-document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!overlay.hidden)close();});
-shortsForm.addEventListener('submit',async e=>{
- e.preventDefault();
- const url=shortsForm.querySelector('input').value.trim();
- const match=/^https?:\/\/(?:www\.|m\.)?youtube\.com\/shorts\/([A-Za-z0-9_-]{11})(?:[/?#].*)?$/.exec(url);
- if(!match){error.textContent='الصق رابط YouTube Shorts الصحيح';return;}
- const button=shortsForm.querySelector('button');button.disabled=true;
- try{
-  const response=await fetch('/api/youtube-short?id='+encodeURIComponent(match[1]));
-  const result=await response.json().catch(()=>({}));
-  if(!response.ok||!result.ok)throw new Error(result.error||'تعذر التحقق من الفيديو');
-  if(!result.eligible){error.textContent='الفيديو ليس شورتًا مؤهلًا أو يتجاوز ثلاث دقائق';return;}
-  error.textContent='';
-  window.AttaWeb?.preparePost('YouTube Short\n[[alatta-youtube-short:'+match[1]+']]');
- }catch(ex){error.textContent=ex.message||'تعذر التحقق من الشورت';}
- finally{button.disabled=false;}
-});
+document.addEventListener('keydown',e=>{if(e.key!=='Escape')return;if(shareOverlay.style.display!=='none')closeShareOptions();else if(!overlay.hidden)close();});
 panel.querySelector('form').addEventListener('submit',e=>{e.preventDefault();const q=input.value.trim();const id=videoId(q);if(id){error.textContent='';play(id);return;}if(!q){query='';load();return;}query=q;load();});
 panel.querySelectorAll('[data-q]').forEach(b=>b.addEventListener('click',()=>{query=b.dataset.q;input.value=query;showSuggestions(b.textContent);load();}));
 more.addEventListener('click',()=>{if(nextPageToken)load(true);});
