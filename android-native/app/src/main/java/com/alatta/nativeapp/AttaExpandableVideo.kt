@@ -171,31 +171,25 @@ internal fun AttaPostMediaViewer(
     dataSourceFactory: androidx.media3.datasource.DataSource.Factory? = null,
     playbackKey: Any? = null,
     validatedChannelUrl: String? = null,
-    includeYoutubePosts: Boolean = false,
     reelsOnly: Boolean = false,
     nextReelsCursor: String? = null,
-    onLoadMoreReels: (() -> Unit)? = null,
-    startYoutube: Boolean = false,
-    youtubePlayerContent: (@Composable (String) -> Unit)? = null
+    onLoadMoreReels: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val isVideo = kind == "video"
     // Reels are edge-to-edge; channels and ordinary media viewers keep their original FIT layout.
-    val reelsMode = (reelsOnly || includeYoutubePosts) && live == null
-    // صفحة الريلز تعرض فيديوهات العطا الأصلية فقط؛ فيديوهات YouTube تحتفظ بنسبة 16:9 داخل منشوراتها.
-    val items = remember(posts, kind, validatedChannelUrl, includeYoutubePosts, reelsOnly) {
+    val reelsMode = reelsOnly && live == null
+    // عارض Media3 للملفات المرفوعة فقط. YouTube لا يدخل مسار العرض الرأسي.
+    val items = remember(posts, kind, validatedChannelUrl, reelsOnly) {
         if (reelsOnly && isVideo && validatedChannelUrl == null) uploadedPostReels(posts)
-        else if (includeYoutubePosts && isVideo && validatedChannelUrl == null) mixedPostReels(posts)
         else posts.filter { (validatedChannelUrl ?: media(it.optString(kind))).isNotBlank() }
             .distinctBy { it.optString("id") }
             .map { AttaReelEntry(it, it.optString("id"), validatedChannelUrl ?: media(it.optString(kind))) }
     }
     if (items.isEmpty()) return
-    var index by remember(startId, kind, includeYoutubePosts, reelsOnly, startYoutube) {
-        mutableIntStateOf(items.indexOfFirst { it.post.optString("id") == startId &&
-            (if (startYoutube) it.youtubeId != null else it.youtubeId == null) }
-            .takeIf { it >= 0 } ?: items.indexOfFirst { it.post.optString("id") == startId }.coerceAtLeast(0))
+    var index by remember(startId, kind, reelsOnly) {
+        mutableIntStateOf(items.indexOfFirst { it.post.optString("id") == startId }.coerceAtLeast(0))
     }
     // عند اقتراب نهاية الريلز، استكمل منشورات الخادم الأقدم بدل إظهار قائمة فارغة.
     LaunchedEffect(reelsOnly, index, items.size, nextReelsCursor) {
@@ -207,8 +201,7 @@ internal fun AttaPostMediaViewer(
     val current = reel.post
     val id = current.optString("id")
     val url = reel.videoUrl
-    val youtubeId = reel.youtubeId
-    val nativeVideo = isVideo && youtubeId == null
+    val nativeVideo = isVideo
     val stateKey = playbackKey ?: reel.key
     var sheet by remember(stateKey) { mutableStateOf<String?>(null) }
     var controls by remember(stateKey) { mutableStateOf(true) }
@@ -351,7 +344,7 @@ internal fun AttaPostMediaViewer(
     val changeVideo: (Int) -> Unit = { delta ->
         val next = index + delta
         if (next in items.indices) {
-            continuePlayback = if (youtubeId != null) true else player?.playWhenReady == true
+            continuePlayback = player?.playWhenReady == true
             player?.pause()
             index = next
             failed = ""
@@ -424,20 +417,13 @@ internal fun AttaPostMediaViewer(
                         AndroidView(factory = { ctx -> PlayerView(ctx).apply {
                             this.player = player
                             useController = false
-                            resizeMode = if (reelsMode) AspectRatioFrameLayout.RESIZE_MODE_ZOOM
-                                else AspectRatioFrameLayout.RESIZE_MODE_FIT
+                            resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
                         } }, update = { it.player = player },
                             modifier = if (live != null) Modifier.align(Alignment.Center).fillMaxWidth().aspectRatio(16f / 9f)
                                 else Modifier.fillMaxSize())
                     }
                     Box(Modifier.fillMaxSize().clickable { controls = !controls })
                     // استخدم زر التشغيل والإيقاف المركزي الوحيد في صف عناصر التحكم أدناه.
-                } else if (youtubeId != null && youtubePlayerContent != null) {
-                    // YouTube remains in its approved 16:9 player; do not stretch the iframe to phone height.
-                    Box(Modifier.align(Alignment.Center).fillMaxWidth().aspectRatio(16f / 9f)
-                        .clipToBounds(), contentAlignment = Alignment.Center) {
-                        key(reel.key) { youtubePlayerContent(youtubeId) }
-                    }
                 } else if (!isVideo) AttaZoomableImage(url, "صورة المنشور", onTap = { controls = !controls })
                 if (live != null && controls) Row(Modifier.align(Alignment.TopCenter).fillMaxWidth()
                     .background(Color(0xBB000000)).padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -474,7 +460,7 @@ internal fun AttaPostMediaViewer(
                     }
                 }
                 // ثبّت الشريط الاجتماعي الرأسي عند الحافة اليمنى الفعلية في تخطيطي RTL وLTR.
-                if ((player != null || youtubeId != null) && (sendReaction != null || onShare != null)) {
+                if (player != null && (sendReaction != null || onShare != null)) {
                     // Reactions, comments and share stay at upper-right as before v1.0.212.
                     Column(Modifier.align(AbsoluteAlignment.TopRight)
                         .absolutePadding(top = 12.dp, right = 14.dp),
