@@ -24,9 +24,9 @@ android {
         applicationId = "com.alatta.nativeapp"
         minSdk = 26
         targetSdk = 35
-        // الإصدار 1.0.227: توحيد عارض الفيديو المرفوع بين الرئيسية والريلز ومنع اختلاف تخطيط الفيديو وأدوات التشغيل.
-        versionCode = 327
-        versionName = "1.0.227"
+        // الإصدار 1.0.228: تحسين ملء خلفية الريلز دون قص الفيديو، وتوسيطه مع دمج أزرار التشغيل وخفض الفراغ الأسود.
+        versionCode = 328
+        versionName = "1.0.228"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("boolean", "IS_APPGALLERY", appGalleryBuild.toString())
         val hmsId = (System.getenv("ALATTA_HMS_APP_ID") ?: "").trim().takeIf { it.matches(Regex("[0-9]{1,20}")) } ?: ""
