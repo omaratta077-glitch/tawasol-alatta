@@ -322,8 +322,9 @@ internal fun PremiumReactionAction(
         @Composable fun ReactionCount() {
             Text(count.coerceAtLeast(0).toString(),
                 color = if (vertical || selectedReaction.isNotBlank() || liked) PremiumGoldLight else PremiumMuted,
-                fontSize = 12.sp,
-                modifier = Modifier.sizeIn(minWidth = 36.dp, minHeight = if (vertical) 24.dp else 44.dp)
+                fontSize = if (vertical) 13.sp else 12.sp,
+                fontWeight = if (vertical) FontWeight.SemiBold else FontWeight.Normal,
+                modifier = Modifier.sizeIn(minWidth = 36.dp, minHeight = if (vertical) 20.dp else 44.dp)
                     .then(if (onShowPeople != null) Modifier.clickable(onClickLabel = "عرض أصحاب التفاعلات", onClick = onShowPeople) else Modifier)
                     .wrapContentHeight().padding(horizontal = 5.dp),
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center)
