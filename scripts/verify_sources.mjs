@@ -88,7 +88,7 @@ assert.ok(mushafReader.includes('AnimatedVisibility(visible = readerControlsVisi
 const videoViewer=fs.readFileSync('android-native/app/src/main/java/com/alatta/nativeapp/AttaExpandableVideo.kt','utf8');
 assert.ok(videoViewer.includes('val reelsMode = (reelsOnly || includeYoutubePosts) && live == null') &&
   videoViewer.includes('mixedPostReels(posts).filter { it.youtubeId == null && it.videoUrl.isNotBlank() }') &&
-  videoViewer.includes('bottom = if (reelsOnly) 88.dp else 56.dp') &&
+  videoViewer.includes('if (controls && player != null) 192.dp else 72.dp') &&
   videoViewer.includes('BoxWithConstraints(Modifier.fillMaxSize())') &&
   videoViewer.includes('override fun onVideoSizeChanged') &&
   videoViewer.includes('videoAspectRatio < 1f') &&
