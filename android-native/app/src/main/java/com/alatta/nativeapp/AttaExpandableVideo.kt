@@ -136,8 +136,9 @@ internal fun uploadedPostReels(
         val postId = post.optString("id")
         val url = media(post.optString("video"))
         if (url.isNotBlank()) add(AttaReelEntry(post, "$postId:video", videoUrl = url))
-        // الفيديوهات العادية وShorts المنشورة من يوتيوب تدخل نفس قائمة الريلز.
-        youtubePostId(post.optString("text"))?.let { videoId ->
+        // Keep one playable reel per post: a native upload wins over a
+        // YouTube URL in its caption, avoiding a duplicated reel for one post.
+        if (url.isBlank()) youtubePostId(post.optString("text"))?.let { videoId ->
             if (videoId !in rejectedShortIds)
                 add(AttaReelEntry(post, "$postId:youtube:$videoId", youtubeId = videoId))
         }
