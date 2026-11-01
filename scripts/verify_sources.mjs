@@ -189,6 +189,8 @@ assert.ok(azkarCatalog.includes('fatiha, ayatKursi, baqarahEnding') &&
   azkarCatalog.includes('قَهْرِ الرِّجَالِ", 3,') &&
   azkarCatalog.includes('بِاللَّهِ", 10, "صحيح مسلم • 2704') &&
   azkarCatalog.includes('Dhikr("beloved-words", "كلمتان حبيبتان إلى الرحمن"') &&
+  azkarCatalog.includes('سُبْحَانَ اللَّهِ وَبِحَمْدِهِ، سُبْحَانَ اللَّهِ الْعَظِيمِ", 10,') &&
+  azkarCatalog.includes('يُحْيِي وَيُمِيتُ وَهُوَ عَلَى كُلِّ شَيْءٍ قَدِيرٌ", 100,') &&
   !azkarCatalog.includes('Dhikr("salawat-ten"'),
   'Morning/evening Adhkar keep Quran texts, custom repetition targets and ending: salawat, tawhid, tasbih, 100-count forgiveness');
 assert.ok(azkarScreen.includes('ContentScale.FillBounds') &&
@@ -201,6 +203,18 @@ assert.ok(azkarScreen.includes('ContentScale.FillBounds') &&
   azkarScreen.includes('entry.id == "kursi" || entry.id == "baqarah-ending"') &&
   azkarScreen.includes('أَعُوذُ بِاللَّهِ مِنَ الشَّيْطَانِ الرَّجِيمِ'),
   'Azkar controls have separated 27dp circles, 100-count digits fit and istiadhah precedes the verses');
+const dhikrShare = fs.readFileSync('android-native/app/src/main/java/com/alatta/nativeapp/DhikrShare.kt','utf8');
+const filePathsXml = fs.readFileSync('android-native/app/src/main/res/xml/atta_update_file_paths.xml','utf8');
+assert.ok(azkarScreen.includes('shareDhikrGoldImage(context, selectedGroup, selectedEntry)') &&
+  azkarScreen.includes('مشاركة الذكر بصورة ذهبية') &&
+  azkarScreen.includes('مشاركة الذكر كمنشور') &&
+  azkarScreen.includes('sharePost(true)') &&
+  dhikrShare.includes('android.graphics.Bitmap.createBitmap') &&
+  dhikrShare.includes('android.content.Intent.ACTION_SEND') &&
+  dhikrShare.includes('formatDhikrShare(group, entry)') &&
+  dhikrShare.includes('getUriForFile(') &&
+  filePathsXml.includes('<cache-path name="dhikr_gold_cards" path="share_cards/" />'),
+  'One native dhikr share dialog offers complete in-app posting or real gold-black PNG sharing');
 assert.ok(azkarScreen.includes('AzkarHeaderPlaque(Modifier.weight(1f))') &&
   azkarScreen.includes('val goldStyle = true') &&
   azkarScreen.includes('azkar_prayer_backdrop') &&
