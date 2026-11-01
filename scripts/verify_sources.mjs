@@ -99,8 +99,16 @@ for (const groupId of ['morning', 'evening']) {
   assert.ok(groupBlock.includes('dailyAdhkar('), `${groupId} uses the daily catalog`);
 }
 assert.ok(azkarCatalog.includes('fatiha, ayatKursi, baqarahEnding') &&
-  azkarCatalog.includes('add(29, salawat)') && !azkarCatalog.includes('Dhikr("salawat-ten"'),
-  'Daily groups keep their verses and display the unique general salawat in position 30');
+  azkarCatalog.includes('val ordinary = entries.filterNot { it.id == salawat.id }') &&
+  azkarCatalog.includes('return ordinary.filter { it.target <= 10 } + ordinary.filter { it.target > 10 } + salawat') &&
+  azkarCatalog.includes('Dhikr("salawat-daily"') &&
+  azkarCatalog.includes('سَيِّدِنَا مُحَمَّدٍ", 10,') &&
+  !azkarCatalog.includes('Dhikr("salawat-ten"'),
+  'Daily adhkar retain Fatiha, Kursi, and Baqarah; move counts over 10 to end and keep unique ten-count salawat last');
+assert.ok(azkarScreen.includes('AzkarHeaderPlaque(Modifier.weight(1f))') &&
+  azkarScreen.includes('goldStyle = group.id == "morning" || group.id == "evening"') &&
+  !azkarScreen.includes('أذكار بعدد تكرار أكثر من 10'),
+  'Azkar preserves full passages with gold-black styling and only the ornamental header, not a category divider');
 const hadith=fs.readFileSync('android-native/app/src/main/java/com/alatta/nativeapp/HadithLibrary.kt','utf8');
 assert.ok(hadith.includes('verifiedCopy(target, expectedBytes, hash)'), 'Hadith copy verified by actual SHA-256');
 assert.ok(!hadith.includes('PRAGMA quick_check", null') && !hadith.includes('require(db.version == 1)'),
