@@ -4905,7 +4905,7 @@ export default {
       const key=String(env.YOUTUBE_API_KEY||"").trim();
       if(!key)return Response.json({ok:false,error:"التحقق من شورتس غير متاح حاليًا"},{status:503});
       const cache=caches.default;
-      const cacheKey=new Request(new URL("/shorts-duration-cache/"+[...ids].sort().join(","),url.origin).toString());
+      const cacheKey=new Request(new URL("/embeddable-video-cache-v2/"+[...ids].sort().join(","),url.origin).toString());
       const cached=await cache.match(cacheKey);
       if(cached)return cached;
       try{
