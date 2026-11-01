@@ -101,7 +101,9 @@ assert.ok(native.includes('youtube_verified_short_link') &&
   siteYoutube.includes('shortsForm.addEventListener') &&
   !siteYoutube.includes("shortShare.onclick") &&
   workerSource.includes('url.pathname==="/api/youtube-short"') &&
-  workerSource.includes('seconds<=180'),
+  workerSource.includes('seconds<=180') &&
+  workerSource.includes('ids.length>25') &&
+  native.includes('api("/api/youtube-short?ids='),
   'Real /shorts/ links require metadata check; original YouTube player shows thumbnail while loading');
 const youtubeShare=fs.readFileSync('android-native/app/src/main/java/com/alatta/nativeapp/YoutubePostShare.kt','utf8');
 assert.ok(youtubeShare.includes('alatta-youtube(-short)?') &&
