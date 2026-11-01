@@ -206,8 +206,8 @@ internal fun AttaPostMediaViewer(
         mutableIntStateOf(items.indexOfFirst { it.post.optString("id") == startId }.coerceAtLeast(0))
     }
     // عند اقتراب نهاية الريلز، استكمل منشورات الخادم الأقدم بدل إظهار قائمة فارغة.
-    LaunchedEffect(reelsOnly, index, items.size, nextReelsCursor) {
-        if (reelsOnly && nextReelsCursor != null && index >= items.size - 2) {
+    LaunchedEffect(reelsOnly, index, items.size, nextReelsCursor, reelsLoading) {
+        if (reelsOnly && !reelsLoading && nextReelsCursor != null && index >= items.size - 2) {
             onLoadMoreReels?.invoke()
         }
     }
@@ -390,7 +390,9 @@ internal fun AttaPostMediaViewer(
     val changeVideo: (Int) -> Unit = { delta ->
         val next = index + delta
         if (next in items.indices) {
-            continuePlayback = player?.playWhenReady == true
+            // Switching from a YouTube/social reel has no Media3 player; the
+            // next uploaded video must still start on swipe.
+            continuePlayback = if (youtubeId != null || social != null) true else player?.playWhenReady == true
             player?.pause()
             index = next
             failed = ""
