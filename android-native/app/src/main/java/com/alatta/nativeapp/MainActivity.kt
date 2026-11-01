@@ -3154,10 +3154,16 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                     MushafPostActions(p.optString("text")) { pages ->
                                         quranReadingRange = pages; quranPage = pages.first; navigate("القرآن")
                                     }
+                                    // الفيديو اليوتيوب يعمل في بطاقة المنشور بنسبة 16:9، دون عارض ريلز رأسي مكرر.
                                     youtubePostId(p.optString("text"))?.let { videoId ->
-                                        YoutubePostMedia(videoId, false,
-                                            onPlay = { showFullscreenVideo = true; youtubePlayRequested = false },
-                                            onStop = {})
+                                        YoutubePostMedia(videoId, activeYoutubePostId == postId,
+                                            onPlay = {
+                                                youtubePlayRequested = false
+                                                activeYoutubePostId = postId
+                                            },
+                                            onStop = {
+                                                if (activeYoutubePostId == postId) activeYoutubePostId = ""
+                                            })
                                     }
                                     val image = media(p.optString("image")); val video = media(p.optString("video"))
                                     val mushafPages = parseMushafPostAttachment(p.optString("text"), BASE)?.pages
@@ -3171,15 +3177,12 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                         AttaExpandableVideo(video, image.takeIf { it.isNotBlank() },
                                             onOpen = { showFullscreenVideo = true })
                                     }
-                                    // جميع المقاطع المنشورة، بما فيها YouTube، تفتح العارض المختلط نفسه.
-                                    if (showFullscreenVideo) {
+                                    // الملء العمودي يخص الفيديو المرفوع فقط، لا مقاطع YouTube الأفقية.
+                                    if (showFullscreenVideo && video.isNotBlank()) {
                                         AttaPostMediaViewer(
                                                 posts = posts, startId = postId, kind = "video",
                                                 onDismiss = { showFullscreenVideo = false },
-                                                includeYoutubePosts = true,
-                                                startYoutube = video.isBlank() && youtubePostId(p.optString("text")) != null,
-                                                youtubePlayerContent = { id -> YouTubePlayer(id) },
-                                                loadInteractions = { id, kind, offset ->
+                                                 loadInteractions = { id, kind, offset ->
                                                     get("/api/post-interactions?postId=${enc(id)}&kind=${enc(kind)}&offset=$offset")
                                                 },
                                                 sendReaction = { id, reaction, remove ->
