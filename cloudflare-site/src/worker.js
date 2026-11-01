@@ -4896,8 +4896,7 @@ export default {
       }
     }
 
-    // تحقّق من مدة الفيديو قبل وسمه كشورت داخل العطا.
-    // YouTube Data API لا يوفّر نسبة عرض الفيديو، لذا نطلب أيضًا رابط /shorts/ صريحًا من المستخدم.
+    // تأكد فقط من سماح YouTube بتضمين الفيديو. تُقبل المقاطع الطويلة والقصيرة في ريلز العطا.
     if(url.pathname==="/api/youtube-short" && request.method==="GET"){
       const raw=(url.searchParams.get("ids")||url.searchParams.get("id")||"").trim();
       const ids=[...new Set(raw.split(","))];
@@ -4924,7 +4923,7 @@ export default {
           const match=/^P(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?)?$/.exec(duration);
           const seconds=match?Number(match[1]||0)*86400+Number(match[2]||0)*3600+
             Number(match[3]||0)*60+Number(match[4]||0):0;
-          results[id]={eligible:Boolean(video&&seconds>0&&seconds<=180&&video.status?.embeddable===true),
+          results[id]={eligible:Boolean(video&&video.status?.embeddable===true),
             durationSeconds:seconds};
         }
         const response=Response.json({ok:true,results,
