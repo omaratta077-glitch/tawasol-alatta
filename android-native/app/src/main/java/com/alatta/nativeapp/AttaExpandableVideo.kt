@@ -390,8 +390,9 @@ internal fun AttaPostMediaViewer(
                     Box(Modifier.fillMaxSize().clickable { controls = !controls })
                     // استخدم زر التشغيل والإيقاف المركزي الوحيد في صف عناصر التحكم أدناه.
                 } else if (youtubeId != null && youtubePlayerContent != null) {
-                    // احتفظ بالمشغل الأصلي للموقع: إطار يوتيوب واحد داخل شاشة ريلز عمودية.
-                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    // YouTube remains in its approved 16:9 player; do not stretch the iframe to phone height.
+                    Box(Modifier.align(Alignment.Center).fillMaxWidth().aspectRatio(16f / 9f)
+                        .clipToBounds(), contentAlignment = Alignment.Center) {
                         key(reel.key) { youtubePlayerContent(youtubeId) }
                     }
                 } else if (!isVideo) AttaZoomableImage(url, "صورة المنشور", onTap = { controls = !controls })
@@ -424,10 +425,9 @@ internal fun AttaPostMediaViewer(
                 }
                 // ثبّت الشريط الاجتماعي الرأسي عند الحافة اليمنى الفعلية في تخطيطي RTL وLTR.
                 if ((player != null || youtubeId != null) && (sendReaction != null || onShare != null)) {
-                    Column((if (reelsMode) Modifier.align(AbsoluteAlignment.BottomRight)
-                        .absolutePadding(bottom = 145.dp, right = 14.dp)
-                    else Modifier.align(AbsoluteAlignment.TopRight)
-                        .absolutePadding(top = 12.dp, right = 14.dp)),
+                    // Reactions, comments and share stay at upper-right as before v1.0.212.
+                    Column(Modifier.align(AbsoluteAlignment.TopRight)
+                        .absolutePadding(top = 12.dp, right = 14.dp),
                         verticalArrangement = Arrangement.spacedBy(10.dp),
                         horizontalAlignment = Alignment.CenterHorizontally) {
                         if (sendReaction != null && loadInteractions != null) {
