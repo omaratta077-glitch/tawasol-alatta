@@ -198,7 +198,8 @@ internal fun PremiumBottomNav(current: String, go: (String) -> Unit) {
         // يظهر العنصر الأول عند أقصى اليمين في صف التنقل العربي.
         // وتظل الشاشات الأخرى متاحة بالتمرير الأفقي، ولم تُحذف.
         Triple("الرئيسية", "home", "الرئيسية"),
-        Triple("الرسائل", "message-circle", "الرسائل"),
+        // Messenger remains accessible via PremiumHeader on the home screen.
+        Triple("ريلز", "video", "ريلز"),
         Triple("الملف", "user-round", "الملف"),
         Triple("القرآن", "book-open", "القرآن"),
         Triple("الأحاديث", "book-text", "الأحاديث"),
@@ -232,8 +233,15 @@ internal fun PremiumBottomNav(current: String, go: (String) -> Unit) {
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center
             ) {
-                SiteIcon(icon, tint = if (selected) PremiumGoldLight else PremiumMuted, size = 23.dp)
-                Spacer(Modifier.height(4.dp))
+                if (name == "ريلز") {
+                    Box(Modifier.size(34.dp).clip(RoundedCornerShape(11.dp))
+                        .background(PremiumGold.copy(alpha = if (selected) .24f else .12f))
+                        .border(1.dp, PremiumGold.copy(alpha = if (selected) .9f else .55f), RoundedCornerShape(11.dp)),
+                        contentAlignment = Alignment.Center) {
+                        SiteIcon(icon, tint = PremiumGoldLight, size = 22.dp)
+                    }
+                } else SiteIcon(icon, tint = if (selected) PremiumGoldLight else PremiumMuted, size = 23.dp)
+                Spacer(Modifier.height(if (name == "ريلز") 1.dp else 4.dp))
                 Text(label, color = if (selected) PremiumGoldLight else PremiumMuted,
                     fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 if (selected) Box(Modifier.padding(top = 3.dp).width(20.dp).height(2.dp)

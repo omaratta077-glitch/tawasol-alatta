@@ -1633,6 +1633,11 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                 }
             }
             "استكشاف" -> posts = get("/api/explore").arr("posts")
+            // Reuse the existing authenticated home feed; no extra reels API or video player.
+            "ريلز" -> {
+                val page = FeedPages.fetch(::get)
+                posts = FeedPages.merge(posts, page)
+            }
             "الأصدقاء" -> { users = get("/api/users?q=${enc(search)}").arr("users"); friends = get("/api/friends").arr("friends"); requests = get("/api/friend-requests").arr("requests") }
             "الرسائل" -> {
                 if (chatWith.isNotBlank()) {
@@ -2735,6 +2740,53 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                 activeYoutubePostId = ""; youtubeId = id; youtubePlayRequested = true
                                 navigate("يوتيوب")
                             })
+                        "ريلز" -> {
+                            // Uses the same single mixed reels viewer from post cards; it is NOT a second player.
+                            val reelEntries = remember(posts) { mixedPostReels(posts) }
+                            Box(Modifier.weight(1f).fillMaxWidth().background(Black),
+                                contentAlignment = Alignment.Center) {
+                                if (reelEntries.isEmpty()) {
+                                    Column(horizontalAlignment = Alignment.CenterHorizontally,
+                                        verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                        SiteIcon("video", size = 46.dp, tint = GoldLight)
+                                        Text(if (screenLoading) "جارٍ تحميل الريلز…" else "لا توجد مقاطع فيديو في المنشورات المحمّلة",
+                                            color = GoldLight)
+                                        if (!screenLoading) TextButton(onClick = { navigate("الرئيسية") }) {
+                                            Text("العودة للرئيسية", color = GoldLight)
+                                        }
+                                    }
+                                } else {
+                                    val first = reelEntries.first()
+                                    AttaPostMediaViewer(
+                                        posts = posts,
+                                        startId = first.post.optString("id"),
+                                        kind = "video",
+                                        onDismiss = { navigate("الرئيسية") },
+                                        includeYoutubePosts = true,
+                                        startYoutube = first.youtubeId != null,
+                                        youtubePlayerContent = { id -> YouTubePlayer(id) },
+                                        loadInteractions = { postId, kind, offset ->
+                                            get("/api/post-interactions?postId=${enc(postId)}&kind=${enc(kind)}&offset=$offset")
+                                        },
+                                        sendReaction = { postId, reaction, remove ->
+                                            post("/api/post-react", JSONObject().put("postId", postId)
+                                                .put("reaction", reaction).put("remove", remove))
+                                        },
+                                        sendComment = { postId, message ->
+                                            post("/api/post-comment", JSONObject().put("postId", postId).put("text", message))
+                                        },
+                                        onShare = { postId ->
+                                            post("/api/post-share", JSONObject().put("postId", postId).put("text", ""))
+                                            navigate("الرئيسية")
+                                            load("الرئيسية")
+                                            homeScrollTarget = 1
+                                            homeFirstPostRequest++
+                                        },
+                                        onOpenProfile = { username -> openPublicProfile(username) }
+                                    )
+                                }
+                            }
+                        }
                         "الرئيسية", "استكشاف", "المحفوظات" -> {
                             PullToRefreshBox(
                                 isRefreshing = screenLoading,

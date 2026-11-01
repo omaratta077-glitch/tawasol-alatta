@@ -63,8 +63,20 @@ assert.ok(knowledge.includes('onShareHadithPost') &&
     'Hadith share uses the existing Home post flow, without a separate publisher');
 const azkarScreen=fs.readFileSync('android-native/app/src/main/java/com/alatta/nativeapp/AzkarPrayerScreen.kt','utf8');
 const azkarCatalog=fs.readFileSync('android-native/app/src/main/java/com/alatta/nativeapp/AzkarCatalog.kt','utf8');
+const chromeUi=fs.readFileSync('android-native/app/src/main/java/com/alatta/nativeapp/PremiumChrome.kt','utf8');
+const navItems=chromeUi.split('val destinations = listOf(',2)[1].split('val scroll =',1)[0];
+assert.ok(navItems.includes('Triple("ريلز", "video", "ريلز")') &&
+  !navItems.includes('Triple("الرسائل"') &&
+  chromeUi.includes('PremiumTopItem("message-circle", "الرسائل"') &&
+  native.includes('"ريلز" -> {') && native.includes('mixedPostReels(posts)') &&
+  native.includes('includeYoutubePosts = true'),
+  'Reels replaces only bottom-bar messages; top-bar Messenger and shared reels viewer remain');
+
 const videoViewer=fs.readFileSync('android-native/app/src/main/java/com/alatta/nativeapp/AttaExpandableVideo.kt','utf8');
 assert.ok(videoViewer.includes('val reelsMode = includeYoutubePosts && live == null') &&
+  videoViewer.includes('Modifier.align(Alignment.Center).fillMaxWidth().aspectRatio(16f / 9f)') &&
+  videoViewer.includes('Column(Modifier.align(AbsoluteAlignment.TopRight)') &&
+  !videoViewer.includes('AbsoluteAlignment.BottomRight') &&
   videoViewer.includes('if (reelsMode) AspectRatioFrameLayout.RESIZE_MODE_ZOOM') &&
   videoViewer.includes('else AspectRatioFrameLayout.RESIZE_MODE_FIT') &&
   videoViewer.includes('Modifier.align(AbsoluteAlignment.TopLeft)') &&
