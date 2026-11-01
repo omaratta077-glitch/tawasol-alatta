@@ -86,7 +86,12 @@ async function load(append=false){
    const item=document.createElement('article');item.className='atta-yt-result';item.append(card);
    const share=document.createElement('button');share.type='button';share.className='native-button atta-yt-share';share.setAttribute('aria-label','مشاركة الفيديو كمنشور في الرئيسية');share.title='مشاركة الفيديو كمنشور';share.innerHTML=window.AttaIcons?.icon?.('share')||'<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.6 10.5 6.8-4M8.6 13.5l6.8 4"/></svg>';
    share.onclick=()=>window.AttaWeb?.preparePost((v.title||'فيديو يوتيوب')+'\n[[alatta-youtube:'+v.id+']]');
-   item.append(share);results.append(item);
+   const shortShare=document.createElement('button');
+   shortShare.type='button';shortShare.className='native-button atta-yt-share';
+   shortShare.textContent='نشر كشورت في الريلز';
+   shortShare.setAttribute('aria-label','مشاركة الفيديو في الريلز كشورت');
+   shortShare.onclick=()=>window.AttaWeb?.preparePost((v.title||'YouTube Short')+'\n[[alatta-youtube-short:'+v.id+']]');
+   item.append(share,shortShare);results.append(item);
   }
   error.textContent=results.children.length?'':'لا توجد نتائج';more.hidden=!nextPageToken;if(!append&&results.children.length)results.scrollIntoView({behavior:'smooth',block:'nearest'});
  }catch(e){if(requestId===seq)error.textContent=e.message||'حدث خطأ أثناء البحث';}
