@@ -455,7 +455,8 @@ internal fun AttaPostMediaViewer(
                     val caption = visibleYoutubePostText(current.optString("text")).trim()
                     // الاسم والوصف فوق منطقة الإيماءات وشريط تشغيل الفيديو؛ لا يختفيان أسفل الشاشة.
                     Column(Modifier.align(Alignment.BottomStart).fillMaxWidth(.77f)
-                        .padding(start = 16.dp, bottom = if (reelsOnly) 88.dp else 56.dp),
+                        .padding(start = 16.dp,
+                            bottom = if (reelsOnly) (if (controls && player != null) 192.dp else 72.dp) else 56.dp),
                         verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Text(authorName, color = Color.White, fontWeight = FontWeight.Bold,
                             fontSize = 19.sp, lineHeight = 24.sp,
