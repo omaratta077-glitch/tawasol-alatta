@@ -24,9 +24,9 @@ android {
         applicationId = "com.alatta.nativeapp"
         minSdk = 26
         targetSdk = 35
-        // الإصدار 1.0.237: صورة الذكر الذهبية كمرفق داخل منشور العطا، تحديث الريلز بالسحب وتحميل الفيديوهات الأقدم، فيديوهات يوتيوب دون حد 3 دقائق، ودعم روابط فيديوهات فيسبوك وإنستجرام العامة.
-        versionCode = 337
-        versionName = "1.0.237"
+        // الإصدار 1.0.238: إخفاء شاشة تسجيل دخول الموقع نهائيًا أثناء تجهيز فيديو يوتيوب داخل التطبيق وعرض غلاف الفيديو والتحميل الذهبي مع خيار إعادة المحاولة، مع الحفاظ على تطوير مشاركة الأذكار والريلز وروابط فيسبوك وإنستجرام.
+        versionCode = 338
+        versionName = "1.0.238"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("boolean", "IS_APPGALLERY", appGalleryBuild.toString())
         val hmsId = (System.getenv("ALATTA_HMS_APP_ID") ?: "").trim().takeIf { it.matches(Regex("[0-9]{1,20}")) } ?: ""
