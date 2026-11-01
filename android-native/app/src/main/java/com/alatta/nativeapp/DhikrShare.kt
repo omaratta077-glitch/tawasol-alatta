@@ -8,10 +8,10 @@ internal fun formatDhikrShare(group: DhikrGroup, entry: Dhikr? = null): String =
 
 
 /**
- * مشاركة ذكر واحد كبطاقة سوداء وذهبية فعلية (PNG) عبر نافذة مشاركة أندرويد.
- * تبقى مشاركة المجموعة كاملة كمنشور بالنص الأصلي حتى لا تُقص الآيات والأذكار الطويلة.
+ * ينشئ صورة ذكر سوداء وذهبية لرفعها داخل منشور تواصل العطا نفسه.
+ * لا يفتح المشاركة الخارجية ولا يرسل المحتوى قبل موافقة المستخدم على النشر.
  */
-internal fun shareDhikrGoldImage(context: android.content.Context, group: DhikrGroup, entry: Dhikr) {
+internal fun createDhikrGoldPostImage(context: android.content.Context, group: DhikrGroup, entry: Dhikr): android.net.Uri {
     val width = 1080
     val margin = 70f
     val gold = android.graphics.Color.rgb(240, 202, 111)
@@ -90,17 +90,8 @@ internal fun shareDhikrGoldImage(context: android.content.Context, group: DhikrG
                 "تعذر حفظ بطاقة الذكر"
             }
         }
-        val uri = androidx.core.content.FileProvider.getUriForFile(
-            context, "${context.packageName}.updatefileprovider", image
-        )
-        val send = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
-            type = "image/png"
-            putExtra(android.content.Intent.EXTRA_STREAM, uri)
-            putExtra(android.content.Intent.EXTRA_TEXT, formatDhikrShare(group, entry))
-            addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            clipData = android.content.ClipData.newUri(context.contentResolver, "ذكر من تواصل العطا", uri)
-        }
-        context.startActivity(android.content.Intent.createChooser(send, "مشاركة الذكر كصورة ذهبية"))
+        // نفس Uri.fromFile المستخدم عند مشاركة المصحف في مُنشئ منشورات العطا.
+        return android.net.Uri.fromFile(image)
     } finally {
         bitmap.recycle()
     }
