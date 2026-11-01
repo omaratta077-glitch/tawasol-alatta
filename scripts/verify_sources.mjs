@@ -180,18 +180,27 @@ for (const groupId of ['morning', 'evening']) {
   assert.ok(groupBlock.includes('dailyAdhkar('), `${groupId} uses the daily catalog`);
 }
 assert.ok(azkarCatalog.includes('fatiha, ayatKursi, baqarahEnding') &&
-  azkarCatalog.includes('val ordinary = entries.filterNot { it.id == salawat.id }') &&
-  azkarCatalog.includes('return ordinary.filter { it.target <= 10 } + ordinary.filter { it.target > 10 } + salawat') &&
+  azkarCatalog.includes('val closingIds = listOf(') &&
+  azkarCatalog.includes('"salawat-daily", "tawhid", "tasbih", "repent-day"') &&
+  azkarCatalog.includes('closingIds.map { id -> entries.single { it.id == id } }') &&
   azkarCatalog.includes('Dhikr("salawat-daily"') &&
   azkarCatalog.includes('سَيِّدِنَا مُحَمَّدٍ", 10,') &&
+  azkarCatalog.includes('Dhikr("worry-debt"') &&
+  azkarCatalog.includes('قَهْرِ الرِّجَالِ", 3,') &&
+  azkarCatalog.includes('بِاللَّهِ", 10, "صحيح مسلم • 2704') &&
+  azkarCatalog.includes('Dhikr("beloved-words", "التسبيحات الثلاث"') &&
   !azkarCatalog.includes('Dhikr("salawat-ten"'),
-  'Daily adhkar retain Fatiha, Kursi, and Baqarah; move counts over 10 to end and keep unique ten-count salawat last');
+  'Morning/evening Adhkar keep Quran texts, custom repetition targets and ending: salawat, tawhid, tasbih, 100-count forgiveness');
 assert.ok(azkarScreen.includes('ContentScale.FillBounds') &&
   !azkarScreen.includes('ContentScale.Crop') &&
-  azkarScreen.includes('Modifier.size(30.dp).clip(CircleShape)') &&
-  azkarScreen.includes('Text("+", color = PremiumGoldLight, fontWeight = FontWeight.Bold, fontSize = 15.sp)') &&
-  azkarScreen.includes('Text("−", color = PremiumGoldLight, fontWeight = FontWeight.Bold, fontSize = 15.sp)'),
-  'Azkar illustration fits without crop; font control buttons stay compact and readable');
+  azkarScreen.includes('Arrangement.spacedBy(12.dp)') &&
+  azkarScreen.includes('Box(Modifier.size(44.dp).clickable {') &&
+  azkarScreen.includes('Box(Modifier.size(27.dp).clip(CircleShape)') &&
+  azkarScreen.includes('entry.target >= 100 -> 14.sp') &&
+  azkarScreen.includes('modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)') &&
+  azkarScreen.includes('entry.id == "kursi" || entry.id == "baqarah-ending"') &&
+  azkarScreen.includes('أَعُوذُ بِاللَّهِ مِنَ الشَّيْطَانِ الرَّجِيمِ'),
+  'Azkar controls have separated 27dp circles, 100-count digits fit and istiadhah precedes the verses');
 assert.ok(azkarScreen.includes('AzkarHeaderPlaque(Modifier.weight(1f))') &&
   azkarScreen.includes('val goldStyle = true') &&
   azkarScreen.includes('azkar_prayer_backdrop') &&
