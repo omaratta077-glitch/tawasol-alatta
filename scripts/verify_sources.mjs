@@ -96,7 +96,7 @@ assert.ok(uploadedPostDialog.includes('reelsOnly = true') &&
 const youtubeShare=fs.readFileSync('android-native/app/src/main/java/com/alatta/nativeapp/YoutubePostShare.kt','utf8');
 assert.ok(youtubeShare.includes('alatta-youtube(-short)?') &&
   youtubeShare.includes('fun youtubeShortPostId(') &&
-  native.includes('youtubeShortContent = { shortId, command, shouldPlay, changed ->') &&
+  native.includes('youtubeShortContent = { shortId, command, shouldPlay, changed, onShortsDrag ->') &&
   native.includes('YouTubePlayer(shortId, portrait = true,') &&
   native.includes('youtubePostDraftIsShort = true') &&
   native.includes('playbackCommand = command') &&
@@ -111,7 +111,9 @@ assert.ok(videoViewer.includes('val reelsMode = reelsOnly && live == null') &&
   videoViewer.includes('startId = "attachment", kind = "video", onDismiss = { expanded = false },') &&
   videoViewer.includes('reelsOnly = true // يفتح نفس عارض الريلز') &&
   videoViewer.includes('if (controls && player != null) 122.dp else 60.dp') &&
-  videoViewer.includes('youtubeShortContent(youtubeId, youtubeCommand, youtubeCommandPlay)') &&
+  videoViewer.includes('youtubeShortContent(youtubeId, youtubeCommand, youtubeCommandPlay,') &&
+  videoViewer.includes('val onShortDrag: (Float, Float) -> Unit = { dx, dy ->') &&
+  videoViewer.includes('if (reelsMode && youtubeId == null)') &&
   videoViewer.includes('youtubeShortPostId(post.optString("text"))') &&
   videoViewer.includes('if (player != null && !reelsOnly) Row(') &&
   videoViewer.includes('if (reelsOnly && controls && (player != null || (youtubeId != null && youtubeStarted)))') &&
