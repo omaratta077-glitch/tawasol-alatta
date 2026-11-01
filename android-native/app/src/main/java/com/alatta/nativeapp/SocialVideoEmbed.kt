@@ -82,8 +82,18 @@ internal fun SocialVideoPostEmbed(link: SocialVideoLink, modifier: Modifier = Mo
                     loadUrl(link.embedUrl)
                 }
             }
-            DisposableEffect(view) { onDispose { view.stopLoading(); view.destroy() } }
-            AndroidView(factory = { view }, modifier = Modifier.fillMaxSize())
+            val gestureHost = remember(view) {
+                MiniPlayerTouchHost(context).apply {
+                    addView(view, android.widget.FrameLayout.LayoutParams(
+                        android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
+                        android.widget.FrameLayout.LayoutParams.MATCH_PARENT))
+                }
+            }
+            DisposableEffect(gestureHost) {
+                onDispose { view.stopLoading(); gestureHost.removeAllViews(); view.destroy() }
+            }
+            AndroidView(factory = { gestureHost }, update = { it.onDrag = onSwipe },
+                modifier = Modifier.fillMaxSize())
         } else {
             Column(Modifier.clickable { opened = true }.padding(23.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
