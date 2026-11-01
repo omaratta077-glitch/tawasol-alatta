@@ -428,14 +428,14 @@ internal fun AzkarPrayerScreen(modifier: Modifier = Modifier, onSharePost: (Stri
                         horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                         // الترتيب الأول في RTL يعرض الأزرار الدائرية على اليمين.
                         IconButton(onClick = { fontSize = (fontSize + 1).coerceAtMost(32); local.edit().putInt("font_size", fontSize).apply() },
-                            modifier = Modifier.size(36.dp).clip(CircleShape).background(PremiumPanel)
+                            modifier = Modifier.size(30.dp).clip(CircleShape).background(PremiumPanel)
                                 .border(1.dp, PremiumGold, CircleShape).semantics { contentDescription = "تكبير خط الذكر" }) {
-                            Text("+", color = PremiumGoldLight, fontWeight = FontWeight.Bold, fontSize = 19.sp)
+                            Text("+", color = PremiumGoldLight, fontWeight = FontWeight.Bold, fontSize = 15.sp)
                         }
                         IconButton(onClick = { fontSize = (fontSize - 1).coerceAtLeast(18); local.edit().putInt("font_size", fontSize).apply() },
-                            modifier = Modifier.size(36.dp).clip(CircleShape).background(PremiumPanel)
+                            modifier = Modifier.size(30.dp).clip(CircleShape).background(PremiumPanel)
                                 .border(1.dp, PremiumGold, CircleShape).semantics { contentDescription = "تصغير خط الذكر" }) {
-                            Text("−", color = PremiumGoldLight, fontWeight = FontWeight.Bold, fontSize = 19.sp)
+                            Text("−", color = PremiumGoldLight, fontWeight = FontWeight.Bold, fontSize = 15.sp)
                         }
                         Text("${entries.size} ذكرًا ودعاءً • التقدّم محفوظ لليوم", Modifier.weight(1f),
                             color = PremiumMuted, fontSize = 11.sp, textAlign = TextAlign.End)
@@ -511,7 +511,8 @@ internal fun AzkarPrayerScreen(modifier: Modifier = Modifier, onSharePost: (Stri
                         // أصل مرئي مخزّن داخل APK: مصحف وفانوس ونافذة مضيئة، يعمل بلا إنترنت.
                         Image(painter = painterResource(R.drawable.azkar_prayer_backdrop),
                             contentDescription = null,
-                            contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                            // اعرض الرسم المتجهي كاملًا داخل البطاقة دون الاقتصاص من المصحف أو الفانوس.
+                            contentScale = androidx.compose.ui.layout.ContentScale.FillBounds,
                             modifier = Modifier.matchParentSize())
                         Column(Modifier.fillMaxWidth().padding(16.dp),
                             verticalArrangement = Arrangement.spacedBy(9.dp)) {
