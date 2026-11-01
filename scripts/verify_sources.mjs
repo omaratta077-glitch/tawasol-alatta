@@ -87,12 +87,20 @@ assert.ok(mushafReader.includes('AnimatedVisibility(visible = readerControlsVisi
   mushafReader.includes('onZoomChanged = { pageZoom = it }') &&
   mushafReader.includes('pageZoom = (pageZoom + .15f).coerceAtMost(2f)'),
   'Single Quran reader hides its toolbar on idle and supports SVG zoom and ornate page numbers');
+const uploadedPostDialog = native.split('if (showFullscreenVideo && video.isNotBlank()) {',2)[1]?.split('loadInteractions =',1)[0] || '';
+assert.ok(uploadedPostDialog.includes('reelsOnly = true') &&
+  native.includes('AttaPostMediaViewer(') &&
+  native.includes('reelsOnly = true') &&
+  !native.includes('includeYoutubePosts = true'),
+  'Home uploaded video and Reels use one portrait viewer; YouTube never opens in the media dialog');
 const videoViewer=fs.readFileSync('android-native/app/src/main/java/com/alatta/nativeapp/AttaExpandableVideo.kt','utf8');
 assert.ok(videoViewer.includes('val reelsMode = reelsOnly && live == null') &&
   videoViewer.includes('internal fun uploadedPostReels(posts: List<JSONObject>)') &&
   !videoViewer.includes('mixedPostReels(') &&
   !videoViewer.includes('youtubePlayerContent') &&
   !videoViewer.includes('includeYoutubePosts') &&
+  videoViewer.includes('startId = "attachment", kind = "video", onDismiss = { expanded = false },') &&
+  videoViewer.includes('reelsOnly = true // يفتح نفس عارض الريلز') &&
   videoViewer.includes('if (controls && player != null) 192.dp else 72.dp') &&
   videoViewer.includes('BoxWithConstraints(Modifier.fillMaxSize())') &&
   videoViewer.includes('override fun onVideoSizeChanged') &&
