@@ -187,6 +187,7 @@ internal fun AttaPostMediaViewer(
     nextReelsCursor: String? = null,
     onLoadMoreReels: (() -> Unit)? = null,
     onRefreshReels: (() -> Unit)? = null,
+    onReelsNavigate: ((String) -> Unit)? = null,
     reelsLoading: Boolean = false
 ) {
     val context = LocalContext.current
@@ -624,6 +625,35 @@ internal fun AttaPostMediaViewer(
                             CircularProgressIndicator(color = PremiumGoldLight,
                                 strokeWidth = 2.dp, modifier = Modifier.size(16.dp))
                             Text("تحديث الريلز...", color = PremiumGoldLight, fontSize = 12.sp)
+                        }
+                    }
+                }
+                // شريط تنقل الريلز يظهر باللمس ويختفي مع عناصر التحكم دون حجب مشغل YouTube.
+                if (reelsMode && onReelsNavigate != null) {
+                    Row(Modifier.align(Alignment.BottomCenter).fillMaxWidth()
+                        .height(54.dp).background(Color(0xBB090909))
+                        .clickable { controls = true }
+                        .padding(horizontal = 4.dp),
+                        horizontalArrangement = Arrangement.SpaceEvenly,
+                        verticalAlignment = Alignment.CenterVertically) {
+                        if (controls) {
+                            listOf(
+                                Triple("الرئيسية", "home", "الرئيسية"),
+                                Triple("ريلز", "video", "ريلز"),
+                                Triple("القرآن", "book-open", "القرآن"),
+                                Triple("الأذكار", "sun", "الأذكار"),
+                                Triple("الرياضة", "trophy", "الرياضة")
+                            ).forEach { (title, icon, target) ->
+                                Column(Modifier.weight(1f).clickable {
+                                    if (target != "ريلز") onReelsNavigate(target)
+                                    else controls = false
+                                }, horizontalAlignment = Alignment.CenterHorizontally) {
+                                    SiteIcon(icon, size = 20.dp, tint = PremiumGoldLight)
+                                    Text(title, fontSize = 10.sp, color = Color.White)
+                                }
+                            }
+                        } else {
+                            Text("⌃", color = PremiumGoldLight, fontSize = 19.sp)
                         }
                     }
                 }
