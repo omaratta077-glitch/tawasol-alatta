@@ -101,10 +101,16 @@ assert.ok(videoViewer.includes('val reelsMode = reelsOnly && live == null') &&
   !videoViewer.includes('includeYoutubePosts') &&
   videoViewer.includes('startId = "attachment", kind = "video", onDismiss = { expanded = false },') &&
   videoViewer.includes('reelsOnly = true // يفتح نفس عارض الريلز') &&
-  videoViewer.includes('if (controls && player != null) 192.dp else 72.dp') &&
+  videoViewer.includes('if (controls && player != null) 154.dp else 60.dp') &&
   videoViewer.includes('BoxWithConstraints(Modifier.fillMaxSize())') &&
   videoViewer.includes('override fun onVideoSizeChanged') &&
-  videoViewer.includes('videoAspectRatio < 1f') &&
+  videoViewer.includes('Modifier.align(Alignment.Center)') &&
+  videoViewer.includes('reelBackdrop?.let { frame ->') &&
+  videoViewer.includes('VideoPostPreview.remote(context, url)') &&
+  videoViewer.includes('Modifier.fillMaxSize().blur(30.dp)') &&
+  videoViewer.includes('else if (reelsOnly) 14.dp') &&
+  !videoViewer.includes('Alignment.TopCenter else Alignment.Center') &&
+  (videoViewer.match(/ExoPlayer.Builder\(/g) || []).length === 1 &&
   videoViewer.includes('resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT') &&
   videoViewer.includes('LaunchedEffect(reelsOnly, index, items.size, nextReelsCursor)') &&
   videoViewer.includes('onLoadMoreReels?.invoke()') &&
@@ -116,7 +122,7 @@ assert.ok(videoViewer.includes('val reelsMode = reelsOnly && live == null') &&
   videoViewer.includes('resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT') &&
   videoViewer.includes('Modifier.align(AbsoluteAlignment.TopLeft)') &&
   !videoViewer.includes('Text("ريلز •'),
-  'Only native uploads enter the portrait viewer; YouTube runs inline 16:9 and cannot create a duplicate Reels dialog');
+  'One native video player; Reels center uncropped video with a subdued cached backdrop and compact overlay controls');
 assert.ok(azkarScreen.includes('local.getInt("font_size", 23)') &&
   azkarScreen.includes('textAlign = TextAlign.Center') &&
   azkarScreen.includes('(fontSize * 1.75f).sp') &&
