@@ -1003,8 +1003,24 @@ private class AttaYoutubeFullscreenChrome(
                 (touchHost.parent as? ViewGroup)?.removeView(touchHost)
                 touchHost
             }, update = { it.onDrag = onMiniDrag }, modifier = Modifier.fillMaxSize())
-            if (loading) CircularProgressIndicator(color = Gold, modifier = Modifier.size(30.dp))
-            // لا تغطِّ صورة YouTube الحقيقية بعنوان تشخيصي داخل WebView.
+            // بدل أول شاشة سوداء صماء: معاينة الفيديو أثناء تجهيز iframe.
+            // يُرفع الغطاء تمامًا فور اكتمال تحميل مشغّل YouTube الأصلي.
+            if (portrait && !frameLoaded && error.isBlank()) {
+                coil.compose.AsyncImage(
+                    model = "https://i.ytimg.com/vi/$safeId/hqdefault.jpg",
+                    contentDescription = null,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
+                )
+                Box(Modifier.fillMaxSize().background(Color(0x77000000)))
+                Column(horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    CircularProgressIndicator(color = Gold, modifier = Modifier.size(27.dp))
+                    Text("جاري تجهيز فيديو يوتيوب", color = GoldLight, fontSize = 13.sp)
+                }
+            } else if (loading) {
+                CircularProgressIndicator(color = Gold, modifier = Modifier.size(30.dp))
+            }
         }
     }
     // لم يتغير مسار التشغيل في v1.0.57 عمدًا؛ فما زال موقع HTTPS
@@ -1220,6 +1236,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
     var youtubePostDraftId by remember { mutableStateOf("") }
     var youtubePostDraftTitle by remember { mutableStateOf("") }
     var youtubePostDraftIsShort by remember { mutableStateOf(false) }
+    var youtubeShortUrl by remember { mutableStateOf("") }
     var activeYoutubePostId by remember { mutableStateOf("") }
     // أعد تحميل الرئيسية من دون بدء عمل تمرير من عنصر تنقل خارج الشاشة.
     var homeRefreshRequest by remember { mutableIntStateOf(0) }
@@ -3914,6 +3931,44 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                     }
                                 }
                             }
+                            item(key = "youtube_verified_short_link") {
+                                CardBox {
+                                    Text("إضافة YouTube Shorts للريلز", color = GoldLight,
+                                        fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                    Text("الصق رابطًا من youtube.com/shorts، وليس فيديو يوتيوب عاديًا.",
+                                        color = Muted, fontSize = 12.sp, lineHeight = 18.sp)
+                                    OutlinedTextField(
+                                        value = youtubeShortUrl,
+                                        onValueChange = { youtubeShortUrl = it.take(500) },
+                                        label = { Text("رابط YouTube Shorts") },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        singleLine = true
+                                    )
+                                    val shortId = Regex(
+                                        """https?://(?:www\\.|m\\.)?youtube\\.com/shorts/([A-Za-z0-9_-]{11})(?:[/?#].*)?"""
+                                    ).matchEntire(youtubeShortUrl.trim())?.groupValues?.getOrNull(1)
+                                    TextButton(enabled = shortId != null && !busy, onClick = {
+                                        if (shortId != null) task {
+                                            val verification = api("/api/youtube-short?id=${enc(shortId)}")
+                                            if (!verification.optBoolean("eligible", false)) {
+                                                featureMessage = "الفيديو ليس Shorts صالحًا للريلز أو يتجاوز 3 دقائق. استخدم مشاركته كفيديو يوتيوب عادي."
+                                            } else {
+                                                youtubePlayRequested = false
+                                                activeYoutubePostId = ""
+                                                youtubePostDraftId = shortId
+                                                youtubePostDraftTitle = "YouTube Short"
+                                                youtubePostDraftIsShort = true
+                                                youtubeShortUrl = ""
+                                                openHomeComposer()
+                                            }
+                                        }
+                                    }) {
+                                        SiteIcon("video", tint = GoldLight, size = 19.dp)
+                                        Spacer(Modifier.width(5.dp))
+                                        Text("تجهيز الشورت للنشر", color = GoldLight)
+                                    }
+                                }
+                            }
                             items(youtubeItems) { v -> CardBox {
                                 val id = v.optString("id")
                                 val pickVideo = {
@@ -3934,8 +3989,9 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                     modifier = Modifier.clickable(onClick = pickVideo))
                                 Text(v.optString("channel"), color = Color.LightGray, fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 if (id.matches(Regex("[A-Za-z0-9_-]{11}"))) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        IconButton(modifier = Modifier.size(48.dp).semantics { contentDescription = "مشاركة الفيديو كمنشور في الرئيسية" }, onClick = {
+                                    IconButton(modifier = Modifier.size(48.dp)
+                                        .semantics { contentDescription = "مشاركة الفيديو كمنشور في الرئيسية" },
+                                        onClick = {
                                             youtubePlayRequested = false
                                             activeYoutubePostId = ""
                                             youtubePostDraftId = id
@@ -3943,15 +3999,6 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                             youtubePostDraftIsShort = false
                                             openHomeComposer()
                                         }) { SiteIcon("share", size = 20.dp) }
-                                        TextButton(onClick = {
-                                            youtubePlayRequested = false
-                                            activeYoutubePostId = ""
-                                            youtubePostDraftId = id
-                                            youtubePostDraftTitle = v.optString("title").take(160)
-                                            youtubePostDraftIsShort = true
-                                            openHomeComposer()
-                                        }) { Text("نشر كشورت في الريلز", color = GoldLight, fontSize = 12.sp) }
-                                    }
                                 }
                             } }
                         }
