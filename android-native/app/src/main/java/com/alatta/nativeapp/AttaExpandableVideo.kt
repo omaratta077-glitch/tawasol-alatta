@@ -124,11 +124,10 @@ internal fun AttaExpandableVideo(url: String, posterUrl: String? = null, onOpen:
 /** عنصر واحد في ريلز العطا: إمّا ملف فيديو أو فيديو YouTube مرفق بمنشور.
  * تُحفظ هويّة المنشور الحقيقية للتعليقات والتفاعل؛ المفتاح الخاص يمنع ضياع فيديو إن وُجد النوعان بمنشور واحد.
  */
-internal data class AttaReelEntry(val post: JSONObject, val key: String, val videoUrl: String = "", val youtubeId: String? = null)
+internal data class AttaReelEntry(val post: JSONObject, val key: String,
+    val videoUrl: String = "", val youtubeId: String? = null, val social: SocialVideoLink? = null)
 
-/** الريلز تضم فيديوهات العطا المرفوعة وYouTube Shorts التي نُشرت صراحة كشورت.
- * مقاطع YouTube الأفقية العادية لا تظهر هنا، ولا تُنزَّل أو تُعاد استضافتها.
- */
+/** ريلز العطا تعرض الفيديوهات المرفوعة وروابط YouTube وMeta العامة من المنشورات. */
 internal fun uploadedPostReels(
     posts: List<JSONObject>,
     rejectedShortIds: Set<String> = emptySet()
@@ -141,6 +140,9 @@ internal fun uploadedPostReels(
         youtubePostId(post.optString("text"))?.let { videoId ->
             if (videoId !in rejectedShortIds)
                 add(AttaReelEntry(post, "$postId:youtube:$videoId", youtubeId = videoId))
+        }
+        socialVideoInPost(post.optString("text"))?.let { social ->
+            add(AttaReelEntry(post, "$postId:social:${social.url}", social = social))
         }
     }
 }.distinctBy { it.key }
@@ -213,7 +215,8 @@ internal fun AttaPostMediaViewer(
     val id = current.optString("id")
     val url = reel.videoUrl
     val youtubeId = reel.youtubeId
-    val nativeVideo = isVideo && youtubeId == null
+    val social = reel.social
+    val nativeVideo = isVideo && youtubeId == null && social == null
     val stateKey = playbackKey ?: reel.key
     var youtubePlaying by remember(stateKey) { mutableStateOf(false) }
     var youtubeStarted by remember(stateKey) { mutableStateOf(false) }
@@ -447,7 +450,7 @@ internal fun AttaPostMediaViewer(
             .then(if (reelsMode) Modifier else Modifier.safeDrawingPadding())) {
             Box(Modifier.weight(1f).fillMaxWidth().clipToBounds()
                 .pointerInput(reel.key) {
-                    if (reelsMode && youtubeId == null) {
+                    if (reelsMode && youtubeId == null && social == null) {
                         var drag = 0f
                         detectVerticalDragGestures(
                             onDragStart = { drag = 0f },
@@ -513,6 +516,11 @@ internal fun AttaPostMediaViewer(
                     }
                     // YouTube يعرض زر التشغيل الأصلي في المنتصف؛ لا نضع فوقه زرًا ثانيًا.
                     // تبقى المساحة حرة لسحب الشورت ولمس أدوات YouTube المضمّنة.
+                } else if (social != null && reelsOnly) {
+                    key(reel.key) {
+                        SocialVideoPostEmbed(social, Modifier.fillMaxSize(),
+                            portrait = true, onSwipe = onShortDrag)
+                    }
                 } else if (!isVideo) AttaZoomableImage(url, "صورة المنشور", onTap = { controls = !controls })
                 if (reelsOnly && controls && player != null) {
                     Box(Modifier.align(Alignment.Center).size(66.dp)
@@ -561,7 +569,7 @@ internal fun AttaPostMediaViewer(
                     }
                 }
                 // ثبّت الشريط الاجتماعي الرأسي عند الحافة اليمنى الفعلية في تخطيطي RTL وLTR.
-                if ((player != null || youtubeId != null) && (sendReaction != null || onShare != null)) {
+                if ((player != null || youtubeId != null || social != null) && (sendReaction != null || onShare != null)) {
                     // أبعد أدوات العطا عن عنوان وأزرار YouTube الأصلية أعلى الشورت.
                     Column(Modifier.align(AbsoluteAlignment.TopRight)
                         .absolutePadding(top = if (youtubeId != null) 122.dp else 12.dp,
