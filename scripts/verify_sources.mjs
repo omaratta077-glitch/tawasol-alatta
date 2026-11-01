@@ -68,7 +68,7 @@ const navItems=chromeUi.split('val destinations = listOf(',2)[1].split('val scro
 assert.ok(navItems.includes('Triple("ريلز", "video", "ريلز")') &&
   !navItems.includes('Triple("الرسائل"') &&
   chromeUi.includes('PremiumTopItem("message-circle", "الرسائل"') &&
-  native.includes('"ريلز" -> {') && native.includes('uploadedPostReels(reelPosts)') &&
+  native.includes('"ريلز" -> {') && native.includes('uploadedPostReels(reelPosts, rejectedShortIds)') &&
   native.includes('collectUploadedReels(reset = true)') &&
   native.includes('FeedPages.fetch(::get, next)') &&
   native.includes('onLoadMoreReels = {') &&
@@ -93,6 +93,16 @@ assert.ok(uploadedPostDialog.includes('reelsOnly = true') &&
   native.includes('reelsOnly = true') &&
   !native.includes('includeYoutubePosts = true'),
   'Home uploaded video and Reels use one portrait viewer; YouTube never opens in the media dialog');
+const siteYoutube=fs.readFileSync('cloudflare-site/public/youtube-section.js','utf8');
+const workerSource=fs.readFileSync('cloudflare-site/src/worker.js','utf8');
+assert.ok(native.includes('youtube_verified_short_link') &&
+  native.includes('جاري تجهيز فيديو يوتيوب') &&
+  !native.includes('نشر كشورت في الريلز') &&
+  siteYoutube.includes('shortsForm.addEventListener') &&
+  !siteYoutube.includes("shortShare.onclick") &&
+  workerSource.includes('url.pathname==="/api/youtube-short"') &&
+  workerSource.includes('seconds<=180'),
+  'Real /shorts/ links require metadata check; original YouTube player shows thumbnail while loading');
 const youtubeShare=fs.readFileSync('android-native/app/src/main/java/com/alatta/nativeapp/YoutubePostShare.kt','utf8');
 assert.ok(youtubeShare.includes('alatta-youtube(-short)?') &&
   youtubeShare.includes('fun youtubeShortPostId(') &&
@@ -105,7 +115,10 @@ assert.ok(youtubeShare.includes('alatta-youtube(-short)?') &&
   'YouTube Shorts require explicit post type and reuse existing site embed with play/pause signals');
 const videoViewer=fs.readFileSync('android-native/app/src/main/java/com/alatta/nativeapp/AttaExpandableVideo.kt','utf8');
 assert.ok(videoViewer.includes('val reelsMode = reelsOnly && live == null') &&
-  videoViewer.includes('internal fun uploadedPostReels(posts: List<JSONObject>)') &&
+  videoViewer.includes('internal fun uploadedPostReels(') &&
+  videoViewer.includes('rejectedShortIds: Set<String> = emptySet()') &&
+  native.includes('shortEligibility.filterValues { !it }.keys') &&
+  native.includes('api("/api/youtube-short?id=') &&
   !videoViewer.includes('mixedPostReels(') &&
   !videoViewer.includes('youtubePlayerContent') &&
   !videoViewer.includes('includeYoutubePosts') &&
@@ -117,7 +130,9 @@ assert.ok(videoViewer.includes('val reelsMode = reelsOnly && live == null') &&
   videoViewer.includes('if (reelsMode && youtubeId == null)') &&
   videoViewer.includes('youtubeShortPostId(post.optString("text"))') &&
   videoViewer.includes('if (player != null && !reelsOnly) Row(') &&
-  videoViewer.includes('if (reelsOnly && controls && (player != null || (youtubeId != null && youtubeStarted)))') &&
+  videoViewer.includes('if (reelsOnly && controls && player != null)') &&
+  !videoViewer.includes('if (youtubeStarted) Box(Modifier.align(Alignment.Center)') &&
+  videoViewer.includes('top = if (youtubeId != null) 122.dp else 12.dp') &&
   videoViewer.includes('delay(if (reelsOnly) 1500L else 2500L)') &&
   videoViewer.includes('BoxWithConstraints(Modifier.fillMaxSize())') &&
   videoViewer.includes('override fun onVideoSizeChanged') &&
