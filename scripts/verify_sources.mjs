@@ -105,6 +105,12 @@ assert.ok(azkarCatalog.includes('fatiha, ayatKursi, baqarahEnding') &&
   azkarCatalog.includes('سَيِّدِنَا مُحَمَّدٍ", 10,') &&
   !azkarCatalog.includes('Dhikr("salawat-ten"'),
   'Daily adhkar retain Fatiha, Kursi, and Baqarah; move counts over 10 to end and keep unique ten-count salawat last');
+assert.ok(azkarScreen.includes('ContentScale.FillBounds') &&
+  !azkarScreen.includes('ContentScale.Crop') &&
+  azkarScreen.includes('Modifier.size(30.dp).clip(CircleShape)') &&
+  azkarScreen.includes('Text("+", color = PremiumGoldLight, fontWeight = FontWeight.Bold, fontSize = 15.sp)') &&
+  azkarScreen.includes('Text("−", color = PremiumGoldLight, fontWeight = FontWeight.Bold, fontSize = 15.sp)'),
+  'Azkar illustration fits without crop; font control buttons stay compact and readable');
 assert.ok(azkarScreen.includes('AzkarHeaderPlaque(Modifier.weight(1f))') &&
   azkarScreen.includes('val goldStyle = true') &&
   azkarScreen.includes('azkar_prayer_backdrop') &&
