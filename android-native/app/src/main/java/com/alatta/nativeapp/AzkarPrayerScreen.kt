@@ -11,6 +11,7 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -36,6 +37,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -69,6 +71,25 @@ private fun PrayerCard(modifier: Modifier = Modifier, innerPadding: Dp = 16.dp, 
     Column(modifier.fillMaxWidth().clip(prayerShape).background(PremiumPanel)
         .border(1.dp, PremiumBorder.copy(alpha = .55f), prayerShape).padding(innerPadding),
         verticalArrangement = Arrangement.spacedBy(10.dp), content = content)
+}
+
+/** زخرفة عنوان الأذكار بجانب شعار التطبيق؛ لا تفصل الآيات ولا تغيّر ترتيبها. */
+@Composable
+private fun AzkarHeaderPlaque(modifier: Modifier = Modifier) {
+    Row(modifier, verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        Box(Modifier.weight(1f).height(1.dp).background(PremiumGold))
+        Text("❖", color = PremiumGoldLight, fontSize = 12.sp)
+        Box(Modifier.clip(RoundedCornerShape(22.dp))
+            .background(PremiumPanel)
+            .border(1.dp, PremiumGold, RoundedCornerShape(22.dp))
+            .padding(horizontal = 15.dp, vertical = 6.dp), contentAlignment = Alignment.Center) {
+            Text("الأذكار", color = PremiumGoldLight, fontWeight = FontWeight.Bold,
+                fontSize = 18.sp, maxLines = 1)
+        }
+        Text("❖", color = PremiumGoldLight, fontSize = 12.sp)
+        Box(Modifier.weight(1f).height(1.dp).background(PremiumGold))
+    }
 }
 
 /** رموز صغيرة مرسومة بالكود؛ بلا رسوم أو خطوط أو إعلانات أو كود منسوخ من التطبيق المرجعي. */
@@ -267,11 +288,28 @@ internal fun AzkarPrayerScreen(modifier: Modifier = Modifier, onSharePost: (Stri
     val active = remember(settings, refresh) { settings.enabled && AdhanScheduler.exactAllowed(context) && AdhanScheduler.notificationAllowed(context) && PrayerStore.prefs(context).getLong("scheduled_at", 0L) > now }
     val group = dhikrGroups.find { it.id == page }
     Column(modifier.fillMaxSize().background(PremiumBackground)) {
-        Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-            if (page != "home") IconButton(onClick = { page = "home" }) { SiteIcon("arrow-left", size = 22.dp) }
-            Text(group?.title ?: when (page) { "times" -> "مواقيت الصلاة"; "settings" -> "إعدادات الأذان"; else -> "الأذكار والعبادات" },
-                Modifier.weight(1f), color = PremiumGoldLight, fontWeight = FontWeight.Bold, fontSize = 19.sp,
-                maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+        Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically) {
+            if (group != null) {
+                // بجانب أيقونة التطبيق، يُكتب «الأذكار» فقط داخل الزخرفة في الأعلى.
+                Image(painter = painterResource(id = R.mipmap.ic_launcher),
+                    contentDescription = "شعار تواصل العطا",
+                    modifier = Modifier.size(48.dp).clip(CircleShape)
+                        .border(1.dp, PremiumGold, CircleShape))
+                Spacer(Modifier.width(7.dp))
+                AzkarHeaderPlaque(Modifier.weight(1f))
+                IconButton(onClick = { page = "home" }) {
+                    SiteIcon("arrow-left", tint = PremiumGoldLight, size = 22.dp)
+                }
+            } else {
+                if (page != "home") IconButton(onClick = { page = "home" }) {
+                    SiteIcon("arrow-left", size = 22.dp)
+                }
+                Text(when (page) { "times" -> "مواقيت الصلاة"; "settings" -> "إعدادات الأذان"; else -> "الأذكار والعبادات" },
+                    Modifier.weight(1f), color = PremiumGoldLight,
+                    fontWeight = FontWeight.Bold, fontSize = 19.sp,
+                    maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+            }
         }
         if (message.isNotBlank()) Row(Modifier.fillMaxWidth().background(prayerTeal).padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(message, Modifier.weight(1f), color = Color.White, fontSize = 13.sp)
