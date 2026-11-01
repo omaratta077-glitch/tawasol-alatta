@@ -24,9 +24,9 @@ android {
         applicationId = "com.alatta.nativeapp"
         minSdk = 26
         targetSdk = 35
-        // الإصدار 1.0.234: تصغير عداد الأذكار والأزرار وتباعدها، تعديل التكرارات وترتيب أذكار الصباح والمساء مع الاستغفار الأخير 100 مرة، والتعوذ قبل آية الكرسي وخواتيم البقرة.
-        versionCode = 334
-        versionName = "1.0.234"
+        // الإصدار 1.0.235: ضبط ذكر كلمتان حبيبتان إلى الرحمن إلى سبحان الله وبحمده سبحان الله العظيم 10 مرات في الصباح والمساء مع الحفاظ على بقية الأذكار.
+        versionCode = 335
+        versionName = "1.0.235"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("boolean", "IS_APPGALLERY", appGalleryBuild.toString())
         val hmsId = (System.getenv("ALATTA_HMS_APP_ID") ?: "").trim().takeIf { it.matches(Regex("[0-9]{1,20}")) } ?: ""
