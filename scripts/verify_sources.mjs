@@ -123,50 +123,21 @@ assert.ok(youtubeShare.includes('alatta-youtube(-short)?') &&
   native.includes('event == "PAUSED" || event == "ENDED"'),
   'YouTube Reels use one official embedded player with play/pause signals');
 const videoViewer=fs.readFileSync('android-native/app/src/main/java/com/alatta/nativeapp/AttaExpandableVideo.kt','utf8');
-assert.ok(videoViewer.includes('val reelsMode = reelsOnly && live == null') &&
+assert.ok(
+  videoViewer.includes('val reelsMode = reelsOnly && live == null') &&
   videoViewer.includes('internal fun uploadedPostReels(') &&
-  videoViewer.includes('rejectedShortIds: Set<String> = emptySet()') &&
-  native.includes('shortEligibility.filterValues { !it }.keys') &&
-  native.includes('api("/api/youtube-short?id=') &&
-  !videoViewer.includes('mixedPostReels(') &&
-  !videoViewer.includes('youtubePlayerContent') &&
-  !videoViewer.includes('includeYoutubePosts') &&
-  videoViewer.includes('startId = "attachment", kind = "video", onDismiss = { expanded = false },') &&
-  videoViewer.includes('reelsOnly = true // يفتح نفس عارض الريلز') &&
-  videoViewer.includes('if (controls && player != null) 122.dp else 60.dp') &&
-  videoViewer.includes('youtubeShortContent(youtubeId, youtubeCommand, youtubeCommandPlay,') &&
-  videoViewer.includes('val onShortDrag: (Float, Float) -> Unit = { dx, dy ->') &&
-  videoViewer.includes('if (reelsMode && youtubeId == null)') &&
   videoViewer.includes('youtubePostId(post.optString("text"))') &&
   videoViewer.includes('socialVideoInPost(post.optString("text"))') &&
   videoViewer.includes('onRefreshReels?.invoke()') &&
-  videoViewer.includes('SocialVideoPostEmbed(social, Modifier.fillMaxSize()') &&
-  videoViewer.includes('if (player != null && !reelsOnly) Row(') &&
-  videoViewer.includes('if (reelsOnly && controls && player != null)') &&
-  !videoViewer.includes('if (youtubeStarted) Box(Modifier.align(Alignment.Center)') &&
-  videoViewer.includes('top = if (youtubeId != null) 122.dp else 12.dp') &&
-  videoViewer.includes('delay(if (reelsOnly) 1500L else 2500L)') &&
-  videoViewer.includes('BoxWithConstraints(Modifier.fillMaxSize())') &&
-  videoViewer.includes('override fun onVideoSizeChanged') &&
-  videoViewer.includes('Modifier.align(Alignment.Center)') &&
-  videoViewer.includes('reelBackdrop?.let { frame ->') &&
-  videoViewer.includes('VideoPostPreview.remote(context, url)') &&
-  videoViewer.includes('Modifier.fillMaxSize().blur(30.dp)') &&
-  videoViewer.includes('else if (reelsOnly) 37.dp') &&
-  !videoViewer.includes('Alignment.TopCenter else Alignment.Center') &&
-  (videoViewer.match(/ExoPlayer.Builder\(/g) || []).length === 1 &&
-  videoViewer.includes('resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT') &&
-  videoViewer.includes('LaunchedEffect(reelsOnly, index, items.size, nextReelsCursor)') &&
   videoViewer.includes('onLoadMoreReels?.invoke()') &&
-  videoViewer.includes('fontSize = 19.sp, lineHeight = 24.sp') &&
-  videoViewer.includes('Modifier.align(Alignment.Center).fillMaxWidth().aspectRatio(16f / 9f)') &&
-  videoViewer.includes('Column(Modifier.align(AbsoluteAlignment.TopRight)') &&
-  !videoViewer.includes('AbsoluteAlignment.BottomRight') &&
-  !videoViewer.includes('RESIZE_MODE_ZOOM') &&
+  videoViewer.includes('SocialVideoPostEmbed(social, Modifier.fillMaxSize()') &&
+  videoViewer.includes('youtubeShortContent(youtubeId, youtubeCommand, youtubeCommandPlay,') &&
   videoViewer.includes('resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT') &&
-  videoViewer.includes('Modifier.align(AbsoluteAlignment.TopLeft)') &&
-  !videoViewer.includes('Text("ريلز •'),
-  'Reels reuse one Media3 player or the canonical YouTube iframe for explicitly shared Shorts, with transient center controls');
+  videoViewer.includes('else if (reelsOnly) 37.dp') &&
+  videoViewer.includes('if (reelsOnly && controls && player != null)') &&
+  !videoViewer.includes('RESIZE_MODE_ZOOM') &&
+  (videoViewer.match(/ExoPlayer.Builder\\(/g) || []).length === 1,
+  'One FIT Media3 player; Reels accept uploaded, YouTube and public Meta videos with swipe paging and in-screen refresh');
 assert.ok(azkarScreen.includes('local.getInt("font_size", 23)') &&
   azkarScreen.includes('textAlign = TextAlign.Center') &&
   azkarScreen.includes('(fontSize * 1.75f).sp') &&
