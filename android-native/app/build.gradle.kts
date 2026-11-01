@@ -24,9 +24,9 @@ android {
         applicationId = "com.alatta.nativeapp"
         minSdk = 26
         targetSdk = 35
-        // الإصدار 1.0.216: إصلاح إغلاق شاشة الأذكار باستبدال أيقونة التشغيل التكيفية بصورة الشعار المدعومة.
-        versionCode = 316
-        versionName = "1.0.216"
+        // الإصدار 1.0.217: توسيط عناوين الأذكار المزخرفة وعلامة الإكمال داخل البطاقة، وضبط الفاتحة وأيقونة ريلز.
+        versionCode = 317
+        versionName = "1.0.217"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("boolean", "IS_APPGALLERY", appGalleryBuild.toString())
         val hmsId = (System.getenv("ALATTA_HMS_APP_ID") ?: "").trim().takeIf { it.matches(Regex("[0-9]{1,20}")) } ?: ""
