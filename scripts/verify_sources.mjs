@@ -97,7 +97,8 @@ const youtubeShare=fs.readFileSync('android-native/app/src/main/java/com/alatta/
 assert.ok(youtubeShare.includes('alatta-youtube(-short)?') &&
   youtubeShare.includes('fun youtubeShortPostId(') &&
   native.includes('youtubeShortContent = { shortId, command, shouldPlay, changed, onShortsDrag ->') &&
-  native.includes('YouTubePlayer(shortId, portrait = true,') &&
+  native.includes('YouTubePlayer(shortId, onMiniDrag = onShortsDrag,') &&
+  native.includes('portrait = true, playbackCommand = command,') &&
   native.includes('youtubePostDraftIsShort = true') &&
   native.includes('playbackCommand = command') &&
   native.includes('event == "PAUSED" || event == "ENDED"'),
