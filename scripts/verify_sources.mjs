@@ -112,6 +112,14 @@ assert.ok(!native.includes('youtube_verified_short_link') &&
   workerSource.includes('ids.length>25') &&
   native.includes('api("/api/youtube-short?ids='),
   'One existing YouTube share button offers Post/Reels on app and site, without separate Shorts paste form');
+assert.ok(native.includes('if (!frameLoaded || error.isNotBlank()) {') &&
+  native.includes('Box(Modifier.fillMaxSize().background(Color.Black)') &&
+  native.includes('جاري تجهيز فيديو يوتيوب داخل العطا') &&
+  native.includes('إعادة تشغيل الفيديو') &&
+  native.includes('playerReload++') &&
+  native.includes('loadUrl("$BASE/")') &&
+  !native.includes('if (portrait && !frameLoaded && error.isBlank())'),
+  'Site login screen hidden while WebView boots: one official YouTube iframe reveals only after load, safe retry');
 const youtubeShare=fs.readFileSync('android-native/app/src/main/java/com/alatta/nativeapp/YoutubePostShare.kt','utf8');
 assert.ok(youtubeShare.includes('alatta-youtube(-short)?') &&
   youtubeShare.includes('fun youtubeShortPostId(') &&
