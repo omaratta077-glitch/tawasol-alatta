@@ -188,7 +188,7 @@ assert.ok(azkarCatalog.includes('fatiha, ayatKursi, baqarahEnding') &&
   azkarCatalog.includes('Dhikr("worry-debt"') &&
   azkarCatalog.includes('قَهْرِ الرِّجَالِ", 3,') &&
   azkarCatalog.includes('بِاللَّهِ", 10, "صحيح مسلم • 2704') &&
-  azkarCatalog.includes('Dhikr("beloved-words", "التسبيحات الثلاث"') &&
+  azkarCatalog.includes('Dhikr("beloved-words", "كلمتان حبيبتان إلى الرحمن"') &&
   !azkarCatalog.includes('Dhikr("salawat-ten"'),
   'Morning/evening Adhkar keep Quran texts, custom repetition targets and ending: salawat, tawhid, tasbih, 100-count forgiveness');
 assert.ok(azkarScreen.includes('ContentScale.FillBounds') &&
