@@ -487,10 +487,10 @@ internal fun AttaPostMediaViewer(
                             AndroidView(factory = { ctx -> PlayerView(ctx).apply {
                                 this.player = player
                                 useController = false
-                                resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+                                resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM
                             } }, update = {
                                 it.player = player
-                                it.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+                                it.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM
                             }, modifier = Modifier.align(Alignment.Center)
                                 .fillMaxWidth().height(displayHeight))
                         }
