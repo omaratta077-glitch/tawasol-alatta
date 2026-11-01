@@ -1699,15 +1699,21 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
         // البصمات القديمة التي صنّفت محاضرات طويلة "Shorts" لا تظهر في الريلز.
         val toCheck = collected.mapNotNull { youtubeShortPostId(it.optString("text")) }
             .distinct().filterNot { checked.containsKey(it) }.take(20)
-        for (shortId in toCheck) {
+        if (toCheck.isNotEmpty()) {
             try {
+                // طلب واحد للتحقق من حتى 20 فيديو؛ لا نؤخر تحميل الريلز بطلب لكل فيديو.
                 val verification = withContext(Dispatchers.IO) {
-                    api("/api/youtube-short?id=${enc(shortId)}")
+                    api("/api/youtube-short?ids=${enc(toCheck.joinToString(","))}")
                 }
-                if (verification.optBoolean("ok"))
-                    checked[shortId] = verification.optBoolean("eligible", false)
+                if (verification.optBoolean("ok")) {
+                    val verified = verification.optJSONObject("results")
+                    for (shortId in toCheck) {
+                        val result = verified?.optJSONObject(shortId) ?: continue
+                        checked[shortId] = result.optBoolean("eligible", false)
+                    }
+                }
             } catch (cancelled: CancellationException) { throw cancelled }
-              catch (_: Exception) { /* عند تعذر الشبكة لا نعطل فيديوهات العطا الأصلية. */ }
+              catch (_: Exception) { /* يبقى تشغيل فيديوهات العطا متاحًا عند تعذر التحقق. */ }
         }
         shortEligibility = checked
         reelPosts = collected.distinctBy { it.optString("id") }
