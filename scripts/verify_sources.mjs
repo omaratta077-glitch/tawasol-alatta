@@ -71,9 +71,17 @@ assert.ok(navItems.includes('Triple("ريلز", "video", "ريلز")') &&
   native.includes('"ريلز" -> {') && native.includes('uploadedPostReels(posts)') &&
   native.includes('reelsOnly = true') &&
   native.includes('includeYoutubePosts = true') &&
-  native.includes('visible = chromeVisible && tab != "ريلز"'),
-  'Only uploaded videos appear in Reels; YouTube post viewer and Messenger remain independent');
+  native.includes('visible = chromeVisible && tab != "القرآن"') &&
+  native.includes('chromeVisible = tab != "القرآن"'),
+  'Only uploaded videos appear in Reels; YouTube stays 16:9 and only Mushaf hides app navigation');
 
+const mushafReader = fs.readFileSync('android-native/app/src/main/java/com/alatta/nativeapp/AttaQuranReader.kt','utf8');
+assert.ok(mushafReader.includes('AnimatedVisibility(visible = readerControlsVisible') &&
+  mushafReader.includes('ScaleGestureDetector(context') &&
+  mushafReader.includes('❖  صفحة') &&
+  mushafReader.includes('onZoomChanged = { pageZoom = it }') &&
+  mushafReader.includes('pageZoom = (pageZoom + .15f).coerceAtMost(2f)'),
+  'Single Quran reader hides its toolbar on idle and supports SVG zoom and ornate page numbers');
 const videoViewer=fs.readFileSync('android-native/app/src/main/java/com/alatta/nativeapp/AttaExpandableVideo.kt','utf8');
 assert.ok(videoViewer.includes('val reelsMode = (reelsOnly || includeYoutubePosts) && live == null') &&
   videoViewer.includes('mixedPostReels(posts).filter { it.youtubeId == null && it.videoUrl.isNotBlank() }') &&
