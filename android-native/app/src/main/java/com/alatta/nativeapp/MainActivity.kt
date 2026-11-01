@@ -3020,6 +3020,23 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                     draft = composed
                                     openHomeComposer()
                                 }
+                            },
+                            onShareDhikrImagePost = { group, entry ->
+                                // ارفع التصميم الذهبي كمرفق في مُنشئ منشورات العطا، لا مشاركات خارجية.
+                                try {
+                                    require(pickedUri == null && mushafPostDraft == null &&
+                                        youtubePostDraftId.isBlank()) {
+                                        "أزل المرفق الموجود من المسودة قبل إضافة صورة الذكر."
+                                    }
+                                    val fileUri = createDhikrGoldPostImage(ctx, group, entry)
+                                    pickedUri = fileUri
+                                    pickedMime = "image/png"
+                                    draft = if (draft.isBlank()) entry.title
+                                        else draft.trim() + "\n\n" + entry.title
+                                    openHomeComposer()
+                                } catch (e: Exception) {
+                                    featureMessage = e.message ?: "تعذر تجهيز صورة الذكر للنشر"
+                                }
                             })
                         "الرياضة" -> FootballScreen("", Modifier.weight(1f), isAdmin = adminRole == "super_admin", token = token, callInProgress = activeCall != null || incomingCall != null || pendingPermissionCall != null,
                             onManage = { navigate("الإدارة") }, onBeforePlayback = { youtubePlayRequested = false; activeYoutubePostId = "" },
