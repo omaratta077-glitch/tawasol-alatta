@@ -314,7 +314,7 @@ internal fun AzkarPrayerScreen(modifier: Modifier = Modifier, onSharePost: (Stri
             verticalAlignment = Alignment.CenterVertically) {
             if (group != null) {
                 // بجانب أيقونة التطبيق، يُكتب «الأذكار» فقط داخل الزخرفة في الأعلى.
-                Image(painter = painterResource(id = R.mipmap.ic_launcher),
+                Image(painter = painterResource(id = R.drawable.logo_premium),
                     contentDescription = "شعار تواصل العطا",
                     modifier = Modifier.size(48.dp).clip(CircleShape)
                         .border(1.dp, PremiumGold, CircleShape))
