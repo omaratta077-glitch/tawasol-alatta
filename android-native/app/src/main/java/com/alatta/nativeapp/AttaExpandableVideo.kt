@@ -137,9 +137,10 @@ internal fun uploadedPostReels(
         val postId = post.optString("id")
         val url = media(post.optString("video"))
         if (url.isNotBlank()) add(AttaReelEntry(post, "$postId:video", videoUrl = url))
-        youtubeShortPostId(post.optString("text"))?.let { shortId ->
-            if (shortId !in rejectedShortIds)
-                add(AttaReelEntry(post, "$postId:short:$shortId", youtubeId = shortId))
+        // الفيديوهات العادية وShorts المنشورة من يوتيوب تدخل نفس قائمة الريلز.
+        youtubePostId(post.optString("text"))?.let { videoId ->
+            if (videoId !in rejectedShortIds)
+                add(AttaReelEntry(post, "$postId:youtube:$videoId", youtubeId = videoId))
         }
     }
 }.distinctBy { it.key }
@@ -181,7 +182,9 @@ internal fun AttaPostMediaViewer(
     youtubeShortContent: (@Composable (String, Int, Boolean, (Boolean) -> Unit, (Float, Float) -> Unit) -> Unit)? = null,
     rejectedShortIds: Set<String> = emptySet(),
     nextReelsCursor: String? = null,
-    onLoadMoreReels: (() -> Unit)? = null
+    onLoadMoreReels: (() -> Unit)? = null,
+    onRefreshReels: (() -> Unit)? = null,
+    reelsLoading: Boolean = false
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -388,6 +391,11 @@ internal fun AttaPostMediaViewer(
             index = next
             failed = ""
             controls = true
+        } else if (reelsOnly && !reelsLoading) {
+            // السحب للأسفل عند أول فيديو يحدث الموجز، وللأعلى عند الأخير يجلب الأقدم.
+            if (delta < 0 && index == 0) onRefreshReels?.invoke()
+            if (delta > 0 && index == items.lastIndex && nextReelsCursor != null)
+                onLoadMoreReels?.invoke()
         }
     }
     // رصد سحب الشورت داخل WebView الأصلي؛ لا نعطّل نقر زر تشغيل YouTube الرسمي.
@@ -596,10 +604,22 @@ internal fun AttaPostMediaViewer(
                         }
                     }
                 }
+                if (reelsOnly && reelsLoading) {
+                    Box(Modifier.align(Alignment.TopCenter).padding(top = 22.dp)
+                        .clip(RoundedCornerShape(40.dp)).background(Color(0x990B0B0B))
+                        .padding(horizontal = 12.dp, vertical = 7.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            CircularProgressIndicator(color = PremiumGoldLight,
+                                strokeWidth = 2.dp, modifier = Modifier.size(16.dp))
+                            Text("تحديث الريلز...", color = PremiumGoldLight, fontSize = 12.sp)
+                        }
+                    }
+                }
                 // تختفي عناصر التحكم في التشغيل تلقائيًا؛ ويبقى الشريط الاجتماعي الرأسي ظاهرًا.
                 if ((player != null || diagnosticReport != null) && controls) Column(
                     Modifier.align(Alignment.BottomCenter).fillMaxWidth()
-                        .padding(bottom = if (live != null) 20.dp else if (reelsOnly) 14.dp else 72.dp) // Reels controls overlay the video rather than reserving a black floor.
+                        .padding(bottom = if (live != null) 20.dp else if (reelsOnly) 37.dp else 72.dp) // ارفع خط التقدم الذهبي قليلًا دون تغيير مكان الفيديو أو قصّه.
                         .background(Brush.verticalGradient(listOf(Color.Transparent, Color(0xAA000000))))
                         .padding(start = 16.dp, top = 6.dp, end = 16.dp, bottom = 14.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
