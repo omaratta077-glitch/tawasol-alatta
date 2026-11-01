@@ -29,6 +29,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
@@ -230,6 +231,13 @@ internal fun AttaPostMediaViewer(
             }
         }
     }
+    // خلفية هادئة من إطار معاينة الفيديو نفسه (مخزّن مسبقًا إن وُجد).
+    // ليست مشغّل فيديو إضافيًا ولا تغيّر سرعة أو نسبة عرض الفيديو الأصلي.
+    val reelBackdrop by produceState<Bitmap?>(initialValue = null, url, reelsOnly) {
+        value = if (reelsOnly && url.isNotBlank())
+            runCatching { VideoPostPreview.remote(context, url) }.getOrNull()
+        else null
+    }
     val player = remember(nativeVideo, sources, playbackKey) {
         if (nativeVideo && sources != null) ExoPlayer.Builder(context)
             .setMediaSourceFactory(androidx.media3.exoplayer.source.DefaultMediaSourceFactory(requireNotNull(sources)))
@@ -388,10 +396,21 @@ internal fun AttaPostMediaViewer(
                         )
                     }
                 }) {
+                if (reelsOnly) {
+                    // لا نكبّر الفيديو ولا نقصّ أطرافه. نملأ المساحات الفارغة بصورة خلفية
+                    // غير متحركة من معاينة الفيديو، لا بمشغّل ثانٍ أو شريط أسود ضخم.
+                    reelBackdrop?.let { frame ->
+                        Image(frame.asImageBitmap(), contentDescription = null,
+                            modifier = Modifier.fillMaxSize().blur(30.dp),
+                            contentScale = ContentScale.Crop)
+                    }
+                    Box(Modifier.fillMaxSize().background(
+                        Brush.verticalGradient(listOf(Color(0x99000000),
+                            Color(0xB8000000), Color(0xD5000000)))))
+                }
                 if (player != null) {
                     if (reelsOnly) {
-                        // للمقاطع الرأسية: تبدأ الصورة من أعلى وتظهر بأبعادها الصحيحة.
-                        // عند اختلاف النسبة نترك المساحة الزائدة أسفل الفيديو بدل قص الوجوه والجوانب.
+                        // وضع الفيديو نفسه في منتصف المساحة مع الحفاظ على نسبة الطول والعرض.
                         BoxWithConstraints(Modifier.fillMaxSize()) {
                             val displayHeight = (maxWidth / videoAspectRatio.coerceAtLeast(.35f))
                                 .coerceAtMost(maxHeight)
@@ -402,9 +421,8 @@ internal fun AttaPostMediaViewer(
                             } }, update = {
                                 it.player = player
                                 it.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-                            }, modifier = Modifier.align(
-                                if (videoAspectRatio < 1f) Alignment.TopCenter else Alignment.Center
-                            ).fillMaxWidth().height(displayHeight))
+                            }, modifier = Modifier.align(Alignment.Center)
+                                .fillMaxWidth().height(displayHeight))
                         }
                     } else {
                         // الفيديوهات العادية والبث المباشر لا تتغير أبعادها.
@@ -436,7 +454,7 @@ internal fun AttaPostMediaViewer(
                     // الاسم والوصف فوق منطقة الإيماءات وشريط تشغيل الفيديو؛ لا يختفيان أسفل الشاشة.
                     Column(Modifier.align(Alignment.BottomStart).fillMaxWidth(.77f)
                         .padding(start = 16.dp,
-                            bottom = if (reelsOnly) (if (controls && player != null) 192.dp else 72.dp) else 56.dp),
+                            bottom = if (reelsOnly) (if (controls && player != null) 154.dp else 60.dp) else 56.dp),
                         verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Text(authorName, color = Color.White, fontWeight = FontWeight.Bold,
                             fontSize = 19.sp, lineHeight = 24.sp,
@@ -499,7 +517,7 @@ internal fun AttaPostMediaViewer(
                 // تختفي عناصر التحكم في التشغيل تلقائيًا؛ ويبقى الشريط الاجتماعي الرأسي ظاهرًا.
                 if ((player != null || diagnosticReport != null) && controls) Column(
                     Modifier.align(Alignment.BottomCenter).fillMaxWidth()
-                        .padding(bottom = if (live != null) 20.dp else 72.dp) // Compact live controls without resizing media.
+                        .padding(bottom = if (live != null) 20.dp else if (reelsOnly) 14.dp else 72.dp) // Reels controls overlay the video rather than reserving a black floor.
                         .background(Brush.verticalGradient(listOf(Color.Transparent, Color(0xAA000000))))
                         .padding(start = 16.dp, top = 6.dp, end = 16.dp, bottom = 14.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
@@ -563,7 +581,7 @@ internal fun AttaPostMediaViewer(
                         verticalAlignment = Alignment.CenterVertically) {
                         if (live != null) TextButton(enabled = !stopPlayback, onClick = { player.seekToDefaultPosition(); player.play() }) {
                             Text("للمباشر", color = Color(0xFFF6D776), fontSize = 12.sp)
-                        } else IconButton(onClick = {
+                        } else if (!reelsOnly) IconButton(onClick = {
                             changeVideo(-1)
                         }) { SiteIcon("skip-back", size = 20.dp, tint = Color.White) }
                         IconButton(enabled = !stopPlayback, onClick = {
@@ -589,7 +607,7 @@ internal fun AttaPostMediaViewer(
                                 DropdownMenuItem(text = { Text("تلقائي حسب الاتصال") }, onClick = { qualityCap = 0; qualityMenu = false })
                                 videoHeights.forEach { height -> DropdownMenuItem(text = { Text("حتى ${height}p") }, onClick = { qualityCap = height; qualityMenu = false }) }
                             }
-                        } else IconButton(onClick = {
+                        } else if (!reelsOnly) IconButton(onClick = {
                             changeVideo(1)
                         }) { SiteIcon("skip-forward", size = 20.dp, tint = Color.White) }
                     }
