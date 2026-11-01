@@ -68,12 +68,17 @@ const navItems=chromeUi.split('val destinations = listOf(',2)[1].split('val scro
 assert.ok(navItems.includes('Triple("ريلز", "video", "ريلز")') &&
   !navItems.includes('Triple("الرسائل"') &&
   chromeUi.includes('PremiumTopItem("message-circle", "الرسائل"') &&
-  native.includes('"ريلز" -> {') && native.includes('mixedPostReels(posts)') &&
-  native.includes('includeYoutubePosts = true'),
-  'Reels replaces only bottom-bar messages; top-bar Messenger and shared reels viewer remain');
+  native.includes('"ريلز" -> {') && native.includes('uploadedPostReels(posts)') &&
+  native.includes('reelsOnly = true') &&
+  native.includes('includeYoutubePosts = true') &&
+  native.includes('visible = chromeVisible && tab != "ريلز"'),
+  'Only uploaded videos appear in Reels; YouTube post viewer and Messenger remain independent');
 
 const videoViewer=fs.readFileSync('android-native/app/src/main/java/com/alatta/nativeapp/AttaExpandableVideo.kt','utf8');
-assert.ok(videoViewer.includes('val reelsMode = includeYoutubePosts && live == null') &&
+assert.ok(videoViewer.includes('val reelsMode = (reelsOnly || includeYoutubePosts) && live == null') &&
+  videoViewer.includes('mixedPostReels(posts).filter { it.youtubeId == null && it.videoUrl.isNotBlank() }') &&
+  videoViewer.includes('bottom = 12.dp') &&
+  videoViewer.includes('fontSize = 19.sp, lineHeight = 24.sp') &&
   videoViewer.includes('Modifier.align(Alignment.Center).fillMaxWidth().aspectRatio(16f / 9f)') &&
   videoViewer.includes('Column(Modifier.align(AbsoluteAlignment.TopRight)') &&
   !videoViewer.includes('AbsoluteAlignment.BottomRight') &&
@@ -81,7 +86,7 @@ assert.ok(videoViewer.includes('val reelsMode = includeYoutubePosts && live == n
   videoViewer.includes('else AspectRatioFrameLayout.RESIZE_MODE_FIT') &&
   videoViewer.includes('Modifier.align(AbsoluteAlignment.TopLeft)') &&
   !videoViewer.includes('Text("ريلز •'),
-  'Reels fill vertical display without a top counter; live playback stays FIT');
+  'Uploaded Reels stay vertical with bottom author; YouTube stays 16:9 and live playback remains FIT');
 assert.ok(azkarScreen.includes('local.getInt("font_size", 23)') &&
   azkarScreen.includes('textAlign = TextAlign.Center') &&
   azkarScreen.includes('(fontSize * 1.75f).sp') &&
