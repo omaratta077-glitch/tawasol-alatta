@@ -44,6 +44,11 @@ class YoutubePostShareTest {
         assertEquals("abcdefghijk", youtubeShortPostId(shortText))
         assertEquals("شورت قرآني", visibleYoutubePostText(shortText))
         assertEquals(video, youtubePostId(youtube.optString("text")))
+        val filtered = uploadedPostReels(listOf(uploaded, youtube, short, both),
+            rejectedShortIds = setOf("abcdefghijk"))
+        assertEquals(listOf("post1", "post4", "post4"),
+            filtered.map { it.post.optString("id") })
+        assertEquals(listOf(null, null, video), filtered.map { it.youtubeId })
     }
 
     @Test fun ordinaryPostsAreLeftUntouched() {
