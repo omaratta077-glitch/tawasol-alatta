@@ -42,10 +42,10 @@ for (const control of ["فهرس المصحف الشريف","الأجزاء","ا
 for(const fn of ['playRange(', 'audio.pause()', 'audio.resume()', 'audio.next()', 'audio.previous()', 'repeatRange = !repeatRange','repeat = { repeatRange }','إلى آخر الصفحة','إلى آخر السورة','customEnd','QURAN_RECITERS']) {
  assert.ok(source.includes(fn), `missing range playback control ${fn}`);
 }
-assert.match(source, /height\\(38\\.dp\\)/);
+assert.ok(source.includes('height(38.dp)'), 'Missing compact Quran footer');
 assert.match(source, /ScaleGestureDetector/);
 assert.match(source, /readerControlsVisible/);
-assert.match(source, /mushafArabicNumber\\(page\\)/);
+assert.ok(source.includes('mushafArabicNumber(page)'), 'Missing ornamental Arabic page number');
 
 // يستخدم المشغّل المصغّر أيقونة للتكرار، لكن يجب أن يبقى زر التبديل عاملًا.
 assert.match(source, /IconButton\(onClick = \{ repeatRange = !repeatRange \}\)/);
