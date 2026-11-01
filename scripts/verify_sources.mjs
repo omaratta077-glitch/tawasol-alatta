@@ -95,16 +95,22 @@ assert.ok(uploadedPostDialog.includes('reelsOnly = true') &&
   'Home uploaded video and Reels use one portrait viewer; YouTube never opens in the media dialog');
 const siteYoutube=fs.readFileSync('cloudflare-site/public/youtube-section.js','utf8');
 const workerSource=fs.readFileSync('cloudflare-site/src/worker.js','utf8');
-assert.ok(native.includes('youtube_verified_short_link') &&
+assert.ok(!native.includes('youtube_verified_short_link') &&
+  !native.includes('youtubeShortUrl') &&
+  native.includes('youtubeShareSelection = id to v.optString("title").take(160)') &&
+  native.includes('مشاركة كمنشور') && native.includes('مشاركة في الريلز') &&
+  native.includes('youtubeShareChecking') &&
   native.includes('جاري تجهيز فيديو يوتيوب') &&
-  !native.includes('نشر كشورت في الريلز') &&
-  siteYoutube.includes('shortsForm.addEventListener') &&
-  !siteYoutube.includes("shortShare.onclick") &&
+  !siteYoutube.includes('shortsForm') &&
+  !siteYoutube.includes('shortShare.onclick') &&
+  siteYoutube.includes('share.onclick=()=>openShareOptions(v)') &&
+  siteYoutube.includes('postChoice.addEventListener') &&
+  siteYoutube.includes('reelsChoice.addEventListener') &&
   workerSource.includes('url.pathname==="/api/youtube-short"') &&
   workerSource.includes('seconds<=180') &&
   workerSource.includes('ids.length>25') &&
   native.includes('api("/api/youtube-short?ids='),
-  'Real /shorts/ links require metadata check; original YouTube player shows thumbnail while loading');
+  'One existing YouTube share button offers Post/Reels on app and site, without separate Shorts paste form');
 const youtubeShare=fs.readFileSync('android-native/app/src/main/java/com/alatta/nativeapp/YoutubePostShare.kt','utf8');
 assert.ok(youtubeShare.includes('alatta-youtube(-short)?') &&
   youtubeShare.includes('fun youtubeShortPostId(') &&
