@@ -24,9 +24,9 @@ android {
         applicationId = "com.alatta.nativeapp"
         minSdk = 26
         targetSdk = 35
-        // الإصدار 1.0.225: عرض فيديوهات الريلز بأبعادها الصحيحة بلا قص، وتقليل الفراغ العلوي وإظهار اسم الناشر كاملًا.
-        versionCode = 325
-        versionName = "1.0.225"
+        // الإصدار 1.0.226: إلغاء عارض YouTube الرأسي المكرر وتشغيل فيديوهات المنشورات 16:9 داخل بطاقاتها مع إبقاء الريلز للفيديوهات المرفوعة.
+        versionCode = 326
+        versionName = "1.0.226"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("boolean", "IS_APPGALLERY", appGalleryBuild.toString())
         val hmsId = (System.getenv("ALATTA_HMS_APP_ID") ?: "").trim().takeIf { it.matches(Regex("[0-9]{1,20}")) } ?: ""
