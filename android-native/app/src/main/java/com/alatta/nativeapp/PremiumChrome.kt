@@ -316,12 +316,12 @@ internal fun PremiumReactionAction(
                 Text(reactionGlyph, fontSize = 21.sp)
             } else {
                 SiteIcon(if (liked) "heart-filled" else "heart", size = 23.dp,
-                    tint = if (liked) PremiumGoldLight else PremiumMuted)
+                    tint = if (vertical || liked) PremiumGoldLight else PremiumMuted)
             }
         }
         @Composable fun ReactionCount() {
             Text(count.coerceAtLeast(0).toString(),
-                color = if (selectedReaction.isNotBlank() || liked) PremiumGoldLight else PremiumMuted,
+                color = if (vertical || selectedReaction.isNotBlank() || liked) PremiumGoldLight else PremiumMuted,
                 fontSize = 12.sp,
                 modifier = Modifier.sizeIn(minWidth = 36.dp, minHeight = if (vertical) 24.dp else 44.dp)
                     .then(if (onShowPeople != null) Modifier.clickable(onClickLabel = "عرض أصحاب التفاعلات", onClick = onShowPeople) else Modifier)
