@@ -4921,7 +4921,7 @@ export default {
         for(const id of ids){
           const video=videos.get(id);
           const duration=String(video?.contentDetails?.duration||"");
-          const match=/^P(?:(\\d+)D)?(?:T(?:(\\d+)H)?(?:(\\d+)M)?(?:(\\d+)S)?)?$/.exec(duration);
+          const match=/^P(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?)?$/.exec(duration);
           const seconds=match?Number(match[1]||0)*86400+Number(match[2]||0)*3600+
             Number(match[3]||0)*60+Number(match[4]||0):0;
           results[id]={eligible:Boolean(video&&seconds>0&&seconds<=180&&video.status?.embeddable===true),
