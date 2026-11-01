@@ -377,10 +377,9 @@ internal object AttaPush {
             prefs(context).getString("ended_call_alert_id", "").orEmpty(), present)
         if (decision == CallAlertDecision.IGNORE || decision == CallAlertDecision.KEEP) return true
         rememberIncoming(context, call)
-        if (CallWindow.enabled(context) && !appVisible && CallWindow.start(context, call)) {
-            markCallAlerted(context, call.callId)
-            return true
-        }
+        // Use one incoming-call notification path in the background. Starting a
+        // foreground overlay service also creates a persistent app notification,
+        // duplicates the call UI and may be denied by Android background limits.
         return postStandardIncoming(context, call, decision)
     }
 
@@ -388,7 +387,8 @@ internal object AttaPush {
         decision: CallAlertDecision = CallAlertDecision.RING): Boolean {
         val code = call.callId.hashCode()
         val flags = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        val view = PendingIntent.getActivity(context, code, intentFor(context, call, ACTION_VIEW), flags)
+        val view = PendingIntent.getActivity(context, code, intentFor(context, call, ACTION_VIEW)
+            .setClass(context, IncomingCallLockActivity::class.java), flags)
         val accept = PendingIntent.getActivity(context, code + 1, intentFor(context, call, ACTION_ACCEPT), flags)
         val rejectIntent = Intent(context, AttaCallRejectReceiver::class.java).apply {
             action = ACTION_REJECT
