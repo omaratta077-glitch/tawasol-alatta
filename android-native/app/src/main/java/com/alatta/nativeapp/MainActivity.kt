@@ -2454,7 +2454,8 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
     }
     // الإخفاء مخصص للريلز فقط؛ شريط بقية الصفحات يبقى ظاهرًا ومستقرًا.
     LaunchedEffect(tab, token, chatWith) {
-        chromeVisible = tab != "ريلز"
+        // الهيدر وشريط التنقل في بقية التطبيق ثابتان؛ المصحف وحده يقرأ دون تشتيت.
+        chromeVisible = tab != "القرآن"
     }
     val chromeScrollObserver = remember {
         object : NestedScrollConnection {
@@ -3979,7 +3980,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                         }
                     }
                     AnimatedVisibility(
-                        visible = chromeVisible && tab != "ريلز" &&
+                        visible = chromeVisible && tab != "القرآن" &&
                             (tab != "الرسائل" || chatWith.isBlank()),
                         enter = expandVertically() + fadeIn(),
                         exit = shrinkVertically() + fadeOut()
