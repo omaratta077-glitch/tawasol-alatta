@@ -2939,10 +2939,10 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                         kind = "video",
                                         onDismiss = { navigate("الرئيسية") },
                                         reelsOnly = true,
-                                        youtubeShortContent = { shortId, command, shouldPlay, changed ->
-                                            YouTubePlayer(shortId, portrait = true,
-                                                playbackCommand = command, commandShouldPlay = shouldPlay,
-                                                onPlaybackChanged = changed)
+                                        youtubeShortContent = { shortId, command, shouldPlay, changed, onShortsDrag ->
+                                            YouTubePlayer(shortId, onMiniDrag = onShortsDrag,
+                                                portrait = true, playbackCommand = command,
+                                                commandShouldPlay = shouldPlay, onPlaybackChanged = changed)
                                         },
                                         nextReelsCursor = reelCursor,
                                         onLoadMoreReels = {
