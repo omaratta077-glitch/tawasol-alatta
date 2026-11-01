@@ -162,7 +162,9 @@ quran_kotlin = ROOT / (android + "AttaQuranReader.kt")
 check("One full Quran reader with selectable verses and system back",
       quran_reader.is_file() and quran_kotlin.is_file() and
       'QuranReaderScreen(Modifier.weight(1f),' in main and
-      'if (tab != "الرسائل" || chatWith.isBlank()) PremiumBottomNav' in main and
+      'visible = chromeVisible && (tab != "الرسائل" || chatWith.isBlank())' in main and
+      'PremiumBottomNav(tab, ::navigate)' in main and
+      'AnimatedVisibility(' in main and
       all(text in quran_reader.read_text(encoding="utf-8") for text in [
           'mushaf/index.json', '/mushaf/', 'jumpToSegment', 'ar.muyassar',
           'ar.minshawi', 'ar.abdulbasit', 'ar.husary', 'playSurah', 'playHere']))
