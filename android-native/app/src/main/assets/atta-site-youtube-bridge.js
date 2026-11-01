@@ -5,6 +5,7 @@
   'use strict';
   const videoId = '__ALATTA_VIDEO_ID__';
   const PREFIX = 'ALATTA_YT:';
+  const portrait = '__ALATTA_PORTRAIT__' === 'true';
   const log = (s) => console.log(PREFIX + s);
   if (!/^[A-Za-z0-9_-]{11}$/.test(videoId)) { log('ERROR:INVALID_VIDEO_ID'); return; }
   if (window.__attaAndroidYoutubeVideo === videoId) return;
@@ -52,6 +53,12 @@
       .atta-youtube-frame iframe{position:relative!important;inset:auto!important;display:block!important;width:100%!important;height:auto!important;aspect-ratio:16/9!important;max-height:100%!important;border:0!important}
       @media (orientation:landscape){.atta-youtube-frame iframe{width:min(100%,177.78vh)!important;height:100%!important;aspect-ratio:16/9!important}}
     `;
+    if (portrait) {
+      css.textContent += `
+        .atta-youtube-frame iframe{width:100%!important;height:100%!important;aspect-ratio:9/16!important;max-height:none!important}
+        @media (orientation:landscape){.atta-youtube-frame iframe{width:100%!important;height:100%!important;aspect-ratio:auto!important}}
+      `;
+    }
     document.head.appendChild(css);
     overlay.hidden = false;
     // يضع الموقع عادةً التركيز في حقل البحث؛ لا تفتح لوحة المفاتيح فوق الفيديو.
