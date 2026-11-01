@@ -2452,14 +2452,9 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
         val t = android.os.SystemClock.uptimeMillis()
         if (t - lastChromeMotion >= 140L) lastChromeMotion = t
     }
+    // الإخفاء مخصص للريلز فقط؛ شريط بقية الصفحات يبقى ظاهرًا ومستقرًا.
     LaunchedEffect(tab, token, chatWith) {
-        if (token.isNotBlank()) revealChrome()
-    }
-    LaunchedEffect(lastChromeMotion, tab, token) {
-        if (token.isNotBlank()) {
-            delay(2100L)
-            chromeVisible = false
-        }
+        chromeVisible = tab != "ريلز"
     }
     val chromeScrollObserver = remember {
         object : NestedScrollConnection {
@@ -2472,7 +2467,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
         }
     }
     val onSectionSwipe by rememberUpdatedState(newValue = { direction: Int ->
-        if (token.isNotBlank() && profilePeer.isBlank() &&
+        if (token.isNotBlank() && tab !in setOf("ريلز", "القرآن") && profilePeer.isBlank() &&
             !(tab == "الرسائل" && chatWith.isNotBlank()) && !youtubePipMode) {
             val index = swipeSections.indexOf(tab)
             val candidate = index + direction
@@ -2483,7 +2478,8 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
         }
     })
     val chromeGestureModifier =
-        if (token.isNotBlank() && !youtubePipMode && profilePeer.isBlank() &&
+        if (token.isNotBlank() && tab !in setOf("ريلز", "القرآن") &&
+            !youtubePipMode && profilePeer.isBlank() &&
             !(tab == "الرسائل" && chatWith.isNotBlank())) {
             Modifier.nestedScroll(chromeScrollObserver).pointerInput(tab, chatWith) {
                 val minSwipe = 94.dp.toPx()
@@ -2845,14 +2841,14 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                             })
                         "ريلز" -> {
                             // Uses the same single mixed reels viewer from post cards; it is NOT a second player.
-                            val reelEntries = remember(posts) { mixedPostReels(posts) }
+                            val reelEntries = remember(posts) { uploadedPostReels(posts) }
                             Box(Modifier.weight(1f).fillMaxWidth().background(Black),
                                 contentAlignment = Alignment.Center) {
                                 if (reelEntries.isEmpty()) {
                                     Column(horizontalAlignment = Alignment.CenterHorizontally,
                                         verticalArrangement = Arrangement.spacedBy(12.dp)) {
                                         SiteIcon("video", size = 46.dp, tint = GoldLight)
-                                        Text(if (screenLoading) "جارٍ تحميل الريلز…" else "لا توجد مقاطع فيديو في المنشورات المحمّلة",
+                                        Text(if (screenLoading) "جارٍ تحميل الريلز…" else "لا توجد فيديوهات مرفوعة على العطا ضمن المنشورات المحمّلة",
                                             color = GoldLight)
                                         if (!screenLoading) TextButton(onClick = { navigate("الرئيسية") }) {
                                             Text("العودة للرئيسية", color = GoldLight)
@@ -2865,9 +2861,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                         startId = first.post.optString("id"),
                                         kind = "video",
                                         onDismiss = { navigate("الرئيسية") },
-                                        includeYoutubePosts = true,
-                                        startYoutube = first.youtubeId != null,
-                                        youtubePlayerContent = { id -> YouTubePlayer(id) },
+                                        reelsOnly = true,
                                         loadInteractions = { postId, kind, offset ->
                                             get("/api/post-interactions?postId=${enc(postId)}&kind=${enc(kind)}&offset=$offset")
                                         },
@@ -3985,7 +3979,8 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                         }
                     }
                     AnimatedVisibility(
-                        visible = chromeVisible && (tab != "الرسائل" || chatWith.isBlank()),
+                        visible = chromeVisible && tab != "ريلز" &&
+                            (tab != "الرسائل" || chatWith.isBlank()),
                         enter = expandVertically() + fadeIn(),
                         exit = shrinkVertically() + fadeOut()
                     ) { PremiumBottomNav(tab, ::navigate) }
