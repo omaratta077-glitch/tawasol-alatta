@@ -24,9 +24,9 @@ android {
         applicationId = "com.alatta.nativeapp"
         minSdk = 26
         targetSdk = 35
-        // الإصدار 1.0.213: الريلز مكان الرسائل في الشريط السفلي، فيديوهات العطا بملء الشاشة وYouTube 16:9 والتفاعل أعلى اليمين.
-        versionCode = 313
-        versionName = "1.0.213"
+        // الإصدار 1.0.214: تحسين وضوح أيقونات الريلز الذهبية وخفض اسم صاحب الفيديو مع الحفاظ على المشغّل.
+        versionCode = 314
+        versionName = "1.0.214"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("boolean", "IS_APPGALLERY", appGalleryBuild.toString())
         val hmsId = (System.getenv("ALATTA_HMS_APP_ID") ?: "").trim().takeIf { it.matches(Regex("[0-9]{1,20}")) } ?: ""
