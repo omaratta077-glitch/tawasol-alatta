@@ -61,8 +61,8 @@ import java.util.Locale
 import kotlin.math.cos
 import kotlin.math.sin
 
-private val prayerTeal = Color(0xFF154A45)
-private val prayerSoft = Color(0xFF83C8B6)
+private val prayerTeal = Color(0xFF24190E)
+private val prayerSoft = Color(0xFFDEC98C)
 private val prayerShape = RoundedCornerShape(22.dp)
 private val arabic = Locale("ar")
 
@@ -70,7 +70,7 @@ private val arabic = Locale("ar")
 private fun PrayerCard(
     modifier: Modifier = Modifier,
     innerPadding: Dp = 16.dp,
-    goldStyle: Boolean = false,
+    goldStyle: Boolean = true,
     content: @Composable ColumnScope.() -> Unit
 ) {
     // صباحًا ومساءً: الأسود والذهبي فقط، دون تغيير محتوى الذكر أو واجهات الصلاة الأخرى.
@@ -164,7 +164,7 @@ private fun AzkarHomeAction(label: String, icon: String, onClick: () -> Unit) {
     val shape = RoundedCornerShape(28.dp)
     Row(Modifier.fillMaxWidth().height(54.dp).clip(shape)
         .background(Brush.horizontalGradient(listOf(Color(0xFF11100D), Color(0xFF08090A))))
-        .border(1.dp, PremiumGold, shape)
+        .border(1.3.dp, PremiumGoldLight, shape)
         .clickable(onClick = onClick).padding(horizontal = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.Center) {
@@ -421,7 +421,7 @@ internal fun AzkarPrayerScreen(modifier: Modifier = Modifier, onSharePost: (Stri
         }
         if (group != null) {
             val entries = group.entries
-            val goldStyle = group.id == "morning" || group.id == "evening"
+            val goldStyle = true // كل أقسام الأذكار بنفس التنسيق الذهبي، دون تغيير البيانات أو العدادات
             LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 7.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 item {
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
@@ -503,15 +503,18 @@ internal fun AzkarPrayerScreen(modifier: Modifier = Modifier, onSharePost: (Stri
         } else LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(14.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             if (page == "home" || page == "times") {
                 item {
-                    val goldHome = page == "home"
+                    val goldHome = true // البيت ومواقيت الصلاة يشتركان في الخلفية الذهبية
                     val summaryShape = RoundedCornerShape(28.dp)
-                    Column(Modifier.fillMaxWidth().clip(summaryShape)
-                        .background(if (goldHome)
-                            Brush.horizontalGradient(listOf(Color(0xFF1A1209), Color(0xFF090A0B), Color(0xFF12100B)))
-                        else Brush.linearGradient(listOf(prayerTeal, Color(0xFF0B2425))))
-                        .then(if (goldHome) Modifier.border(1.3.dp, PremiumGold, summaryShape) else Modifier)
-                        .padding(if (goldHome) 16.dp else 22.dp),
-                        verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                    Box(Modifier.fillMaxWidth().clip(summaryShape)
+                        .background(Color(0xFF0B0B0A))
+                        .border(1.6.dp, PremiumGoldLight, summaryShape)) {
+                        // أصل مرئي مخزّن داخل APK: مصحف وفانوس ونافذة مضيئة، يعمل بلا إنترنت.
+                        Image(painter = painterResource(R.drawable.azkar_prayer_backdrop),
+                            contentDescription = null,
+                            contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                            modifier = Modifier.matchParentSize())
+                        Column(Modifier.fillMaxWidth().padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(9.dp)) {
                         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(9.dp)) {
                             PrayerSymbol("mosque", if (goldHome) 32.dp else 48.dp,
@@ -544,7 +547,8 @@ internal fun AzkarPrayerScreen(modifier: Modifier = Modifier, onSharePost: (Stri
                                 } else Text("حدد المدينة لعرض المواقيت الصحيحة",
                                     color = PremiumGoldLight, fontSize = 16.sp)
                             }
-                            if (goldHome) AzkarHomeLantern()
+                            // تبقى صورة المصحف والفانوس في الجانب المقابل للنص الحي.
+                            Spacer(Modifier.width(106.dp))
                         }
                         Text(date.format(DateTimeFormatter.ofPattern("EEEE، d MMMM", arabic)) +
                             " • " + runCatching {
@@ -567,6 +571,7 @@ internal fun AzkarPrayerScreen(modifier: Modifier = Modifier, onSharePost: (Stri
                                     if (it) enableAdhan()
                                     else { enableAfterLocation = false; save(settings.copy(enabled = false)) }
                                 })
+                        }
                         }
                     }
                 }
@@ -596,7 +601,8 @@ internal fun AzkarPrayerScreen(modifier: Modifier = Modifier, onSharePost: (Stri
                                 .background(if (featured)
                                     Brush.verticalGradient(listOf(Color(0xFFFFDE77), Color(0xFFE3A52D)))
                                 else Brush.verticalGradient(listOf(Color(0xFF141413), Color(0xFF07090A))))
-                                .border(1.2.dp, PremiumGold, tileShape)
+                                .border(1.3.dp, PremiumGoldLight, tileShape)
+                                .attaGoldShine(featured)
                                 .clickable { page = category.id }
                                 .padding(horizontal = 8.dp, vertical = 15.dp),
                                 horizontalAlignment = Alignment.CenterHorizontally,
@@ -627,15 +633,28 @@ internal fun AzkarPrayerScreen(modifier: Modifier = Modifier, onSharePost: (Stri
                     val moment = moments.firstOrNull { it.id == id }
                     PrayerCard {
                         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                            PrayerSymbol(if (id in setOf("fajr", "maghrib", "isha")) "moon" else "sun", 26.dp, if (id == next?.id) PremiumGold else prayerSoft)
+                            PrayerSymbol(if (id in setOf("fajr", "maghrib", "isha")) "moon" else "sun", 26.dp, PremiumGoldLight)
                             Text(prayerNames.getValue(id), Modifier.weight(1f).padding(start = 10.dp), color = Color.White, fontSize = 17.sp)
                             Text(if (settings.confirmedPlace && moment != null) formatPrayerTime(moment.at, zone) else "—", color = PremiumGoldLight, fontSize = 18.sp)
-                            if (id != "sunrise") Checkbox(id in settings.prayers, onCheckedChange = { checked -> save(settings.copy(prayers = if (checked) settings.prayers + id else settings.prayers - id)) })
+                            if (id != "sunrise") Checkbox(id in settings.prayers,
+                                colors = CheckboxDefaults.colors(
+                                    checkedColor = PremiumGold, uncheckedColor = PremiumGoldLight,
+                                    checkmarkColor = Color(0xFF0B0A08)),
+                                onCheckedChange = { checked ->
+                                    save(settings.copy(prayers =
+                                        if (checked) settings.prayers + id else settings.prayers - id))
+                                })
                         }
                     }
                 }
                 item { Text("الشروق للعرض فقط. الحساب حسب ${prayerMethods[settings.method]} والمنطقة الزمنية المختارة؛ قد تختلف دقائق عن تقويم المسجد المحلي.", color = PremiumMuted, fontSize = 12.sp) }
-                item { Button(onClick = { page = "settings" }, modifier = Modifier.fillMaxWidth()) { Text("ضبط الأذان وطريقة الحساب") } }
+                item {
+                    Button(onClick = { page = "settings" }, modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = PremiumGold,
+                            contentColor = Color(0xFF0A0907))) {
+                        Text("ضبط الأذان وطريقة الحساب", fontWeight = FontWeight.Bold)
+                    }
+                }
             }
             if (page == "settings") {
                 item { PrayerCard {
