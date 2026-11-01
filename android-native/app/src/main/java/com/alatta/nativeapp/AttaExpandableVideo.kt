@@ -129,13 +129,17 @@ internal data class AttaReelEntry(val post: JSONObject, val key: String, val vid
 /** الريلز تضم فيديوهات العطا المرفوعة وYouTube Shorts التي نُشرت صراحة كشورت.
  * مقاطع YouTube الأفقية العادية لا تظهر هنا، ولا تُنزَّل أو تُعاد استضافتها.
  */
-internal fun uploadedPostReels(posts: List<JSONObject>): List<AttaReelEntry> = buildList {
+internal fun uploadedPostReels(
+    posts: List<JSONObject>,
+    rejectedShortIds: Set<String> = emptySet()
+): List<AttaReelEntry> = buildList {
     for (post in posts) {
         val postId = post.optString("id")
         val url = media(post.optString("video"))
         if (url.isNotBlank()) add(AttaReelEntry(post, "$postId:video", videoUrl = url))
         youtubeShortPostId(post.optString("text"))?.let { shortId ->
-            add(AttaReelEntry(post, "$postId:short:$shortId", youtubeId = shortId))
+            if (shortId !in rejectedShortIds)
+                add(AttaReelEntry(post, "$postId:short:$shortId", youtubeId = shortId))
         }
     }
 }.distinctBy { it.key }
@@ -175,6 +179,7 @@ internal fun AttaPostMediaViewer(
     validatedChannelUrl: String? = null,
     reelsOnly: Boolean = false,
     youtubeShortContent: (@Composable (String, Int, Boolean, (Boolean) -> Unit, (Float, Float) -> Unit) -> Unit)? = null,
+    rejectedShortIds: Set<String> = emptySet(),
     nextReelsCursor: String? = null,
     onLoadMoreReels: (() -> Unit)? = null
 ) {
@@ -184,8 +189,8 @@ internal fun AttaPostMediaViewer(
     // Reels are edge-to-edge; channels and ordinary media viewers keep their original FIT layout.
     val reelsMode = reelsOnly && live == null
     // عارض Media3 للملفات المرفوعة فقط. YouTube لا يدخل مسار العرض الرأسي.
-    val items = remember(posts, kind, validatedChannelUrl, reelsOnly) {
-        if (reelsOnly && isVideo && validatedChannelUrl == null) uploadedPostReels(posts)
+    val items = remember(posts, kind, validatedChannelUrl, reelsOnly, rejectedShortIds) {
+        if (reelsOnly && isVideo && validatedChannelUrl == null) uploadedPostReels(posts, rejectedShortIds)
         else posts.filter { (validatedChannelUrl ?: media(it.optString(kind))).isNotBlank() }
             .distinctBy { it.optString("id") }
             .map { AttaReelEntry(it, it.optString("id"), validatedChannelUrl ?: media(it.optString(kind))) }
