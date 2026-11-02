@@ -54,6 +54,7 @@ assert.equal(overlay.hidden,false);
 iframeListeners.load();
 assert.ok(logs.includes('ALATTA_YT:SITE_PLAYER_USED'));
 assert.ok(logs.includes('ALATTA_YT:FRAME_LOADED'));
+assert.ok(!bridge.includes('setTimeout(reportReady, 2600)'), 'iframe load must not be faked by a timeout');
 const ytevent=events.find(e=>e.type==='message');
 ytevent.fn({origin:'https://www.youtube-nocookie.com', data:JSON.stringify({event:'onError',info:153})});
 assert.ok(logs.includes('ALATTA_YT:PLAYER_ERROR:153'));
