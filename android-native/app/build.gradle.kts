@@ -24,9 +24,9 @@ android {
         applicationId = "com.alatta.nativeapp"
         minSdk = 26
         targetSdk = 35
-        // الإصدار 1.0.243: تبسيط بطاقات الأذكار إلى الفضائل الموثقة فقط، مع الاحتفاظ بتحسينات الريلز والإصلاحات السابقة.
-        versionCode = 343
-        versionName = "1.0.243"
+        // الإصدار 1.0.244: توحيد شكل مشغل المصحف مع التصميم الأسود والذهبي دون تغيير صفحات القرآن.
+        versionCode = 344
+        versionName = "1.0.244"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("boolean", "IS_APPGALLERY", appGalleryBuild.toString())
         val hmsId = (System.getenv("ALATTA_HMS_APP_ID") ?: "").trim().takeIf { it.matches(Regex("[0-9]{1,20}")) } ?: ""
