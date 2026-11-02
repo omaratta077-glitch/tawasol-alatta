@@ -6,6 +6,8 @@ const bridge=fs.readFileSync('android-native/app/src/main/assets/atta-site-youtu
 const shared=fs.readFileSync('cloudflare-site/public/youtube-player-shared.js','utf8');
 const site=fs.readFileSync('cloudflare-site/public/youtube-section.js','utf8');
 assert.ok(main.includes('loadUrl("$BASE/")'), 'loads the actual site HTTPS document');
+assert.ok(main.includes('if (tab == "ريلز" && youtubePlayRequested) youtubePlayRequested = false'),
+  'Reels must not compete with a background YouTube mini player');
 assert.ok(main.includes('atta-site-youtube-bridge.js'), 'uses the site UI bridge');
 assert.ok(!main.includes('document.body.replaceChildren(host)'),'never destroys the website DOM');
 assert.ok(!main.includes('new YT.Player(') && !main.includes('loadDataWithBaseURL('),'no second Android player');
