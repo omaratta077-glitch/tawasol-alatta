@@ -43,8 +43,8 @@ class CallWindowTest {
         val reject = labels.single { it.text.toString() == "رفض" }
         assertEquals(answer.width, reject.width)
         assertTrue(answer.width > 0)
-        assertNotNull(answer.compoundDrawablesRelative[0])
-        assertNotNull(reject.compoundDrawablesRelative[0])
+        assertNull(answer.compoundDrawablesRelative[0])
+        assertNull(reject.compoundDrawablesRelative[0])
         assertTrue(card.background is GradientDrawable)
         answer.performClick(); reject.performClick()
         assertEquals(1, answered); assertEquals(1, rejected)
