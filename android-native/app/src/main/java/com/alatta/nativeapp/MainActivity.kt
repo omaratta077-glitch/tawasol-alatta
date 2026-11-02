@@ -1363,6 +1363,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
         }
     }
     LaunchedEffect(activeCall?.callId, incomingCall?.callId) {
+        incomingCall?.let { IncomingCallOverlayService.dismiss(it.callId) }
         if (activeCall != null || incomingCall != null) {
             youtubePlayRequested = false
             activeYoutubePostId = ""
