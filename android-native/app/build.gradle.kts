@@ -24,9 +24,9 @@ android {
         applicationId = "com.alatta.nativeapp"
         minSdk = 26
         targetSdk = 35
-        // الإصدار 1.0.244: توحيد شكل مشغل المصحف مع التصميم الأسود والذهبي دون تغيير صفحات القرآن.
-        versionCode = 344
-        versionName = "1.0.244"
+        // الإصدار 1.0.245: إشعار مكالمة واحد داخل التطبيق، شريط التنقل الرسمي في الريلز، وتصحيح تجهيز YouTube وتقديمه.
+        versionCode = 345
+        versionName = "1.0.245"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("boolean", "IS_APPGALLERY", appGalleryBuild.toString())
         val hmsId = (System.getenv("ALATTA_HMS_APP_ID") ?: "").trim().takeIf { it.matches(Regex("[0-9]{1,20}")) } ?: ""
