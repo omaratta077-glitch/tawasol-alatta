@@ -438,13 +438,13 @@ internal fun AttaPostMediaViewer(
     }
     fun dismissViewer(reason: String) { onViewerDismissReason?.invoke(reason); onDismiss() }
     Dialog(onDismissRequest = { if (sheet != null) sheet = null else dismissViewer("dialog_dismiss") },
-        properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false,
+        properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = reelsMode,
             dismissOnClickOutside = live == null)) {
         val view = LocalView.current
         val window = (view.parent as? DialogWindowProvider)?.window
         DisposableEffect(window) {
             window?.let {
-                WindowCompat.setDecorFitsSystemWindows(it, false)
+                WindowCompat.setDecorFitsSystemWindows(it, reelsMode)
                 it.setLayout(WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.MATCH_PARENT)
                 WindowCompat.getInsetsController(it, view).apply {
                     systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
@@ -458,7 +458,7 @@ internal fun AttaPostMediaViewer(
         BackHandler { if (sheet != null) sheet = null else dismissViewer("system_back") }
         // يشغل الفيديو كامل المساحة الآمنة، وتظهر التفاعلات الاجتماعية في شريط واحد.
         Column(Modifier.fillMaxSize().background(Color.Black)
-            .then(if (reelsMode) Modifier.navigationBarsPadding() else Modifier.safeDrawingPadding())) {
+            .then(if (reelsMode) Modifier else Modifier.safeDrawingPadding())) {
             Box(Modifier.weight(1f).fillMaxWidth().clipToBounds()
                 .pointerInput(reel.key) {
                     if (reelsMode && youtubeId == null && social == null) {
