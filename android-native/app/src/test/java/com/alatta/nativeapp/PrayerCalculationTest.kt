@@ -105,10 +105,9 @@ class PrayerCalculationTest {
         for (id in listOf("morning", "evening")) {
             val entries = dhikrGroups.first { it.id == id }.entries
             assertEquals(listOf("fatiha", "kursi", "baqarah-ending"), entries.take(3).map { it.id })
-            val salawat = entries[29]
-            assertEquals("salawat-daily", salawat.id)
-            assertEquals(1, salawat.target)
-            assertTrue(salawat.text.contains("صَلِّ عَلَى مُحَمَّدٍ"))
+            val salawat = entries.single { it.id == "salawat-daily" }
+            assertEquals(10, salawat.target)
+            assertTrue(salawat.text.contains("صَلِّ وَسَلِّمْ"))
             assertEquals(1, entries.count { it.title.contains("الصلاة على النبي") })
         }
     }
@@ -120,7 +119,7 @@ class PrayerCalculationTest {
         }
         val morning = dhikrGroups.single { it.id == "morning" }.entries
         assertEquals(1, morning.single { it.id == "all-good" }.target)
-        assertEquals(1, morning.single { it.id == "beloved-words" }.target)
+        assertEquals(10, morning.single { it.id == "beloved-words" }.target)
         assertEquals(100, morning.single { it.id == "tasbih" }.target)
         val tasbih = dhikrGroups.single { it.id == "tasbih" }.entries
         for (name in listOf("short-subhan", "short-hamd", "short-tahlil")) {
