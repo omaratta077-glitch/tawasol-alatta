@@ -36,40 +36,38 @@ internal fun callWindowCard(context: Context, call: PushCall, answer: () -> Unit
     return LinearLayout(context).apply {
         orientation = LinearLayout.VERTICAL
         layoutDirection = View.LAYOUT_DIRECTION_RTL
-        setPadding(dp(20), dp(20), dp(20), dp(20))
-        background = shape(0xF2202638.toInt(), 24, outlined = true)
+        setPadding(dp(12), dp(12), dp(12), dp(12))
+        background = shape(0xF2202638.toInt(), 18, outlined = true)
         elevation = dp(10).toFloat()
         addView(LinearLayout(context).apply {
             gravity = Gravity.CENTER_VERTICAL
             addView(ImageView(context).apply {
                 setImageResource(R.drawable.logo_premium); contentDescription = "AL-ATTA MEDIA"
-            }, LinearLayout.LayoutParams(dp(48), dp(48)))
+            }, LinearLayout.LayoutParams(dp(36), dp(36)))
             addView(LinearLayout(context).apply {
                 orientation = LinearLayout.VERTICAL
                 addView(TextView(context).apply {
                     text = if (call.type == "video") "مكالمة فيديو واردة" else "مكالمة صوتية واردة"
-                    textSize = 14f; setTextColor(Color.WHITE)
+                    textSize = 12f; setTextColor(Color.WHITE)
                 })
                 addView(TextView(context).apply {
-                    text = call.displayName.ifBlank { "مستخدم" }; textSize = 22f
+                    text = call.displayName.ifBlank { "مستخدم" }; textSize = 18f
                     setTextColor(Color.WHITE); setTypeface(typeface, Typeface.BOLD)
                     maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END
                 })
             }, LinearLayout.LayoutParams(0, -2, 1f).apply { marginStart = dp(12) })
         }, LinearLayout.LayoutParams(-1, -2))
         addView(LinearLayout(context).apply {
-            fun action(label: String, color: Int, icon: Int, click: () -> Unit) = TextView(context).apply {
-                text = label; textSize = 16f; setTextColor(Color.WHITE); gravity = Gravity.CENTER
-                minHeight = dp(48); isClickable = true; isFocusable = true
-                background = shape(color, 24); setOnClickListener { click() }
-                setCompoundDrawablesRelativeWithIntrinsicBounds(icon, 0, 0, 0)
-                compoundDrawablePadding = dp(7)
+            fun action(label: String, color: Int, click: () -> Unit) = TextView(context).apply {
+                text = label; textSize = 15f; setTextColor(Color.WHITE); gravity = Gravity.CENTER
+                minHeight = dp(44); isClickable = true; isFocusable = true
+                background = shape(color, 16); setOnClickListener { click() }
                 setTypeface(typeface, Typeface.BOLD)
             }
-            addView(action("رد", 0xFF239B56.toInt(), R.drawable.atta_ic_phone, answer), LinearLayout.LayoutParams(0, dp(50), 1f))
-            addView(Space(context), LinearLayout.LayoutParams(dp(12), 1))
-            addView(action("رفض", 0xFFD32F2F.toInt(), R.drawable.atta_ic_phone_off, reject), LinearLayout.LayoutParams(0, dp(50), 1f))
-        }, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(16) })
+            addView(action("رد", 0xFF239B56.toInt(), answer), LinearLayout.LayoutParams(0, dp(44), 1f))
+            addView(Space(context), LinearLayout.LayoutParams(dp(8), 1))
+            addView(action("رفض", 0xFFD32F2F.toInt(), reject), LinearLayout.LayoutParams(0, dp(50), 1f))
+        }, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(10) })
     }
 }
 
