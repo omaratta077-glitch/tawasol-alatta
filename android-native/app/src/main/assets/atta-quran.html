@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<meta name="color-scheme" content="light" />
+<meta name="color-scheme" content="light dark" />
 <title>المصحف الشريف — تواصل العطا</title>
 <style>
 @font-face{font-family:AttaQuran;src:url("fonts/AmiriQuran-Regular.ttf") format("truetype");font-weight:400;font-style:normal;font-display:swap}
@@ -65,6 +65,29 @@ button,select,input{font:inherit;direction:rtl;text-align:right}button{cursor:po
 html[data-contrast="white"]{--paper:#fff;--ink:#080808;--sepia:#5d2d00;--shade:#eee;--border:#bfa579}
 html[data-contrast="white"] #pageText{color:#080808}
 @media(max-width:360px){.reading-tools{gap:6px;font-size:12px}.reading-tools #contrastButton{font-size:12px}}
+
+/* هوية العطا: أدوات سوداء وذهبية مع الحفاظ على ورق المصحف المطبوع ووضوح آياته. */
+:root{--atta-black:#090909;--atta-panel:#151514;--atta-gold:#d6ac50;--atta-gold-soft:#f4d777}
+html,body{background:var(--atta-black)}
+.toolbar,.foot,.reading-tools{background:var(--atta-black);color:var(--atta-gold-soft);border-color:var(--atta-gold)}
+.toolbar{border-bottom:1px solid #735a2c;box-shadow:0 2px 10px #0005}
+.foot{border-top:1px solid #735a2c;justify-content:center}
+.top-pill,.foot .page-count,.page-arrow,.reading-tools button{background:var(--atta-panel);border:1px solid var(--atta-gold);border-radius:14px;color:var(--atta-gold-soft)}
+.icon-button,.icon-button.bookmark.selected{color:var(--atta-gold-soft)}
+#reader{background:var(--paper)}
+.overlay{background:#000b}
+.sheet{background:var(--atta-panel);color:#f6ecd8;border:1.5px solid var(--atta-gold);box-shadow:0 16px 42px #000b}
+.sheet-header{color:var(--atta-gold-soft);border-bottom-color:#735a2c}
+.close,.tab,.choice button,.row select{background:#24211c;color:#f6e1ab;border-color:#9f7a35}
+.tab.active,.choice button.primary{background:linear-gradient(135deg,#9b6c24,#e1b95d);color:#0a0906}
+.search-box{background:#211e18;color:#fff8e8;border-color:var(--atta-gold)}
+.index-item{color:#fff4d9;border-bottom-color:#574626}
+.index-item small,.note{color:#dac18a}
+#tafsirText{color:#fff5df}
+#audioBar{background:#11100ef5;color:#fff1d2;border:1.3px solid var(--atta-gold);box-shadow:0 8px 25px #000a}
+#audioBar button{background:#b98b38;color:#090909}
+#audioBar .stop{background:#493426;color:#ffe5b5}
+html[data-contrast="white"] .toolbar,html[data-contrast="white"] .foot,html[data-contrast="white"] .reading-tools{background:var(--atta-black);color:var(--atta-gold-soft)}
 </style>
 </head>
 <body>
