@@ -66,7 +66,7 @@ internal fun callWindowCard(context: Context, call: PushCall, answer: () -> Unit
             }
             addView(action("رد", 0xFF239B56.toInt(), answer), LinearLayout.LayoutParams(0, dp(44), 1f))
             addView(Space(context), LinearLayout.LayoutParams(dp(8), 1))
-            addView(action("رفض", 0xFFD32F2F.toInt(), reject), LinearLayout.LayoutParams(0, dp(50), 1f))
+            addView(action("رفض", 0xFFD32F2F.toInt(), reject), LinearLayout.LayoutParams(0, dp(44), 1f))
         }, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(10) })
     }
 }
