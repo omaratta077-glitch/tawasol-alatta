@@ -164,7 +164,7 @@ for (const groupId of ['morning', 'evening']) {
 }
 assert.ok(azkarCatalog.includes('fatiha, ayatKursi, baqarahEnding') &&
   azkarCatalog.includes('val closingIds = listOf(') &&
-  azkarCatalog.includes('"salawat-daily", "tawhid", "tasbih", "repent-day"') &&
+  azkarCatalog.includes('"salawat-daily", "tasbih", "repent-day", "tawhid"') &&
   azkarCatalog.includes('closingIds.map { id -> entries.single { it.id == id } }') &&
   azkarCatalog.includes('Dhikr("salawat-daily"') &&
   azkarCatalog.includes('سَيِّدِنَا مُحَمَّدٍ", 10,') &&
@@ -175,7 +175,7 @@ assert.ok(azkarCatalog.includes('fatiha, ayatKursi, baqarahEnding') &&
   azkarCatalog.includes('سُبْحَانَ اللَّهِ وَبِحَمْدِهِ، سُبْحَانَ اللَّهِ الْعَظِيمِ", 10,') &&
   azkarCatalog.includes('يُحْيِي وَيُمِيتُ وَهُوَ عَلَى كُلِّ شَيْءٍ قَدِيرٌ", 100,') &&
   !azkarCatalog.includes('Dhikr("salawat-ten"'),
-  'Morning/evening Adhkar keep Quran texts, custom repetition targets and ending: salawat, tawhid, tasbih, 100-count forgiveness');
+  'Morning/evening Adhkar keep Quran texts, custom repetition targets and ending: salawat, tasbih, forgiveness, canonical tawhid');
 assert.ok(azkarScreen.includes('ContentScale.FillBounds') &&
   !azkarScreen.includes('ContentScale.Crop') &&
   azkarScreen.includes('Arrangement.spacedBy(12.dp)') &&
