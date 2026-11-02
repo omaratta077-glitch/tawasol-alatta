@@ -108,7 +108,8 @@ function play(id){
  if(!/^[a-zA-Z0-9_-]{11}$/.test(id))return;
  const iframe=window.AttaYouTubeEmbed.create(id,'مشغّل فيديو يوتيوب');
  frame.hidden=false;frame.replaceChildren(iframe);
- frame.scrollIntoView({behavior:'smooth',block:'start'});
+ // تجنّب تمرير DOM داخل WebView عند فتح مشغل الريلز.
+ if(!window.__attaAndroidYoutubeVideo) frame.scrollIntoView({behavior:'smooth',block:'start'});
 }
 async function load(append=false){
  if(loading)return;
@@ -138,7 +139,7 @@ async function load(append=false){
  finally{loading=false;}
 }
 function close(){overlay.hidden=true;frame.hidden=true;frame.replaceChildren();document.body.style.overflow=overlay.dataset.oldOverflow||'';btn.focus();}
-btn.addEventListener('click',()=>{placePanel();if(inlineMode()){window.AttaWeb?.navigate('youtubePage');return;}overlay.dataset.oldOverflow=document.body.style.overflow;document.body.style.overflow='hidden';overlay.hidden=false;ensureLoaded();input.focus();});
+btn.addEventListener('click',()=>{placePanel();if(inlineMode()){window.AttaWeb?.navigate('youtubePage');return;}overlay.dataset.oldOverflow=document.body.style.overflow;document.body.style.overflow='hidden';overlay.hidden=false;if(!window.__attaAndroidYoutubeVideo){ensureLoaded();input.focus();}});
 panel.querySelector('.atta-youtube-close').addEventListener('click',close);
 overlay.addEventListener('click',e=>{if(e.target===overlay)close();});
 document.addEventListener('keydown',e=>{if(e.key!=='Escape')return;if(shareOverlay.style.display!=='none')closeShareOptions();else if(!overlay.hidden)close();});

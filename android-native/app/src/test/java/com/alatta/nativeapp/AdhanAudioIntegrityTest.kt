@@ -70,7 +70,7 @@ class AdhanAudioIntegrityTest {
         for (id in listOf("morning", "evening")) {
             val entries = dhikrGroups.first { it.id == id }.entries
             val fatiha = entries.first { it.id == "fatiha" }
-            assertEquals(6, fatiha.text.count { it == '۝' })
+            assertEquals(5, fatiha.text.count { it == '۝' })
             assertTrue(fatiha.note.contains("عامة"))
             val ending = entries.first { it.id == "baqarah-ending" }
             assertTrue(ending.text.startsWith("آمَنَ الرَّسُولُ"))

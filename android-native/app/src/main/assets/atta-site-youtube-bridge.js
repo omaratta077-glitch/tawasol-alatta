@@ -84,9 +84,8 @@
         catch (_) { /* لا يتاح استقبال كل أحداث YouTube في كل WebView */ }
       };
       iframe.addEventListener('load', reportReady, {once:true});
-      // iframe قد يكون اكتمل تحميله قبل تسجيل المستمع.
-      // ارفع غطاء البداية تدريجيًا مع استمرار إظهار أي خطأ تشغيل من المشغّل.
-      setTimeout(reportReady, 2600);
+      // انتظر حدث load الحقيقي؛ لا تُخفِ غطاء التحميل بناء على مؤقت ثابت.
+      iframe.addEventListener('error', () => log('ERROR:IFRAME_LOAD_FAILED'), {once:true});
     }
     connectFrame();
     ready = true;

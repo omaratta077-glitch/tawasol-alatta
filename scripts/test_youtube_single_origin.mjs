@@ -6,12 +6,20 @@ const bridge=fs.readFileSync('android-native/app/src/main/assets/atta-site-youtu
 const shared=fs.readFileSync('cloudflare-site/public/youtube-player-shared.js','utf8');
 const site=fs.readFileSync('cloudflare-site/public/youtube-section.js','utf8');
 assert.ok(main.includes('loadUrl("$BASE/")'), 'loads the actual site HTTPS document');
+assert.ok(main.includes('if (tab == "ريلز" && youtubePlayRequested) youtubePlayRequested = false'),
+  'Reels must not compete with a background YouTube mini player');
 assert.ok(main.includes('atta-site-youtube-bridge.js'), 'uses the site UI bridge');
 assert.ok(!main.includes('document.body.replaceChildren(host)'),'never destroys the website DOM');
 assert.ok(!main.includes('new YT.Player(') && !main.includes('loadDataWithBaseURL('),'no second Android player');
 assert.ok(bridge.includes("btn.click()") && bridge.includes("form.dispatchEvent(new Event('submit'"),"uses the site form and click handler");
 assert.ok(!bridge.includes("createElement('iframe')") && !bridge.includes('new YT.Player('),'bridge creates no player');
 assert.ok(site.includes('window.AttaYouTubeEmbed.create'),'site is sole iframe client');
+assert.ok(site.includes('if(!window.__attaAndroidYoutubeVideo){ensureLoaded();input.focus();}'),
+  'Android Reels should not fetch an unrelated YouTube search feed during video startup');
+const reels = fs.readFileSync('android-native/app/src/main/java/com/alatta/nativeapp/AttaExpandableVideo.kt','utf8');
+assert.ok(reels.includes('decorFitsSystemWindows = reelsMode') &&
+  reels.includes('PremiumBottomNav("ريلز", onReelsNavigate)'),
+  'Reels should preserve its navigation above Android system buttons');
 assert.ok(shared.includes('global.AttaYouTubeEmbed=Object.freeze({create})'));
 new vm.Script(bridge.replace('__ALATTA_VIDEO_ID__','dQw4w9WgXcQ'));
 assert.ok(main.includes('modifier = modifier.height(39.dp)'),'39dp search preserved');
@@ -54,6 +62,7 @@ assert.equal(overlay.hidden,false);
 iframeListeners.load();
 assert.ok(logs.includes('ALATTA_YT:SITE_PLAYER_USED'));
 assert.ok(logs.includes('ALATTA_YT:FRAME_LOADED'));
+assert.ok(!bridge.includes('setTimeout(reportReady, 2600)'), 'iframe load must not be faked by a timeout');
 const ytevent=events.find(e=>e.type==='message');
 ytevent.fn({origin:'https://www.youtube-nocookie.com', data:JSON.stringify({event:'onError',info:153})});
 assert.ok(logs.includes('ALATTA_YT:PLAYER_ERROR:153'));
