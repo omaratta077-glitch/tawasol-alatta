@@ -65,14 +65,30 @@
     try { document.activeElement && document.activeElement.blur(); } catch (_) {}
     input.value = 'https://www.youtube.com/watch?v=' + videoId;
     form.dispatchEvent(new Event('submit', {bubbles:true, cancelable:true}));
-    const iframe = overlay.querySelector('.atta-youtube-frame iframe');
-    if (!iframe) { log('ERROR:SITE_DID_NOT_CREATE_FRAME'); return true; }
-    iframe.addEventListener('load', () => {
-      log('FRAME_LOADED');
-      // فعّل الاشتراك بأحداث YouTube عبر postMessage إذا كانت الميزة مدعومة.
-      try { iframe.contentWindow.postMessage(JSON.stringify({event:'listening',id:'atta'}), '*'); }
-      catch (_) { /* YouTube may not allow event subscription */ }
-    });
+    // قد يُنشئ الموقع iframe بعد انتهاء حدث submit؛ لا تعتبر غيابه اللحظي فشلًا.
+    // لا نُنشئ مشغّلًا ثانيًا، بل ننتظر الإطار الأصلي الموجود في صفحة العطا.
+    let frameChecks = 0;
+    function connectFrame() {
+      const iframe = overlay.querySelector('.atta-youtube-frame iframe');
+      if (!iframe) {
+        if (++frameChecks < 100) setTimeout(connectFrame, 100);
+        else log('ERROR:SITE_DID_NOT_CREATE_FRAME');
+        return;
+      }
+      let signalled = false;
+      const reportReady = () => {
+        if (signalled) return;
+        signalled = true;
+        log('FRAME_LOADED');
+        try { iframe.contentWindow.postMessage(JSON.stringify({event:'listening',id:'atta'}), '*'); }
+        catch (_) { /* لا يتاح استقبال كل أحداث YouTube في كل WebView */ }
+      };
+      iframe.addEventListener('load', reportReady, {once:true});
+      // iframe قد يكون اكتمل تحميله قبل تسجيل المستمع.
+      // ارفع غطاء البداية تدريجيًا مع استمرار إظهار أي خطأ تشغيل من المشغّل.
+      setTimeout(reportReady, 2600);
+    }
+    connectFrame();
     ready = true;
     log('SITE_PLAYER_USED');
     return true;
