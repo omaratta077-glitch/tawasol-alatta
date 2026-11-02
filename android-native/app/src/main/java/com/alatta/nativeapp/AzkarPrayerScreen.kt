@@ -418,6 +418,45 @@ internal fun AzkarPrayerScreen(modifier: Modifier = Modifier, onSharePost: (Stri
     BackHandler(enabled = page != "home") { page = "home" }
     val active = remember(settings, refresh) { settings.enabled && AdhanScheduler.exactAllowed(context) && AdhanScheduler.notificationAllowed(context) && PrayerStore.prefs(context).getLong("scheduled_at", 0L) > now }
     val group = dhikrGroups.find { it.id == page }
+    var completionGroup by remember { mutableStateOf<String?>(null) }
+    var lastCongratulations by remember { mutableStateOf<String?>(null) }
+    val sectionFinished = group?.entries?.all { entry ->
+        val key = "${group.id}:${entry.id}"
+        (counts[key] ?: local.getInt(key, 0)) >= entry.target
+    } == true
+    LaunchedEffect(group?.id, sectionFinished) {
+        if (sectionFinished && group != null && lastCongratulations != group.id) {
+            lastCongratulations = group.id
+            completionGroup = group.id
+        }
+        if (!sectionFinished && lastCongratulations == group?.id) lastCongratulations = null
+    }
+    if (completionGroup != null) {
+        val finished = dhikrGroups.firstOrNull { it.id == completionGroup }
+        if (finished != null) {
+            AlertDialog(
+                onDismissRequest = { completionGroup = null },
+                title = { Text("✦ مبارك إتمام ${finished.title} ✦", color = PremiumGoldLight, textAlign = TextAlign.Center) },
+                text = {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Text("شهادة إتمام الأذكار", color = PremiumGoldLight, fontSize = 21.sp,
+                            fontWeight = FontWeight.Bold)
+                        Text("أكملت ${finished.entries.size} ذكرًا ودعاءً، بمجموع ${finished.entries.sumOf { it.target }} تكرارًا مسجلًا.",
+                            color = Color.White, textAlign = TextAlign.Center)
+                        Text("نسأل الله أن يتقبل منك ويضاعف أجرك.", color = PremiumGoldLight,
+                            textAlign = TextAlign.Center)
+                        Text("الأجور المعيّنة لا تُجمع حسابيًا؛ لأنها مرتبطة بشروط الأحاديث والنية والقبول. راجع فضل كل ذكر ومصدره في بطاقته.",
+                            fontSize = 12.sp, color = Color.White, textAlign = TextAlign.Center)
+                    }
+                },
+                confirmButton = { TextButton(onClick = { completionGroup = null }) {
+                    Text("الحمد لله", color = PremiumGoldLight)
+                } },
+                containerColor = PremiumBackground
+            )
+        }
+    }
     Column(modifier.fillMaxSize().background(PremiumBackground)) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically) {
@@ -532,6 +571,7 @@ internal fun AzkarPrayerScreen(modifier: Modifier = Modifier, onSharePost: (Stri
                         Text(entry.text, color = Color.White, fontSize = fontSize.sp,
                             lineHeight = (fontSize * 1.75f).sp, textAlign = TextAlign.Center,
                             modifier = Modifier.fillMaxWidth())
+                        Text("فضل الذكر: ${entry.verifiedVirtue()}", color = PremiumGoldLight, fontSize = 12.sp)
                         Text(entry.source, color = if (goldStyle) PremiumGoldLight.copy(alpha = .8f) else PremiumMuted, fontSize = 12.sp)
                         if (entry.note.isNotBlank()) Text(entry.note,
                             color = if (goldStyle) PremiumGoldLight.copy(alpha = .7f) else prayerSoft, fontSize = 12.sp)
