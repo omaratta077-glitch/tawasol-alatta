@@ -445,7 +445,8 @@ internal fun AttaPostMediaViewer(
                 it.setLayout(WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.MATCH_PARENT)
                 WindowCompat.getInsetsController(it, view).apply {
                     systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-                    hide(WindowInsetsCompat.Type.systemBars())
+                    hide(WindowInsetsCompat.Type.statusBars())
+                    show(WindowInsetsCompat.Type.navigationBars())
                 }
                 it.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
             }
@@ -454,7 +455,7 @@ internal fun AttaPostMediaViewer(
         BackHandler { if (sheet != null) sheet = null else dismissViewer("system_back") }
         // يشغل الفيديو كامل المساحة الآمنة، وتظهر التفاعلات الاجتماعية في شريط واحد.
         Column(Modifier.fillMaxSize().background(Color.Black)
-            .then(if (reelsMode) Modifier else Modifier.safeDrawingPadding())) {
+            .then(if (reelsMode) Modifier.navigationBarsPadding() else Modifier.safeDrawingPadding())) {
             Box(Modifier.weight(1f).fillMaxWidth().clipToBounds()
                 .pointerInput(reel.key) {
                     if (reelsMode && youtubeId == null && social == null) {
@@ -631,24 +632,6 @@ internal fun AttaPostMediaViewer(
                         }
                     }
                 }
-                // نفس شريط التنقل الرسمي المستعمل في باقي صفحات التطبيق؛
-                // لا نعيد رسم أيقونات بديلة داخل الريلز.
-                val reelsNavigation = onReelsNavigate
-                if (reelsMode && reelsNavigation != null) {
-                    if (controls) {
-                        Box(Modifier.align(Alignment.BottomCenter)) {
-                            PremiumBottomNav("ريلز", reelsNavigation)
-                        }
-                    } else {
-                        // منطقة لمس صغيرة لإظهار الشريط دون اعتراض مشغل يوتيوب أو سحبه.
-                        Box(Modifier.align(Alignment.BottomCenter)
-                            .fillMaxWidth().height(24.dp)
-                            .clickable { controls = true }, contentAlignment = Alignment.BottomCenter) {
-                            Box(Modifier.padding(bottom = 5.dp).width(38.dp).height(3.dp)
-                                .background(PremiumGoldLight, RoundedCornerShape(50)))
-                        }
-                    }
-                }
                 // تختفي عناصر التحكم في التشغيل تلقائيًا؛ ويبقى الشريط الاجتماعي الرأسي ظاهرًا.
                 if ((player != null || diagnosticReport != null) && controls) Column(
                     Modifier.align(Alignment.BottomCenter).fillMaxWidth()
@@ -747,6 +730,16 @@ internal fun AttaPostMediaViewer(
                         }) { SiteIcon("skip-forward", size = 20.dp, tint = Color.White) }
                     }
                 }
+            }
+        }
+        // شريط التنقل الحقيقي خارج مساحة الفيديو المقصوصة، وفي حدود منطقة
+        // العرض الآمنة أعلى أزرار أندرويد. لا يُقص أسفل الريلز مهما كان حجم الشاشة.
+        if (reelsMode && onReelsNavigate != null) {
+            if (controls) PremiumBottomNav("ريلز", onReelsNavigate)
+            else Box(Modifier.fillMaxWidth().height(24.dp)
+                .clickable { controls = true }, contentAlignment = Alignment.Center) {
+                Box(Modifier.width(38.dp).height(3.dp)
+                    .background(PremiumGoldLight, RoundedCornerShape(50)))
             }
         }
         if (sheet != null && loadInteractions != null && sendComment != null) key(id, sheet) {
