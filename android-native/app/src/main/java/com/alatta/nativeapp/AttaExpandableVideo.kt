@@ -368,9 +368,12 @@ internal fun AttaPostMediaViewer(
             delay(350)
         }
     }
-    LaunchedEffect(playing, controls, sheet, qualityMenu, reelsOnly, stateKey) {
-        if (controls && sheet == null && !qualityMenu && (reelsOnly || playing)) {
-            delay(if (reelsOnly) 1500L else 2500L)
+    LaunchedEffect(playing, controls, sheet, qualityMenu, reelsOnly, youtubeStarted, stateKey) {
+        // لا تخفِ شريط التنقل قبل اكتمال بدء فيديو يوتيوب؛
+        // اترك للمستخدم فرصة رؤية نفس شريط التطبيق والتفاعل معه.
+        if (controls && sheet == null && !qualityMenu && (reelsOnly || playing) &&
+            (!reelsOnly || youtubeId == null || youtubeStarted)) {
+            delay(if (reelsOnly) 3200L else 2500L)
             controls = false
         }
     }
