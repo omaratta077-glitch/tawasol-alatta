@@ -35,10 +35,10 @@ class YoutubePostShareTest {
         val both = org.json.JSONObject().put("id", "post4").put("video", "/media/video/four.mp4")
             .put("text", attachYoutubeToPost("شورت مصاحب", video, isShort = true))
         val reels = uploadedPostReels(listOf(uploaded, youtube, short, both, uploaded))
-        assertEquals(5, reels.size)
-        assertEquals(listOf("post1", "post2", "post3", "post4", "post4"), reels.map { it.post.optString("id") })
-        assertEquals(5, reels.map { it.key }.distinct().size)
-        assertEquals(listOf(null, video, "abcdefghijk", null, video), reels.map { it.youtubeId })
+        assertEquals(4, reels.size)
+        assertEquals(listOf("post1", "post2", "post3", "post4"), reels.map { it.post.optString("id") })
+        assertEquals(4, reels.map { it.key }.distinct().size)
+        assertEquals(listOf(null, video, "abcdefghijk", null), reels.map { it.youtubeId })
         assertTrue(reels[0].videoUrl.endsWith("/media/video/one.mp4"))
         assertNull(youtubeShortPostId(youtube.optString("text")))
         assertEquals("abcdefghijk", youtubeShortPostId(shortText))
@@ -46,9 +46,9 @@ class YoutubePostShareTest {
         assertEquals(video, youtubePostId(youtube.optString("text")))
         val filtered = uploadedPostReels(listOf(uploaded, youtube, short, both),
             rejectedShortIds = setOf("abcdefghijk"))
-        assertEquals(listOf("post1", "post2", "post4", "post4"),
+        assertEquals(listOf("post1", "post2", "post4"),
             filtered.map { it.post.optString("id") })
-        assertEquals(listOf(null, video, null, video), filtered.map { it.youtubeId })
+        assertEquals(listOf(null, video, null), filtered.map { it.youtubeId })
     }
 
     @Test fun ordinaryPostsAreLeftUntouched() {

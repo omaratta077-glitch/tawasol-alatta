@@ -140,12 +140,12 @@ assert.ok(
   videoViewer.includes('onLoadMoreReels?.invoke()') &&
   videoViewer.includes('SocialVideoPostEmbed(social, Modifier.fillMaxSize()') &&
   videoViewer.includes('youtubeShortContent(youtubeId, youtubeCommand, youtubeCommandPlay,') &&
-  videoViewer.includes('resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT') &&
+  videoViewer.includes('resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM') &&
   videoViewer.includes('else if (reelsOnly) 37.dp') &&
   videoViewer.includes('if (reelsOnly && controls && player != null)') &&
-  !videoViewer.includes('RESIZE_MODE_ZOOM') &&
+  videoViewer.includes('onReelsNavigate') &&
   (videoViewer.match(/ExoPlayer\.Builder\(/g) || []).length === 1,
-  'One FIT Media3 player; Reels accept uploaded, YouTube and public Meta videos with swipe paging and in-screen refresh');
+  'One Media3 player with full-bleed reels; Reels accept uploaded, YouTube and public Meta videos with swipe paging and in-screen refresh');
 assert.ok(azkarScreen.includes('local.getInt("font_size", 23)') &&
   azkarScreen.includes('textAlign = TextAlign.Center') &&
   azkarScreen.includes('(fontSize * 1.75f).sp') &&

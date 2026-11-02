@@ -860,6 +860,7 @@ private class AttaYoutubeFullscreenChrome(
     }
     val playOnSite = remember(safeId, bridgeJs) {
         bridgeJs.replace("__ALATTA_VIDEO_ID__", safeId)
+            .replace("__ALATTA_PORTRAIT__", portrait.toString())
     }
     val chrome = remember(ctx, safeId) {
         AttaYoutubeFullscreenChrome(ctx) { event ->
@@ -3127,6 +3128,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                         },
                                         nextReelsCursor = reelCursor,
                                         reelsLoading = reelMoreLoading,
+                                        onReelsNavigate = { destination -> navigate(destination) },
                                         onRefreshReels = {
                                             if (!reelMoreLoading) {
                                                 task {
