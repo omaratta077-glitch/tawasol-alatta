@@ -1017,8 +1017,12 @@ private class AttaYoutubeFullscreenChrome(
                     contentAlignment = Alignment.Center) {
                     coil.compose.AsyncImage(
                         model = "https://i.ytimg.com/vi/$safeId/hqdefault.jpg",
-                        contentDescription = null, modifier = Modifier.fillMaxSize(),
-                        contentScale = if (portrait) ContentScale.Crop else ContentScale.Fit
+                        contentDescription = null,
+                        // صورة بداية محدودة ومتناسبة مع أبعادها؛ لا نكبّرها فجأة
+                        // ثم نصغّرها عندما يكمل iframe تحميل فيديو يوتيوب.
+                        modifier = if (portrait) Modifier.fillMaxWidth(.86f).heightIn(max = 310.dp)
+                            else Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Fit
                     )
                     Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = .56f)))
                     Column(horizontalAlignment = Alignment.CenterHorizontally,
