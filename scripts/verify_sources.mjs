@@ -173,7 +173,7 @@ assert.ok(azkarCatalog.includes('fatiha, ayatKursi, baqarahEnding') &&
   azkarCatalog.includes('بِاللَّهِ", 10, "صحيح مسلم • 2704') &&
   azkarCatalog.includes('Dhikr("beloved-words", "كلمتان حبيبتان إلى الرحمن"') &&
   azkarCatalog.includes('سُبْحَانَ اللَّهِ وَبِحَمْدِهِ، سُبْحَانَ اللَّهِ الْعَظِيمِ", 10,') &&
-  azkarCatalog.includes('يُحْيِي وَيُمِيتُ وَهُوَ عَلَى كُلِّ شَيْءٍ قَدِيرٌ", 100,') &&
+  azkarCatalog.includes('وَهُوَ عَلَى كُلِّ شَيْءٍ قَدِيرٌ", 100, "صحيح البخاري') &&
   !azkarCatalog.includes('Dhikr("salawat-ten"'),
   'Morning/evening Adhkar keep Quran texts, custom repetition targets and ending: salawat, tasbih, forgiveness, canonical tawhid');
 assert.ok(azkarScreen.includes('ContentScale.FillBounds') &&
