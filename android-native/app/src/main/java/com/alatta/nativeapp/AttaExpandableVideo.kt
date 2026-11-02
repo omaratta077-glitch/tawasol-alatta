@@ -125,7 +125,8 @@ internal fun AttaExpandableVideo(url: String, posterUrl: String? = null, onOpen:
  * تُحفظ هويّة المنشور الحقيقية للتعليقات والتفاعل؛ المفتاح الخاص يمنع ضياع فيديو إن وُجد النوعان بمنشور واحد.
  */
 internal data class AttaReelEntry(val post: JSONObject, val key: String,
-    val videoUrl: String = "", val youtubeId: String? = null, val social: SocialVideoLink? = null)
+    val videoUrl: String = "", val youtubeId: String? = null, val social: SocialVideoLink? = null,
+    val youtubeIsShort: Boolean = false)
 
 /** ريلز العطا تعرض الفيديوهات المرفوعة وروابط YouTube وMeta العامة من المنشورات. */
 internal fun uploadedPostReels(
@@ -140,7 +141,9 @@ internal fun uploadedPostReels(
         // YouTube URL in its caption, avoiding a duplicated reel for one post.
         if (url.isBlank()) youtubePostId(post.optString("text"))?.let { videoId ->
             if (videoId !in rejectedShortIds)
-                add(AttaReelEntry(post, "$postId:youtube:$videoId", youtubeId = videoId))
+                add(AttaReelEntry(post, "$postId:youtube:$videoId", youtubeId = videoId,
+                    youtubeIsShort = post.optString("text").contains("alatta-youtube-short:", ignoreCase = true) ||
+                        post.optString("text").contains("youtube.com/shorts/", ignoreCase = true)))
         }
         socialVideoInPost(post.optString("text"))?.let { social ->
             add(AttaReelEntry(post, "$postId:social:${social.url}", social = social))
@@ -182,7 +185,7 @@ internal fun AttaPostMediaViewer(
     playbackKey: Any? = null,
     validatedChannelUrl: String? = null,
     reelsOnly: Boolean = false,
-    youtubeShortContent: (@Composable (String, Int, Boolean, (Boolean) -> Unit, (Float, Float) -> Unit) -> Unit)? = null,
+    youtubeShortContent: (@Composable (String, Int, Boolean, (Boolean) -> Unit, (Float, Float) -> Unit, Boolean) -> Unit)? = null,
     rejectedShortIds: Set<String> = emptySet(),
     nextReelsCursor: String? = null,
     onLoadMoreReels: (() -> Unit)? = null,
@@ -516,11 +519,23 @@ internal fun AttaPostMediaViewer(
                     // نفس YouTubePlayer الرسمي الذي يستخدمه التطبيق، لكن في مساحة 9:16.
                     // لا نحجب زر بدء YouTube الأصلي قبل التشغيل الأول.
                     key(reel.key) {
-                        youtubeShortContent(youtubeId, youtubeCommand, youtubeCommandPlay,
-                            { active ->
-                                youtubePlaying = active
-                                if (active) youtubeStarted = true
-                            }, onShortDrag)
+                        // لا تكبّر فيديو 16:9 داخل إطار رأسي 9:16 فتُقطع أطرافه.
+                        // الريلز المعلّمة Shorts تستخدم حجمًا رأسيًا مصغرًا،
+                        // وبقية فيديوهات YouTube تحافظ على كامل أبعادها الأفقية.
+                        BoxWithConstraints(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            val shortFormat = reel.youtubeIsShort
+                            val videoHeight = minOf(maxHeight * .68f,
+                                if (shortFormat) maxWidth * 16f / 9f else maxWidth * 9f / 16f)
+                            val videoWidth = minOf(maxWidth,
+                                if (shortFormat) videoHeight * 9f / 16f else videoHeight * 16f / 9f)
+                            Box(Modifier.width(videoWidth).height(videoHeight).background(Color.Black)) {
+                                youtubeShortContent(youtubeId, youtubeCommand, youtubeCommandPlay,
+                                    { active ->
+                                        youtubePlaying = active
+                                        if (active) youtubeStarted = true
+                                    }, onShortDrag, shortFormat)
+                            }
+                        }
                     }
                     // YouTube يعرض زر التشغيل الأصلي في المنتصف؛ لا نضع فوقه زرًا ثانيًا.
                     // تبقى المساحة حرة لسحب الشورت ولمس أدوات YouTube المضمّنة.
@@ -731,7 +746,8 @@ internal fun AttaPostMediaViewer(
                     }
                 }
             }
-        }
+            // نفس PremiumBottomNav الموجود في باقي أقسام التطبيق؛ داخل العمود
+            // بعد مساحة الفيديو مباشرة، فلا يمكن أن يظهر أعلى نافذة الريلز.
         // شريط التنقل الحقيقي خارج مساحة الفيديو المقصوصة، وفي حدود منطقة
         // العرض الآمنة أعلى أزرار أندرويد. لا يُقص أسفل الريلز مهما كان حجم الشاشة.
         if (reelsMode && onReelsNavigate != null) {
@@ -742,6 +758,7 @@ internal fun AttaPostMediaViewer(
                     .background(PremiumGoldLight, RoundedCornerShape(50)))
             }
         }
+        } // نهاية عمود الفيديو وشريط التنقل، قبل طبقة التعليقات المنفصلة.
         if (sheet != null && loadInteractions != null && sendComment != null) key(id, sheet) {
             PostInteractionsSheet(id, sheet!!, loadInteractions, sendComment, updateStats,
                 onOpenProfile = { username -> onDismiss(); onOpenProfile(username) }, onDismiss = { sheet = null })

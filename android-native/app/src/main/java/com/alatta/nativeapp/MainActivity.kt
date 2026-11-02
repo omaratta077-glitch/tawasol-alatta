@@ -838,6 +838,7 @@ private class AttaYoutubeFullscreenChrome(
     id: String,
     onMiniDrag: ((Float, Float) -> Unit)? = null,
     portrait: Boolean = false,
+    videoIsShort: Boolean = false,
     playbackCommand: Int = 0,
     commandShouldPlay: Boolean = true,
     onPlaybackChanged: ((Boolean) -> Unit)? = null
@@ -858,9 +859,10 @@ private class AttaYoutubeFullscreenChrome(
         ctx.assets.open("atta-site-youtube-bridge.js").bufferedReader(Charsets.UTF_8)
             .use { it.readText() }
     }
-    val playOnSite = remember(safeId, bridgeJs, portrait) {
+    val playOnSite = remember(safeId, bridgeJs, portrait, videoIsShort) {
         bridgeJs.replace("__ALATTA_VIDEO_ID__", safeId)
-            .replace("__ALATTA_PORTRAIT__", portrait.toString())
+            // لا تفرض 9:16 على الفيديو الأفقي لمجرد عرضه في قائمة الريلز.
+            .replace("__ALATTA_PORTRAIT__", (portrait && videoIsShort).toString())
     }
     val chrome = remember(ctx, safeId) {
         AttaYoutubeFullscreenChrome(ctx) { event ->
@@ -3127,9 +3129,9 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                         onDismiss = { navigate("الرئيسية") },
                                         reelsOnly = true,
                                         rejectedShortIds = rejectedShortIds,
-                                        youtubeShortContent = { shortId, command, shouldPlay, changed, onShortsDrag ->
+                                        youtubeShortContent = { shortId, command, shouldPlay, changed, onShortsDrag, shortFormat ->
                                             YouTubePlayer(shortId, onMiniDrag = onShortsDrag,
-                                                portrait = true, playbackCommand = command,
+                                                portrait = true, videoIsShort = shortFormat, playbackCommand = command,
                                                 commandShouldPlay = shouldPlay, onPlaybackChanged = changed)
                                         },
                                         nextReelsCursor = reelCursor,
