@@ -14,6 +14,12 @@ assert.ok(!main.includes('new YT.Player(') && !main.includes('loadDataWithBaseUR
 assert.ok(bridge.includes("btn.click()") && bridge.includes("form.dispatchEvent(new Event('submit'"),"uses the site form and click handler");
 assert.ok(!bridge.includes("createElement('iframe')") && !bridge.includes('new YT.Player('),'bridge creates no player');
 assert.ok(site.includes('window.AttaYouTubeEmbed.create'),'site is sole iframe client');
+assert.ok(site.includes('if(!window.__attaAndroidYoutubeVideo){ensureLoaded();input.focus();}'),
+  'Android Reels should not fetch an unrelated YouTube search feed during video startup');
+const reels = fs.readFileSync('android-native/app/src/main/java/com/alatta/nativeapp/AttaExpandableVideo.kt','utf8');
+assert.ok(reels.includes('decorFitsSystemWindows = reelsMode') &&
+  reels.includes('PremiumBottomNav("ريلز", onReelsNavigate)'),
+  'Reels should preserve its navigation above Android system buttons');
 assert.ok(shared.includes('global.AttaYouTubeEmbed=Object.freeze({create})'));
 new vm.Script(bridge.replace('__ALATTA_VIDEO_ID__','dQw4w9WgXcQ'));
 assert.ok(main.includes('modifier = modifier.height(39.dp)'),'39dp search preserved');
