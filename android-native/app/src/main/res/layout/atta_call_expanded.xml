@@ -32,7 +32,7 @@
         <TextView android:id="@+id/call_reject" android:layout_width="0dp" android:layout_weight="1"
             android:layout_height="match_parent" android:background="@drawable/atta_call_reject_bg"
             android:gravity="center" android:text="رفض"
-            android:drawablePadding="6dp" android:textColor="#FFFFFF"
+            android:textColor="#FFFFFF"
             android:textStyle="bold" android:textSize="14sp" android:contentDescription="رفض المكالمة" />
     </LinearLayout>
 </LinearLayout>
