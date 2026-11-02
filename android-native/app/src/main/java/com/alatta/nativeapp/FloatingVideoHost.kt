@@ -79,6 +79,8 @@ internal fun FloatingVideoContainer(
 
 /** اعترض السحب الحقيقي بإصبع واحد فقط؛ واترك النقرات العادية تصل إلى المشغّل. */
 internal class MiniPlayerTouchHost(context: Context) : FrameLayout(context) {
+    // الريلز تتنقل رأسيًا فقط؛ سحب شريط تقدم يوتيوب أفقيًا يجب أن يصل لـ WebView.
+    var verticalOnlyDrag: Boolean = false
     var onDrag: ((Float, Float) -> Unit)? = null
         set(value) {
             if (value == null && field != null) reset()
@@ -120,6 +122,10 @@ internal class MiniPlayerTouchHost(context: Context) : FrameLayout(context) {
                 val dy = event.rawY - startY
                 val distance = hypot(dx, dy)
                 if (distance > slop) {
+                    if (verticalOnlyDrag && kotlin.math.abs(dy) <= kotlin.math.abs(dx) * 1.25f) {
+                        tracking = false
+                        return false
+                    }
                     dragging = true
                     lastX = event.rawX; lastY = event.rawY
                     parent?.requestDisallowInterceptTouchEvent(true)

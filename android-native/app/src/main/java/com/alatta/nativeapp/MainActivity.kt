@@ -858,7 +858,7 @@ private class AttaYoutubeFullscreenChrome(
         ctx.assets.open("atta-site-youtube-bridge.js").bufferedReader(Charsets.UTF_8)
             .use { it.readText() }
     }
-    val playOnSite = remember(safeId, bridgeJs) {
+    val playOnSite = remember(safeId, bridgeJs, portrait) {
         bridgeJs.replace("__ALATTA_VIDEO_ID__", safeId)
             .replace("__ALATTA_PORTRAIT__", portrait.toString())
     }
@@ -964,6 +964,7 @@ private class AttaYoutubeFullscreenChrome(
     }
     val touchHost = remember(ctx, safeId) {
         MiniPlayerTouchHost(ctx).apply {
+            verticalOnlyDrag = portrait
             addView(webView, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
         }
     }
@@ -1008,7 +1009,7 @@ private class AttaYoutubeFullscreenChrome(
             AndroidView(factory = {
                 (touchHost.parent as? ViewGroup)?.removeView(touchHost)
                 touchHost
-            }, update = { it.onDrag = onMiniDrag }, modifier = Modifier.fillMaxSize())
+            }, update = { it.verticalOnlyDrag = portrait; it.onDrag = onMiniDrag }, modifier = Modifier.fillMaxSize())
             // لا تظهر الصفحة الرئيسية أو شاشة تسجيل دخول الموقع إطلاقًا أثناء
             // تركيب iframe؛ الغطاء الأصلي يبقى فوق WebView في الأفقي والرأسي.
             if (!frameLoaded || error.isNotBlank()) {
@@ -1017,7 +1018,7 @@ private class AttaYoutubeFullscreenChrome(
                     coil.compose.AsyncImage(
                         model = "https://i.ytimg.com/vi/$safeId/hqdefault.jpg",
                         contentDescription = null, modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Fit
+                        contentScale = if (portrait) ContentScale.Crop else ContentScale.Fit
                     )
                     Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = .56f)))
                     Column(horizontalAlignment = Alignment.CenterHorizontally,
@@ -1362,6 +1363,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
         }
     }
     LaunchedEffect(activeCall?.callId, incomingCall?.callId) {
+        incomingCall?.let { IncomingCallOverlayService.dismiss(it.callId) }
         if (activeCall != null || incomingCall != null) {
             youtubePlayRequested = false
             activeYoutubePostId = ""

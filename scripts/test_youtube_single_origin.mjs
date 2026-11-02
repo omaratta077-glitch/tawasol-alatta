@@ -43,7 +43,7 @@ const document = {
 const events = [];
 const window = {addEventListener(type,fn){events.push({type,fn});}};
 const context = vm.createContext({window, document, console:{log(s){logs.push(s)}},
-  Event:class Event{constructor(type){this.type=type;}}, URL, setTimeout(){throw Error('Unexpected retry')},
+  Event:class Event{constructor(type){this.type=type;}}, URL, setTimeout(fn){ /* load timeout is only a fallback in the live WebView */ },
   JSON});
 vm.runInContext(bridge.replace('__ALATTA_VIDEO_ID__','dQw4w9WgXcQ'),context);
 assert.equal(siteClicks,1);

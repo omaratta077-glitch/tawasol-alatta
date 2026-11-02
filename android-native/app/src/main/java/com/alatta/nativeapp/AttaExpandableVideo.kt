@@ -628,32 +628,21 @@ internal fun AttaPostMediaViewer(
                         }
                     }
                 }
-                // شريط تنقل الريلز يظهر باللمس ويختفي مع عناصر التحكم دون حجب مشغل YouTube.
-                if (reelsMode && onReelsNavigate != null) {
-                    Row(Modifier.align(Alignment.BottomCenter).fillMaxWidth()
-                        .height(54.dp).background(Color(0xBB090909))
-                        .clickable { controls = true }
-                        .padding(horizontal = 4.dp),
-                        horizontalArrangement = Arrangement.SpaceEvenly,
-                        verticalAlignment = Alignment.CenterVertically) {
-                        if (controls) {
-                            listOf(
-                                Triple("الرئيسية", "home", "الرئيسية"),
-                                Triple("ريلز", "video", "ريلز"),
-                                Triple("القرآن", "book-open", "القرآن"),
-                                Triple("الأذكار", "sun", "الأذكار"),
-                                Triple("الرياضة", "trophy", "الرياضة")
-                            ).forEach { (title, icon, target) ->
-                                Column(Modifier.weight(1f).clickable {
-                                    if (target != "ريلز") onReelsNavigate(target)
-                                    else controls = false
-                                }, horizontalAlignment = Alignment.CenterHorizontally) {
-                                    SiteIcon(icon, size = 20.dp, tint = PremiumGoldLight)
-                                    Text(title, fontSize = 10.sp, color = Color.White)
-                                }
-                            }
-                        } else {
-                            Text("⌃", color = PremiumGoldLight, fontSize = 19.sp)
+                // نفس شريط التنقل الرسمي المستعمل في باقي صفحات التطبيق؛
+                // لا نعيد رسم أيقونات بديلة داخل الريلز.
+                val reelsNavigation = onReelsNavigate
+                if (reelsMode && reelsNavigation != null) {
+                    if (controls) {
+                        Box(Modifier.align(Alignment.BottomCenter)) {
+                            PremiumBottomNav("ريلز", reelsNavigation)
+                        }
+                    } else {
+                        // منطقة لمس صغيرة لإظهار الشريط دون اعتراض مشغل يوتيوب أو سحبه.
+                        Box(Modifier.align(Alignment.BottomCenter)
+                            .fillMaxWidth().height(24.dp)
+                            .clickable { controls = true }, contentAlignment = Alignment.BottomCenter) {
+                            Box(Modifier.padding(bottom = 5.dp).width(38.dp).height(3.dp)
+                                .background(PremiumGoldLight, RoundedCornerShape(50)))
                         }
                     }
                 }

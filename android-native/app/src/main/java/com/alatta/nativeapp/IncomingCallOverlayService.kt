@@ -81,8 +81,11 @@ class IncomingCallOverlayService : Service() {
     private val refresh = object : Runnable {
         override fun run() {
             val invitation = call ?: return
-            if (AttaPush.pendingIncoming(this@IncomingCallOverlayService)?.callId != invitation.callId ||
-                !AttaPush.canNotify(this@IncomingCallOverlayService)) { stopForeground(STOP_FOREGROUND_REMOVE); stopSelf(); return }
+            if (AttaPush.appVisible ||
+                AttaPush.pendingIncoming(this@IncomingCallOverlayService)?.callId != invitation.callId ||
+                !AttaPush.canNotify(this@IncomingCallOverlayService)) {
+                removeCard(); stopForeground(STOP_FOREGROUND_REMOVE); stopSelf(); return
+            }
             val locked = (getSystemService(KEYGUARD_SERVICE) as KeyguardManager).isKeyguardLocked
             if (locked) {
                 removeCard()
@@ -113,7 +116,8 @@ class IncomingCallOverlayService : Service() {
         if (invitation == null || AttaPush.pendingIncoming(this)?.callId != invitation.callId || !AttaPush.canNotify(this)) {
             stopSelf(); return START_NOT_STICKY
         }
-        if (AttaPush.appVisible && AttaPush.foregroundRingCallId == invitation.callId) { stopSelf(); return START_NOT_STICKY }
+        // التطبيق المفتوح يملك نافذة الرد/الرفض. لا تُنشئ بطاقة عائمة ثانية.
+        if (AttaPush.appVisible) { removeCard(); stopSelf(); return START_NOT_STICKY }
         if (call?.callId == invitation.callId) return START_NOT_STICKY
         removeCard(); call = invitation
         val code = invitation.callId.hashCode()
