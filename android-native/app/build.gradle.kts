@@ -24,9 +24,9 @@ android {
         applicationId = "com.alatta.nativeapp"
         minSdk = 26
         targetSdk = 35
-        // الإصدار 1.0.247: وضع شريط الريلز تحت الفيديو وتصغير العرض مع الحفاظ على أبعاد فيديوهات YouTube.
-        versionCode = 347
-        versionName = "1.0.247"
+        // الإصدار 1.0.248: فحص وإصلاح جاهزية إطار يوتيوب وتحسين تحميل الريلز وتوافق الشريط مع حدود الشاشة.
+        versionCode = 348
+        versionName = "1.0.248"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("boolean", "IS_APPGALLERY", appGalleryBuild.toString())
         val hmsId = (System.getenv("ALATTA_HMS_APP_ID") ?: "").trim().takeIf { it.matches(Regex("[0-9]{1,20}")) } ?: ""
