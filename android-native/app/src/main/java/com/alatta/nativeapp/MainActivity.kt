@@ -1378,6 +1378,9 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
     LaunchedEffect(tab, profilePeer) {
         // يتوقف المنشور عند مغادرة شاشته أو تغطيته بملف شخصي؛ ولا يتحول إلى مشغّل مصغّر.
         activeYoutubePostId = ""
+        // الريلز تستخدم WebView يوتيوب واحدة للفيديو الحالي؛ لا تُبقِ
+        // مشغّل قسم يوتيوب المصغّر يعمل في الخلفية ويضاعف الحمل والصوت.
+        if (tab == "ريلز" && youtubePlayRequested) youtubePlayRequested = false
     }
     val youtubeListState = rememberLazyListState()
     val homeFeedListState = rememberLazyListState()
