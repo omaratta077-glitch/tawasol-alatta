@@ -571,10 +571,9 @@ internal fun AzkarPrayerScreen(modifier: Modifier = Modifier, onSharePost: (Stri
                         Text(entry.text, color = Color.White, fontSize = fontSize.sp,
                             lineHeight = (fontSize * 1.75f).sp, textAlign = TextAlign.Center,
                             modifier = Modifier.fillMaxWidth())
-                        Text("فضل الذكر: ${entry.verifiedVirtue()}", color = PremiumGoldLight, fontSize = 12.sp)
-                        Text(entry.source, color = if (goldStyle) PremiumGoldLight.copy(alpha = .8f) else PremiumMuted, fontSize = 12.sp)
-                        if (entry.note.isNotBlank()) Text(entry.note,
-                            color = if (goldStyle) PremiumGoldLight.copy(alpha = .7f) else prayerSoft, fontSize = 12.sp)
+                        val virtue = entry.verifiedVirtue()
+                        if (virtue.isNotBlank()) Text("فضل الذكر: $virtue",
+                            color = PremiumGoldLight, fontSize = 12.sp)
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                             TextButton(onClick = { shareChoice = group to entry }) {
                                 SiteIcon("share", tint = if (goldStyle) PremiumGoldLight else PremiumGold, size = 21.dp)
