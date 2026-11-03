@@ -6,8 +6,11 @@ const html=fs.readFileSync('cloudflare-site/public/index.html','utf8');
 assert.equal((native.match(/fun YouTubePlayer\(/g)||[]).length,1,'one canonical YouTubePlayer');
 assert.equal((native.match(/YouTubePlayer\(youtubeId,\s*onMiniDrag = onMiniDrag\)/g)||[]).length,1,'screen calls canonical player with its mini-drag callback');
 assert.ok(!native.includes('AlattaFixedYouTubePlayer') && !native.includes('attaYouTubeHtml'),'no duplicate native player');
-assert.ok(native.includes('playerContent(videoId)') && !native.includes('youtubeId = videoId; youtubePlayRequested = true'),
-  'post videos use the canonical player inline without selecting the floating host');
+assert.ok(native.includes('YouTubePlayer(activeYoutubePostVideoId, portrait = landscapePost)') &&
+  native.includes('var activeYoutubePostVideoId by remember') &&
+  !native.includes('playerContent(videoId)') &&
+  !native.includes('youtubeId = videoId; youtubePlayRequested = true'),
+  'post videos use one stable Activity-level player and are not disposed with feed cards');
 const freshYoutube=fs.readFileSync('android-native/app/src/main/java/com/alatta/nativeapp/AttaFreshYouTubePlayer.kt','utf8');
 const freshReels=fs.readFileSync('android-native/app/src/main/java/com/alatta/nativeapp/AttaFreshReelsViewer.kt','utf8');
 assert.ok(native.includes('AttaFreshYouTubePlayer(id, onMiniDrag') &&
