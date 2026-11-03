@@ -49,13 +49,14 @@ for(const mobile of [true,false]){
  assert.equal(menu.style.display,'none');
  if(mobile){
   w.AttaWeb.navigate('homePage');assert.equal(d.querySelectorAll('.atta-youtube-frame iframe').length,0);
-  // شغّل تكامل Android الأصلي كما هو ضد متحكم الموقع الفعلي.
-  const bridge=fs.readFileSync(new URL('../../android-native/app/src/main/assets/atta-site-youtube-bridge.js',import.meta.url),'utf8');
-  w.eval(bridge.replace('__ALATTA_VIDEO_ID__','dQw4w9WgXcQ'));
-  assert.equal(panel.parentNode.className,'atta-youtube-overlay');
-  assert.equal(d.querySelector('.atta-youtube-overlay').hidden,false);
+  // Android no longer injects a bridge into the website; the website's own
+  // player remains independently functional after navigation.
+  w.AttaWeb.navigate('youtubePage');
+  await new Promise(r=>setTimeout(r,0));
+  d.querySelector('.atta-yt-card').click();
   assert.equal(d.querySelectorAll('.atta-youtube-frame iframe').length,1);
+  assert.equal(d.querySelector('.atta-youtube-panel').parentNode.id,'youtubeInlineMount');
  }else{d.querySelector('.atta-youtube-close').click();assert.equal(d.querySelector('.atta-youtube-overlay').hidden,true);}
  assert.deepEqual(errors,[]);dom.window.close();
 }
-console.log('PASS YouTube share chooser: post, validated Reels, rejection, mobile inline, desktop dialog and native bridge');
+console.log('PASS YouTube share chooser: post, validated Reels, rejection, mobile inline, desktop dialog and independent Android iframe');
