@@ -66,6 +66,7 @@ jobs:
       - name: Website navigation, content, session and sharing tests
         run: |
           npm ci --ignore-scripts --no-audit --no-fund --prefix scripts/web-tests
+          node scripts/web-tests/sports-browser-player.mjs
           node scripts/web-tests/parity.mjs
           node scripts/web-tests/watch-room.mjs
           node scripts/web-tests/admin-profile.mjs
