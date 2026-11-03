@@ -791,7 +791,7 @@ internal class AttaYoutubeFullscreenChrome(
     }
 
     override fun onShowCustomView(view: android.view.View?, cb: CustomViewCallback?) {
-        val activity = context as? android.app.Activity
+        val activity = context.mediaActivity()
         val container = activity?.window?.decorView as? android.view.ViewGroup
         if (activity == null || view == null || container == null || fullscreenView != null) {
             cb?.onCustomViewHidden()
