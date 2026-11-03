@@ -19,6 +19,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -226,10 +227,11 @@ internal fun AttaFreshReelsViewer(
             onDispose{window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)}
         }
         BackHandler{if(sheet!=null)sheet=null else dismiss()}
-        Column(Modifier.fillMaxSize().background(Color.Black)){
+        // Keep the entire navigation bar above the Android gesture/navigation area.
+        Column(Modifier.fillMaxSize().background(Color.Black).navigationBarsPadding()){
             Box(Modifier.weight(1f).fillMaxWidth()
                 .pointerInput(reel.key){
-                    if(isUploaded){
+                    run {
                         var movement=0f
                         detectVerticalDragGestures(onDragStart={movement=0f},
                             onDragCancel={movement=0f},
@@ -270,6 +272,22 @@ internal fun AttaFreshReelsViewer(
                     }
                     else -> Text("جاري تحميل الفيديو...",color=Color.White,
                         modifier=Modifier.align(Alignment.Center))
+                }
+                // The YouTube iframe consumes touch events. These empty side rails
+                // give users a swipe surface outside the video on either side.
+                if(youtubeId!=null){
+                    val edgeSwipe = Modifier.fillMaxHeight(.72f).width(44.dp)
+                        .pointerInput(reel.key){
+                            var movement=0f
+                            detectVerticalDragGestures(
+                                onDragStart={movement=0f},
+                                onDragCancel={movement=0f},
+                                onDragEnd={if(abs(movement)>with(density){72.dp.toPx()}) change(if(movement<0f)1 else -1)},
+                                onVerticalDrag={event,dy->event.consume();movement+=dy}
+                            )
+                        }
+                    Box(edgeSwipe.align(Alignment.CenterStart))
+                    Box(edgeSwipe.align(Alignment.CenterEnd))
                 }
                 val author=post.optJSONObject("authorInfo")
                 val name=author?.optString("fullName").orEmpty().ifBlank{post.optString("author")}
