@@ -36,5 +36,5 @@ for (const type of ['call-request','call-ringing','call-accept','call-reject','o
   assert.ok(engine.includes(type) || type==='call-reject', `Native signaling lacks ${type}`);
   assert.ok(site.includes(`"${type}"`) || site.includes(`'${type}'`), `Site signaling lacks ${type}`);
 }
-assert.ok(main.includes('GoogleNativeSignIn.pickAccount') && main.includes('atta-site-youtube-bridge.js'),'Google and YouTube unchanged');
+assert.ok(main.includes('GoogleNativeSignIn.pickAccount') && main.includes('AttaFreshYouTubePlayer(id, onMiniDrag'),'Google sign-in preserved and native YouTube rebuilt without changing calls');
 console.log('PASS Android-native WebRTC video renderers, media capture and website signaling compatibility');

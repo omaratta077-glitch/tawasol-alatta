@@ -8,7 +8,14 @@ assert.equal((native.match(/YouTubePlayer\(youtubeId,\s*onMiniDrag = onMiniDrag\
 assert.ok(!native.includes('AlattaFixedYouTubePlayer') && !native.includes('attaYouTubeHtml'),'no duplicate native player');
 assert.ok(native.includes('playerContent(videoId)') && !native.includes('youtubeId = videoId; youtubePlayRequested = true'),
   'post videos use the canonical player inline without selecting the floating host');
-assert.ok(native.includes('loadUrl("$BASE/")') && native.includes('atta-site-youtube-bridge.js') && !native.includes('document.body.replaceChildren(host)'),'Android drives the actual site player without replacing the website document');
+const freshYoutube=fs.readFileSync('android-native/app/src/main/java/com/alatta/nativeapp/AttaFreshYouTubePlayer.kt','utf8');
+const freshReels=fs.readFileSync('android-native/app/src/main/java/com/alatta/nativeapp/AttaFreshReelsViewer.kt','utf8');
+assert.ok(native.includes('AttaFreshYouTubePlayer(id, onMiniDrag') &&
+  freshYoutube.includes('loadDataWithBaseURL(ATTA_API_BASE') &&
+  freshYoutube.includes('https://www.youtube.com/iframe_api') &&
+  (freshYoutube.match(/new YT.Player\(/g)||[]).length===1 &&
+  !native.includes('loadUrl("$BASE/")') && !native.includes('atta-site-youtube-bridge.js'),
+  'Android YouTube is a single fresh official IFrame player without website login page');
 assert.ok(!native.includes('raw.contains("username", ignoreCase = true)'),'no blanket mapping of login failures to username-taken');
 const roleScript=fs.readFileSync('cloudflare-site/public/app.js','utf8');
 const ownerAccess=fs.readFileSync('cloudflare-site/src/worker.js','utf8');
@@ -100,7 +107,7 @@ assert.ok(!native.includes('youtube_verified_short_link') &&
   native.includes('youtubeShareSelection = id to v.optString("title").take(160)') &&
   native.includes('مشاركة كمنشور') && native.includes('مشاركة في الريلز') &&
   native.includes('youtubeShareChecking') &&
-  native.includes('جاري تجهيز فيديو يوتيوب') &&
+  freshYoutube.includes('جاري تجهيز YouTube') &&
   !siteYoutube.includes('shortsForm') &&
   !siteYoutube.includes('shortShare.onclick') &&
   siteYoutube.includes('share.onclick=()=>openShareOptions(v)') &&
@@ -112,14 +119,12 @@ assert.ok(!native.includes('youtube_verified_short_link') &&
   workerSource.includes('ids.length>25') &&
   native.includes('api("/api/youtube-short?ids='),
   'One existing YouTube share button offers Post/Reels on app and site, without separate Shorts paste form');
-assert.ok(native.includes('if (!frameLoaded || error.isNotBlank()) {') &&
-  native.includes('Box(Modifier.fillMaxSize().background(Color.Black)') &&
-  native.includes('جاري تجهيز فيديو يوتيوب داخل العطا') &&
-  native.includes('إعادة تشغيل الفيديو') &&
-  native.includes('playerReload++') &&
-  native.includes('loadUrl("$BASE/")') &&
-  !native.includes('if (portrait && !frameLoaded && error.isBlank())'),
-  'Site login screen hidden while WebView boots: one official YouTube iframe reveals only after load, safe retry');
+assert.ok(freshYoutube.includes('if(!ready || error.isNotBlank())') &&
+  freshYoutube.includes('جاري تجهيز YouTube') &&
+  freshYoutube.includes('إعادة المحاولة') &&
+  freshYoutube.includes('web.loadDataWithBaseURL(') &&
+  !freshYoutube.includes('loadUrl("$BASE/")'),
+  'New YouTube player shows only a clean official iframe after readiness, with retry');
 const youtubeShare=fs.readFileSync('android-native/app/src/main/java/com/alatta/nativeapp/YoutubePostShare.kt','utf8');
 assert.ok(youtubeShare.includes('alatta-youtube(-short)?') &&
   youtubeShare.includes('fun youtubeShortPostId(') &&
@@ -128,9 +133,17 @@ assert.ok(youtubeShare.includes('alatta-youtube(-short)?') &&
   native.includes('portrait = true, videoIsShort = shortFormat, playbackCommand = command,') &&
   native.includes('youtubePostDraftIsShort = true') &&
   native.includes('playbackCommand = command') &&
-  native.includes('event == "PAUSED" || event == "ENDED"'),
+  freshYoutube.includes('event == "PAUSED" || event == "ENDED"'),
   'YouTube Reels use one official embedded player with play/pause signals');
 const videoViewer=fs.readFileSync('android-native/app/src/main/java/com/alatta/nativeapp/AttaExpandableVideo.kt','utf8');
+assert.ok(videoViewer.includes('AttaFreshReelsViewer(') &&
+  freshReels.includes('uploadedPostReels(posts,rejectedShortIds)') &&
+  freshReels.includes('ExoPlayer.Builder(context)') &&
+  freshReels.includes('youtubeShortContent(youtubeId') &&
+  freshReels.includes('SocialVideoPostEmbed(social') &&
+  freshReels.includes('onRefreshReels?.invoke()') &&
+  freshReels.includes('onLoadMoreReels?.invoke()'),
+  'New Reels viewer handles uploaded video, official YouTube and social embeds with refresh and paging');
 assert.ok(
   videoViewer.includes('val reelsMode = reelsOnly && live == null') &&
   videoViewer.includes('internal fun uploadedPostReels(') &&

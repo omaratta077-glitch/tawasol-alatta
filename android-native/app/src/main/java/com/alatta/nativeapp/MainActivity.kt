@@ -769,7 +769,7 @@ private fun SignupLegalConsent(
  * كان مشغّل v1.0.18 السابق يعرض مؤشر تحميل لا ينتهي لأنه راقب صفحة HTML الخارجية فقط،
  * ولم يتابع دورة حياة مشغّل YouTube نفسه.
  */
-private class AttaYoutubeFullscreenChrome(
+internal class AttaYoutubeFullscreenChrome(
     private val context: android.content.Context,
     private val onPlayerEvent: (String) -> Unit
 ) : WebChromeClient() {
@@ -834,6 +834,7 @@ private class AttaYoutubeFullscreenChrome(
  * باستخدام youtube-player-shared.js من أصل الموقع عبر HTTPS.
  * يربط JavaScript المحلي التفاعلات والتشخيص فقط، ولا ينشئ إطار iframe.
  */
+/** نافذة واحدة للمشغّل الرسمي الجديد، بدون WebView الموقع القديم. */
 @Composable private fun YouTubePlayer(
     id: String,
     onMiniDrag: ((Float, Float) -> Unit)? = null,
@@ -843,228 +844,8 @@ private class AttaYoutubeFullscreenChrome(
     commandShouldPlay: Boolean = true,
     onPlaybackChanged: ((Boolean) -> Unit)? = null
 ) {
-    val safeId = id.takeIf { Regex("[A-Za-z0-9_-]{11}").matches(it) } ?: return
-    val ctx = LocalContext.current
-    var loading by remember(safeId) { mutableStateOf(true) }
-    var frameLoaded by remember(safeId) { mutableStateOf(false) }
-    var playerReload by remember(safeId) { mutableIntStateOf(0) }
-    var playbackConfirmed by remember(safeId) { mutableStateOf(false) }
-    var error by remember(safeId) { mutableStateOf("") }
-    var lastEvent by remember(safeId) { mutableStateOf("بدء التحميل") }
-    val currentPlaybackChanged by rememberUpdatedState(onPlaybackChanged)
-
-    // يحرّك جسر DOM صغير زر الموقع الحالي ونموذج البحث.
-    // لا تُضمَّن نسخة ثانية من iframe في APK Android.
-    val bridgeJs = remember(ctx) {
-        ctx.assets.open("atta-site-youtube-bridge.js").bufferedReader(Charsets.UTF_8)
-            .use { it.readText() }
-    }
-    val playOnSite = remember(safeId, bridgeJs, portrait, videoIsShort) {
-        bridgeJs.replace("__ALATTA_VIDEO_ID__", safeId)
-            // لا تفرض 9:16 على الفيديو الأفقي لمجرد عرضه في قائمة الريلز.
-            .replace("__ALATTA_PORTRAIT__", (portrait && videoIsShort).toString())
-    }
-    val chrome = remember(ctx, safeId) {
-        AttaYoutubeFullscreenChrome(ctx) { event ->
-            lastEvent = event.take(140)
-            when {
-                event == "FRAME_LOADED" -> {
-                    frameLoaded = true
-                    loading = false
-                }
-                event == "PLAYING" -> {
-                    frameLoaded = true
-                    playbackConfirmed = true
-                    loading = false
-                    error = ""
-                    currentPlaybackChanged?.invoke(true)
-                }
-                event == "PAUSED" || event == "ENDED" -> {
-                    currentPlaybackChanged?.invoke(false)
-                }
-                event.startsWith("PLAYER_ERROR:") -> {
-                    loading = false
-                    val code = event.removePrefix("PLAYER_ERROR:")
-                    error = when (code) {
-                        "153" -> "رفض YouTube التشغيل داخل WebView (153: تعذّر التحقق من مصدر المشغّل)."
-                        "101", "150" -> "صاحب الفيديو لا يسمح بالتشغيل داخل التطبيقات (رمز $code)."
-                        else -> "مشغّل YouTube أبلغ عن خطأ رقم $code."
-                    }
-                }
-                event.startsWith("ERROR:") -> {
-                    loading = false
-                    error = "تعذّر تشغيل مشغّل الموقع: " + event.removePrefix("ERROR:").take(120)
-                }
-            }
-        }
-    }
-    val webView = remember(ctx, safeId) {
-        WebView(ctx).apply {
-            setBackgroundColor(AndroidColor.BLACK)
-            settings.javaScriptEnabled = true
-            settings.domStorageEnabled = true
-            settings.mediaPlaybackRequiresUserGesture = true
-            settings.loadsImagesAutomatically = true
-            settings.useWideViewPort = true
-            settings.loadWithOverviewMode = true
-            settings.allowFileAccess = false
-            settings.allowContentAccess = false
-            settings.setSupportZoom(false)
-            android.webkit.CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
-            webChromeClient = chrome
-            webViewClient = object : WebViewClient() {
-                override fun onPageFinished(view: WebView?, url: String?) {
-                    if (url == BASE || url?.startsWith("$BASE/") == true) {
-                        // لا تستبدل مستند الموقع؛ فهو يحتوي على
-                        // معالجات أحداث المشغّل الفعلية العاملة وCSS الخاص به.
-                        view?.evaluateJavascript(playOnSite, null)
-                    } else {
-                        loading = false
-                        error = "لم تُفتح صفحة تواصل العطا الأصلية داخل WebView."
-                    }
-                }
-                override fun onReceivedError(view: WebView?, request: WebResourceRequest?, issue: WebResourceError?) {
-                    if (request?.isForMainFrame == true) {
-                        loading = false
-                        error = "تعذّر تحميل الموقع داخل WebView (${issue?.errorCode})."
-                    }
-                }
-                override fun onReceivedHttpError(view: WebView?, request: WebResourceRequest?, response: android.webkit.WebResourceResponse?) {
-                    val code = response?.statusCode ?: return
-                    if (code < 400) return
-                    if (request?.isForMainFrame == true) {
-                        loading = false
-                        error = "موقع تواصل العطا أعاد HTTP $code."
-                    } else {
-                        val host = request?.url?.host.orEmpty()
-                        val path = request?.url?.path.orEmpty()
-                        if ((host == "www.youtube-nocookie.com" || host == "www.youtube.com") && path.startsWith("/embed/")) {
-                            loading = false
-                            error = "YouTube رفض طلب المشغّل (HTTP $code)."
-                            lastEvent = "EMBED_HTTP_$code"
-                        }
-                    }
-                }
-            }
-            loadUrl("$BASE/")
-        }
-    }
-    // أوامر الإيقاف/التشغيل للشورتس تمر إلى iframe الموجود عبر postMessage،
-    // بلا إنشاء WebView أو iframe أو مشغّل YouTube جديد.
-    LaunchedEffect(webView, portrait, playbackCommand, frameLoaded) {
-        if (portrait && playbackCommand > 0 && frameLoaded) {
-            val method = if (commandShouldPlay) "playVideo" else "pauseVideo"
-            webView.evaluateJavascript("""
-                (function(){
-                  const f=document.querySelector('.atta-youtube-frame iframe');
-                  if(!f || !f.contentWindow)return;
-                  f.contentWindow.postMessage(JSON.stringify({event:'command',func:'$method',args:[]}),
-                    'https://www.youtube-nocookie.com');
-                })()
-            """.trimIndent(), null)
-        }
-    }
-    val touchHost = remember(ctx, safeId) {
-        MiniPlayerTouchHost(ctx).apply {
-            verticalOnlyDrag = portrait
-            addView(webView, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
-        }
-    }
-    // تحميل iframe لا يثبت بدء التشغيل، كما أن انتهاء مهلة 20 ثانية لا يعني عطل المشغّل.
-    // أوقف مؤشر التحميل بهدوء، ودع مشغّل الموقع المضمّن الحالي يعرض عناصر التحكم.
-    LaunchedEffect(webView, safeId, playerReload) {
-        kotlinx.coroutines.delay(20000)
-        // لا تعرض شاشة دخول الويب للمستخدم عند تأخر JavaScript أو iframe.
-        if (!frameLoaded && error.isBlank()) {
-            loading = false
-            error = "لم يكتمل تجهيز الفيديو. تحقق من الإنترنت ثم أعد المحاولة."
-        } else if (!playbackConfirmed) loading = false
-    }
-    DisposableEffect(webView, chrome) {
-        val owner = ctx as? ComponentActivity
-        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
-            when (event) {
-                androidx.lifecycle.Lifecycle.Event.ON_STOP -> {
-                    val activity = ctx as? MainActivity
-                    val pipVisibleAndInteractive = activity?.isInPictureInPictureMode == true &&
-                        activity.getSystemService(PowerManager::class.java)?.isInteractive == true
-                    if (!pipVisibleAndInteractive) {
-                        webView.evaluateJavascript("document.querySelectorAll('iframe').forEach(function(f){f.contentWindow.postMessage(JSON.stringify({event:'command',func:'pauseVideo',args:[]}), 'https://www.youtube-nocookie.com');f.contentWindow.postMessage(JSON.stringify({event:'command',func:'pauseVideo',args:[]}), 'https://www.youtube.com')})", null)
-                        webView.onPause()
-                    }
-                }
-                androidx.lifecycle.Lifecycle.Event.ON_START -> webView.onResume()
-                else -> Unit
-            }
-        }
-        owner?.lifecycle?.addObserver(observer)
-        onDispose {
-            owner?.lifecycle?.removeObserver(observer)
-            chrome.release()
-            (webView.parent as? ViewGroup)?.removeView(webView)
-            webView.stopLoading()
-            webView.destroy()
-        }
-    }
-    @Composable fun PlayerSurface(modifier: Modifier) {
-        Box(modifier.background(Color.Black), contentAlignment = Alignment.Center) {
-            AndroidView(factory = {
-                (touchHost.parent as? ViewGroup)?.removeView(touchHost)
-                touchHost
-            }, update = { it.verticalOnlyDrag = portrait; it.onDrag = onMiniDrag }, modifier = Modifier.fillMaxSize())
-            // لا تظهر الصفحة الرئيسية أو شاشة تسجيل دخول الموقع إطلاقًا أثناء
-            // تركيب iframe؛ الغطاء الأصلي يبقى فوق WebView في الأفقي والرأسي.
-            if (!frameLoaded || error.isNotBlank()) {
-                Box(Modifier.fillMaxSize().background(Color.Black),
-                    contentAlignment = Alignment.Center) {
-                    coil.compose.AsyncImage(
-                        model = "https://i.ytimg.com/vi/$safeId/hqdefault.jpg",
-                        contentDescription = null,
-                        // صورة بداية محدودة ومتناسبة مع أبعادها؛ لا نكبّرها فجأة
-                        // ثم نصغّرها عندما يكمل iframe تحميل فيديو يوتيوب.
-                        modifier = if (portrait) Modifier.fillMaxWidth(.86f).heightIn(max = 310.dp)
-                            else Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Fit
-                    )
-                    Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = .56f)))
-                    Column(horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(12.dp),
-                        modifier = Modifier.padding(horizontal = 18.dp)) {
-                        if (error.isBlank()) {
-                            CircularProgressIndicator(color = Gold, modifier = Modifier.size(29.dp))
-                            Text("جاري تجهيز فيديو يوتيوب داخل العطا",
-                                color = GoldLight, fontSize = 13.sp)
-                        } else {
-                            Text(error, color = Color(0xFFFFB7B7),
-                                fontSize = 13.sp, textAlign = TextAlign.Center)
-                            OutlinedButton(
-                                onClick = {
-                                    frameLoaded = false
-                                    playbackConfirmed = false
-                                    loading = true
-                                    error = ""
-                                    lastEvent = "إعادة التحميل"
-                                    playerReload++
-                                    webView.loadUrl("$BASE/")
-                                },
-                                border = BorderStroke(1.dp, Gold),
-                                shape = RoundedCornerShape(16.dp)) {
-                                Text("إعادة تشغيل الفيديو", color = GoldLight)
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-    // لم يتغير مسار التشغيل في v1.0.57 عمدًا؛ فما زال موقع HTTPS
-    // ينشئ iframe الوحيد عبر جسر الموقع الحالي.
-    val compact = LocalConfiguration.current.screenHeightDp < 480
-    BoxWithConstraints(if (portrait) Modifier.fillMaxSize() else Modifier.fillMaxWidth()) {
-        PlayerSurface(if (portrait) Modifier.fillMaxSize()
-            else Modifier.fillMaxWidth().height(if (compact) 200.dp else (maxWidth * 9f / 16f).coerceAtLeast(200.dp)))
-        // تظهر أخطاء تشغيل الفيديو داخل غطاء مشغل العطا فقط، لا فوق صفحة الويب.
-    }
+    AttaFreshYouTubePlayer(id, onMiniDrag, portrait, videoIsShort,
+        playbackCommand, commandShouldPlay, onPlaybackChanged)
 }
 
 /** تستخدم المنشورات مشغّل الموقع نفسه داخل البطاقة؛ والقسم YouTube وحده يملك نافذة عائمة. */

@@ -137,13 +137,15 @@ internal fun uploadedPostReels(
         val postId = post.optString("id")
         val url = media(post.optString("video"))
         if (url.isNotBlank()) add(AttaReelEntry(post, "$postId:video", videoUrl = url))
-        // Keep one playable reel per post: a native upload wins over a
-        // YouTube URL in its caption, avoiding a duplicated reel for one post.
-        if (url.isBlank()) youtubePostId(post.optString("text"))?.let { videoId ->
-            if (videoId !in rejectedShortIds)
-                add(AttaReelEntry(post, "$postId:youtube:$videoId", youtubeId = videoId,
-                    youtubeIsShort = post.optString("text").contains("alatta-youtube-short:", ignoreCase = true) ||
-                        post.optString("text").contains("youtube.com/shorts/", ignoreCase = true)))
+        // Exactly one reel per post: uploaded video wins; otherwise YouTube
+        // has priority over a social link in the same caption.
+        if (url.isNotBlank()) continue
+        val youtube = youtubePostId(post.optString("text"))
+        if (youtube != null && youtube !in rejectedShortIds) {
+            add(AttaReelEntry(post, "$postId:youtube:$youtube", youtubeId = youtube,
+                youtubeIsShort = post.optString("text").contains("alatta-youtube-short:", ignoreCase = true) ||
+                    post.optString("text").contains("youtube.com/shorts/", ignoreCase = true)))
+            continue
         }
         socialVideoInPost(post.optString("text"))?.let { social ->
             add(AttaReelEntry(post, "$postId:social:${social.url}", social = social))
@@ -193,6 +195,19 @@ internal fun AttaPostMediaViewer(
     onReelsNavigate: ((String) -> Unit)? = null,
     reelsLoading: Boolean = false
 ) {
+    // The old mixed reels branch is retired. Live sports/non-reels keep the stable viewer.
+    if (reelsOnly && kind == "video" && live == null && validatedChannelUrl == null) {
+        AttaFreshReelsViewer(
+            posts = posts, startId = startId, onDismiss = onDismiss,
+            loadInteractions = loadInteractions, sendReaction = sendReaction,
+            sendComment = sendComment, onShare = onShare, onStats = onStats,
+            onOpenProfile = onOpenProfile, youtubeShortContent = youtubeShortContent,
+            rejectedShortIds = rejectedShortIds, nextReelsCursor = nextReelsCursor,
+            onLoadMoreReels = onLoadMoreReels, onRefreshReels = onRefreshReels,
+            onReelsNavigate = onReelsNavigate, reelsLoading = reelsLoading
+        )
+        return
+    }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val isVideo = kind == "video"
@@ -795,7 +810,7 @@ private fun AttaZoomableImage(url: String, description: String, onTap: () -> Uni
 /** اعرض التعليقات والتفاعلات فقط عند توفر معالجات خادم عاملة. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun PostInteractionsSheet(
+internal fun PostInteractionsSheet(
     postId: String, tab: String,
     loadInteractions: PostInteractionsLoader,
     sendComment: PostCommentSender,
