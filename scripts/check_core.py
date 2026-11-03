@@ -38,12 +38,12 @@ legacy_viewer=read(android+"AttaExpandableVideo.kt")
 check("New isolated official Android YouTube player, no duplicate site WebView",
       main.count("fun YouTubePlayer(")==1 and "YouTubePlayer(youtubeId, onMiniDrag = onMiniDrag)" in main and
       'AttaFreshYouTubePlayer(id, onMiniDrag' in main and
-      'loadDataWithBaseURL(ATTA_API_BASE' in fresh_player and
+      'loadDataWithBaseURL("https://appassets.androidplatform.net/"' in fresh_player and 'ATTA_API_BASE' not in fresh_player and
       'https://www.youtube.com/iframe_api' in fresh_player and
       fresh_player.count("new YT.Player(")==1 and
       'loadUrl("$BASE/")' not in main and 'atta-site-youtube-bridge.js' not in main and
       'new YT.Player(' not in main and
-      'AttaFreshReelsViewer(' in legacy_viewer and
+      'AttaFreshReelsViewer(' in legacy_viewer and 'AttaFreshReelsViewer(' in main and
       'if (reelsOnly && kind == "video" && live == null' in legacy_viewer and
       'ExoPlayer.Builder(context)' in fresh_reels)
 check("One compact header search and no duplicate friend search", main.count('AttaCompactSearch(')==2 and 'SectionTitle("البحث وإضافة صديق")' not in main and 'OutlinedTextField(search, { search = it }, label = { Text("ابحث بالاسم أو اسم المستخدم") }' not in main)
