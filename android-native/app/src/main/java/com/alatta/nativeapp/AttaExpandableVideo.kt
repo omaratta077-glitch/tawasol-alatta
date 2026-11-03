@@ -114,10 +114,9 @@ internal fun AttaExpandableVideo(url: String, posterUrl: String? = null, onOpen:
             SiteIcon("play", size = 35.dp, tint = Color(0xFFE6B94E), modifier = Modifier.padding(13.dp))
         }
     }
-    if (expanded) AttaPostMediaViewer(
+    if (expanded) AttaFreshReelsViewer(
         posts = listOf(JSONObject().put("id", "attachment").put("video", url)),
-        startId = "attachment", kind = "video", onDismiss = { expanded = false },
-        reelsOnly = true // يفتح نفس عارض الريلز، لا تخطيط ملء شاشة ثانٍ.
+        startId = "attachment", onDismiss = { expanded = false }
     )
 }
 
