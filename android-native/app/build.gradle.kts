@@ -24,9 +24,9 @@ android {
         applicationId = "com.alatta.nativeapp"
         minSdk = 26
         targetSdk = 35
-        // الإصدار 1.0.249: استبدال مشغل يوتيوب ومشغل الريلز القديمين بتنفيذين أصليين مستقلين.
-        versionCode = 349
-        versionName = "1.0.249"
+        // الإصدار 1.0.250: فصل مشغّلي YouTube والريلز عن الموقع وتوحيد استدعاء الريلز المستقل.
+        versionCode = 350
+        versionName = "1.0.250"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("boolean", "IS_APPGALLERY", appGalleryBuild.toString())
         val hmsId = (System.getenv("ALATTA_HMS_APP_ID") ?: "").trim().takeIf { it.matches(Regex("[0-9]{1,20}")) } ?: ""
