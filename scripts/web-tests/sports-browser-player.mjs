@@ -85,8 +85,9 @@ test('web modules do not install Android helper; preserve live media on catalog 
   assert.match(modules,/AttaSportsPlayer\.play\(host,url,channel\.format\)/);
   assert.match(modules,/playingHost\?\.remove\(\)/);
   assert.match(modules,/replaceWith\(playingHost\)/);
-  assert.ok(markup.indexOf('sports-browser-player.js?v=14.20') < markup.indexOf('web-modules.js?v=14.19'));
-  assert.match(modules,/bridge\.sportsPlayback\(channel\.id\)/);
+  assert.ok(markup.indexOf('sports-browser-player.js?v=14.20') < markup.indexOf('web-modules.js?v=14.21'));
+  assert.doesNotMatch(modules,/bridge\.sportsPlayback\(channel\.id\)/);
+  assert.match(modules,/AttaYtvWebLaunch\?\.url\(c\.streamUrl\)/);
   assert.match(markup,/name="google-site-verification"/);
 });
 
