@@ -282,7 +282,7 @@ internal fun AttaFreshReelsViewer(
                             detectVerticalDragGestures(
                                 onDragStart={movement=0f},
                                 onDragCancel={movement=0f},
-                                onDragEnd={if(abs(movement)>with(density){72.dp.toPx()}) change(if(movement<0f)1 else -1)},
+                                onDragEnd={if(abs(movement)>threshold) change(if(movement<0f)1 else -1)},
                                 onVerticalDrag={event,dy->event.consume();movement+=dy}
                             )
                         }
