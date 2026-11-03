@@ -92,11 +92,11 @@ internal fun AttaFreshYouTubePlayer(
 ) {
     val safeId = id.takeIf { Regex("[A-Za-z0-9_-]{11}").matches(it) } ?: return
     val context = LocalContext.current
-    var ready by remember(safeId) { mutableStateOf(false) }
-    var error by remember(safeId) { mutableStateOf("") }
-    var reload by remember(safeId) { mutableIntStateOf(0) }
+    var ready by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf("") }
+    var reload by remember { mutableIntStateOf(0) }
     val changed by rememberUpdatedState(onPlaybackChanged)
-    val chrome = remember(context, safeId) {
+    val chrome = remember(context) {
         AttaYoutubeFullscreenChrome(context) { event ->
             when {
                 event == "FRAME_LOADED" -> { ready = true; error = "" }
@@ -115,7 +115,8 @@ internal fun AttaFreshYouTubePlayer(
             }
         }
     }
-    val web = remember(context, safeId) {
+    // Preserve the same WebView across consecutive YouTube reels to avoid recreating its engine.
+    val web = remember(context) {
         WebView(context).apply {
             setBackgroundColor(AndroidColor.BLACK)
             settings.javaScriptEnabled = true
@@ -136,7 +137,7 @@ internal fun AttaFreshYouTubePlayer(
             }
         }
     }
-    val host = remember(context, safeId) {
+    val host = remember(context) {
         MiniPlayerTouchHost(context).apply {
             verticalOnlyDrag = portrait
             addView(web, FrameLayout.LayoutParams(-1,-1))
