@@ -35,7 +35,7 @@ test('Fallback page links to confirmed Google Play listing and does not equate f
 });
 test('Sports cards use direct anchor gestures for YTV without trying browser HLS and retain other channel types',()=>{
   assert.match(modules,/data-ytv-launch/);
-  assert.match(modules,/href="\\$\{esc\(href\)\}"/);
+  assert.match(modules,/href="\$\{esc\(href\)\}"/);
   assert.match(modules,/AttaYtvWebLaunch\?\.url\(c\.streamUrl\)/);
   assert.doesNotMatch(modules,/bridge\.sportsPlayback\(channel\.id\)/);
   assert.match(modules,/AttaSportsPlayer\.play\(host,url,channel\.format\)/);
