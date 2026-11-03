@@ -101,12 +101,13 @@ internal fun AttaFreshReelsViewer(
     var duration by remember(reel.key){mutableLongStateOf(0L)}
     var playing by remember{mutableStateOf(false)}
     var aspect by remember(reel.key){mutableFloatStateOf(16f/9f)}
-    val source by produceState<androidx.media3.datasource.DataSource.Factory?>(null,context){
-        value=try{withContext(Dispatchers.IO){VideoTransport.factory(context,false,emptyMap())}}
-        catch(e:Exception){null}
+    // No ExoPlayer or transport setup is needed while showing YouTube/social reels.
+    val source by produceState<androidx.media3.datasource.DataSource.Factory?>(null,context,isUploaded){
+        value=if(isUploaded) try{withContext(Dispatchers.IO){VideoTransport.factory(context,false,emptyMap())}}
+        catch(e:Exception){null} else null
     }
-    val player=remember(context,source){
-        source?.let { ExoPlayer.Builder(context)
+    val player=remember(context,source,isUploaded){
+        if(isUploaded) source?.let { ExoPlayer.Builder(context)
             .setMediaSourceFactory(DefaultMediaSourceFactory(it))
             .setLoadControl(VideoTransport.loadControl(false))
             .build() }
@@ -213,6 +214,15 @@ internal fun AttaFreshReelsViewer(
         properties=DialogProperties(usePlatformDefaultWidth=false,decorFitsSystemWindows=false,dismissOnClickOutside=true)){
         val view=LocalView.current
         val window=(view.parent as? DialogWindowProvider)?.window
+        val density=LocalDensity.current
+        // Honor/gesture navigation can report zero Compose inset in an edge-to-edge Dialog.
+        // Use the actual dialog-window navigation inset, with a small safe fallback.
+        val platformBottom=window?.decorView?.let { decor ->
+            androidx.core.view.ViewCompat.getRootWindowInsets(decor)
+                ?.getInsetsIgnoringVisibility(WindowInsetsCompat.Type.navigationBars())?.bottom
+        } ?: 0
+        val bottomPx=maxOf(platformBottom,WindowInsets.navigationBars.getBottom(density))
+        val bottomSafe=with(density){bottomPx.toDp()}.coerceAtLeast(28.dp)
         DisposableEffect(window){
             window?.let{
                 WindowCompat.setDecorFitsSystemWindows(it,false)
@@ -227,8 +237,8 @@ internal fun AttaFreshReelsViewer(
             onDispose{window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)}
         }
         BackHandler{if(sheet!=null)sheet=null else dismiss()}
-        // Keep the entire navigation bar above the Android gesture/navigation area.
-        Column(Modifier.fillMaxSize().background(Color.Black).navigationBarsPadding()){
+        // Reserve the whole navigation area; the footer must not be cut in half.
+        Column(Modifier.fillMaxSize().background(Color.Black).padding(bottom=bottomSafe)){
             Box(Modifier.weight(1f).fillMaxWidth()
                 .pointerInput(reel.key){
                     run {
@@ -256,7 +266,7 @@ internal fun AttaFreshReelsViewer(
                     youtubeId!=null && youtubeShortContent!=null -> {
                         BoxWithConstraints(Modifier.fillMaxSize(),contentAlignment=Alignment.Center){
                             val short=reel.youtubeIsShort
-                            val maxH=if(short) maxHeight*.82f else maxHeight*.54f
+                            val maxH=if(short) maxHeight*.92f else maxHeight*.90f
                             val h=minOf(maxH,if(short)maxWidth*16f/9f else maxWidth*9f/16f)
                             val w=minOf(maxWidth,if(short)h*9f/16f else h*16f/9f)
                             Box(Modifier.width(w).height(h).background(Color.Black)){
