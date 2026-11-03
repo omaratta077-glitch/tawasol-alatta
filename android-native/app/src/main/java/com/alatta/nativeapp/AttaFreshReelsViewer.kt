@@ -260,10 +260,9 @@ internal fun AttaFreshReelsViewer(
                             val h=minOf(maxH,if(short)maxWidth*16f/9f else maxWidth*9f/16f)
                             val w=minOf(maxWidth,if(short)h*9f/16f else h*16f/9f)
                             Box(Modifier.width(w).height(h).background(Color.Black)){
-                                key(reel.key){
-                                    youtubeShortContent(youtubeId,youtubeCommand,youtubeCommandPlay,
-                                        {youtubePlaying=it},onWebDrag,short)
-                                }
+                                // Keep the Compose player mounted when switching YouTube clips.
+                                youtubeShortContent(youtubeId,youtubeCommand,youtubeCommandPlay,
+                                    {youtubePlaying=it},onWebDrag,short)
                             }
                         }
                     }
