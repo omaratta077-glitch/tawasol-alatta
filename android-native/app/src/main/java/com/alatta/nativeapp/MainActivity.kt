@@ -771,11 +771,13 @@ private fun SignupLegalConsent(
  */
 internal class AttaYoutubeFullscreenChrome(
     private val context: android.content.Context,
+    private val hostWindow: (() -> android.view.Window?)? = null,
     private val onPlayerEvent: (String) -> Unit
 ) : WebChromeClient() {
     private var fullscreenView: android.view.View? = null
     private var callback: CustomViewCallback? = null
     private var root: android.view.ViewGroup? = null
+    private var fullscreenWindow: android.view.Window? = null
     private var owner: android.app.Activity? = null
     private var orientationBeforeYoutubeFullscreen: Int? = null
 
@@ -792,25 +794,28 @@ internal class AttaYoutubeFullscreenChrome(
 
     override fun onShowCustomView(view: android.view.View?, cb: CustomViewCallback?) {
         val activity = context.mediaActivity()
-        val container = activity?.window?.decorView as? android.view.ViewGroup
+        // Reels are hosted in a Dialog: draw native fullscreen above its window.
+        val window = hostWindow?.invoke() ?: activity?.window
+        val container = window?.decorView as? android.view.ViewGroup
         if (activity == null || view == null || container == null || fullscreenView != null) {
             cb?.onCustomViewHidden()
             return
         }
         owner = activity
         root = container
+        fullscreenWindow = window
         callback = cb
         fullscreenView = view
         orientationBeforeYoutubeFullscreen = activity.requestedOrientation
         container.addView(view, android.view.ViewGroup.LayoutParams(-1, -1))
         // طلب وضع ملء الشاشة من داخل مشغّل YouTube في WebView.
         activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
-        activity.window.addFlags(android.view.WindowManager.LayoutParams.FLAG_FULLSCREEN)
+        window?.addFlags(android.view.WindowManager.LayoutParams.FLAG_FULLSCREEN)
     }
 
     override fun onHideCustomView() {
         fullscreenView?.let { root?.removeView(it) }
-        owner?.window?.clearFlags(android.view.WindowManager.LayoutParams.FLAG_FULLSCREEN)
+        fullscreenWindow?.clearFlags(android.view.WindowManager.LayoutParams.FLAG_FULLSCREEN)
         // أعد اتجاه الجهاز أو التطبيق إلى ما كان عليه قبل ملء الشاشة.
         orientationBeforeYoutubeFullscreen?.let { previous ->
             owner?.requestedOrientation = previous
@@ -821,6 +826,7 @@ internal class AttaYoutubeFullscreenChrome(
         callback = null
         root = null
         owner = null
+        fullscreenWindow = null
         oldCallback?.onCustomViewHidden()
     }
 
@@ -849,29 +855,21 @@ internal class AttaYoutubeFullscreenChrome(
 }
 
 /** تستخدم المنشورات مشغّل الموقع نفسه داخل البطاقة؛ والقسم YouTube وحده يملك نافذة عائمة. */
+/** Feed cards only show a preview. A single Activity-level player survives orientation. */
 @Composable
-internal fun YoutubePostMedia(videoId: String, playing: Boolean, onPlay: () -> Unit, onStop: () -> Unit,
-    playerContent: @Composable (String) -> Unit = { YouTubePlayer(it) }) {
-    if (playing) {
-        val currentStop by rememberUpdatedState(onStop)
-        DisposableEffect(videoId) { onDispose { currentStop() } }
-        Box(Modifier.fillMaxWidth().padding(vertical = 4.dp)
-            .clip(RoundedCornerShape(14.dp)).background(Color.Black)
-            .border(.7.dp, Border.copy(alpha = .7f), RoundedCornerShape(14.dp))) {
-            playerContent(videoId)
-        }
-    } else {
-        Box(Modifier.fillMaxWidth().padding(vertical = 4.dp).aspectRatio(16f / 9f)
-            .clip(RoundedCornerShape(14.dp)).background(Color.Black)
-            .clickable(onClick = onPlay), contentAlignment = Alignment.Center) {
-            var thumbnail by remember(videoId) { mutableStateOf("maxresdefault.jpg") }
-            AsyncImage("https://i.ytimg.com/vi/$videoId/$thumbnail", "معاينة الفيديو",
-                Modifier.fillMaxSize(), contentScale = ContentScale.Crop,
-                onSuccess = { if (thumbnail == "maxresdefault.jpg" && it.result.drawable.intrinsicWidth < 320) thumbnail = "mqdefault.jpg" },
-                onError = { thumbnail = "mqdefault.jpg" })
-            Box(Modifier.size(66.dp).clip(CircleShape).background(Color.Black.copy(alpha = .25f)), contentAlignment = Alignment.Center) {
-                SiteIcon("play-circle", size = 54.dp, tint = GoldLight)
-            }
+internal fun YoutubePostMedia(videoId: String, playing: Boolean, onPlay: () -> Unit, onStop: () -> Unit) {
+    Box(Modifier.fillMaxWidth().padding(vertical = 4.dp).aspectRatio(16f / 9f)
+        .clip(RoundedCornerShape(14.dp)).background(Color.Black)
+        .border(.7.dp, Border.copy(alpha = .7f), RoundedCornerShape(14.dp))
+        .clickable { if (playing) onStop() else onPlay() }, contentAlignment = Alignment.Center) {
+        var thumbnail by remember(videoId) { mutableStateOf("maxresdefault.jpg") }
+        AsyncImage("https://i.ytimg.com/vi/$videoId/$thumbnail", "معاينة الفيديو",
+            Modifier.fillMaxSize(), contentScale = ContentScale.Crop,
+            onSuccess = { if (thumbnail == "maxresdefault.jpg" && it.result.drawable.intrinsicWidth < 320) thumbnail = "mqdefault.jpg" },
+            onError = { thumbnail = "mqdefault.jpg" })
+        Box(Modifier.size(66.dp).clip(CircleShape).background(Color.Black.copy(alpha = .35f)),
+            contentAlignment = Alignment.Center) {
+            SiteIcon(if (playing) "pause" else "play-circle", size = 48.dp, tint = GoldLight)
         }
     }
 }
@@ -1055,6 +1053,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
     var youtubeShareChecking by remember { mutableStateOf(false) }
     var socialVideoDraftUrl by remember { mutableStateOf("") }
     var activeYoutubePostId by remember { mutableStateOf("") }
+    var activeYoutubePostVideoId by remember { mutableStateOf("") }
     // أعد تحميل الرئيسية من دون بدء عمل تمرير من عنصر تنقل خارج الشاشة.
     var homeRefreshRequest by remember { mutableIntStateOf(0) }
     // تُعالَج طلبات التمرير فقط عندما تكون LazyColumn للرئيسية مركبة.
@@ -1159,6 +1158,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
     LaunchedEffect(tab, profilePeer) {
         // يتوقف المنشور عند مغادرة شاشته أو تغطيته بملف شخصي؛ ولا يتحول إلى مشغّل مصغّر.
         activeYoutubePostId = ""
+        activeYoutubePostVideoId = ""
         // الريلز تستخدم WebView يوتيوب واحدة للفيديو الحالي؛ لا تُبقِ
         // مشغّل قسم يوتيوب المصغّر يعمل في الخلفية ويضاعف الحمل والصوت.
         if (tab == "ريلز" && youtubePlayRequested) youtubePlayRequested = false
@@ -2973,7 +2973,8 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                         }
                         "الرئيسية", "استكشاف", "المحفوظات" -> {
                             PullToRefreshBox(
-                                isRefreshing = screenLoading,
+                                // Avoid a large spinner over the composer on the first feed load.
+                                isRefreshing = screenLoading && posts.isNotEmpty(),
                                 onRefresh = {
                                     if (!screenLoading && !busy) {
                                         if (tab == "الرئيسية") homeRefreshRequest++
@@ -3189,9 +3190,10 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                             onPlay = {
                                                 youtubePlayRequested = false
                                                 activeYoutubePostId = postId
+                                                activeYoutubePostVideoId = videoId
                                             },
                                             onStop = {
-                                                if (activeYoutubePostId == postId) activeYoutubePostId = ""
+                                                if (activeYoutubePostId == postId) { activeYoutubePostId = ""; activeYoutubePostVideoId = "" }
                                             })
                                     }
                                     val image = media(p.optString("image")); val video = media(p.optString("video"))
@@ -3249,8 +3251,8 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                         youtubePostId(shared.optString("text"))?.let { videoId ->
                                             val sharedYoutubePostId = "shared_" + postId
                                             YoutubePostMedia(videoId, activeYoutubePostId == sharedYoutubePostId,
-                                                onPlay = { youtubePlayRequested = false; activeYoutubePostId = sharedYoutubePostId },
-                                                onStop = { if (activeYoutubePostId == sharedYoutubePostId) activeYoutubePostId = "" })
+                                                onPlay = { youtubePlayRequested = false; activeYoutubePostId = sharedYoutubePostId; activeYoutubePostVideoId = videoId },
+                                                onStop = { if (activeYoutubePostId == sharedYoutubePostId) { activeYoutubePostId = ""; activeYoutubePostVideoId = "" } })
                                         }
                                     }
                                     HorizontalDivider(color = Border.copy(alpha = .5f), modifier = Modifier.padding(vertical = 7.dp))
@@ -4072,8 +4074,8 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                     youtubePostId(post.optString("text"))?.let { videoId ->
                                         val ownId = "own_" + post.optString("id")
                                         YoutubePostMedia(videoId, activeYoutubePostId == ownId,
-                                            onPlay = { youtubePlayRequested = false; activeYoutubePostId = ownId },
-                                            onStop = { if (activeYoutubePostId == ownId) activeYoutubePostId = "" })
+                                            onPlay = { youtubePlayRequested = false; activeYoutubePostId = ownId; activeYoutubePostVideoId = videoId },
+                                            onStop = { if (activeYoutubePostId == ownId) { activeYoutubePostId = ""; activeYoutubePostVideoId = "" } })
                                     }
                                     val ownMushafPages = parseMushafPostAttachment(post.optString("text"), BASE)?.pages
                                     if (ownMushafPages != null) MushafPostGallery(ownMushafPages, media(post.optString("image")).takeIf { it.isNotBlank() })
@@ -4101,7 +4103,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                         }
                     }
                     AnimatedVisibility(
-                        visible = chromeVisible && tab != "القرآن" &&
+                        visible = chromeVisible && tab != "القرآن" && tab != "ريلز" &&
                             (tab != "الرسائل" || chatWith.isBlank()),
                         enter = expandVertically() + fadeIn(),
                         exit = shrinkVertically() + fadeOut()
@@ -4159,6 +4161,25 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                             }
                         }
                         YouTubePlayer(youtubeId, onMiniDrag = onMiniDrag)
+                    }
+                }
+            }
+            // A YouTube post is owned by the root screen, not by a recyclable LazyColumn item.
+            if (token.isNotBlank() && activeYoutubePostId.isNotBlank() &&
+                activeYoutubePostVideoId.isNotBlank() && !youtubePipMode) {
+                val landscapePost = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+                BackHandler { activeYoutubePostId = ""; activeYoutubePostVideoId = "" }
+                Column(Modifier.fillMaxSize().background(Black).safeDrawingPadding()) {
+                    if (!landscapePost) Row(Modifier.fillMaxWidth().height(50.dp).padding(horizontal = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically) {
+                        IconButton(onClick = { activeYoutubePostId = ""; activeYoutubePostVideoId = "" }) {
+                            SiteIcon("x", tint = Color.White, size = 25.dp)
+                        }
+                        Text("فيديو المنشور", color = GoldLight, fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold)
+                    }
+                    Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                        YouTubePlayer(activeYoutubePostVideoId, portrait = landscapePost)
                     }
                 }
             }
