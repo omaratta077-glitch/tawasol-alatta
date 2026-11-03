@@ -86,7 +86,10 @@ check("YouTube player persists across tabs and enters visible PiP",
       'android:supportsPictureInPicture="true"' in read("android-native/app/src/main/AndroidManifest.xml") and
       'setAutoEnterEnabled(active)' in main and
       'isInPictureInPictureMode' in fresh_player and
-      'playerContent(videoId)' in main and
+      ('playerContent(videoId)' in main or
+       ('YouTubePlayer(activeYoutubePostVideoId, portrait = landscapePost)' in main and
+        'activeYoutubePostId.isNotBlank()' in main and
+        'activeYoutubePostVideoId.isNotBlank()' in main)) and
       'youtubeId = videoId; youtubePlayRequested = true' not in main and
       'detectDragGestures' in main and 'FloatingVideoContainer(' in main and
       'MiniPlayerTouchHost(context)' in fresh_player and '.absoluteOffset' in read(android+"FloatingVideoHost.kt") and

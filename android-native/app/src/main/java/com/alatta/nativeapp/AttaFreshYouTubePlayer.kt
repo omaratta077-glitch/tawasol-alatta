@@ -20,6 +20,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.window.DialogWindowProvider
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -47,6 +49,15 @@ iframe{width:100%!important;height:100%!important;display:block;border:0}
 (function(){
  const emit=function(event){console.log('ALATTA_YT:'+event)};
  window.__attaPlayer=null;
+ window.__attaCurrentId='$id';
+ window.__attaPendingId=null;
+ window.attaSwitchVideo=function(nextId){
+   if(!/^[A-Za-z0-9_-]{11}$/.test(nextId) || nextId===window.__attaCurrentId)return;
+   window.__attaCurrentId=nextId;
+   const player=window.__attaPlayer;
+   if(!player){window.__attaPendingId=nextId;return;}
+   try{player.loadVideoById(nextId)}catch(_){emit('ERROR:PLAYER_SWITCH')}
+ };
  window.attaCommand=function(cmd){
    const p=window.__attaPlayer;
    if(!p)return;
@@ -59,7 +70,7 @@ iframe{width:100%!important;height:100%!important;display:block;border:0}
        width:'100%',height:'100%',
        playerVars:{playsinline:1,controls:1,rel:0,autoplay:0,fs:1,origin:'$origin',enablejsapi:1},
        events:{
-         onReady:function(){emit('FRAME_LOADED')},
+         onReady:function(){emit('FRAME_LOADED');if(window.__attaPendingId){const next=window.__attaPendingId;window.__attaPendingId=null;try{window.__attaPlayer.loadVideoById(next)}catch(_){emit('ERROR:PLAYER_SWITCH')}}},
          onStateChange:function(e){
            if(e.data===YT.PlayerState.PLAYING)emit('PLAYING');
            else if(e.data===YT.PlayerState.PAUSED)emit('PAUSED');
@@ -92,12 +103,15 @@ internal fun AttaFreshYouTubePlayer(
 ) {
     val safeId = id.takeIf { Regex("[A-Za-z0-9_-]{11}").matches(it) } ?: return
     val context = LocalContext.current
+    val composeView = LocalView.current
     var ready by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf("") }
     var reload by remember { mutableIntStateOf(0) }
     val changed by rememberUpdatedState(onPlaybackChanged)
-    val chrome = remember(context) {
-        AttaYoutubeFullscreenChrome(context) { event ->
+    val chrome = remember(context, composeView) {
+        AttaYoutubeFullscreenChrome(context, hostWindow = {
+            (composeView.parent as? DialogWindowProvider)?.window
+        }) { event ->
             when {
                 event == "FRAME_LOADED" -> { ready = true; error = "" }
                 event == "PLAYING" -> changed?.invoke(true)
@@ -111,7 +125,7 @@ internal fun AttaFreshYouTubePlayer(
                         else -> "فشل YouTube في تشغيل المقطع ($code)."
                     }
                 }
-                event == "ERROR:API_LOAD" || event == "ERROR:PLAYER_INIT" -> error = "تعذّر تجهيز مشغّل YouTube الرسمي."
+                event == "ERROR:API_LOAD" || event == "ERROR:PLAYER_INIT" || event == "ERROR:PLAYER_SWITCH" -> error = "تعذّر تجهيز مشغّل YouTube الرسمي."
             }
         }
     }
@@ -143,11 +157,20 @@ internal fun AttaFreshYouTubePlayer(
             addView(web, FrameLayout.LayoutParams(-1,-1))
         }
     }
-    LaunchedEffect(web, safeId, reload) {
+    var loadedVideoId by remember(web) { mutableStateOf(safeId) }
+    // Initialise the IFrame once. Later reel swipes use loadVideoById instead of a network reload.
+    LaunchedEffect(web, reload) {
+        loadedVideoId = safeId
         ready = false; error = ""
         web.loadDataWithBaseURL("https://appassets.androidplatform.net/", AttaFreshYouTubeHtml.create(safeId), "text/html", "UTF-8", null)
         kotlinx.coroutines.delay(18000)
         if (!ready && error.isBlank()) error = "استغرق تجهيز YouTube وقتًا أطول من المعتاد."
+    }
+    LaunchedEffect(web, safeId, ready) {
+        if (ready && loadedVideoId != safeId) {
+            loadedVideoId = safeId
+            web.evaluateJavascript("window.attaSwitchVideo('$safeId');", null)
+        }
     }
     LaunchedEffect(web, portrait, playbackCommand, ready) {
         if (portrait && playbackCommand > 0 && ready) {
