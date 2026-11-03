@@ -32,7 +32,20 @@ check("Exactly one Android versionCode and versionName",
       len(re.findall(r'^\s*versionCode\s*=', gradle, re.M)) == 1 and
       len(re.findall(r'^\s*versionName\s*=', gradle, re.M)) == 1)
 check("No legacy root Android source copies", not any((ROOT/p).exists() for p in ["MainActivity.kt","GoogleNativeSignIn.kt","AndroidManifest.xml","build.gradle.kts"]))
-check("One actual site YouTube player, no Android duplication", main.count("fun YouTubePlayer(")==1 and "YouTubePlayer(youtubeId, onMiniDrag = onMiniDrag)" in main and 'loadUrl("$BASE/")' in main and 'atta-site-youtube-bridge.js' in main and 'document.body.replaceChildren(host)' not in main and 'new YT.Player(' not in main and 'attaYouTubeHtml' not in main and 'www.youtube.com/embed/' not in main and 'syncAttaYouTube' not in gradle and (ROOT/'android-native/app/src/main/assets/atta-site-youtube-bridge.js').is_file() and 'AttaYouTubeEmbed.create' in read('cloudflare-site/public/youtube-section.js') and 'global.AttaYouTubeEmbed=' in read('cloudflare-site/public/youtube-player-shared.js'))
+fresh_player=read(android+"AttaFreshYouTubePlayer.kt")
+fresh_reels=read(android+"AttaFreshReelsViewer.kt")
+legacy_viewer=read(android+"AttaExpandableVideo.kt")
+check("New isolated official Android YouTube player, no duplicate site WebView",
+      main.count("fun YouTubePlayer(")==1 and "YouTubePlayer(youtubeId, onMiniDrag = onMiniDrag)" in main and
+      'AttaFreshYouTubePlayer(id, onMiniDrag' in main and
+      'loadDataWithBaseURL(ATTA_API_BASE' in fresh_player and
+      'https://www.youtube.com/iframe_api' in fresh_player and
+      fresh_player.count("new YT.Player(")==1 and
+      'loadUrl("$BASE/")' not in main and 'atta-site-youtube-bridge.js' not in main and
+      'new YT.Player(' not in main and
+      'AttaFreshReelsViewer(' in legacy_viewer and
+      'if (reelsOnly && kind == "video" && live == null' in legacy_viewer and
+      'ExoPlayer.Builder(context)' in fresh_reels)
 check("One compact header search and no duplicate friend search", main.count('AttaCompactSearch(')==2 and 'SectionTitle("البحث وإضافة صديق")' not in main and 'OutlinedTextField(search, { search = it }, label = { Text("ابحث بالاسم أو اسم المستخدم") }' not in main)
 # قد تكسر علامات تعارض Git ملف Worker أو Gradle أو اختبارات JS، إضافةً إلى Kotlin.
 # افحص كل ملفات المصدر والإعدادات في المشروع وأبلغ عن الموضع الدقيق عند العثور عليها.
@@ -72,11 +85,11 @@ check("Official Android release version/build sequence",
 check("YouTube player persists across tabs and enters visible PiP",
       'android:supportsPictureInPicture="true"' in read("android-native/app/src/main/AndroidManifest.xml") and
       'setAutoEnterEnabled(active)' in main and
-      'pipVisibleAndInteractive' in main and
+      'isInPictureInPictureMode' in fresh_player and
       'playerContent(videoId)' in main and
       'youtubeId = videoId; youtubePlayRequested = true' not in main and
       'detectDragGestures' in main and 'FloatingVideoContainer(' in main and
-      'MiniPlayerTouchHost(ctx)' in main and '.absoluteOffset' in read(android+"FloatingVideoHost.kt") and
+      'MiniPlayerTouchHost(context)' in fresh_player and '.absoluteOffset' in read(android+"FloatingVideoHost.kt") and
       'if (destination != "الرئيسية") activeYoutubePostId = ""' not in main)
 check("Four additional screens and scrollable navigation", all(x in main for x in ['QuranReaderScreen(', 'KnowledgeScreen(tab', 'FootballScreen(']) and all(x in read(android+"PremiumChrome.kt") for x in ['"القرآن"', '"الأحاديث"', '"الأذكار"', '"الرياضة"', '.horizontalScroll(scroll)']) and (ROOT/(android+"AlattaKnowledgeScreens.kt")).is_file())
 check("Quran-first categories and click-to-play preview", all(x in main for x in [
