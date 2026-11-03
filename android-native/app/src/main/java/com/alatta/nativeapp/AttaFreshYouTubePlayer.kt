@@ -32,7 +32,8 @@ import androidx.lifecycle.LifecycleEventObserver
 internal object AttaFreshYouTubeHtml {
     fun create(id: String): String {
         require(Regex("[A-Za-z0-9_-]{11}").matches(id))
-        val origin = ATTA_API_BASE
+        // Stable app-owned origin, independent from the Cloudflare website.
+        val origin = "https://appassets.androidplatform.net"
         return """
 <!doctype html><html lang="ar" dir="rtl"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
@@ -120,6 +121,7 @@ internal fun AttaFreshYouTubePlayer(
             settings.javaScriptEnabled = true
             settings.domStorageEnabled = true
             settings.mediaPlaybackRequiresUserGesture = true
+            settings.javaScriptCanOpenWindowsAutomatically = false
             settings.useWideViewPort = true
             settings.loadWithOverviewMode = true
             settings.allowFileAccess = false
@@ -142,7 +144,7 @@ internal fun AttaFreshYouTubePlayer(
     }
     LaunchedEffect(web, safeId, reload) {
         ready = false; error = ""
-        web.loadDataWithBaseURL(ATTA_API_BASE + "/", AttaFreshYouTubeHtml.create(safeId), "text/html", "UTF-8", null)
+        web.loadDataWithBaseURL("https://appassets.androidplatform.net/", AttaFreshYouTubeHtml.create(safeId), "text/html", "UTF-8", null)
         kotlinx.coroutines.delay(18000)
         if (!ready && error.isBlank()) error = "استغرق تجهيز YouTube وقتًا أطول من المعتاد."
     }
