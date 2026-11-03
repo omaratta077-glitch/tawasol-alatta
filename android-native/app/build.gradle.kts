@@ -24,9 +24,9 @@ android {
         applicationId = "com.alatta.nativeapp"
         minSdk = 26
         targetSdk = 35
-        // الإصدار 1.0.251: إصلاح سحب الريلز وشريط التنقل، ملء شاشة YouTube، وتسريع الانتقال.
-        versionCode = 351
-        versionName = "1.0.251"
+        // الإصدار 1.0.252: ثبات عرض YouTube الأفقي في المنشورات والريلز، شريط آمن، وتسريع انتقال الفيديو.
+        versionCode = 352
+        versionName = "1.0.252"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("boolean", "IS_APPGALLERY", appGalleryBuild.toString())
         val hmsId = (System.getenv("ALATTA_HMS_APP_ID") ?: "").trim().takeIf { it.matches(Regex("[0-9]{1,20}")) } ?: ""
