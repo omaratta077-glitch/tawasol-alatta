@@ -110,7 +110,7 @@ $('azkarSearch').oninput=renderAzkar;
 let voiceAudio=null;
 $('loadAdhanVoices').onclick=async()=>{loading('webAdhanVoices');try{const data=await json('/api/adhan-voices');$('webAdhanVoices').innerHTML=(data.voices||[]).map(v=>`<button class="native-button" data-adhan-id="${esc(v.id)}">${esc(v.name)} • ${esc(v.mosque||'')}</button>`).join('')||'<p>لا توجد تسجيلات مضافة من الإدارة بعد.</p>';$('webAdhanVoices').querySelectorAll('button').forEach(b=>b.onclick=()=>{const voice=data.voices.find(v=>v.id===b.dataset.adhanId);if(!/^\/media\/adhan\/[a-zA-Z0-9.-]+$/.test(voice.url))return;voiceAudio?.pause();voiceAudio=new Audio(voice.url);voiceAudio.play().catch(e=>error('webAdhanVoices',e,()=>$('loadAdhanVoices').click()));});}catch(e){error('webAdhanVoices',e,()=>$('loadAdhanVoices').click());}};
 
-let football=null,footballTab='القنوات',footballActive=false;
+let football=null,footballTab='القنوات',footballActive=false,footballPending=false,footballRequestSerial=0;
 const sportsStored=key=>{try{const value=JSON.parse(localStorage.getItem(key)||'[]');return Array.isArray(value)?value.filter(v=>typeof v==='string').slice(0,40):[];}catch{return [];}};
 let footballFavorites=sportsStored('alatta_sports_favorites'),footballRecent=sportsStored('alatta_sports_recent');
 const beinName=name=>/^bein/i.test(String(name).trim());
@@ -118,7 +118,7 @@ const channelCategory=c=>/ytv/i.test(c.category)?'القنوات':c.category||''
 function renderFootball(){
  if(!football)return;
  // لا تفصل الفيديو الجاري عند تحديث القنوات أو المفضلة.
- const playingHost=window.AttaSportsPlayer?.active()?$('footballPlayer'):null;
+ const playingHost=(footballPending||window.AttaSportsPlayer?.active())?$('footballPlayer'):null;
  playingHost?.remove();const q=normalize($('footballSearch').value),day=$('footballDate').value;
  $('footballDate').hidden=footballTab!=='المباريات';
  $('footballTabs').innerHTML=['القنوات','المباريات','المفضلة','آخر مشاهدة'].map(t=>`<button class="native-button sports-tab ${t===footballTab?'selected':''}" role="tab" aria-selected="${t===footballTab}" data-sports-tab="${t}">${t}</button>`).join('');
@@ -137,13 +137,33 @@ function renderFootball(){
  $('footballResults').querySelectorAll('[data-football-channel]').forEach(b=>b.onclick=()=>{
   const channel=channels.find(c=>c.id===b.dataset.footballChannel)||all.find(c=>c.id===b.dataset.footballChannel);if(!channel)return;
   footballRecent=[channel.id,...footballRecent.filter(id=>id!==channel.id)].slice(0,40);localStorage.setItem('alatta_sports_recent',JSON.stringify(footballRecent));
+  const requestNumber=++footballRequestSerial;
+  footballPending=false;
   window.AttaSportsPlayer?.stop();
   const host=$('footballPlayer');host.replaceChildren();const title=document.createElement('h3');title.textContent=channel.name;host.append(title);
   if(channel.format==='ytv'){
-   // أرقام YTV تخص عقد تشغيل على أندرويد، وليست روابط فيديو ويب.
-   const note=document.createElement('p');
-   note.textContent='القناة مهيأة لمشغّل أندرويد برقم قناة فقط. لم يُضف لها مصدر ويب مرخّص ومتوافق مع المتصفح بعد.';
-   host.append(note);host.scrollIntoView({block:'center',behavior:'smooth'});return;
+   // استخدم نفس نقطة جلب روابط التشغيل المؤقتة التي يستخدمها Media3 في أندرويد.
+   // لا تخزن روابط التشغيل، ولا تنسخ ترويسات محظورة ولا تتجاوز CORS.
+   const status=document.createElement('p');status.setAttribute('role','status');
+   status.textContent='جاري جلب رابط تشغيل القناة من خادم العطا...';host.append(status);
+   host.scrollIntoView({block:'center',behavior:'smooth'});
+   footballPending=true;
+   void (async()=>{
+     try{
+       const data=await bridge.sportsPlayback(channel.id);
+       if(requestNumber!==footballRequestSerial||!footballActive)return;
+       footballPending=false;
+       if(data.ok!==true||!Array.isArray(data.sources))throw Error('لم يصل مصدر تشغيل صالح.');
+       await window.AttaSportsPlayer.playSources(host,data.sources);
+     }catch(failure){
+       if(requestNumber!==footballRequestSerial||!footballActive)return;
+       footballPending=false;
+       const note=document.createElement('p');note.setAttribute('role','alert');
+       note.textContent='تعذّر تشغيل القناة من داخل الموقع: '+(failure.message||'تعذر جلب المصدر.');
+       host.replaceChildren(title,note);
+     }
+   })();
+   return;
   }
   const url=safeUrl(channel.streamUrl);
   if(!url){const note=document.createElement('p');note.textContent='لا يتوفر رابط تشغيل HTTPS صالح لهذه القناة.';host.append(note);return;}
@@ -168,14 +188,14 @@ function renderFootball(){
   const note=document.createElement('p');note.textContent='نوع هذه القناة غير مدعوم على الويب.';host.append(note);
  });
 }
-async function openFootball(quiet=false){if(quiet!==true&&!window.AttaSportsPlayer?.active())loading('footballResults');try{const r=await fetch('/api/football',{cache:'no-store'});if(!r.ok)throw Error('تعذر تحميل القنوات ('+r.status+')');football=await r.json();renderFootball();}catch(e){if(quiet!==true)error('footballResults',e,openFootball);}}
+async function openFootball(quiet=false){if(quiet!==true&&!footballPending&&!window.AttaSportsPlayer?.active())loading('footballResults');try{const r=await fetch('/api/football',{cache:'no-store'});if(!r.ok)throw Error('تعذر تحميل القنوات ('+r.status+')');football=await r.json();renderFootball();}catch(e){if(quiet!==true)error('footballResults',e,openFootball);}}
 $('footballSearch').oninput=renderFootball;$('footballDate').onchange=renderFootball;$('footballRefresh').onclick=()=>openFootball();
 setInterval(()=>{if(footballActive&&!document.hidden)openFootball(true);},30000);
 
 document.addEventListener('atta:page',e=>{
  const id=e.detail.pageId;
  footballActive=id==='sportsPage';
- if(!footballActive)window.AttaSportsPlayer?.stop();
+ if(!footballActive){footballRequestSerial++;footballPending=false;window.AttaSportsPlayer?.stop();}
  if(id!=='azkarPage')voiceAudio?.pause();
  if(id==='quranPage')openQuran();
  if(id==='hadithPage')openHadith();
