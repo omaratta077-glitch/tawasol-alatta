@@ -135,7 +135,7 @@ internal fun AttaFreshYouTubePlayer(
             setBackgroundColor(AndroidColor.BLACK)
             settings.javaScriptEnabled = true
             settings.domStorageEnabled = true
-            settings.mediaPlaybackRequiresUserGesture = false
+            settings.mediaPlaybackRequiresUserGesture = true
             settings.javaScriptCanOpenWindowsAutomatically = false
             settings.useWideViewPort = true
             settings.loadWithOverviewMode = true
