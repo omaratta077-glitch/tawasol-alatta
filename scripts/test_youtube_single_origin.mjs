@@ -18,7 +18,9 @@ assert.ok(player.includes('loadDataWithBaseURL("https://appassets.androidplatfor
 assert.ok(player.includes('https://www.youtube.com/iframe_api'),'official IFrame API');
 assert.equal((player.match(/new YT.Player\(/g)||[]).length,1);
 assert.ok(player.includes('mediaPlaybackRequiresUserGesture = true'),'do not bypass user gesture');
-assert.ok(player.includes("onReady:function(){emit('FRAME_LOADED')}"),'video signals readiness via real IFrame API');
+assert.ok(player.includes("onReady:function(){emit('FRAME_LOADED');") &&
+  player.includes('window.attaSwitchVideo') && player.includes('loadVideoById(nextId)'),
+  'IFrame signals readiness and switches reels without reconstructing the WebView');
 assert.ok(player.includes('web.evaluateJavascript("window.attaCommand('),'reels can pause/resume official iframe');
 assert.ok(player.includes('chrome.release()') && player.includes('web.destroy()'),'WebView cleaned up');
 assert.ok(player.includes('Lifecycle.Event.ON_STOP'),'video pauses on background');
