@@ -4393,6 +4393,12 @@ window.AttaWeb=Object.freeze({
   user:()=>({username:me?.username||"",role:me?.role||""}),
   callBusy:()=>callState!=="idle",
   watchRequest:(payload,keepalive=false)=>api("/api/watch-room",{method:"POST",keepalive,body:JSON.stringify({...payload,token})}),
+  // نفس مسار البث المباشر في أندرويد؛ تبقى جلسة المستخدم داخل عميل العطا فقط.
+  sportsPlayback:(channelId)=>{
+    if(!token)throw new Error("سجّل الدخول أولًا لتشغيل القناة.");
+    if(typeof channelId!=="string" || channelId.length>128 || !channelId.trim())throw new Error("معرّف القناة غير صالح.");
+    return api("/api/football/playback",{method:"POST",body:JSON.stringify({token,channelId})});
+  },
   async watchIce(){await ensureTurnIceServers();return rtcConfig;},
   preparePost(text,image=""){
     if(image && postImageData)throw new Error("يوجد منشور بصورة قيد التجهيز. انشره أولًا أو احذف صورته قبل مشاركة صفحة جديدة.");
