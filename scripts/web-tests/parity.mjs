@@ -27,6 +27,7 @@ w.fetch=async(url,opts={})=>{
 w.eval(read('icons.js'));
 const index=app.indexOf('})();\n\n\n/* ===== دعم التثبيت في Android وPWA، الإصدار V13.28');
 w.eval(app.slice(0,index)+'window.__webTest={api,restoreSavedLogin,showPage,loadPosts,setSession(){token="fixture";me={username:"fixture"}}};'+app.slice(index));
+w.eval(read('ytv-web-launch.js'));
 w.eval(read('web-modules.js'));
 const tick=async()=>{for(let i=0;i<10;i++)await new Promise(r=>setImmediate(r));};
 // يجب أن تصل كل وجهات التنقل الحالية والجديدة؛ وأول تطابق من اليمين يوافق التطبيق الأصلي.
@@ -104,7 +105,8 @@ assert.equal(d.querySelectorAll('.sports-channel-card').length,20,'all synced ch
 assert.equal(d.querySelector('[data-sports-tab]').textContent,'القنوات','channels are the first tab');
 assert.equal(d.querySelector('.sports-tab.selected').textContent,'القنوات');
 assert.ok(!d.querySelector('#footballResults').textContent.includes('YTV'),'legacy provider labels stay out of channel cards');
-assert.deepEqual([...d.querySelectorAll('[data-football-channel]')].slice(0,3).map(b=>b.dataset.footballChannel),['sports-1','sports-2','sports-3'],'channels use numeric ordering');
+assert.deepEqual([...d.querySelectorAll('[data-ytv-launch]')].slice(0,3).map(b=>b.dataset.ytvLaunch),['sports-1','sports-2','sports-3'],'YTV channels use numeric ordering');
+assert.equal(d.querySelectorAll('[data-ytv-launch]').length,20,'YTV channels offer direct app launch links');
 d.querySelector('[data-sports-favorite="sports-1"]').click();d.querySelector('[data-sports-tab="المفضلة"]').click();
 assert.equal(d.querySelectorAll('.sports-channel-card').length,1,'favorites filter works');
 d.querySelector('[data-sports-tab="المباريات"]').click();
