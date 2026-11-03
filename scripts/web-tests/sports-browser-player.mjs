@@ -85,7 +85,7 @@ test('web modules do not install Android helper; preserve live media on catalog 
   assert.match(modules,/AttaSportsPlayer\.play\(host,url,channel\.format\)/);
   assert.match(modules,/playingHost\?\.remove\(\)/);
   assert.match(modules,/replaceWith\(playingHost\)/);
-  assert.ok(markup.indexOf('sports-browser-player.js?v=14.19') < markup.indexOf('web-modules.js?v=14.19'));
+  assert.ok(markup.indexOf('sports-browser-player.js?v=14.20') < markup.indexOf('web-modules.js?v=14.19'));
   assert.match(modules,/bridge\.sportsPlayback\(channel\.id\)/);
   assert.match(markup,/name="google-site-verification"/);
 });
@@ -123,4 +123,26 @@ test('website app exposes authenticated existing football playback API but never
   assert.match(app,/sportsPlayback:\(channelId\)=>/);
   assert.match(app,/api\("\/api\/football\/playback",\{method:"POST"/);
   assert.doesNotMatch(markup,/sessionToken|PROBE_KEY/);
+});
+
+test('failed HLS source reports safe HTTP code and counts without exposing temporary streaming URL',async()=>{
+  const h=harness(),host=h.element('div');
+  const signed='https://licensed.example/live/master.m3u8?t=secret-sample&key=demo';
+  await h.player.playSources(host,[{url:signed,mimeType:'application/x-mpegURL',headers:{}}]);
+  h.getHls().handlers.error(null,{fatal:true,details:'manifestLoadError',response:{code:403}});
+  await new Promise(r=>setImmediate(r));
+  const message=host.children.map(x=>x.textContent).join(' ');
+  assert.match(message,/HTTP 403/);
+  assert.match(message,/وصل 1 مصدر/);
+  assert.doesNotMatch(message,/secret-sample|licensed\.example|key=demo/);
+});
+
+test('failed HLS manifest without readable HTTP status reports CORS as possibility, not proven cause',async()=>{
+  const h=harness(),host=h.element('div');
+  await h.player.playSources(host,[{url:'https://licensed.example/live.m3u8',mimeType:'application/x-mpegURL'}]);
+  h.getHls().handlers.error(null,{fatal:true,details:'manifestLoadError'});
+  await new Promise(r=>setImmediate(r));
+  const message=host.children.map(x=>x.textContent).join(' ');
+  assert.match(message,/قد يكون بسبب الشبكة أو CORS/);
+  assert.doesNotMatch(message,/مؤكد|100%/);
 });

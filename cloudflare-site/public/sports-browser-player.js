@@ -41,7 +41,7 @@
     try { last.video.load(); } catch {}
     last.status.textContent = 'تم إيقاف التشغيل.';
   }
-  async function play(host, rawUrl, format, onFatal = null) {
+  async function play(host, rawUrl, format, onFatal = null, onIssue = null) {
     stop();
     const url = checkedUrl(rawUrl);
     if (!url || !['hls', 'dash'].includes(format)) {
@@ -74,10 +74,15 @@
     const state = {video, status, hls: null, dash: null, stopped: false};
     current = state;
     let fatalReported = false;
-    const setError = () => {
+    // سجّل رمز HTTP ونوع الخطأ فقط. ممنوع عرض روابط البث المؤقتة أو المفاتيح أو ترويسات الوصول.
+    const setError = (event = {}) => {
       if (state !== current || fatalReported) return;
       fatalReported = true;
-      status.textContent = 'تعذّر تشغيل المصدر داخل المتصفح. قد يكون السبب CORS أو انتهاء صلاحية الرابط أو حماية البث.';
+      const http = Number(event?.response?.code ?? event?.networkDetails?.status ?? 0);
+      const detail = String(event?.details || '').slice(0,60);
+      const media = Number(event?.mediaCode ?? 0);
+      if (typeof onIssue === 'function') onIssue({format,kind:'playback',http: Number.isInteger(http) && http>=100 && http<=599?http:0, detail,media});
+      status.textContent = 'فشل تشغيل المصدر، جاري تجربة المصدر التالي إن وُجد...';
       if (typeof onFatal === 'function') onFatal();
     };
     const tryStart = () => {
@@ -88,7 +93,7 @@
         if (state === current) status.textContent = 'اضغط تشغيل من مشغّل الفيديو لبدء البث.';
       });
     };
-    video.addEventListener('error', setError);
+    video.addEventListener('error', () => setError({mediaCode:video.error?.code||0}));
     video.addEventListener('playing', () => {
       if (state === current) status.textContent = 'البث يعمل.';
     });
@@ -105,7 +110,7 @@
             const hls = new global.Hls({enableWorker:true,lowLatencyMode:true,backBufferLength:30});
             state.hls = hls;
             hls.on(global.Hls.Events.ERROR, (_event, info) => {
-              if (info?.fatal) setError();
+              if (info?.fatal) setError(info);
             });
             hls.on(global.Hls.Events.MANIFEST_PARSED, tryStart);
             hls.attachMedia(video);
@@ -126,13 +131,14 @@
         state.dash = dash;
         dash.initialize(video, url, false);
         const errorEvent = global.dashjs.MediaPlayer.events?.ERROR;
-        if (errorEvent) dash.on(errorEvent, setError);
+        if (errorEvent) dash.on(errorEvent, event => setError({details:'dashMediaError',mediaCode:event?.error?.code||0}));
         video.addEventListener('loadedmetadata', tryStart, {once:true});
         status.textContent = 'جاري تحميل البث داخل الموقع...';
       }
       return true;
     } catch (error) {
       if (state === current) status.textContent = error.message || 'تعذّر تجهيز المشغّل.';
+      if (state === current && typeof onIssue === 'function') onIssue({format,kind:'setup',http:0,detail:'',media:0});
       return false;
     }
   }
@@ -151,29 +157,59 @@
       mime.includes('dash+xml')||pathname.endsWith('.mpd')?'dash':null;
     return format?{url,format}:null;
   }
+  // تقرير آمن: عدد المصادر وأنواع أخطاء HTTP/الوسائط فقط؛ لا روابط ولا بيانات حساب.
+  function issueText(issue) {
+    const status=issue.http;
+    if(status===401||status===403)return 'رفض وصول من خادم الفيديو (HTTP '+status+')';
+    if(status===404||status===410)return 'ملف البث غير متاح أو انتهت صلاحيته (HTTP '+status+')';
+    if(status===429)return 'الخادم يقيّد عدد الطلبات (HTTP 429)';
+    if(status>=500&&status<=599)return 'عطل من خادم الفيديو (HTTP '+status+')';
+    if(status>=400&&status<=499)return 'رفض طلب الفيديو (HTTP '+status+')';
+    if(issue.kind==='setup')return 'تعذّر تهيئة مشغّل '+issue.format.toUpperCase();
+    const detail=issue.detail.toLowerCase();
+    if(/codec|buffer|media/.test(detail)||issue.media>0)return 'مشكلة في صيغة الوسائط أو المشغّل';
+    if(/frag|segment/.test(detail))return 'تعذّر تحميل جزء من الفيديو (قد يكون بسبب الشبكة أو CORS)';
+    if(/manifest|level/.test(detail))return 'تعذّر قراءة ملف البث (قد يكون بسبب الشبكة أو CORS)';
+    return 'فشل الشبكة أو رفض المتصفح للاتصال (قد يكون CORS)';
+  }
   async function playSources(host, sources) {
-    const usable=Array.isArray(sources)?sources.slice(0,10).map(webSource).filter(Boolean):[];
-    if(!usable.length) {
+    const provided=Array.isArray(sources)?sources.slice(0,10):[];
+    const usable=provided.map(webSource).filter(Boolean);
+    const issues=[];
+    const resultsSummary=()=>{
+      const attempted=issues.length;
+      const skipped=provided.length-usable.length;
+      const distinct=[...new Set(issues.map(issueText))];
+      return 'تقرير بدون روابط أو بيانات شخصية: وصل '+provided.length+' مصدر؛ '
+        +'توافق منها '+usable.length+' مع شروط المتصفح؛ استُبعد '+skipped+'؛ '
+        +'أخطاء التشغيل '+attempted+(distinct.length?' — '+distinct.join('؛ '):'')+'.';
+    };
+    const showFailure=()=>{
       stop();host.replaceChildren();
       const note=document.createElement('p');
-      note.textContent='لم يصل رابط بث HTTPS يمكن للمتصفح تشغيله. قد تكون المصادر مخصصة لأندرويد فقط أو تحتاج إعدادات لا يسمح بها المتصفح.';
-      host.append(note);
-      return false;
-    }
+      note.setAttribute('role','alert');
+      note.textContent='تعذّر تشغيل القناة داخل المتصفح. ده لا يعني أن القناة متوقفة على أندرويد.';
+      const report=document.createElement('p');
+      report.setAttribute('role','status');
+      report.textContent=resultsSummary();
+      host.append(note,report);
+    };
+    if(!usable.length){showFailure();return false;}
     let position=0;
     const next=async()=>{
       const candidate=usable[position++];
-      if(!candidate){
-        stop();host.replaceChildren();
-        const note=document.createElement('p');
-        note.setAttribute('role','alert');
-        note.textContent='تعذّر تشغيل كل المصادر المتاحة داخل المتصفح. افحص صلاحية الروابط وCORS وحقوق عرض القناة على الويب.';
-        host.append(note);
-        return false;
+      if(!candidate){showFailure();return false;}
+      let captured=false;
+      const capture=issue=>{
+        if(!captured)issues.push(issue);
+        captured=true;
+      };
+      const ok=await play(host,candidate.url,candidate.format,()=>{void next();},capture);
+      if(!ok) {
+        if(!captured)capture({format:candidate.format,kind:'setup',http:0,detail:'',media:0});
+        return next();
       }
-      const ok=await play(host,candidate.url,candidate.format,()=>{void next();});
-      if(!ok && position<usable.length)return next();
-      return ok;
+      return true;
     };
     return next();
   }
