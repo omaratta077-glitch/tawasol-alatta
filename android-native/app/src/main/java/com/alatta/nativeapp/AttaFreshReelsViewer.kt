@@ -110,7 +110,7 @@ internal fun AttaFreshReelsViewer(
         if(isUploaded) source?.let { ExoPlayer.Builder(context)
             .setMediaSourceFactory(DefaultMediaSourceFactory(it))
             .setLoadControl(VideoTransport.loadControl(false))
-            .build() }
+            .build() } else null
     }
     DisposableEffect(player){
         val listener=object:Player.Listener{
