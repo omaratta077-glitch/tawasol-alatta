@@ -193,6 +193,19 @@ internal fun AttaPostMediaViewer(
     onReelsNavigate: ((String) -> Unit)? = null,
     reelsLoading: Boolean = false
 ) {
+    // The old mixed reels branch is retired. Live sports/non-reels keep the stable viewer.
+    if (reelsOnly && kind == "video" && live == null && validatedChannelUrl == null) {
+        AttaFreshReelsViewer(
+            posts = posts, startId = startId, onDismiss = onDismiss,
+            loadInteractions = loadInteractions, sendReaction = sendReaction,
+            sendComment = sendComment, onShare = onShare, onStats = onStats,
+            onOpenProfile = onOpenProfile, youtubeShortContent = youtubeShortContent,
+            rejectedShortIds = rejectedShortIds, nextReelsCursor = nextReelsCursor,
+            onLoadMoreReels = onLoadMoreReels, onRefreshReels = onRefreshReels,
+            onReelsNavigate = onReelsNavigate, reelsLoading = reelsLoading
+        )
+        return
+    }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val isVideo = kind == "video"
@@ -795,7 +808,7 @@ private fun AttaZoomableImage(url: String, description: String, onTap: () -> Uni
 /** اعرض التعليقات والتفاعلات فقط عند توفر معالجات خادم عاملة. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun PostInteractionsSheet(
+internal fun PostInteractionsSheet(
     postId: String, tab: String,
     loadInteractions: PostInteractionsLoader,
     sendComment: PostCommentSender,
