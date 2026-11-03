@@ -14,7 +14,7 @@ assert.ok(!main.includes('loadUrl("$BASE/")'),'no SPA or login page loaded for Y
 assert.ok(!main.includes('atta-site-youtube-bridge.js'),'old site-control bridge disconnected');
 assert.ok(!main.includes('new YT.Player('),'no second player in MainActivity');
 
-assert.ok(player.includes('loadDataWithBaseURL(ATTA_API_BASE + "/"'),'clean standalone player with trusted site origin');
+assert.ok(player.includes('loadDataWithBaseURL("https://appassets.androidplatform.net/"') && !player.includes('ATTA_API_BASE'),'standalone app origin independent from website');
 assert.ok(player.includes('https://www.youtube.com/iframe_api'),'official IFrame API');
 assert.equal((player.match(/new YT.Player\(/g)||[]).length,1);
 assert.ok(player.includes('mediaPlaybackRequiresUserGesture = true'),'do not bypass user gesture');
@@ -24,7 +24,7 @@ assert.ok(player.includes('chrome.release()') && player.includes('web.destroy()'
 assert.ok(player.includes('Lifecycle.Event.ON_STOP'),'video pauses on background');
 assert.ok(player.includes('widget_referrer')===false,'no made-up referrer bypass');
 
-assert.ok(original.includes('AttaFreshReelsViewer('),'all reels use fresh renderer');
+assert.ok(original.includes('AttaFreshReelsViewer(') && main.includes('AttaFreshReelsViewer(') && !main.includes('reelsOnly = true'),'all reels use fresh renderer');
 assert.ok(reels.includes('ExoPlayer.Builder(context)'),'uploaded videos use Media3');
 assert.equal((reels.match(/ExoPlayer.Builder\(/g)||[]).length,1,'only one Media3 player allocated for reels');
 assert.ok(reels.includes('onRefreshReels?.invoke()') && reels.includes('onLoadMoreReels?.invoke()'),'Reels pagination and refresh');

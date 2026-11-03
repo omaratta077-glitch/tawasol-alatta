@@ -791,7 +791,7 @@ internal class AttaYoutubeFullscreenChrome(
     }
 
     override fun onShowCustomView(view: android.view.View?, cb: CustomViewCallback?) {
-        val activity = context as? android.app.Activity
+        val activity = context.mediaActivity()
         val container = activity?.window?.decorView as? android.view.ViewGroup
         if (activity == null || view == null || container == null || fullscreenView != null) {
             cb?.onCustomViewHidden()
@@ -2906,12 +2906,10 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                     }
                                 } else {
                                     val first = reelEntries.first()
-                                    AttaPostMediaViewer(
+                                    AttaFreshReelsViewer(
                                         posts = reelPosts,
                                         startId = first.post.optString("id"),
-                                        kind = "video",
                                         onDismiss = { navigate("الرئيسية") },
-                                        reelsOnly = true,
                                         rejectedShortIds = rejectedShortIds,
                                         youtubeShortContent = { shortId, command, shouldPlay, changed, onShortsDrag, shortFormat ->
                                             YouTubePlayer(shortId, onMiniDrag = onShortsDrag,
@@ -3210,11 +3208,9 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                     }
                                     // الملء العمودي يخص الفيديو المرفوع فقط، لا مقاطع YouTube الأفقية.
                                     if (showFullscreenVideo && video.isNotBlank()) {
-                                        AttaPostMediaViewer(
-                                                posts = posts, startId = postId, kind = "video",
+                                        AttaFreshReelsViewer(
+                                                posts = posts, startId = postId,
                                                 onDismiss = { showFullscreenVideo = false },
-                                                // نفس وضع الريلز للفيديو المرفوع في كل صفحات العطا.
-                                                reelsOnly = true,
                                                 loadInteractions = { id, kind, offset ->
                                                     get("/api/post-interactions?postId=${enc(id)}&kind=${enc(kind)}&offset=$offset")
                                                 },

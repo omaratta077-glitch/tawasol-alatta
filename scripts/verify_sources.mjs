@@ -11,7 +11,7 @@ assert.ok(native.includes('playerContent(videoId)') && !native.includes('youtube
 const freshYoutube=fs.readFileSync('android-native/app/src/main/java/com/alatta/nativeapp/AttaFreshYouTubePlayer.kt','utf8');
 const freshReels=fs.readFileSync('android-native/app/src/main/java/com/alatta/nativeapp/AttaFreshReelsViewer.kt','utf8');
 assert.ok(native.includes('AttaFreshYouTubePlayer(id, onMiniDrag') &&
-  freshYoutube.includes('loadDataWithBaseURL(ATTA_API_BASE') &&
+  freshYoutube.includes('loadDataWithBaseURL("https://appassets.androidplatform.net/"') && !freshYoutube.includes('ATTA_API_BASE') &&
   freshYoutube.includes('https://www.youtube.com/iframe_api') &&
   (freshYoutube.match(/new YT.Player\(/g)||[]).length===1 &&
   !native.includes('loadUrl("$BASE/")') && !native.includes('atta-site-youtube-bridge.js'),
@@ -79,7 +79,7 @@ assert.ok(navItems.includes('Triple("ريلز", "video", "ريلز")') &&
   native.includes('collectUploadedReels(reset = true)') &&
   native.includes('FeedPages.fetch(::get, next)') &&
   native.includes('onLoadMoreReels = {') &&
-  native.includes('reelsOnly = true') &&
+  native.includes('AttaFreshReelsViewer(') &&
   native.includes('YoutubePostMedia(videoId, activeYoutubePostId == postId') &&
   native.includes('if (showFullscreenVideo && video.isNotBlank())') &&
   !native.includes('includeYoutubePosts = true') &&
@@ -95,9 +95,9 @@ assert.ok(mushafReader.includes('AnimatedVisibility(visible = readerControlsVisi
   mushafReader.includes('pageZoom = (pageZoom + .15f).coerceAtMost(2f)'),
   'Single Quran reader hides its toolbar on idle and supports SVG zoom and ornate page numbers');
 const uploadedPostDialog = native.split('if (showFullscreenVideo && video.isNotBlank()) {',2)[1]?.split('loadInteractions =',1)[0] || '';
-assert.ok(uploadedPostDialog.includes('reelsOnly = true') &&
-  native.includes('AttaPostMediaViewer(') &&
-  native.includes('reelsOnly = true') &&
+assert.ok(uploadedPostDialog.includes('AttaFreshReelsViewer(') &&
+  native.includes('AttaFreshReelsViewer(') &&
+  !native.includes('reelsOnly = true') &&
   !native.includes('includeYoutubePosts = true'),
   'Home uploaded video and Reels use one portrait viewer; YouTube never opens in the media dialog');
 const siteYoutube=fs.readFileSync('cloudflare-site/public/youtube-section.js','utf8');

@@ -114,10 +114,9 @@ internal fun AttaExpandableVideo(url: String, posterUrl: String? = null, onOpen:
             SiteIcon("play", size = 35.dp, tint = Color(0xFFE6B94E), modifier = Modifier.padding(13.dp))
         }
     }
-    if (expanded) AttaPostMediaViewer(
+    if (expanded) AttaFreshReelsViewer(
         posts = listOf(JSONObject().put("id", "attachment").put("video", url)),
-        startId = "attachment", kind = "video", onDismiss = { expanded = false },
-        reelsOnly = true // يفتح نفس عارض الريلز، لا تخطيط ملء شاشة ثانٍ.
+        startId = "attachment", onDismiss = { expanded = false }
     )
 }
 
@@ -137,15 +136,13 @@ internal fun uploadedPostReels(
         val postId = post.optString("id")
         val url = media(post.optString("video"))
         if (url.isNotBlank()) add(AttaReelEntry(post, "$postId:video", videoUrl = url))
-        // Exactly one reel per post: uploaded video wins; otherwise YouTube
-        // has priority over a social link in the same caption.
-        if (url.isNotBlank()) continue
+        // Keep every available video type: uploaded video and public video links
+        // can coexist in a single post, without silently dropping either.
         val youtube = youtubePostId(post.optString("text"))
         if (youtube != null && youtube !in rejectedShortIds) {
             add(AttaReelEntry(post, "$postId:youtube:$youtube", youtubeId = youtube,
                 youtubeIsShort = post.optString("text").contains("alatta-youtube-short:", ignoreCase = true) ||
                     post.optString("text").contains("youtube.com/shorts/", ignoreCase = true)))
-            continue
         }
         socialVideoInPost(post.optString("text"))?.let { social ->
             add(AttaReelEntry(post, "$postId:social:${social.url}", social = social))
