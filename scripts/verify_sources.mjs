@@ -133,7 +133,7 @@ assert.ok(youtubeShare.includes('alatta-youtube(-short)?') &&
   native.includes('portrait = true, videoIsShort = shortFormat, playbackCommand = command,') &&
   native.includes('youtubePostDraftIsShort = true') &&
   native.includes('playbackCommand = command') &&
-  freshYoutube.includes('event == "PAUSED" || event == "ENDED"')
+  freshYoutube.includes('event == "PAUSED" || event == "ENDED"'),
   'YouTube Reels use one official embedded player with play/pause signals');
 const videoViewer=fs.readFileSync('android-native/app/src/main/java/com/alatta/nativeapp/AttaExpandableVideo.kt','utf8');
 assert.ok(videoViewer.includes('AttaFreshReelsViewer(') &&
