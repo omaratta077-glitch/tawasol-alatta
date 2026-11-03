@@ -41,7 +41,7 @@
     try { last.video.load(); } catch {}
     last.status.textContent = 'تم إيقاف التشغيل.';
   }
-  async function play(host, rawUrl, format) {
+  async function play(host, rawUrl, format, onFatal = null) {
     stop();
     const url = checkedUrl(rawUrl);
     if (!url || !['hls', 'dash'].includes(format)) {
@@ -73,9 +73,12 @@
     host.scrollIntoView?.({block:'center',behavior:'smooth'});
     const state = {video, status, hls: null, dash: null, stopped: false};
     current = state;
+    let fatalReported = false;
     const setError = () => {
-      if (state !== current) return;
-      status.textContent = 'تعذّر تشغيل المصدر داخل المتصفح. تأكد من صلاحية الرابط، وسماح المصدر بالتشغيل عبر CORS، وحقوق عرضه على الويب.';
+      if (state !== current || fatalReported) return;
+      fatalReported = true;
+      status.textContent = 'تعذّر تشغيل المصدر داخل المتصفح. قد يكون السبب CORS أو انتهاء صلاحية الرابط أو حماية البث.';
+      if (typeof onFatal === 'function') onFatal();
     };
     const tryStart = () => {
       if (state !== current) return;
@@ -133,5 +136,46 @@
       return false;
     }
   }
-  global.AttaSportsPlayer = Object.freeze({play, stop, active: () => !!current});
+  // المصادر تعود من واجهة العطا الموثّقة للمستخدم، ولا تُحفظ في التخزين أو السجلات.
+  function webSource(entry) {
+    if (!entry || typeof entry !== 'object') return null;
+    const url=checkedUrl(entry.url);
+    if (!url) return null; // صفحات HTTPS لا تستطيع بث رابط HTTP غير آمن.
+    const headers=entry.headers && typeof entry.headers==='object'?Object.keys(entry.headers):[];
+    // المتصفح لا يسمح للتطبيق بفرض Origin أو Referer أو User-Agent المخصصة.
+    // المصادر التي تشترط Referer/Origin ليست مناسبة لمشغّل الويب المباشر.
+    if (headers.some(key => /^(origin|referer)$/i.test(key))) return null;
+    const mime=String(entry.mimeType||'').toLowerCase();
+    const pathname=new URL(url).pathname.toLowerCase();
+    const format=mime.includes('mpegurl')||pathname.endsWith('.m3u8')?'hls':
+      mime.includes('dash+xml')||pathname.endsWith('.mpd')?'dash':null;
+    return format?{url,format}:null;
+  }
+  async function playSources(host, sources) {
+    const usable=Array.isArray(sources)?sources.slice(0,10).map(webSource).filter(Boolean):[];
+    if(!usable.length) {
+      stop();host.replaceChildren();
+      const note=document.createElement('p');
+      note.textContent='لم يصل رابط بث HTTPS يمكن للمتصفح تشغيله. قد تكون المصادر مخصصة لأندرويد فقط أو تحتاج إعدادات لا يسمح بها المتصفح.';
+      host.append(note);
+      return false;
+    }
+    let position=0;
+    const next=async()=>{
+      const candidate=usable[position++];
+      if(!candidate){
+        stop();host.replaceChildren();
+        const note=document.createElement('p');
+        note.setAttribute('role','alert');
+        note.textContent='تعذّر تشغيل كل المصادر المتاحة داخل المتصفح. افحص صلاحية الروابط وCORS وحقوق عرض القناة على الويب.';
+        host.append(note);
+        return false;
+      }
+      const ok=await play(host,candidate.url,candidate.format,()=>{void next();});
+      if(!ok && position<usable.length)return next();
+      return ok;
+    };
+    return next();
+  }
+  global.AttaSportsPlayer = Object.freeze({play, playSources, stop, active: () => !!current});
 })(window);
