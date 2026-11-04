@@ -655,7 +655,7 @@ internal fun AttaPostMediaViewer(
                             horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             CircularProgressIndicator(color = PremiumGoldLight,
                                 strokeWidth = 2.dp, modifier = Modifier.size(16.dp))
-                            Text("تحديث الريلز...", color = PremiumGoldLight, fontSize = 12.sp)
+                            Text(AttaLocale.tr("تحديث الريلز..."), color = PremiumGoldLight, fontSize = 12.sp)
                         }
                     }
                 }
@@ -671,13 +671,13 @@ internal fun AttaPostMediaViewer(
                         Text(playbackErrorMessage ?: failed, color = Color(0xFFFFB5B5), fontSize = 13.sp)
                         if (player != null && player.playerError != null && !stopPlayback) TextButton(onClick = {
                             failed = ""; player.prepare(); player.play()
-                        }) { Text("إعادة المحاولة", color = Color(0xFFE6B94E)) }
+                        }) { Text(AttaLocale.tr("إعادة المحاولة"), color = Color(0xFFE6B94E)) }
                     }
                     if (diagnosticReport != null) TextButton(onClick = {
                         val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
                         clipboard.setPrimaryClip(android.content.ClipData.newPlainText("تقرير تشغيل القناة", currentDiagnosticReport?.invoke().orEmpty()))
                         android.widget.Toast.makeText(context, "تم نسخ تقرير التشغيل", android.widget.Toast.LENGTH_SHORT).show()
-                    }) { Text("نسخ نتيجة التجربة", color = Color(0xFFE6B94E)) }
+                    }) { Text(AttaLocale.tr("نسخ نتيجة التجربة"), color = Color(0xFFE6B94E)) }
                     if (player != null && duration > 0 && live == null) {
                         // خط بحث رفيع واحد. احتفظ بمساحة لمس شفافة مريحة بارتفاع 24dp،
                         // مع رسم مسار بارتفاع 3dp ومؤشر ذهبي صغير فقط.
@@ -725,7 +725,7 @@ internal fun AttaPostMediaViewer(
                         horizontalArrangement = Arrangement.SpaceEvenly,
                         verticalAlignment = Alignment.CenterVertically) {
                         if (live != null) TextButton(enabled = !stopPlayback, onClick = { player.seekToDefaultPosition(); player.play() }) {
-                            Text("للمباشر", color = Color(0xFFF6D776), fontSize = 12.sp)
+                            Text(AttaLocale.tr("للمباشر"), color = Color(0xFFF6D776), fontSize = 12.sp)
                         } else if (!reelsOnly) IconButton(onClick = {
                             changeVideo(-1)
                         }) { SiteIcon("skip-back", size = 20.dp, tint = Color.White) }
@@ -749,8 +749,8 @@ internal fun AttaPostMediaViewer(
                                 Text(if (qualityCap == 0) "الجودة: تلقائي" else "حتى ${qualityCap}p", color = Color(0xFFF6D776), fontSize = 12.sp)
                             }
                             DropdownMenu(qualityMenu, onDismissRequest = { qualityMenu = false }) {
-                                DropdownMenuItem(text = { Text("تلقائي حسب الاتصال") }, onClick = { qualityCap = 0; qualityMenu = false })
-                                videoHeights.forEach { height -> DropdownMenuItem(text = { Text("حتى ${height}p") }, onClick = { qualityCap = height; qualityMenu = false }) }
+                                DropdownMenuItem(text = { Text(AttaLocale.tr("تلقائي حسب الاتصال")) }, onClick = { qualityCap = 0; qualityMenu = false })
+                                videoHeights.forEach { height -> DropdownMenuItem(text = { Text(AttaLocale.tr("حتى ${height}p")) }, onClick = { qualityCap = height; qualityMenu = false }) }
                             }
                         } else if (!reelsOnly) IconButton(onClick = {
                             changeVideo(1)
@@ -859,7 +859,7 @@ internal fun PostInteractionsSheet(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(value = content, onValueChange = { content = it },
-                    label = { Text("اكتب تعليقًا", color = Color.LightGray) },
+                    label = { Text(AttaLocale.tr("اكتب تعليقًا"), color = Color.LightGray) },
                     modifier = Modifier.weight(1f), maxLines = 4,
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedTextColor = Color.White, unfocusedTextColor = Color.White,
@@ -878,7 +878,7 @@ internal fun PostInteractionsSheet(
                     }
                 }, enabled = content.isNotBlank() && !sending,
                     modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp)) {
-                    Text("إرسال", color = Color(0xFFE6B94E))
+                    Text(AttaLocale.tr("إرسال"), color = Color(0xFFE6B94E))
                 }
             }
         }
