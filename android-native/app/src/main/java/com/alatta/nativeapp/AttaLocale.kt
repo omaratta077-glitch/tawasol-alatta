@@ -16,6 +16,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.Composable
 import org.json.JSONObject
 
 /**
@@ -58,22 +68,51 @@ internal object AttaLocale {
     }
 }
 
-@androidx.compose.runtime.Composable
+/**
+ * One reusable language dropdown for login, in-app settings and any other entry point.
+ * Switching updates Compose immediately; AttaLocale.choose persists the selection.
+ */
+@Composable
 internal fun AttaLanguageSwitcher(compact: Boolean = false) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val current = AttaLocale.language
-    Row(horizontalArrangement = Arrangement.spacedBy(6.dp),
-        modifier = Modifier.padding(vertical = if (compact) 1.dp else 7.dp)) {
-        listOf("ar" to "العربية", "en" to "English").forEach { (key, label) ->
-            val selected = current == key
-            Text(label, modifier = Modifier
-                .background(if (selected) Color(0xFF6C4D1B) else Color(0xFF101315),
-                    RoundedCornerShape(12.dp))
-                .then(Modifier.clickable { AttaLocale.choose(context, key) })
-                .padding(horizontal = if (compact) 10.dp else 14.dp,
-                    vertical = if (compact) 5.dp else 9.dp),
-                fontSize = if (compact) 11.sp else 14.sp,
-                color = if (selected) Color(0xFFFFD477) else Color(0xFFBBBBBB))
+    var expanded by remember { mutableStateOf(false) }
+    val gold = Color(0xFFFFD477)
+    Box(modifier = Modifier.padding(vertical = if (compact) 1.dp else 7.dp)) {
+        OutlinedButton(
+            onClick = { expanded = true },
+            border = BorderStroke(1.dp, Color(0xFF987734)),
+            shape = RoundedCornerShape(12.dp),
+            colors = ButtonDefaults.outlinedButtonColors(
+                contentColor = gold, containerColor = Color(0xFF101315)
+            ),
+            contentPadding = PaddingValues(
+                horizontal = if (compact) 10.dp else 14.dp,
+                vertical = if (compact) 5.dp else 9.dp
+            )
+        ) {
+            Text(if (current == "en") "English" else "العربية",
+                fontSize = if (compact) 12.sp else 14.sp, color = gold)
+            Spacer(Modifier.width(14.dp))
+            Text("▾", color = gold, fontSize = 15.sp)
+        }
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+            modifier = Modifier.background(Color(0xFF101315))
+        ) {
+            listOf("ar" to "العربية", "en" to "English").forEach { (code, label) ->
+                DropdownMenuItem(
+                    text = { Text(label, color = if (current == code) gold else Color.White) },
+                    trailingIcon = {
+                        if (current == code) Text("✓", color = gold)
+                    },
+                    onClick = {
+                        AttaLocale.choose(context, code)
+                        expanded = false
+                    }
+                )
+            }
         }
     }
 }

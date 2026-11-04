@@ -3367,6 +3367,32 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                 }
                             }
                         }
+                        "الإعدادات" -> LazyColumn(
+                            Modifier.weight(1f).padding(horizontal = 12.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            item {
+                                CardBox {
+                                    SectionTitle("الإعدادات")
+                                    Text(AttaLocale.tr("لغة التطبيق"),
+                                        color = GoldLight, fontSize = 14.sp)
+                                    AttaLanguageSwitcher()
+                                    Text(AttaLocale.tr("اختر لغة عرض التطبيق. يُحفظ اختيارك تلقائيًا."),
+                                        color = Muted, fontSize = 12.sp)
+                                }
+                            }
+                            item {
+                                CardBox {
+                                    PremiumMenuEntry("shield", "الخصوصية وطلب حذف الحساب") {
+                                        navigate("الخصوصية")
+                                    }
+                                    HorizontalDivider(color = Border.copy(alpha = .5f))
+                                    PremiumMenuEntry("check", "فحص تحديث التطبيق") {
+                                        updateCheckRequest++
+                                    }
+                                }
+                            }
+                        }
                         "الخصوصية" -> AccountPrivacyScreen(myUsername, busy, notificationsEnabled,
                             when (AttaPush.provider(ctx)) { "hms" -> "Huawei Push Kit"; "fcm" -> "Firebase Cloud Messaging"; else -> "لا توجد خدمة إشعارات مدعومة؛ يبقى التحديث داخل التطبيق عند فتحه" },
                             deletionRequest,
@@ -3403,8 +3429,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                             }
                             item {
                                 CardBox {
-                                    Text(AttaLocale.tr("لغة التطبيق"), color = GoldLight, fontSize = 14.sp)
-                                    AttaLanguageSwitcher()
+                                    PremiumMenuEntry("settings", "الإعدادات") { navigate("الإعدادات") }
                                 }
                             }
                             item {
