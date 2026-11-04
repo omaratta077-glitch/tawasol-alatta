@@ -24,9 +24,9 @@ android {
         applicationId = "com.alatta.nativeapp"
         minSdk = 26
         targetSdk = 35
-        // الإصدار 1.0.253: إخفاء شريط الريلز السفلي، تجميع التفاعلات، وشريط تقديم رفيع.
-        versionCode = 353
-        versionName = "1.0.253"
+        // الإصدار 1.0.254: رفع شريط التقديم في الريلز إلى 20dp مع الاحتفاظ بالتنسيق والمشغّل.
+        versionCode = 354
+        versionName = "1.0.254"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("boolean", "IS_APPGALLERY", appGalleryBuild.toString())
         val hmsId = (System.getenv("ALATTA_HMS_APP_ID") ?: "").trim().takeIf { it.matches(Regex("[0-9]{1,20}")) } ?: ""
