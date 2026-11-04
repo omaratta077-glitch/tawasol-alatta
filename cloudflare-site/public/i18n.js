@@ -4,6 +4,7 @@
 const STORAGE='alatta_ui_language';
 const getSaved=()=>{try{return localStorage.getItem(STORAGE)==='en'?'en':'ar'}catch{return 'ar'}};
 let language=getSaved(), dictionary=Object.create(null), observer=null, timer=0;
+const pendingRoots=new Set();
 const textRecords=new WeakMap(),attrRecords=new WeakMap();
 const attributes=['placeholder','title','aria-label','alt','value'];
 const ignored='script,style,textarea,code,pre,svg,[contenteditable="true"],[data-no-translate],.post-text,.reference-post-text,.post-comment-text,.chat-message-text,.comment-body,.story-view-text,.quran-content,.hadith-text,.adhkar-text,.native-hadith-text,.native-quran-page';
@@ -59,9 +60,18 @@ function refresh(){
  if(document.body)walk(document.body);
  setDocumentLanguage();
 }
-function schedule(){
+function schedule(root=null){
+ if(root)pendingRoots.add(root);
  if(timer)return;
- timer=setTimeout(()=>{timer=0;refresh()},32);
+ timer=setTimeout(()=>{
+  timer=0;
+  if(!pendingRoots.size)refresh();
+  else{
+   for(const node of pendingRoots)walk(node);
+   pendingRoots.clear();
+   setDocumentLanguage();
+  }
+ },32);
 }
 function setLanguage(next){
  language=next==='en'?'en':'ar';
@@ -82,8 +92,10 @@ function init(){
  setDocumentLanguage();
  refresh();
  observer=new MutationObserver(mutations=>{
-  if(language!=='en'&&textRecords===null)return;
-  if(mutations.some(m=>m.type==='childList'||m.type==='characterData'||m.type==='attributes'))schedule();
+  for(const m of mutations){
+   if(m.type==='childList')m.addedNodes.forEach(n=>schedule(n));
+   else schedule(m.target);
+  }
  });
  observer.observe(document.body,{childList:true,subtree:true,characterData:true,
   attributes:true,attributeFilter:attributes});
