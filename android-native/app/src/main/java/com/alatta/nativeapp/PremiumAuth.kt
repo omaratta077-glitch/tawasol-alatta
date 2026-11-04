@@ -35,7 +35,7 @@ private val AuthPanel = Color(0xFF0D1113)
 internal fun PremiumAuthTextField(value: String, onChange: (String) -> Unit, hint: String, password: Boolean = false) {
     OutlinedTextField(
         value = value, onValueChange = onChange,
-        placeholder = { Text(hint, color = Color(0xFFBFC0C0), fontSize = 14.sp, maxLines = 1) },
+        placeholder = { Text(AttaLanguage.text(hint), color = Color(0xFFBFC0C0), fontSize = 14.sp, maxLines = 1) },
         textStyle = androidx.compose.ui.text.TextStyle(color = Color.White, fontSize = 15.sp),
         visualTransformation = if (password) PasswordVisualTransformation() else androidx.compose.ui.text.input.VisualTransformation.None,
         singleLine = true, shape = RoundedCornerShape(14.dp),
@@ -56,7 +56,7 @@ internal fun PremiumAuthGoldButton(label: String, enabled: Boolean, onClick: () 
         shape = RoundedCornerShape(18.dp),
         colors = ButtonDefaults.buttonColors(containerColor = AuthGold, contentColor = Color(0xFF090909),
             disabledContainerColor = Color(0xFF2A2A2A), disabledContentColor = Color.Gray)
-    ) { Text(label, fontWeight = FontWeight.ExtraBold, fontSize = 18.sp) }
+    ) { Text(AttaLanguage.text(label), fontWeight = FontWeight.ExtraBold, fontSize = 18.sp) }
 }
 
 @Composable
@@ -64,7 +64,7 @@ internal fun PremiumAuthOutlineButton(label: String, onClick: () -> Unit) {
     OutlinedButton(onClick = onClick, modifier = Modifier.fillMaxWidth().height(52.dp),
         shape = RoundedCornerShape(24.dp), border = BorderStroke(1.dp, AuthGoldLight),
         colors = ButtonDefaults.outlinedButtonColors(contentColor = AuthGoldLight)) {
-        Text(label, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+        Text(AttaLanguage.text(label), fontSize = 16.sp, fontWeight = FontWeight.Bold)
     }
 }
 
@@ -92,7 +92,7 @@ internal fun PremiumGoogleButton(enabled: Boolean = true, label: String = "ال�
             }
             Spacer(Modifier.width(9.dp))
             Text(
-                text = label,
+                text = AttaLanguage.text(label),
                 modifier = Modifier.weight(1f),
                 fontSize = 14.sp,
                 lineHeight = 18.sp,
