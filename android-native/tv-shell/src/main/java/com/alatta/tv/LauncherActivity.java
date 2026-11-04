@@ -47,7 +47,7 @@ public final class LauncherActivity extends Activity {
         root.setBackgroundColor(Color.rgb(7, 7, 7));
 
         ImageView logo = new ImageView(this);
-        logo.setImageResource(R.drawable.alatta_tv_logo);
+        logo.setImageResource(R.mipmap.ic_launcher);
         root.addView(logo, new LinearLayout.LayoutParams(dp(220), dp(220)));
 
         TextView title = new TextView(this);
