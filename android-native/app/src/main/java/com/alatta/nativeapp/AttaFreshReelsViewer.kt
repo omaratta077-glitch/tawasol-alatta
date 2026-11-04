@@ -384,9 +384,9 @@ internal fun AttaFreshReelsViewer(
                     }
                 }
                 if(isUploaded && controls && player!=null && duration>0L){
-                    // Visually 2.5dp tall, but 44dp high to remain easy to scrub.
+                    // Keep the thin 2.5dp progress line, but lift it 12dp above its former position; 44dp touch target remains.
                     Canvas(Modifier.align(Alignment.BottomCenter).fillMaxWidth()
-                        .padding(start=17.dp,end=17.dp,bottom=20.dp).height(44.dp)
+                        .padding(start=17.dp,end=17.dp,bottom=32.dp).height(44.dp)
                         .pointerInput(player,duration){
                             detectTapGestures { position ->
                                 val fraction=(position.x/size.width.coerceAtLeast(1)).coerceIn(0f,1f)
