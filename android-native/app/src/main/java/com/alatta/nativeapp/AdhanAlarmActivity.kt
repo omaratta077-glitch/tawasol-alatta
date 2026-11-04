@@ -35,16 +35,16 @@ class AdhanAlarmActivity : ComponentActivity() {
                     verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
                     Image(painterResource(R.drawable.logo_premium), "AL-ATTA MEDIA", Modifier.size(130.dp))
                     Spacer(Modifier.height(28.dp))
-                    Text("حان وقت صلاة ${prayerNames[prayer].orEmpty()}", color = PremiumGoldLight,
+                    Text(AttaLocale.tr("حان وقت صلاة ${prayerNames[prayer].orEmpty()}"), color = PremiumGoldLight,
                         fontSize = 28.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
                     Spacer(Modifier.height(12.dp))
                     Text(settings.place.name, color = Color.White, fontSize = 18.sp, textAlign = TextAlign.Center)
                     Spacer(Modifier.height(36.dp))
                     Button(onClick = { stopService(Intent(this@AdhanAlarmActivity, AdhanPlaybackService::class.java)); finish() },
                         modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp), colors = ButtonDefaults.buttonColors(containerColor = PremiumGold, contentColor = Color.Black)) {
-                        Text("إيقاف الأذان", fontSize = 19.sp)
+                        Text(AttaLocale.tr("إيقاف الأذان"), fontSize = 19.sp)
                     }
-                    TextButton(onClick = { finish() }, modifier = Modifier.fillMaxWidth()) { Text("إخفاء الشاشة ومتابعة الأذان", color = PremiumGoldLight) }
+                    TextButton(onClick = { finish() }, modifier = Modifier.fillMaxWidth()) { Text(AttaLocale.tr("إخفاء الشاشة ومتابعة الأذان"), color = PremiumGoldLight) }
                 }
             }
         }
