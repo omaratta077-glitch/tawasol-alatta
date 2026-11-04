@@ -1,7 +1,7 @@
 {
-  "name": "AL-ATTA",
+  "name": "AL-ATTA Media | تواصل العطا",
   "short_name": "AL-ATTA",
-  "description": "تواصل العطا للرسائل والأصدقاء والمكالمات الصوتية والمرئية.",
+  "description": "AL-ATTA Media | تواصل العطا — social networking, messaging, voice/video calls, Quran, dhikr and sports. منصة تواصل اجتماعي بالعربية والإنجليزية.",
   "lang": "ar",
   "dir": "rtl",
   "start_url": "/?source=pwa",
