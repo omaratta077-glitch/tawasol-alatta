@@ -13,6 +13,13 @@ assert.ok(native.includes('YouTubePlayer(activeYoutubePostVideoId, portrait = la
   'post videos use one stable Activity-level player and are not disposed with feed cards');
 const freshYoutube=fs.readFileSync('android-native/app/src/main/java/com/alatta/nativeapp/AttaFreshYouTubePlayer.kt','utf8');
 const freshReels=fs.readFileSync('android-native/app/src/main/java/com/alatta/nativeapp/AttaFreshReelsViewer.kt','utf8');
+assert.ok(!freshReels.includes('PremiumBottomNav("ريلز"') &&
+  !freshReels.includes('Slider(value=progress') &&
+  freshReels.includes('detectHorizontalDragGestures(') &&
+  freshReels.includes('strokeWidth=2.5.dp.toPx()') &&
+  freshReels.includes('verticalArrangement=Arrangement.spacedBy(12.dp)') &&
+  !native.includes('onReelsNavigate = { destination -> navigate(destination) }'),
+  'Reels hide bottom tabs, group reaction counts, and use a thin seek track');
 assert.ok(native.includes('AttaFreshYouTubePlayer(id, onMiniDrag') &&
   freshYoutube.includes('loadDataWithBaseURL("https://appassets.androidplatform.net/"') && !freshYoutube.includes('ATTA_API_BASE') &&
   freshYoutube.includes('https://www.youtube.com/iframe_api') &&
