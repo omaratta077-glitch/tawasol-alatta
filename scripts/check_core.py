@@ -201,7 +201,7 @@ check("Quran downloadable pages and compact native controls",
       (ROOT / 'android-native/app/src/main/assets/mushaf/index.json').is_file() and
       'MushafPageStore.openPage(context,page,allowNetwork)' in quran_source and 'GZIPInputStream' not in quran_source and
       all(x in quran_source for x in ['فهرس المصحف الشريف', 'BackHandler', 'prefs.edit().putInt("page"',
-                                      'height(38.dp)', 'mushafArabicNumber(page)', 'Text("الحزب $hizb"',
+                                      'height(38.dp)', 'mushafArabicNumber(page)', 'Text(AttaLanguage.text("الحزب $hizb")',
                                       'onFling(', 'navigate(page + 1)', 'navigate(page - 1)']) and
       'Text("ملاحظاتي"' not in quran_source)
 check("Mushaf controls auto-hide and SVG zoom without altering the Quran source",
