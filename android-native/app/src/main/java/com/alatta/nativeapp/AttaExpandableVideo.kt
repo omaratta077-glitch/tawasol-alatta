@@ -201,7 +201,7 @@ internal fun AttaPostMediaViewer(
             onOpenProfile = onOpenProfile, youtubeShortContent = youtubeShortContent,
             rejectedShortIds = rejectedShortIds, nextReelsCursor = nextReelsCursor,
             onLoadMoreReels = onLoadMoreReels, onRefreshReels = onRefreshReels,
-            onReelsNavigate = onReelsNavigate, reelsLoading = reelsLoading
+            reelsLoading = reelsLoading
         )
         return
     }

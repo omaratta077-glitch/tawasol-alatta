@@ -2918,7 +2918,6 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                         },
                                         nextReelsCursor = reelCursor,
                                         reelsLoading = reelMoreLoading,
-                                        onReelsNavigate = { destination -> navigate(destination) },
                                         onRefreshReels = {
                                             if (!reelMoreLoading) {
                                                 task {
