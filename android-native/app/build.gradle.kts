@@ -12,7 +12,7 @@ val slimMushafAssets by tasks.registering(Sync::class) {
     into(layout.buildDirectory.dir("generated/slimAssets"))
 }
 val syncLegalAssets by tasks.registering(Copy::class) {
-    from(rootProject.file("../cloudflare-site/public")) { include("privacy.html", "terms.html", "data-rights.html") }
+    from(rootProject.file("../cloudflare-site/public")) { include("privacy.html", "terms.html", "data-rights.html", "i18n/en.json") }
     into(layout.buildDirectory.dir("generated/legalAssets/legal"))
 }
 
