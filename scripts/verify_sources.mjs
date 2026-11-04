@@ -239,6 +239,13 @@ assert.ok(socialEmbed.includes('socialVideoUrl(') &&
   native.includes('SocialVideoPostEmbed(social, Modifier.fillMaxWidth())') &&
   native.includes('onRefreshReels = {'),
   'Public social video embeds still work in Reels; unrelated link input is removed from YouTube screen');
+assert.ok(
+  freshReels.includes('android.content.Intent.ACTION_SEND') &&
+  freshReels.includes('externalReelShareUrl(reel)') &&
+  fs.readFileSync('cloudflare-site/public/app.js','utf8').includes('navigator.share') &&
+  fs.readFileSync('cloudflare-site/public/app.js','utf8').includes('data-media-external-share'),
+  'Reels can share externally using the Android chooser or browser Web Share API'
+);
 const hadith=fs.readFileSync('android-native/app/src/main/java/com/alatta/nativeapp/HadithLibrary.kt','utf8');
 assert.ok(hadith.includes('verifiedCopy(target, expectedBytes, hash)'), 'Hadith copy verified by actual SHA-256');
 assert.ok(!hadith.includes('PRAGMA quick_check", null') && !hadith.includes('require(db.version == 1)'),
