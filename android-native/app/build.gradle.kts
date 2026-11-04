@@ -24,9 +24,9 @@ android {
         applicationId = "com.alatta.nativeapp"
         minSdk = 26
         targetSdk = 36
-        // الإصدار 1.0.259: توجيه اختياري إلى واجهة AL-ATTA TV الذهبية مع الحفاظ على المشغل الأصلي.
-        versionCode = 359
-        versionName = "1.0.259"
+        // الإصدار 1.0.261: اختيار القنوات من AL-ATTA TV وتشغيلها داخل Media3 في العطا.
+        versionCode = 361
+        versionName = "1.0.261"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("boolean", "IS_APPGALLERY", appGalleryBuild.toString())
         val hmsId = (System.getenv("ALATTA_HMS_APP_ID") ?: "").trim().takeIf { it.matches(Regex("[0-9]{1,20}")) } ?: ""

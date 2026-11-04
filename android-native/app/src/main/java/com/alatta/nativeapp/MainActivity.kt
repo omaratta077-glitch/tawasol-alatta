@@ -562,6 +562,9 @@ class MainActivity : ComponentActivity(), WatchRoomPipStateHost {
     internal var requestedNotificationEvent by mutableStateOf<String?>(null)
     internal var requestedNotificationTab by mutableStateOf<String?>(null)
         private set
+    // A catalog ID requested by AL-ATTA TV, never a raw stream URL.
+    internal var requestedTvChannelId by mutableStateOf<String?>(null)
+        private set
     internal var youtubePipMode by mutableStateOf(false)
         private set
     private var youtubePlaybackActive = false
@@ -633,6 +636,13 @@ class MainActivity : ComponentActivity(), WatchRoomPipStateHost {
     }
 
     private fun consumePushIntent(intent: Intent?) {
+        val tvChannel = TvChannelHandoff.read(intent)
+        if (tvChannel != null) {
+            requestedTvChannelId = tvChannel
+            requestedNotificationTab = "الرياضة"
+            intent?.let { it.removeExtra(TvChannelHandoff.CHANNEL_ID); it.action = Intent.ACTION_MAIN }
+            return
+        }
         if (intent?.action == WatchRoomService.ACTION_OPEN) {
             requestedNotificationTab = "الرياضة"; intent.action = Intent.ACTION_MAIN; return
         }
@@ -681,6 +691,7 @@ class MainActivity : ComponentActivity(), WatchRoomPipStateHost {
     fun clearIncomingPush() { incomingPush = null }
     fun clearNotificationEvent() { requestedNotificationEvent = null }
     fun clearNotificationNavigation() { requestedNotificationTab = null }
+    fun clearRequestedTvChannel() { requestedTvChannelId = null }
 }
 
 @Composable
@@ -2863,6 +2874,8 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                             })
                         "الرياضة" -> FootballScreen("", Modifier.weight(1f), isAdmin = adminRole == "super_admin", token = token, callInProgress = activeCall != null || incomingCall != null || pendingPermissionCall != null,
                             onManage = { navigate("الإدارة") }, onBeforePlayback = { youtubePlayRequested = false; activeYoutubePostId = "" },
+                            externalChannelId = (ctx as? MainActivity)?.requestedTvChannelId,
+                            onExternalChannelConsumed = { (ctx as? MainActivity)?.clearRequestedTvChannel() },
                             onYoutube = { id ->
                                 activeYoutubePostId = ""; youtubeId = id; youtubePlayRequested = true
                                 navigate("يوتيوب")

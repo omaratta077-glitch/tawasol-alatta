@@ -48,7 +48,8 @@ internal fun FootballPanel(modifier: Modifier = Modifier, content: @Composable C
 @Composable
 internal fun FootballScreen(query: String, modifier: Modifier = Modifier,
     isAdmin: Boolean = false, token: String = "", onManage: () -> Unit = {}, callInProgress: Boolean = false,
-    onBeforePlayback: () -> Unit, onYoutube: (String) -> Unit) {
+    onBeforePlayback: () -> Unit, onYoutube: (String) -> Unit,
+    externalChannelId: String? = null, onExternalChannelConsumed: () -> Unit = {}) {
     val context = LocalContext.current
     val playbackScope = rememberCoroutineScope()
     var openingChannel by remember { mutableStateOf(false) }
@@ -124,6 +125,22 @@ internal fun FootballScreen(query: String, modifier: Modifier = Modifier,
         finally { openingChannel = false }
         }
     }
+    // Launch the exact catalog channel selected in AL-ATTA TV, using Media3 here.
+    // Resolve a fresh authorized source through the existing AL-ATTA backend.
+    LaunchedEffect(externalChannelId, catalog, loading, token) {
+        val requestedId = externalChannelId ?: return@LaunchedEffect
+        if (token.isBlank() || loading) return@LaunchedEffect
+        if (catalog.channels.isEmpty() && error.isNotBlank()) return@LaunchedEffect
+        val channel = catalog.channels.firstOrNull { it.id == requestedId && it.enabled }
+        onExternalChannelConsumed()
+        when {
+            channel == null -> error = "القناة المختارة غير موجودة أو غير مفعلة. حدّث القائمة."
+            channel.format !in setOf("ytv", "hls", "dash") ->
+                error = "القناة المختارة ليس لها مصدر تشغيل داخلي مدعوم."
+            else -> play(channel, nativePlayback = true)
+        }
+    }
+
     FootballContent(catalog, query, favorites, recent, loading || openingChannel, error, isAdmin, callInProgress, modifier,
         onReload = { reload++ }, onManage = onManage, onPlay = { play(it) }, onPlayDirect = { play(it, nativePlayback = true) },
         onFavorite = { id ->
