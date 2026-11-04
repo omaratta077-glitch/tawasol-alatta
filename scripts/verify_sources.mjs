@@ -256,4 +256,21 @@ assert.ok(!fs.existsSync('cloudflare-site/style.css'),'no shadow stylesheet');
 assert.ok(!fs.existsSync('android-native/app/src/main/java/com/alatta/nativeapp/GoogleWebBridge.kt'),'no unused OAuth bridge');
 assert.ok(html.includes('tawasol-alatta-latest.apk'),'canonical release link remains in HTML');
 assert.ok(fs.existsSync('.github/workflows/verify-source.yml'),'official source CI available');
-console.log('PASS: source organization, one YouTube player, single APK button, CI');
+const locales=JSON.parse(fs.readFileSync('cloudflare-site/public/i18n/en.json','utf8'));
+const androidLocale=fs.readFileSync('android-native/app/src/main/java/com/alatta/nativeapp/AttaLocale.kt','utf8');
+const webLocale=fs.readFileSync('cloudflare-site/public/i18n.js','utf8');
+const buildFile=fs.readFileSync('android-native/app/build.gradle.kts','utf8');
+assert.ok(Object.keys(locales).length>=400 &&
+  locales['الرئيسية']==='Home' &&
+  locales['الرسائل']==='Messages' &&
+  androidLocale.includes('ui_language') && androidLocale.includes('legal/i18n/en.json') &&
+  native.includes('AttaLanguageSwitcher()') &&
+  html.includes('data-atta-language') &&
+  html.includes('i18n.js?v=1') &&
+  webLocale.includes("document.documentElement.dir=language==='en'?'ltr':'rtl'"),
+  'Arabic/English UI selectors and shared catalog for website and Android');
+assert.ok(buildFile.includes('compileSdk = 36') && buildFile.includes('targetSdk = 36') &&
+  fs.readFileSync('android-native/build.gradle.kts','utf8').includes('version "8.9.2"') &&
+  fs.readFileSync('.github/workflows/build-native-release.yml','utf8').includes('android-36'),
+  'Android 16 API 36 build chain');
+console.log('PASS: source organization, one YouTube player, single APK button, bilingual locale and API 36');
