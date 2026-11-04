@@ -31,9 +31,9 @@ import androidx.compose.ui.window.DialogProperties
                 }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     Button(onClick = onClick, modifier = Modifier.weight(1f).heightIn(min = 44.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF239B56), contentColor = Color.White)) { Text("رد") }
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF239B56), contentColor = Color.White)) { Text(AttaLanguage.text("رد")) }
                     Button(onClick = onReject, modifier = Modifier.weight(1f).heightIn(min = 48.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD32F2F), contentColor = Color.White)) { Text("رفض") }
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD32F2F), contentColor = Color.White)) { Text(AttaLanguage.text("رفض")) }
                 }
             }
         }
