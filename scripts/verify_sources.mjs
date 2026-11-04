@@ -257,6 +257,15 @@ assert.ok(!fs.existsSync('android-native/app/src/main/java/com/alatta/nativeapp/
 assert.ok(html.includes('tawasol-alatta-latest.apk'),'canonical release link remains in HTML');
 assert.ok(fs.existsSync('.github/workflows/verify-source.yml'),'official source CI available');
 const locales=JSON.parse(fs.readFileSync('cloudflare-site/public/i18n/en.json','utf8'));
+assert.ok(native.includes('"الإعدادات" -> LazyColumn(') &&
+  native.includes('PremiumMenuEntry("settings", "الإعدادات")') &&
+  !native.includes('Text(AttaLocale.tr("لغة التطبيق"), color = GoldLight, fontSize = 14.sp)\n                                    AttaLanguageSwitcher()'),
+  'In-app settings offer the language selector and menu has a Settings entry');
+const languageSwitcher=fs.readFileSync('android-native/app/src/main/java/com/alatta/nativeapp/AttaLocale.kt','utf8');
+assert.ok(languageSwitcher.includes('DropdownMenu(') && languageSwitcher.includes('DropdownMenuItem(') &&
+  languageSwitcher.includes('AttaLocale.choose(context, code)') &&
+  languageSwitcher.includes('putString("ui_language", language).apply()'),
+  'Arabic/English language dropdown is interactive and persists the selection');
 const androidLocale=fs.readFileSync('android-native/app/src/main/java/com/alatta/nativeapp/AttaLocale.kt','utf8');
 const webLocale=fs.readFileSync('cloudflare-site/public/i18n.js','utf8');
 const buildFile=fs.readFileSync('android-native/app/build.gradle.kts','utf8');
