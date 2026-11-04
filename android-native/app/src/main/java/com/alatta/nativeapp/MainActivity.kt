@@ -203,7 +203,7 @@ private fun AttaPostReactorsDialog(
     }
     LaunchedEffect(postId) { loadNext() }
     Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
+        CompositionLocalProvider(LocalLayoutDirection provides (if (AttaLanguage.code == "en") LayoutDirection.Ltr else LayoutDirection.Rtl)) {
             Column(Modifier.fillMaxWidth().fillMaxHeight(.72f)
                 .padding(horizontal = 10.dp)
                 .background(Panel, RoundedCornerShape(20.dp))
@@ -340,7 +340,7 @@ private fun AttaRightAlignedComments(
             commentFocusRequester.requestFocus()
             keyboard?.show()
         }
-        CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
+        CompositionLocalProvider(LocalLayoutDirection provides (if (AttaLanguage.code == "en") LayoutDirection.Ltr else LayoutDirection.Rtl)) {
             val keyboardLift = with(density) { keyboardCoveredPx.toDp() }
             Column(Modifier.fillMaxSize().background(Black)
                 .padding(bottom = keyboardLift).safeDrawingPadding()) {
@@ -2523,7 +2523,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
             }
         } else Modifier
 
-    CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
+    CompositionLocalProvider(LocalLayoutDirection provides (if (AttaLanguage.code == "en") LayoutDirection.Ltr else LayoutDirection.Rtl)) {
         MaterialTheme(colorScheme = darkColorScheme(primary = Gold, background = Black, surface = Panel, onSurface = White, onBackground = White)) {
             Box(Modifier.fillMaxSize().background(Black)) {
             Column(if (youtubePipMode) Modifier.size(0.dp) else Modifier.fillMaxSize()
