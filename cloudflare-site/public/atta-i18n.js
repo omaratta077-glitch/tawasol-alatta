@@ -18,7 +18,9 @@ function textNode(node){
  if(skipNode(parent))return;
  const current=node.nodeValue||'';
  if(!original.has(node))original.set(node,current);
- const source=original.get(node);
+ let source=original.get(node);
+ const prior=source.trim(),translated=translations[prior]||prior;
+ if(current!==source&&current.trim()!==translated){original.set(node,current);source=current;}
  const clean=source.trim();
  const value=lang==='en'?(translations[clean]||clean):clean;
  if(!translations[clean]){if(current!==source)original.set(node,current);return;}
