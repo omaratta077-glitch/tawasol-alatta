@@ -20,6 +20,8 @@ function translated(original){
 function setDocumentLanguage(){
  document.documentElement.lang=language;
  document.documentElement.dir=language==='en'?'ltr':'rtl';
+ const manifest=document.querySelector('link[rel="manifest"]');
+ if(manifest)manifest.setAttribute('href',language==='en'?'/manifest.en.webmanifest':'/manifest.webmanifest');
  document.querySelectorAll('[data-atta-language]').forEach(x=>{if(x.value!==language)x.value=language});
 }
 function textNode(node){
