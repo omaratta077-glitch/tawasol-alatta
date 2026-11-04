@@ -57,9 +57,9 @@ internal fun PublicUserProfile(
             Box(Modifier.size(40.dp).clickable(onClick = onBack), contentAlignment = Alignment.Center) {
                 SiteIcon("chevron-left", size = 26.dp, tint = profileGold)
             }
-            Text("الملف الشخصي", Modifier.weight(1f), color = Color.White, fontSize = 19.sp,
+            Text(AttaLocale.tr("الملف الشخصي"), Modifier.weight(1f), color = Color.White, fontSize = 19.sp,
                 fontWeight = FontWeight.Bold)
-            TextButton(onClick = { onReport("user", username) }) { Text("إبلاغ", color = profileGold) }
+            TextButton(onClick = { onReport("user", username) }) { Text(AttaLocale.tr("إبلاغ"), color = profileGold) }
         }
         if (isLoading) LinearProgressIndicator(Modifier.fillMaxWidth(), color = profileGold)
         LazyColumn(Modifier.fillMaxSize()) {
@@ -70,7 +70,7 @@ internal fun PublicUserProfile(
                     Text(if (user.optBoolean("isOnline")) "● نشط الآن" else if (user.optLong("lastSeen") > 0L) "آخر ظهور: " + java.text.SimpleDateFormat("yyyy/MM/dd HH:mm", java.util.Locale.getDefault()).format(java.util.Date(user.optLong("lastSeen"))) else "غير متصل", color = profileMuted, fontSize = 12.sp)
                     if (filter == "حول") {
                     val registeredAt = user.optLong("createdAt",0L)
-                    if (registeredAt>0) Text("تاريخ إنشاء الحساب: " + java.text.SimpleDateFormat("yyyy/MM/dd", java.util.Locale.getDefault()).format(java.util.Date(registeredAt)),
+                    if (registeredAt>0) Text(AttaLocale.tr("تاريخ إنشاء الحساب: ") + java.text.SimpleDateFormat("yyyy/MM/dd", java.util.Locale.getDefault()).format(java.util.Date(registeredAt)),
                         color=profileMuted,fontSize=12.sp,modifier=Modifier.padding(bottom=9.dp))
                     val details = listOf(
                         "البلد" to user.optString("country"),
@@ -82,7 +82,7 @@ internal fun PublicUserProfile(
                         Column(Modifier.fillMaxWidth().padding(bottom = 11.dp)
                             .background(profilePanel, RoundedCornerShape(13.dp)).padding(12.dp),
                             verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                            Text("معلومات عن المستخدم", color = profileGold,
+                            Text(AttaLocale.tr("معلومات عن المستخدم"), color = profileGold,
                                 fontSize = 14.sp, fontWeight = FontWeight.Bold)
                             details.forEach { (label, value) ->
                                 Text("$label: $value", color = Color.White, fontSize = 13.sp)
@@ -100,25 +100,25 @@ internal fun PublicUserProfile(
                         verticalAlignment = Alignment.CenterVertically) {
                         when (friendState) {
                             "friends" -> {
-                                Text("✓ صديق", color = profileGold,
+                                Text(AttaLocale.tr("✓ صديق"), color = profileGold,
                                     fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
                                 TextButton(onClick = { onFriendAction("remove") }) {
-                                    Text("إلغاء الصداقة", color = profileMuted, fontSize = 12.sp)
+                                    Text(AttaLocale.tr("إلغاء الصداقة"), color = profileMuted, fontSize = 12.sp)
                                 }
                             }
                             "outgoing" -> {
-                                Text("تم إرسال طلب الصداقة", color = profileGold,
+                                Text(AttaLocale.tr("تم إرسال طلب الصداقة"), color = profileGold,
                                     fontSize = 13.sp, modifier = Modifier.weight(1f))
                                 TextButton(onClick = { onFriendAction("cancel") }) {
-                                    Text("إلغاء الطلب", color = profileMuted)
+                                    Text(AttaLocale.tr("إلغاء الطلب"), color = profileMuted)
                                 }
                             }
                             "incoming" -> {
                                 Button(onClick = { onFriendAction("accept") },
                                     colors = ButtonDefaults.buttonColors(containerColor = profileGold,
-                                        contentColor = Color.Black)) { Text("قبول الصداقة") }
+                                        contentColor = Color.Black)) { Text(AttaLocale.tr("قبول الصداقة")) }
                                 TextButton(onClick = { onFriendAction("decline") }) {
-                                    Text("رفض", color = profileMuted)
+                                    Text(AttaLocale.tr("رفض"), color = profileMuted)
                                 }
                             }
                             else -> if (requestsAllowed) {
@@ -127,7 +127,7 @@ internal fun PublicUserProfile(
                                         contentColor = Color.Black)) {
                                     SiteIcon("user-plus", size = 18.dp, tint = Color.Black)
                                     Spacer(Modifier.width(5.dp))
-                                    Text("إضافة صديق", fontWeight = FontWeight.Bold)
+                                    Text(AttaLocale.tr("إضافة صديق"), fontWeight = FontWeight.Bold)
                                 }
                             }
                         }
@@ -137,19 +137,19 @@ internal fun PublicUserProfile(
                             contentPadding = PaddingValues(horizontal = 3.dp, vertical = 8.dp),
                             colors = ButtonDefaults.buttonColors(containerColor = profileGold,
                                 contentColor = Color.Black)) {
-                            Text("محادثة", fontSize = 13.sp, maxLines = 1, softWrap = false)
+                            Text(AttaLocale.tr("محادثة"), fontSize = 13.sp, maxLines = 1, softWrap = false)
                         }
                         OutlinedButton(onClick = onVoiceCall, modifier = Modifier.weight(1f).heightIn(min = 52.dp),
                             contentPadding = PaddingValues(horizontal = 3.dp, vertical = 8.dp)) {
                             SiteIcon("phone", size = 20.dp, tint = profileGold)
                             Spacer(Modifier.width(3.dp))
-                            Text("صوتي", color = profileGold, fontSize = 12.sp, maxLines = 1, softWrap = false)
+                            Text(AttaLocale.tr("صوتي"), color = profileGold, fontSize = 12.sp, maxLines = 1, softWrap = false)
                         }
                         OutlinedButton(onClick = onVideoCall, modifier = Modifier.weight(1f).heightIn(min = 52.dp),
                             contentPadding = PaddingValues(horizontal = 3.dp, vertical = 8.dp)) {
                             SiteIcon("video", size = 20.dp, tint = profileGold)
                             Spacer(Modifier.width(3.dp))
-                            Text("مرئي", color = profileGold, fontSize = 12.sp, maxLines = 1, softWrap = false)
+                            Text(AttaLocale.tr("مرئي"), color = profileGold, fontSize = 12.sp, maxLines = 1, softWrap = false)
                         }
                     }
                 }
@@ -165,7 +165,7 @@ internal fun PublicUserProfile(
                     }
                 }
                 if (friendUsers.isNotEmpty() && filter in listOf("المنشورات", "الأصدقاء")) {
-                    Text("أصدقاء المستخدم", color = profileGold, fontSize = 14.sp, fontWeight = FontWeight.Bold,
+                    Text(AttaLocale.tr("أصدقاء المستخدم"), color = profileGold, fontSize = 14.sp, fontWeight = FontWeight.Bold,
                         modifier = Modifier.padding(horizontal = 17.dp, vertical = 6.dp))
                     LazyRow(Modifier.fillMaxWidth().padding(horizontal = 14.dp), horizontalArrangement = Arrangement.spacedBy(9.dp)) {
                         items(friendUsers.take(30), key = { it.optString("username") }) { friend ->
@@ -177,7 +177,7 @@ internal fun PublicUserProfile(
                         }
                     }
                 }
-                Text("أحدث المنشورات العامة", color = profileMuted, fontSize = 12.sp,
+                Text(AttaLocale.tr("أحدث المنشورات العامة"), color = profileMuted, fontSize = 12.sp,
                     modifier = Modifier.padding(horizontal = 17.dp, vertical = 4.dp))
             }
             if (posts.isEmpty() && filter !in listOf("حول", "الأصدقاء")) item {
@@ -189,7 +189,7 @@ internal fun PublicUserProfile(
                     .clip(RoundedCornerShape(15.dp)).background(profilePanel).padding(13.dp)) {
                     PostTextContent(post.optString("text"), modifier = Modifier.padding(bottom = 10.dp))
                     MushafPostActions(post.optString("text"))
-                    TextButton(onClick = { onReport("post", post.optString("id")) }) { Text("إبلاغ عن المنشور أو تعليقاته", color = profileGold) }
+                    TextButton(onClick = { onReport("post", post.optString("id")) }) { Text(AttaLocale.tr("إبلاغ عن المنشور أو تعليقاته"), color = profileGold) }
                     val photo = media(post.optString("image"))
                     val video = media(post.optString("video"))
                     if (photo.isNotBlank()) ExpandableProfileMedia(photo, "صورة المنشور", Modifier.fillMaxWidth()
@@ -197,10 +197,10 @@ internal fun PublicUserProfile(
                     if (video.isNotBlank()) {
                         if (playing == post.optString("id")) {
                             NativeVideo(video)
-                            TextButton(onClick = { playing = "" }) { Text("إيقاف الفيديو", color = profileGold) }
+                            TextButton(onClick = { playing = "" }) { Text(AttaLocale.tr("إيقاف الفيديو"), color = profileGold) }
                         } else TextButton(onClick = { playing = post.optString("id") }) {
                             SiteIcon("play", size = 22.dp, tint = profileGold)
-                            Text(" تشغيل الفيديو", color = profileGold)
+                            Text(AttaLocale.tr(" تشغيل الفيديو"), color = profileGold)
                         }
                     }
                 }
@@ -243,7 +243,7 @@ internal fun ProfileTimelineHeader(
                 }
             }
             Text(name, color = Color.White, fontSize = 27.sp, fontWeight = FontWeight.ExtraBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            Text("$friendCount صديق", color = profileMuted, fontSize = 13.sp, modifier = Modifier.padding(vertical = 6.dp))
+            Text(AttaLocale.tr("$friendCount صديق"), color = profileMuted, fontSize = 13.sp, modifier = Modifier.padding(vertical = 6.dp))
             if (user.optString("bio").isNotBlank()) Text(user.optString("bio"), color = Color.White, fontSize = 14.sp, modifier = Modifier.padding(bottom = 12.dp))
         }
     }
