@@ -4626,3 +4626,9 @@ body.post-media-open{overflow:hidden!important}
 .atta-signup-legal a{color:#f6d776;text-decoration:underline;text-underline-offset:3px}
 .atta-signup-legal input{accent-color:#e6b94e;width:17px;height:17px}
 @media(prefers-reduced-motion:reduce){.atta-login-button,.atta-create-button,.premium-header button,.bottom-nav button{transition:none}}
+
+/* Arabic/English language switch: safe above Android and iOS system insets. */
+.atta-lang-toggle{position:fixed;z-index:2147480000;inset-block-start:max(8px,env(safe-area-inset-top));inset-inline-end:10px;min-height:34px;min-width:68px;border:1px solid #e6b94e;border-radius:12px;background:#111;color:#f6d776;padding:5px 9px;font:700 12px system-ui,sans-serif;box-shadow:0 2px 12px #0008;cursor:pointer}
+html[lang="en"] body{direction:ltr}
+html[lang="ar"] body{direction:rtl}
+html[lang="en"] .mushaf-page,html[lang="en"] .quran-text,html[lang="en"] .hadith-text,html[lang="en"] .azkar-text{direction:rtl;text-align:right}
