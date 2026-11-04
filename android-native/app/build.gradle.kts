@@ -24,9 +24,9 @@ android {
         applicationId = "com.alatta.nativeapp"
         minSdk = 26
         targetSdk = 36
-        // الإصدار 1.0.255: واجهتان عربية وإنجليزية مع تحديث Android 16 API 36.
-        versionCode = 355
-        versionName = "1.0.255"
+        // الإصدار 1.0.256: لغة العربية/English في قائمة منسدلة ضمن إعدادات التطبيق.
+        versionCode = 356
+        versionName = "1.0.256"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("boolean", "IS_APPGALLERY", appGalleryBuild.toString())
         val hmsId = (System.getenv("ALATTA_HMS_APP_ID") ?: "").trim().takeIf { it.matches(Regex("[0-9]{1,20}")) } ?: ""
