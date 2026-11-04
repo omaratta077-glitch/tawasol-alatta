@@ -18,15 +18,15 @@ val syncLegalAssets by tasks.registering(Copy::class) {
 
 android {
     namespace = "com.alatta.nativeapp"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.alatta.nativeapp"
         minSdk = 26
-        targetSdk = 35
-        // الإصدار 1.0.254: رفع شريط التقديم في الريلز إلى 20dp مع الاحتفاظ بالتنسيق والمشغّل.
-        versionCode = 354
-        versionName = "1.0.254"
+        targetSdk = 36
+        // الإصدار 1.0.255: واجهتان عربية وإنجليزية مع تحديث Android 16 API 36.
+        versionCode = 355
+        versionName = "1.0.255"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("boolean", "IS_APPGALLERY", appGalleryBuild.toString())
         val hmsId = (System.getenv("ALATTA_HMS_APP_ID") ?: "").trim().takeIf { it.matches(Regex("[0-9]{1,20}")) } ?: ""
