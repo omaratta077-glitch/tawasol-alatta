@@ -46,24 +46,48 @@ jobs:
           "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$APK" | grep -F "package: name='com.alatta.tv'"
           "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$APK" | grep -F "launchable-activity: name='com.alatta.tv.LauncherActivity'"
           test "$(unzip -Z1 "$APK" | grep -Ec '^lib/arm64-v8a/libpk-lib\.so$' || true)" -eq 0
-      - name: Upload signed trial APK
+      - name: Upload PR validation APK (debug signer; not stable production key)
         uses: actions/upload-artifact@v4
         with:
-          name: AL_ATTA_TV_GOLD_COMPANION_v1.0.0
+          name: AL_ATTA_TV_CHANNELS_v1.1.0
           path: android-native/tv-shell/build/outputs/apk/debug/tv-shell-debug.apk
           if-no-files-found: error
-      - name: Release gold companion test APK on main
+      - name: Restore official signing key for stable channel-catalog release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+        run: |
+          set -euo pipefail
+          test -n "${KEYSTORE_BASE64:-}" || { echo '::error::Missing KEYSTORE_BASE64'; exit 1; }
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/atta-tv-release.jks"
+          chmod 600 "$RUNNER_TEMP/atta-tv-release.jks"
+          echo "ALATTA_KEYSTORE_PATH=$RUNNER_TEMP/atta-tv-release.jks" >> "$GITHUB_ENV"
+      - name: Build officially signed AL-ATTA TV catalog APK
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        working-directory: android-native
+        env:
+          ALATTA_KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          ALATTA_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          ALATTA_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          gradle --no-daemon --console=plain :tv-shell:assembleRelease
+          APK=tv-shell/build/outputs/apk/release/tv-shell-release.apk
+          test -s "$APK"
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose "$APK"
+          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$APK" | grep -F "package: name='com.alatta.tv'"
+      - name: Publish AL-ATTA TV channel catalog v1.1.0 on main
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          cp android-native/tv-shell/build/outputs/apk/debug/tv-shell-debug.apk AL_ATTA_TV_GOLD_COMPANION_v1.0.0.apk
-          TAG="alatta-tv-shell-v1.0.0"
+          cp android-native/tv-shell/build/outputs/apk/release/tv-shell-release.apk AL_ATTA_TV_CHANNELS_v1.1.0.apk
+          TAG="alatta-tv-shell-v1.1.0"
           if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release upload "$TAG" AL_ATTA_TV_GOLD_COMPANION_v1.0.0.apk --clobber
+            gh release upload "$TAG" AL_ATTA_TV_CHANNELS_v1.1.0.apk --clobber
           else
-            gh release create "$TAG" AL_ATTA_TV_GOLD_COMPANION_v1.0.0.apk \
-              --title "AL-ATTA TV Gold Companion v1.0.0 (trial)" \
-              --notes "Trial independent black/gold Android companion. Requires working com.ytv.pronew player installed; does not modify or contain its APK, video engine, or private channel service. Test build only."
+            gh release create "$TAG" AL_ATTA_TV_CHANNELS_v1.1.0.apk \
+              --title "AL-ATTA TV Channel Catalog v1.1.0" \
+              --notes "AL-ATTA TV channel catalog that sends channel IDs to AL-ATTA Media v1.0.261 for native Media3 playback. No YTV original code included. Playback depends on authorized source availability."
           fi
