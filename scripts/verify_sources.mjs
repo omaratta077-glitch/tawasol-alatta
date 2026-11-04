@@ -235,10 +235,10 @@ assert.ok(socialEmbed.includes('socialVideoUrl(') &&
   socialEmbed.includes('MiniPlayerTouchHost(context)') &&
   socialEmbed.includes('https://www.facebook.com/plugins/video.php?href=') &&
   socialEmbed.includes('instagram.com') &&
-  native.includes('socialVideoDraftUrl') &&
+  !native.includes('socialVideoDraftUrl') && !native.includes('social_video_embed_input') &&
   native.includes('SocialVideoPostEmbed(social, Modifier.fillMaxWidth())') &&
   native.includes('onRefreshReels = {'),
-  'Public Instagram/Facebook videos use only their official embedded players; Reels have in-place refresh');
+  'Public social video embeds still work in Reels; unrelated link input is removed from YouTube screen');
 const hadith=fs.readFileSync('android-native/app/src/main/java/com/alatta/nativeapp/HadithLibrary.kt','utf8');
 assert.ok(hadith.includes('verifiedCopy(target, expectedBytes, hash)'), 'Hadith copy verified by actual SHA-256');
 assert.ok(!hadith.includes('PRAGMA quick_check", null') && !hadith.includes('require(db.version == 1)'),
