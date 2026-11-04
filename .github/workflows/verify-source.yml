@@ -47,6 +47,7 @@ jobs:
           node scripts/test_admin_reset_ui.mjs
           node scripts/verify_sources.mjs
           node scripts/test_youtube_single_origin.mjs
+          node scripts/test_i18n.mjs
           node scripts/test_call_ringing.mjs
           node scripts/test_mobile_call_fallback.mjs
           node scripts/test_call_push.mjs
