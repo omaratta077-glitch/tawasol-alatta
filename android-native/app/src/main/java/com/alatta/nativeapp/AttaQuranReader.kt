@@ -203,7 +203,7 @@ internal fun QuranReaderScreen(modifier: Modifier = Modifier, onExit: () -> Unit
             TextButton(onClick = { pane = "index" }, modifier = Modifier.width(42.dp), contentPadding = PaddingValues(0.dp)) {
                 Text("☷", color = gold, fontSize = 22.sp)
             }
-            Text("الجزء $juz", color = gold, fontSize = 14.sp, maxLines = 1)
+            Text(AttaLanguage.text("الجزء $juz"), color = gold, fontSize = 14.sp, maxLines = 1)
             TextButton(onClick = { prefs.edit().putInt("bookmark",page).apply() },
                 modifier = Modifier.width(40.dp), contentPadding = PaddingValues(0.dp)) {
                 Text(if (bookmark == page) "◆" else "♧", color = gold, maxLines = 1)
@@ -214,9 +214,9 @@ internal fun QuranReaderScreen(modifier: Modifier = Modifier, onExit: () -> Unit
         }
         if (readingRange != null) Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp),
             verticalAlignment = Alignment.CenterVertically) {
-            Text("صفحات ${readingRange.first}–${readingRange.last}", color = gold, fontSize = 11.sp,
+            Text(AttaLanguage.text("صفحات ${readingRange.first}–${readingRange.last}"), color = gold, fontSize = 11.sp,
                 modifier = Modifier.weight(1f))
-            TextButton(onClick = onReadAll) { Text("المصحف كاملًا", color = gold, fontSize = 11.sp) }
+            TextButton(onClick = onReadAll) { Text(AttaLanguage.text("المصحف كاملًا"), color = gold, fontSize = 11.sp) }
         }
         key(page, pageRetry) {
             AndroidView(factory = {
@@ -232,7 +232,7 @@ internal fun QuranReaderScreen(modifier: Modifier = Modifier, onExit: () -> Unit
         error?.let { message ->
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text(message, Modifier.weight(1f).padding(8.dp), color=Color(0xFF933C20), fontSize=12.sp)
-                TextButton(onClick = { error = null; pageRetry++ }) { Text("إعادة التحميل", color = gold) }
+                TextButton(onClick = { error = null; pageRetry++ }) { Text(AttaLanguage.text("إعادة التحميل"), color = gold) }
             }
         }
         // رقم الصفحة في شارة ذهبية صغيرة، مع تكبير SVG دون تعديل آياته أو تقطيع النص.
@@ -241,14 +241,14 @@ internal fun QuranReaderScreen(modifier: Modifier = Modifier, onExit: () -> Unit
             Row(Modifier.fillMaxWidth().height(38.dp).padding(horizontal = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween) {
-                Text("الحزب $hizb", color = gold, fontSize = 11.sp)
+                Text(AttaLanguage.text("الحزب $hizb"), color = gold, fontSize = 11.sp)
                 Surface(
                     shape = RoundedCornerShape(18.dp),
                     color = Color(0xFF24180E),
                     border = BorderStroke(1.dp, Color(0xFFCA9E49)),
                     shadowElevation = 2.dp
                 ) {
-                    Text("❖  صفحة ${mushafArabicNumber(page)}  ❖",
+                    Text(AttaLanguage.text("❖  صفحة ${mushafArabicNumber(page)}  ❖"),
                         Modifier.padding(horizontal = 13.dp, vertical = 5.dp),
                         fontSize = 13.sp, color = Color(0xFFF7D77B),
                         maxLines = 1, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
@@ -293,7 +293,7 @@ internal fun QuranReaderScreen(modifier: Modifier = Modifier, onExit: () -> Unit
                     Text(when(pane) {"index", "search", "parts" -> "فهرس المصحف الشريف"; "downloads" -> "تنزيل المصحف";
                         "marks" -> "المرجعيات"; "notes" -> "الملاحظات"; "share" -> "مشاركة المصحف"; else -> "البحث" },
                         color = Color(0xFF221B14), style = MaterialTheme.typography.titleLarge)
-                    TextButton(onClick = { pane = null }) { Text("إغلاق", color = gold) }
+                    TextButton(onClick = { pane = null }) { Text(AttaLanguage.text("إغلاق"), color = gold) }
                 }
                 Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -317,8 +317,8 @@ internal fun QuranReaderScreen(modifier: Modifier = Modifier, onExit: () -> Unit
                 }
                 when (pane) {
                     "downloads" -> {
-                        Text("المحفوظ على الجهاز: ${savedPages.size} من 604 صفحة", color = gold, fontSize = 12.sp)
-                        Text("تحتاج الصفحات إلى الإنترنت لأول مرة، ثم تبقى محفوظة للقراءة دون اتصال.", color = gold, fontSize = 11.sp)
+                        Text(AttaLanguage.text("المحفوظ على الجهاز: ${savedPages.size} من 604 صفحة"), color = gold, fontSize = 12.sp)
+                        Text(AttaLanguage.text("تحتاج الصفحات إلى الإنترنت لأول مرة، ثم تبقى محفوظة للقراءة دون اتصال."), color = gold, fontSize = 11.sp)
                         if (allowOnlineFeatures && savedPages.size < 604) TextButton(onClick = {
                             if (downloading) downloadJob?.cancel() else downloadMushaf()
                         }) { Text(if (downloading) "إيقاف التنزيل" else "تنزيل المصحف كاملًا", color = gold) }
@@ -326,7 +326,7 @@ internal fun QuranReaderScreen(modifier: Modifier = Modifier, onExit: () -> Unit
                     }
                     "index", "search", "parts" -> {
                         OutlinedTextField(value = query, onValueChange = { query = it },
-                            placeholder = { Text("ابحث عن اسم السورة أو رقم الجزء...", fontSize = 14.sp) }, singleLine = true,
+                            placeholder = { Text(AttaLanguage.text("ابحث عن اسم السورة أو رقم الجزء..."), fontSize = 14.sp) }, singleLine = true,
                             shape = RoundedCornerShape(9.dp), modifier = Modifier.fillMaxWidth(),
                             textStyle = androidx.compose.ui.text.TextStyle(color = Color(0xFF221B14)),
                             colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = gold, unfocusedBorderColor = Color(0xFFD7B893)))
@@ -336,7 +336,7 @@ internal fun QuranReaderScreen(modifier: Modifier = Modifier, onExit: () -> Unit
                             "page" -> (1..604).map { Triple(it, "صفحة ${mushafArabicNumber(it)}", it) }
                             else -> chapters
                         }.filter { query.isBlank() || mushafIndexSearch(it.second).contains(mushafIndexSearch(query)) || it.first.toString().contains(mushafIndexSearch(query)) }
-                        if(entries.isEmpty()) Text("لا توجد نتائج مطابقة.", color = gold, modifier = Modifier.padding(12.dp))
+                        if(entries.isEmpty()) Text(AttaLanguage.text("لا توجد نتائج مطابقة."), color = gold, modifier = Modifier.padding(12.dp))
                         LazyColumn(modifier = Modifier.weight(1f, fill = false)) {
                             items(entries, key = { it.first }) { (n, name, p) ->
                                 val detail = when(indexTab) {
@@ -361,46 +361,46 @@ internal fun QuranReaderScreen(modifier: Modifier = Modifier, onExit: () -> Unit
                             focusedTextColor = Color(0xFF221B14), unfocusedTextColor = Color(0xFF221B14),
                             cursorColor = gold, focusedBorderColor = gold,
                             focusedLabelColor = gold, unfocusedLabelColor = gold)
-                        Text("معاينة بصورة الصفحة وملف كامل للقراءة، ثم مراجعة المنشور في الرئيسية.", color = gold, fontSize = 12.sp)
+                        Text(AttaLanguage.text("معاينة بصورة الصفحة وملف كامل للقراءة، ثم مراجعة المنشور في الرئيسية."), color = gold, fontSize = 12.sp)
                         OutlinedButton(onClick = { prepareShare(MushafShareSelection(page,page,"صفحة $page من القرآن الكريم")) },
-                            enabled = !preparingShare, modifier = Modifier.fillMaxWidth()) { Text("مشاركة الصفحة الحالية $page", color = gold) }
+                            enabled = !preparingShare, modifier = Modifier.fillMaxWidth()) { Text(AttaLanguage.text("مشاركة الصفحة الحالية $page"), color = gold) }
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             OutlinedTextField(shareFrom, { shareFrom = it.filter(Char::isDigit).take(3) },
-                                label = { Text("من صفحة", color = gold) }, modifier = Modifier.weight(1f), singleLine = true, colors = inputColors)
+                                label = { Text(AttaLanguage.text("من صفحة"), color = gold) }, modifier = Modifier.weight(1f), singleLine = true, colors = inputColors)
                             OutlinedTextField(shareTo, { shareTo = it.filter(Char::isDigit).take(3) },
-                                label = { Text("إلى صفحة", color = gold) }, modifier = Modifier.weight(1f), singleLine = true, colors = inputColors)
+                                label = { Text(AttaLanguage.text("إلى صفحة"), color = gold) }, modifier = Modifier.weight(1f), singleLine = true, colors = inputColors)
                         }
                         OutlinedButton(onClick = {
                             try { prepareShare(MushafShareSelection(shareFrom.toInt(),shareTo.toInt(),"ورد من القرآن الكريم • صفحات $shareFrom–$shareTo")) }
                             catch (e: Exception) { error = e.message ?: "اختر نطاقًا صحيحًا" }
-                        }, enabled = !preparingShare, modifier = Modifier.fillMaxWidth()) { Text("مشاركة الصفحات المختارة", color = gold) }
+                        }, enabled = !preparingShare, modifier = Modifier.fillMaxWidth()) { Text(AttaLanguage.text("مشاركة الصفحات المختارة"), color = gold) }
                         OutlinedTextField(sharePart, { sharePart = it.filter(Char::isDigit).take(2) },
-                            label = { Text("رقم الجزء 1–30", color = gold) }, modifier = Modifier.fillMaxWidth(), singleLine = true, colors = inputColors)
+                            label = { Text(AttaLanguage.text("رقم الجزء 1–30"), color = gold) }, modifier = Modifier.fillMaxWidth(), singleLine = true, colors = inputColors)
                         OutlinedButton(onClick = {
                             try { prepareShare(mushafPartSelection(sharePart.toInt())) }
                             catch (e: Exception) { error = e.message ?: "اختر جزءًا من 1 إلى 30" }
-                        }, enabled = !preparingShare, modifier = Modifier.fillMaxWidth()) { Text("مشاركة الجزء كاملًا", color = gold) }
-                        Text("حتى 30 صفحة في المنشور الواحد. لن يُنشر شيء قبل ضغطك على نشر.", color = gold, fontSize = 11.sp)
+                        }, enabled = !preparingShare, modifier = Modifier.fillMaxWidth()) { Text(AttaLanguage.text("مشاركة الجزء كاملًا"), color = gold) }
+                        Text(AttaLanguage.text("حتى 30 صفحة في المنشور الواحد. لن يُنشر شيء قبل ضغطك على نشر."), color = gold, fontSize = 11.sp)
                     }
                     "marks" -> {
                         val saved = prefs.getInt("bookmark", -1)
                         Text(if (saved > 0) "العلامة المحفوظة: صفحة $saved" else "لا توجد مرجعيات محفوظة", color = Color(0xFF221B14))
-                        if (saved > 0) TextButton(onClick = { changePage(saved) }) { Text("الانتقال إلى العلامة", color = gold) }
-                        TextButton(onClick = { prefs.edit().putInt("bookmark", page).apply(); pane = null }) { Text("حفظ الصفحة الحالية", color = gold) }
+                        if (saved > 0) TextButton(onClick = { changePage(saved) }) { Text(AttaLanguage.text("الانتقال إلى العلامة"), color = gold) }
+                        TextButton(onClick = { prefs.edit().putInt("bookmark", page).apply(); pane = null }) { Text(AttaLanguage.text("حفظ الصفحة الحالية"), color = gold) }
                     }
                     "notes" -> {
                         LaunchedEffect(page) { note = prefs.getString("note_$page", "") ?: "" }
-                        Text("ملاحظات الصفحة $page", color = Color(0xFF221B14))
+                        Text(AttaLanguage.text("ملاحظات الصفحة $page"), color = Color(0xFF221B14))
                         OutlinedTextField(value = note, onValueChange = { note = it },
                             modifier = Modifier.fillMaxWidth(), minLines = 3,
                             textStyle = androidx.compose.ui.text.TextStyle(color = Color(0xFF221B14)))
-                        TextButton(onClick = { prefs.edit().putString("note_$page", note).apply(); pane = null }) { Text("حفظ الملاحظة", color = gold) }
+                        TextButton(onClick = { prefs.edit().putString("note_$page", note).apply(); pane = null }) { Text(AttaLanguage.text("حفظ الملاحظة"), color = gold) }
                     }
                 }
                 error?.let { Text(it, color = Color(0xFF933C20), fontSize = 12.sp) }
                 if (preparingShare) {
                     LinearProgressIndicator(Modifier.fillMaxWidth(), color = gold)
-                    Text("جارٍ تجهيز الصفحات...", color = gold, fontSize = 12.sp)
+                    Text(AttaLanguage.text("جارٍ تجهيز الصفحات..."), color = gold, fontSize = 12.sp)
                 }
             }
         }
@@ -432,7 +432,7 @@ internal fun QuranReaderScreen(modifier: Modifier = Modifier, onExit: () -> Unit
                 verticalArrangement = Arrangement.spacedBy(7.dp)) {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text("التلاوة من الآية $verseNumber", color = gold, fontSize = 17.sp)
+                    Text(AttaLanguage.text("التلاوة من الآية $verseNumber"), color = gold, fontSize = 17.sp)
                     IconButton(onClick = { selectedAyah = 0 }, modifier = Modifier.size(36.dp)) {
                         Text("✕", color = gold, fontSize = 20.sp)
                     }
@@ -462,7 +462,7 @@ internal fun QuranReaderScreen(modifier: Modifier = Modifier, onExit: () -> Unit
                 if (rangeMode == "custom") {
                     OutlinedTextField(value = customEnd,
                         onValueChange = { customEnd = it.filter(Char::isDigit).take(3) },
-                        label = { Text("إلى الآية رقم ($verseNumber – ${inSurah.size})") },
+                        label = { Text(AttaLanguage.text("إلى الآية رقم ($verseNumber – ${inSurah.size})")) },
                         singleLine = true, modifier = Modifier.fillMaxWidth())
                 }
                 val customGlobalEnd = inSurah.firstOrNull {
@@ -496,7 +496,7 @@ internal fun QuranReaderScreen(modifier: Modifier = Modifier, onExit: () -> Unit
                         Text("■", color = gold, fontSize = 22.sp)
                     }
                 }
-                if (!valid) Text("اختر رقم آية نهاية صحيحًا", color = Color(0xFF9A3324), fontSize = 12.sp)
+                if (!valid) Text(AttaLanguage.text("اختر رقم آية نهاية صحيحًا"), color = Color(0xFF9A3324), fontSize = 12.sp)
                 if (playbackStatus.isNotBlank()) Text(playbackStatus, color = gold, fontSize = 12.sp)
             }
         }
