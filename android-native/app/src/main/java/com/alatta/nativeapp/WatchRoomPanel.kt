@@ -91,7 +91,7 @@ internal fun WatchRoomPanel(token: String, channels: List<FootballChannel>, call
         if (WatchRoomController.status.isNotBlank()) Text(WatchRoomController.status, color = PremiumMuted, fontSize = 11.sp)
     } else if (expanded) FootballPanel {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Text("غرفة المشاهدة • ${room?.members?.size ?: 1}/6", color = PremiumGoldLight, modifier = Modifier.weight(1f), fontSize = 13.sp)
+            Text(AttaLanguage.text("غرفة المشاهدة • ${room?.members?.size ?: 1}/6"), color = PremiumGoldLight, modifier = Modifier.weight(1f), fontSize = 13.sp)
             TextButton(onClick = { expanded = !expanded }) { Text(if (expanded) "تصغير" else "إظهار") }
         }
         Text(WatchRoomController.status, color = PremiumMuted, fontSize = 11.sp)
@@ -101,14 +101,14 @@ internal fun WatchRoomPanel(token: String, channels: List<FootballChannel>, call
             room?.let { state ->
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Text(state.code, color = PremiumGoldLight, modifier = Modifier.weight(1f), fontSize = 20.sp)
-                    TextButton(onClick = { clipboard.setText(AnnotatedString(state.code)) }) { Text("نسخ الكود") }
+                    TextButton(onClick = { clipboard.setText(AnnotatedString(state.code)) }) { Text(AttaLanguage.text("نسخ الكود")) }
                     IconButton(onClick = { context.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).apply {
                         type = "text/plain"; putExtra(Intent.EXTRA_TEXT, "انضم لغرفة المشاهدة في العطا. الكود: ${state.code}")
                     }, "مشاركة كود الغرفة")) }) { SiteIcon("share", size = 18.dp) }
                 }
                 channels.firstOrNull { it.id == state.channelId && it.enabled }?.let { channel ->
                     OutlinedButton(enabled = WatchRoomController.ready, onClick = { onPlay(channel) }, modifier = Modifier.fillMaxWidth()) {
-                        Text("شغّل ${channel.name}", fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(AttaLanguage.text("شغّل ${channel.name}"), fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                 }
             }
@@ -122,33 +122,33 @@ internal fun WatchRoomPanel(token: String, channels: List<FootballChannel>, call
                 WatchAction("phone-off", "مغادرة الغرفة", true) { WatchRoomController.status = "غادرت غرفة المشاهدة"; WatchRoomController.stop(context) }
             }
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text("صوت الأصحاب", color = PremiumMuted, fontSize = 11.sp)
+                Text(AttaLanguage.text("صوت الأصحاب"), color = PremiumMuted, fontSize = 11.sp)
                 Slider(WatchRoomController.volume, onValueChange = { WatchRoomController.adjustVolume(it) }, modifier = Modifier.weight(1f))
             }
-        } else TextButton(onClick = { WatchRoomController.stop(context) }) { Text("مغادرة", color = Color(0xFFFF9090)) }
+        } else TextButton(onClick = { WatchRoomController.stop(context) }) { Text(AttaLanguage.text("مغادرة"), color = Color(0xFFFF9090)) }
     }
-    if (dialog) AlertDialog(onDismissRequest = { dialog = false }, title = { Text("مشاهدة مع الأصحاب") }, text = {
+    if (dialog) AlertDialog(onDismissRequest = { dialog = false }, title = { Text(AttaLanguage.text("مشاهدة مع الأصحاب")) }, text = {
         Column(Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("ابدأ بشخصين، وينضم أصحابك حتى ستة. شارك الكود مع أصدقائك المضافين في العطا.", fontSize = 13.sp)
-            Text("ستعمل الكاميرا والميكروفون أثناء المكالمة، ويمكن تصغيرها وتشغيل القناة.", fontSize = 12.sp)
+            Text(AttaLanguage.text("ابدأ بشخصين، وينضم أصحابك حتى ستة. شارك الكود مع أصدقائك المضافين في العطا."), fontSize = 13.sp)
+            Text(AttaLanguage.text("ستعمل الكاميرا والميكروفون أثناء المكالمة، ويمكن تصغيرها وتشغيل القناة."), fontSize = 12.sp)
             Box {
                 OutlinedButton(onClick = { menu = true }) { Text(visibleChannels.firstOrNull { it.id == channelId }?.name ?: "بدون قناة محددة", fontSize = 12.sp) }
                 DropdownMenu(menu, onDismissRequest = { menu = false }, modifier = Modifier.heightIn(max = 220.dp)) {
                     visibleChannels.forEach { channel -> DropdownMenuItem(text = { Text(channel.name) }, onClick = { channelId = channel.id; menu = false }) }
                 }
             }
-            Button(enabled = !callInProgress, onClick = { join("create") }, modifier = Modifier.fillMaxWidth()) { Text("إنشاء غرفة") }
+            Button(enabled = !callInProgress, onClick = { join("create") }, modifier = Modifier.fillMaxWidth()) { Text(AttaLanguage.text("إنشاء غرفة")) }
             OutlinedTextField(code, onValueChange = { code = it.filter { c -> c in 'A'..'Z' || c in 'a'..'z' }.take(3).uppercase(); error = "" },
-                label = { Text("كود غرفة صاحبك • ABC") }, singleLine = true, modifier = Modifier.fillMaxWidth(),
+                label = { Text(AttaLanguage.text("كود غرفة صاحبك • ABC")) }, singleLine = true, modifier = Modifier.fillMaxWidth(),
                 keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Characters, keyboardType = KeyboardType.Ascii),
                 trailingIcon = { TextButton(onClick = {
                     val pasted = watchRoomInviteCode(clipboard.getText()?.text.orEmpty())
                     if (pasted == null) error = "انسخ كود الغرفة أو رسالة دعوتها أولًا" else { code = pasted; error = "" }
-                }) { Text("لصق") } })
-            OutlinedButton(enabled = !callInProgress, onClick = { join("join") }, modifier = Modifier.fillMaxWidth()) { Text("دخول الغرفة") }
+                }) { Text(AttaLanguage.text("لصق")) } })
+            OutlinedButton(enabled = !callInProgress, onClick = { join("join") }, modifier = Modifier.fillMaxWidth()) { Text(AttaLanguage.text("دخول الغرفة")) }
             if (error.isNotBlank()) Text(error, color = Color(0xFFFF9090), fontSize = 12.sp)
         }
-    }, confirmButton = { TextButton(onClick = { dialog = false }) { Text("رجوع") } })
+    }, confirmButton = { TextButton(onClick = { dialog = false }) { Text(AttaLanguage.text("رجوع")) } })
     pipFailure?.let { YtvPlayerErrorDialog(it, onDismiss = { pipFailure = null }) }
 }
 
