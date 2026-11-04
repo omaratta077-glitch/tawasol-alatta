@@ -283,11 +283,11 @@ internal fun AppUpdatePrompt(manualCheckRequest: Int = 0) {
                 color = UpdatePanel, border = BorderStroke(1.dp, UpdateGold)
             ) {
                 Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text("فحص تحديث تواصل العطا", color = UpdateGoldLight,
+                    Text(AttaLanguage.text("فحص تحديث تواصل العطا"), color = UpdateGoldLight,
                         fontWeight = FontWeight.Bold, fontSize = 19.sp)
                     Text(checkStatus, color = UpdateWhite, fontSize = 14.sp)
                     TextButton(onClick = { checkStatus = "" }) {
-                        Text("حسنًا", color = UpdateGoldLight)
+                        Text(AttaLanguage.text("حسنًا"), color = UpdateGoldLight)
                     }
                 }
             }
@@ -447,7 +447,7 @@ internal fun AppUpdatePrompt(manualCheckRequest: Int = 0) {
                                 onClick = { update = null },
                                 modifier = Modifier.heightIn(min = 48.dp)
                             ) {
-                                Text("لاحقًا", color = UpdateGoldLight, fontSize = 15.sp)
+                                Text(AttaLanguage.text("لاحقًا"), color = UpdateGoldLight, fontSize = 15.sp)
                             }
                         }
                     }
