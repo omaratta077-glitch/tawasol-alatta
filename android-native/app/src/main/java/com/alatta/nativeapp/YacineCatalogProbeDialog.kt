@@ -66,21 +66,21 @@ internal fun YacineCatalogProbeDialog(channels: List<FootballChannel>, owner: St
     Dialog(onDismissRequest = { if (!bindBusy) onDismiss() }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Surface(Modifier.fillMaxSize().safeDrawingPadding(), color = PremiumBackground) {
             Column(Modifier.fillMaxSize().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("تجربة قائمة ياسين من الهاتف", color = PremiumGoldLight, fontSize = 19.sp)
+                Text(AttaLocale.tr("تجربة قائمة ياسين من الهاتف"), color = PremiumGoldLight, fontSize = 19.sp)
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    TextButton(enabled = !bindBusy, onClick = onDismiss) { Text("إغلاق") }
+                    TextButton(enabled = !bindBusy, onClick = onDismiss) { Text(AttaLocale.tr("إغلاق")) }
                     TextButton(enabled = result != null && !busy, onClick = {
                         result?.let {
                             clipboard.setText(AnnotatedString(it.report()))
                             Toast.makeText(context, "تم نسخ نتيجة التجربة", Toast.LENGTH_SHORT).show()
                         }
-                    }) { Text("نسخ النتيجة") }
+                    }) { Text(AttaLocale.tr("نسخ النتيجة")) }
                 }
-                Text("معاينة القائمة لا تغيّر قنواتك. اختر ربط القناة المحفوظة لتفعيل تحديث رقمها تلقائيًا.",
+                Text(AttaLocale.tr("معاينة القائمة لا تغيّر قنواتك. اختر ربط القناة المحفوظة لتفعيل تحديث رقمها تلقائيًا."),
                     color = PremiumMuted, fontSize = 13.sp)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(enabled = !busy && !settingsBusy, onClick = { load(YacineCatalogProbe.Kind.CATEGORIES) }) {
-                        Text("جلب الأقسام")
+                        Text(AttaLocale.tr("جلب الأقسام"))
                     }
                     OutlinedButton(enabled = !busy && !settingsBusy, onClick = {
                         maskInput = ""; settingsMessage = ""; settingsOpen = true
@@ -88,15 +88,15 @@ internal fun YacineCatalogProbeDialog(channels: List<FootballChannel>, owner: St
                 }
                 if (busy) {
                     LinearProgressIndicator(Modifier.fillMaxWidth())
-                    Text("جارٍ طلب القائمة…", color = PremiumMuted, fontSize = 13.sp)
+                    Text(AttaLocale.tr("جارٍ طلب القائمة…"), color = PremiumMuted, fontSize = 13.sp)
                 }
                 if (section.isNotBlank()) Text(section, color = PremiumGoldLight, fontSize = 15.sp)
                 if (bindMessage.isNotBlank()) Text(bindMessage, color = PremiumGoldLight, fontSize = 13.sp)
                 LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     item {
-                        Text("الردود المرمّزة تستخدم إعداد القراءة المحلي. نسخ النتيجة يضم الرد وتوقيته حتى 16 ألف حرف، دون الإعداد.",
+                        Text(AttaLocale.tr("الردود المرمّزة تستخدم إعداد القراءة المحلي. نسخ النتيجة يضم الرد وتوقيته حتى 16 ألف حرف، دون الإعداد."),
                             color = PremiumMuted, fontSize = 12.sp)
-                        Text("المصدر: " + YacineCatalogProbe.BASE.removePrefix("https://").substringBefore('/') + " • HTTPS",
+                        Text(AttaLocale.tr("المصدر: ") + YacineCatalogProbe.BASE.removePrefix("https://").substringBefore('/') + " • HTTPS",
                             color = PremiumMuted, fontSize = 12.sp)
                     }
                     result?.let { current ->
@@ -108,18 +108,18 @@ internal fun YacineCatalogProbeDialog(channels: List<FootballChannel>, owner: St
                                     YacineCatalogProbe.State.EMPTY)) PremiumGoldLight else Color(0xFFFFB4A9), fontSize = 14.sp)
                                 Text("GET /api/" + current.path, color = PremiumMuted, fontSize = 12.sp)
                                 current.code?.let { Text("HTTP " + it, color = Color.White, fontSize = 13.sp) }
-                                if (current.responseDecoded) Text("تم فك ترميز الرد إلى JSON.",
+                                if (current.responseDecoded) Text(AttaLocale.tr("تم فك ترميز الرد إلى JSON."),
                                     color = PremiumGoldLight, fontSize = 12.sp)
-                                if (current.serverMessage.isNotBlank()) Text("رسالة الجهة المجيبة: " + current.serverMessage,
+                                if (current.serverMessage.isNotBlank()) Text(AttaLocale.tr("رسالة الجهة المجيبة: ") + current.serverMessage,
                                     color = Color.White, fontSize = 13.sp)
-                                Text("نوع الرد: " + current.contentType.ifBlank { "غير محدد" } +
+                                Text(AttaLocale.tr("نوع الرد: ") + current.contentType.ifBlank { "غير محدد" } +
                                     " • المقروء: " + current.bytes + " بايت • " + current.elapsedMs + " ms",
                                     color = PremiumMuted, fontSize = 12.sp)
-                                Text("عدد السجلات المقروءة: " + current.entries.size, color = PremiumMuted, fontSize = 12.sp)
-                                Text("ترويسة t: " + current.timeHeader.ifBlank {
+                                Text(AttaLocale.tr("عدد السجلات المقروءة: ") + current.entries.size, color = PremiumMuted, fontSize = 12.sp)
+                                Text(AttaLocale.tr("ترويسة t: ") + current.timeHeader.ifBlank {
                                     if (current.hasTimeHeader) "موجودة بصيغة غير رقمية؛ لم تُنسخ" else "غير موجودة"
                                 }, color = PremiumMuted, fontSize = 12.sp)
-                                if (current.deviceTimeUsed.isNotEmpty()) Text("توقيت الجهاز البديل: " + current.deviceTimeUsed,
+                                if (current.deviceTimeUsed.isNotEmpty()) Text(AttaLocale.tr("توقيت الجهاز البديل: ") + current.deviceTimeUsed,
                                     color = PremiumMuted, fontSize = 12.sp)
                                 if (current.responseText.isNotEmpty()) Text(
                                     if (current.responseTextTruncated) "التقرير يضم مقتطفًا غير مكتمل من الرد."
@@ -134,20 +134,20 @@ internal fun YacineCatalogProbeDialog(channels: List<FootballChannel>, owner: St
                                     color = PremiumGoldLight, fontSize = 13.sp)
                                 if (kind == YacineCatalogProbe.Kind.CATEGORIES) {
                                     TextButton(enabled = !busy, onClick = { load(YacineCatalogProbe.Kind.CHANNELS, entry) }) {
-                                        Text("جلب قنوات القسم")
+                                        Text(AttaLocale.tr("جلب قنوات القسم"))
                                     }
                                     if (entry.childCount == null || entry.childCount > 0) TextButton(enabled = !busy,
                                         onClick = { load(YacineCatalogProbe.Kind.CATEGORIES, entry) }) {
-                                        Text("عرض الأقسام الفرعية")
+                                        Text(AttaLocale.tr("عرض الأقسام الفرعية"))
                                     }
                                 } else {
                                     if (channels.any { it.format == "ytv" }) OutlinedButton(enabled = !busy && !bindBusy, onClick = {
                                         bindEntry = entry; bindMessage = ""
-                                    }) { Text("ربط قناة محفوظة") }
+                                    }) { Text(AttaLocale.tr("ربط قناة محفوظة")) }
                                     TextButton(onClick = {
                                         clipboard.setText(AnnotatedString(entry.id))
                                         Toast.makeText(context, "تم نسخ رقم القناة", Toast.LENGTH_SHORT).show()
-                                    }) { Text("نسخ الرقم") }
+                                    }) { Text(AttaLocale.tr("نسخ الرقم")) }
                                 }
                             }
                         }
@@ -157,10 +157,10 @@ internal fun YacineCatalogProbeDialog(channels: List<FootballChannel>, owner: St
         }
     }
     bindEntry?.let { entry -> AlertDialog(onDismissRequest = { if (!bindBusy) bindEntry = null },
-        title = { Text("ربط ${entry.name}") }, text = {
+        title = { Text(AttaLocale.tr("ربط ${entry.name}")) }, text = {
             Column(Modifier.heightIn(max = 360.dp).verticalScroll(androidx.compose.foundation.rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("اختر قناتك المحفوظة. يتغير رقمها فقط، ويُتابع الاسم نفسه في القسم $sectionId. لا تُضاف قنوات أخرى.", fontSize = 13.sp)
+                Text(AttaLocale.tr("اختر قناتك المحفوظة. يتغير رقمها فقط، ويُتابع الاسم نفسه في القسم $sectionId. لا تُضاف قنوات أخرى."), fontSize = 13.sp)
                 channels.filter { it.format == "ytv" }.forEach { channel ->
                     OutlinedButton(enabled = !bindBusy, onClick = {
                         bindBusy = true
@@ -172,24 +172,24 @@ internal fun YacineCatalogProbeDialog(channels: List<FootballChannel>, owner: St
                                 if (outcome.linked) bindEntry = null
                             } finally { bindBusy = false }
                         }
-                    }, modifier = Modifier.fillMaxWidth()) { Text("ربط وتحديث: ${channel.name}") }
+                    }, modifier = Modifier.fillMaxWidth()) { Text(AttaLocale.tr("ربط وتحديث: ${channel.name}")) }
                 }
                 if (bindMessage.isNotBlank()) Text(bindMessage, fontSize = 12.sp)
                 if (bindBusy) LinearProgressIndicator(Modifier.fillMaxWidth())
             }
         }, confirmButton = {}, dismissButton = {
-            TextButton(enabled = !bindBusy, onClick = { bindEntry = null }) { Text("رجوع") }
+            TextButton(enabled = !bindBusy, onClick = { bindEntry = null }) { Text(AttaLocale.tr("رجوع")) }
         }) }
     if (settingsOpen) AlertDialog(onDismissRequest = {
         if (!settingsBusy) { maskInput = ""; settingsOpen = false }
-    }, title = { Text("إعداد قراءة القائمة") }, text = {
+    }, title = { Text(AttaLocale.tr("إعداد قراءة القائمة")) }, text = {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(if (configured) "الإعداد محفوظ على هذا الهاتف. يمكنك استبداله أو حذفه."
                 else "الصق إعداد القراءة الخاص بك مرة واحدة على هذا الهاتف.", fontSize = 13.sp)
             OutlinedTextField(value = maskInput, onValueChange = { maskInput = it.take(128); settingsMessage = "" },
-                enabled = !settingsBusy, singleLine = true, label = { Text("إعداد القراءة") },
+                enabled = !settingsBusy, singleLine = true, label = { Text(AttaLocale.tr("إعداد القراءة")) },
                 visualTransformation = PasswordVisualTransformation(), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password))
-            Text("يُحفظ على هذا الهاتف، ولا يظهر ضمن نسخ النتيجة.", fontSize = 12.sp)
+            Text(AttaLocale.tr("يُحفظ على هذا الهاتف، ولا يظهر ضمن نسخ النتيجة."), fontSize = 12.sp)
             if (settingsMessage.isNotBlank()) Text(settingsMessage, fontSize = 12.sp)
             if (settingsBusy) LinearProgressIndicator(Modifier.fillMaxWidth())
             if (configured) TextButton(enabled = !settingsBusy, onClick = {
@@ -200,7 +200,7 @@ internal fun YacineCatalogProbeDialog(channels: List<FootballChannel>, owner: St
                     else settingsMessage = "تعذر حذف الإعداد"
                     settingsBusy = false
                 }
-            }) { Text("حذف الإعداد من الهاتف") }
+            }) { Text(AttaLocale.tr("حذف الإعداد من الهاتف")) }
         }
     }, confirmButton = { TextButton(enabled = !settingsBusy, onClick = {
         val value = maskInput.trim()
@@ -214,7 +214,7 @@ internal fun YacineCatalogProbeDialog(channels: List<FootballChannel>, owner: St
                 settingsBusy = false
             }
         }
-    }) { Text("حفظ") } }, dismissButton = { TextButton(enabled = !settingsBusy, onClick = {
+    }) { Text(AttaLocale.tr("حفظ")) } }, dismissButton = { TextButton(enabled = !settingsBusy, onClick = {
         maskInput = ""; settingsOpen = false
-    }) { Text("رجوع") } })
+    }) { Text(AttaLocale.tr("رجوع")) } })
 }
