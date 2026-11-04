@@ -73,7 +73,7 @@ internal fun AdminProtectionPanel(
             } }) { Text(label, color = gold) }
         }
         plan?.let { current ->
-            Text(AttaLocale.tr("اكتب: ${current.optString(")confirmation")}", color = gold, fontSize = 12.sp)
+            Text("اكتب: ${current.optString("confirmation")}", color = gold, fontSize = 12.sp)
             PremiumAuthTextField(phrase, { phrase = it }, "عبارة التأكيد")
             Button(enabled = !busy && phrase == current.optString("confirmation"), onClick = {
                 val perform: (String) -> Unit = { secret -> runTask {
