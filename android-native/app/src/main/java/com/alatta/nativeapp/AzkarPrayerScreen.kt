@@ -253,7 +253,7 @@ internal fun AzkarPrayerScreen(modifier: Modifier = Modifier, onSharePost: (Stri
             titleContentColor = PremiumGoldLight,
             textContentColor = PremiumMuted,
             shape = RoundedCornerShape(22.dp),
-            title = { Text("مشاركة الأذكار", fontWeight = FontWeight.Bold) },
+            title = { Text(AttaLanguage.text("مشاركة الأذكار"), fontWeight = FontWeight.Bold) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(11.dp)) {
                     Text(selectedEntry.title, color = PremiumGoldLight,
@@ -264,13 +264,13 @@ internal fun AzkarPrayerScreen(modifier: Modifier = Modifier, onSharePost: (Stri
                         shape = RoundedCornerShape(14.dp)) {
                         SiteIcon("share", tint = PremiumGoldLight, size = 20.dp)
                         Spacer(Modifier.width(8.dp))
-                        Text("مشاركة الذكر كمنشور", color = PremiumGoldLight)
+                        Text(AttaLanguage.text("مشاركة الذكر كمنشور"), color = PremiumGoldLight)
                     }
                     OutlinedButton(onClick = { sharePost(true) },
                         modifier = Modifier.fillMaxWidth(),
                         border = androidx.compose.foundation.BorderStroke(1.dp, PremiumGold),
                         shape = RoundedCornerShape(14.dp)) {
-                        Text("مشاركة ${selectedGroup.title} كاملة كمنشور",
+                        Text(AttaLanguage.text("مشاركة ${selectedGroup.title} كاملة كمنشور"),
                             color = PremiumGoldLight, maxLines = 2)
                     }
                     Button(onClick = {
@@ -282,13 +282,13 @@ internal fun AzkarPrayerScreen(modifier: Modifier = Modifier, onSharePost: (Stri
                         shape = RoundedCornerShape(14.dp)) {
                         SiteIcon("image", tint = Color.Black, size = 20.dp)
                         Spacer(Modifier.width(8.dp))
-                        Text("نشر الذكر بصورة ذهبية داخل العطا")
+                        Text(AttaLanguage.text("نشر الذكر بصورة ذهبية داخل العطا"))
                     }
                 }
             },
             confirmButton = {
                 TextButton(onClick = { shareChoice = null }) {
-                    Text("إلغاء", color = PremiumGoldLight)
+                    Text(AttaLanguage.text("إلغاء"), color = PremiumGoldLight)
                 }
             }
         )
@@ -436,22 +436,22 @@ internal fun AzkarPrayerScreen(modifier: Modifier = Modifier, onSharePost: (Stri
         if (finished != null) {
             AlertDialog(
                 onDismissRequest = { completionGroup = null },
-                title = { Text("✦ مبارك إتمام ${finished.title} ✦", color = PremiumGoldLight, textAlign = TextAlign.Center) },
+                title = { Text(AttaLanguage.text("✦ مبارك إتمام ${finished.title} ✦"), color = PremiumGoldLight, textAlign = TextAlign.Center) },
                 text = {
                     Column(horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Text("شهادة إتمام الأذكار", color = PremiumGoldLight, fontSize = 21.sp,
+                        Text(AttaLanguage.text("شهادة إتمام الأذكار"), color = PremiumGoldLight, fontSize = 21.sp,
                             fontWeight = FontWeight.Bold)
-                        Text("أكملت ${finished.entries.size} ذكرًا ودعاءً، بمجموع ${finished.entries.sumOf { it.target }} تكرارًا مسجلًا.",
+                        Text(AttaLanguage.text("أكملت ${finished.entries.size} ذكرًا ودعاءً، بمجموع ${finished.entries.sumOf { it.target }} تكرارًا مسجلًا."),
                             color = Color.White, textAlign = TextAlign.Center)
-                        Text("نسأل الله أن يتقبل منك ويضاعف أجرك.", color = PremiumGoldLight,
+                        Text(AttaLanguage.text("نسأل الله أن يتقبل منك ويضاعف أجرك."), color = PremiumGoldLight,
                             textAlign = TextAlign.Center)
-                        Text("الأجور المعيّنة لا تُجمع حسابيًا؛ لأنها مرتبطة بشروط الأحاديث والنية والقبول. راجع فضل كل ذكر ومصدره في بطاقته.",
+                        Text(AttaLanguage.text("الأجور المعيّنة لا تُجمع حسابيًا؛ لأنها مرتبطة بشروط الأحاديث والنية والقبول. راجع فضل كل ذكر ومصدره في بطاقته."),
                             fontSize = 12.sp, color = Color.White, textAlign = TextAlign.Center)
                     }
                 },
                 confirmButton = { TextButton(onClick = { completionGroup = null }) {
-                    Text("الحمد لله", color = PremiumGoldLight)
+                    Text(AttaLanguage.text("الحمد لله"), color = PremiumGoldLight)
                 } },
                 containerColor = PremiumBackground
             )
@@ -495,8 +495,8 @@ internal fun AzkarPrayerScreen(modifier: Modifier = Modifier, onSharePost: (Stri
             IconButton(onClick = { message = "" }, modifier = Modifier.size(32.dp)) { SiteIcon("x", size = 18.dp) }
         }
         if (playing) Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text("صوت الأذان يعمل الآن", Modifier.weight(1f), color = prayerSoft)
-            TextButton(onClick = { context.stopService(Intent(context, AdhanPlaybackService::class.java)) }) { Text("إيقاف الأذان", color = PremiumGoldLight) }
+            Text(AttaLanguage.text("صوت الأذان يعمل الآن"), Modifier.weight(1f), color = prayerSoft)
+            TextButton(onClick = { context.stopService(Intent(context, AdhanPlaybackService::class.java)) }) { Text(AttaLanguage.text("إيقاف الأذان"), color = PremiumGoldLight) }
         }
         if (group != null) {
             val entries = group.entries
@@ -528,7 +528,7 @@ internal fun AzkarPrayerScreen(modifier: Modifier = Modifier, onSharePost: (Stri
                                 Text("−", color = PremiumGoldLight, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                             }
                         }
-                        Text("${entries.size} ذكرًا ودعاءً • التقدّم محفوظ لليوم", Modifier.weight(1f),
+                        Text(AttaLanguage.text("${entries.size} ذكرًا ودعاءً • التقدّم محفوظ لليوم"), Modifier.weight(1f),
                             color = PremiumMuted, fontSize = 11.sp, textAlign = TextAlign.End)
                     }
                 }
@@ -563,7 +563,7 @@ internal fun AzkarPrayerScreen(modifier: Modifier = Modifier, onSharePost: (Stri
                         }
                         // الاستعاذة تُعرض مستقلة قبل الآيتين دون تعديل النص القرآني المخزّن.
                         if (entry.id == "kursi" || entry.id == "baqarah-ending") {
-                            Text("أَعُوذُ بِاللَّهِ مِنَ الشَّيْطَانِ الرَّجِيمِ",
+                            Text(AttaLanguage.text("أَعُوذُ بِاللَّهِ مِنَ الشَّيْطَانِ الرَّجِيمِ"),
                                 color = PremiumGoldLight, fontSize = (fontSize * 0.83f).sp,
                                 lineHeight = (fontSize * 1.35f).sp,
                                 textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
@@ -572,7 +572,7 @@ internal fun AzkarPrayerScreen(modifier: Modifier = Modifier, onSharePost: (Stri
                             lineHeight = (fontSize * 1.75f).sp, textAlign = TextAlign.Center,
                             modifier = Modifier.fillMaxWidth())
                         val virtue = entry.verifiedVirtue()
-                        if (virtue.isNotBlank()) Text("فضل الذكر: $virtue",
+                        if (virtue.isNotBlank()) Text(AttaLanguage.text("فضل الذكر: $virtue"),
                             color = PremiumGoldLight, fontSize = 12.sp)
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                             TextButton(onClick = { shareChoice = group to entry }) {
@@ -632,7 +632,7 @@ internal fun AzkarPrayerScreen(modifier: Modifier = Modifier, onSharePost: (Stri
                             PrayerSymbol("mosque", if (goldHome) 32.dp else 48.dp,
                                 if (goldHome) PremiumGoldLight else PremiumGold)
                             Column(Modifier.weight(1f)) {
-                                if (goldHome) Text("موقعي الحالي", color = PremiumGoldLight,
+                                if (goldHome) Text(AttaLanguage.text("موقعي الحالي"), color = PremiumGoldLight,
                                     fontWeight = FontWeight.Bold, fontSize = 15.sp)
                                 Text(if (settings.confirmedPlace) settings.place.name else "اختر مدينتك",
                                     Modifier.clickable { chooseCity = true },
@@ -656,7 +656,7 @@ internal fun AzkarPrayerScreen(modifier: Modifier = Modifier, onSharePost: (Stri
                                     Text(String.format(arabic, "المتبقي %02d:%02d:%02d",
                                         remaining / 3600, remaining / 60 % 60, remaining % 60),
                                         color = Color.White, fontSize = 15.sp)
-                                } else Text("حدد المدينة لعرض المواقيت الصحيحة",
+                                } else Text(AttaLanguage.text("حدد المدينة لعرض المواقيت الصحيحة"),
                                     color = PremiumGoldLight, fontSize = 16.sp)
                             }
                             // تبقى صورة المصحف والفانوس في الجانب المقابل للنص الحي.
@@ -687,7 +687,7 @@ internal fun AzkarPrayerScreen(modifier: Modifier = Modifier, onSharePost: (Stri
                         }
                     }
                 }
-                if (calculated.isFailure && settings.confirmedPlace) item { Text("تعذر حساب المواقيت؛ راجع الموقع وطريقة الحساب.", color = Color(0xFFFFB4AB)) }
+                if (calculated.isFailure && settings.confirmedPlace) item { Text(AttaLanguage.text("تعذر حساب المواقيت؛ راجع الموقع وطريقة الحساب."), color = Color(0xFFFFB4AB)) }
             }
             if (page == "home") {
                 item {
@@ -740,7 +740,7 @@ internal fun AzkarPrayerScreen(modifier: Modifier = Modifier, onSharePost: (Stri
                 }
             }
             if (page == "times") {
-                item { TextButton(onClick = { chooseCity = true }) { Text("تغيير المدينة • ${settings.place.zone}", color = PremiumGoldLight) } }
+                item { TextButton(onClick = { chooseCity = true }) { Text(AttaLanguage.text("تغيير المدينة • ${settings.place.zone}"), color = PremiumGoldLight) } }
                 items(prayerNames.keys.toList(), key = { it }) { id ->
                     val moment = moments.firstOrNull { it.id == id }
                     PrayerCard {
@@ -759,61 +759,61 @@ internal fun AzkarPrayerScreen(modifier: Modifier = Modifier, onSharePost: (Stri
                         }
                     }
                 }
-                item { Text("الشروق للعرض فقط. الحساب حسب ${prayerMethods[settings.method]} والمنطقة الزمنية المختارة؛ قد تختلف دقائق عن تقويم المسجد المحلي.", color = PremiumMuted, fontSize = 12.sp) }
+                item { Text(AttaLanguage.text("الشروق للعرض فقط. الحساب حسب ${prayerMethods[settings.method]} والمنطقة الزمنية المختارة؛ قد تختلف دقائق عن تقويم المسجد المحلي."), color = PremiumMuted, fontSize = 12.sp) }
                 item {
                     Button(onClick = { page = "settings" }, modifier = Modifier.fillMaxWidth(),
                         colors = ButtonDefaults.buttonColors(containerColor = PremiumGold,
                             contentColor = Color(0xFF0A0907))) {
-                        Text("ضبط الأذان وطريقة الحساب", fontWeight = FontWeight.Bold)
+                        Text(AttaLanguage.text("ضبط الأذان وطريقة الحساب"), fontWeight = FontWeight.Bold)
                     }
                 }
             }
             if (page == "settings") {
                 item { PrayerCard {
-                    Text("الموقع والحساب", color = PremiumGoldLight, fontWeight = FontWeight.Bold)
+                    Text(AttaLanguage.text("الموقع والحساب"), color = PremiumGoldLight, fontWeight = FontWeight.Bold)
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("تحديد موقعي تلقائيًا", Modifier.weight(1f), color = Color.White)
+                        Text(AttaLanguage.text("تحديد موقعي تلقائيًا"), Modifier.weight(1f), color = Color.White)
                         Switch(settings.automaticLocation, enabled = !locating, onCheckedChange = {
                             if (it) automaticLocation() else { locationJob?.cancel(); save(settings.copy(automaticLocation = false)) }
                         })
                     }
-                    Text("بإذنك، يُحدَّد موقعك أثناء استخدام التطبيق ويُحفظ محليًا لحساب المواقيت. يتحدث عند فتح التطبيق، ولا يُرسل إلى خادم العطا. يعمل الموقع التقريبي أيضًا.", color = PremiumMuted, fontSize = 12.sp)
+                    Text(AttaLanguage.text("بإذنك، يُحدَّد موقعك أثناء استخدام التطبيق ويُحفظ محليًا لحساب المواقيت. يتحدث عند فتح التطبيق، ولا يُرسل إلى خادم العطا. يعمل الموقع التقريبي أيضًا."), color = PremiumMuted, fontSize = 12.sp)
                     TextButton(onClick = { automaticLocation() }, enabled = !locating) { Text(if (locating) "جارٍ تحديد الموقع…" else "تحديد موقعي الآن", color = PremiumGoldLight) }
 
                     TextButton(onClick = { chooseCity = true }) { Text(if (settings.confirmedPlace) "المدينة: ${settings.place.name}" else "اختيار المدينة", color = Color.White) }
-                    Text("${settings.place.zone} • تتبع المنطقة الزمنية والتوقيت الصيفي تلقائيًا", color = PremiumMuted, fontSize = 12.sp)
-                    TextButton(onClick = { chooseMethod = true }) { Text("طريقة الحساب: ${prayerMethods[settings.method]}", color = Color.White) }
+                    Text(AttaLanguage.text("${settings.place.zone} • تتبع المنطقة الزمنية والتوقيت الصيفي تلقائيًا"), color = PremiumMuted, fontSize = 12.sp)
+                    TextButton(onClick = { chooseMethod = true }) { Text(AttaLanguage.text("طريقة الحساب: ${prayerMethods[settings.method]}"), color = Color.White) }
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("حساب العصر الحنفي", Modifier.weight(1f), color = Color.White)
+                        Text(AttaLanguage.text("حساب العصر الحنفي"), Modifier.weight(1f), color = Color.White)
                         Switch(settings.hanafi, onCheckedChange = { save(settings.copy(hanafi = it)) })
                     }
-                    Text("الحساب الافتراضي للعصر: الشافعي/المالكي/الحنبلي. أم القرى تضيف 30 دقيقة للعشاء في رمضان حسب التقويم الهجري المحسوب.", color = PremiumMuted, fontSize = 12.sp)
+                    Text(AttaLanguage.text("الحساب الافتراضي للعصر: الشافعي/المالكي/الحنبلي. أم القرى تضيف 30 دقيقة للعشاء في رمضان حسب التقويم الهجري المحسوب."), color = PremiumMuted, fontSize = 12.sp)
                 } }
                 item { PrayerCard {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("تفعيل الأذان", Modifier.weight(1f), color = PremiumGoldLight, fontWeight = FontWeight.Bold)
+                        Text(AttaLanguage.text("تفعيل الأذان"), Modifier.weight(1f), color = PremiumGoldLight, fontWeight = FontWeight.Bold)
                         Switch(active, onCheckedChange = { if (it) enableAdhan() else { enableAfterLocation = false; save(settings.copy(enabled = false)) } })
                     }
-                    Text("اختر الصلوات من صفحة المواقيت. يعمل الأذان محليًا دون إنترنت وبمستوى صوت المنبّه الذي تحدده في الهاتف.", color = PremiumMuted, fontSize = 13.sp)
+                    Text(AttaLanguage.text("اختر الصلوات من صفحة المواقيت. يعمل الأذان محليًا دون إنترنت وبمستوى صوت المنبّه الذي تحدده في الهاتف."), color = PremiumMuted, fontSize = 13.sp)
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("عرض الأذان فوق شاشة القفل", Modifier.weight(1f), color = Color.White)
+                        Text(AttaLanguage.text("عرض الأذان فوق شاشة القفل"), Modifier.weight(1f), color = Color.White)
                         Switch(settings.lockScreen, onCheckedChange = { save(settings.copy(lockScreen = it)) })
                     }
-                    Text("يظهر عند موعد الصلاة حتى والشاشة مطفّية، حسب أذونات الهاتف. زر الإيقاف متاح على شاشة الأذان وفي التنبيه.", color = PremiumMuted, fontSize = 12.sp)
+                    Text(AttaLanguage.text("يظهر عند موعد الصلاة حتى والشاشة مطفّية، حسب أذونات الهاتف. زر الإيقاف متاح على شاشة الأذان وفي التنبيه."), color = PremiumMuted, fontSize = 12.sp)
                     if (settings.lockScreen && Build.VERSION.SDK_INT >= 34 && !AdhanScheduler.fullScreenAllowed(context)) TextButton(onClick = {
                         runCatching { context.startActivity(Intent(Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT, Uri.parse("package:${context.packageName}"))) }
                             .onFailure { message = "افتح إعدادات التطبيق واسمح بتنبيهات ملء الشاشة للأذان" }
-                    }) { Text("السماح بالظهور على شاشة القفل", color = PremiumGoldLight) }
+                    }) { Text(AttaLanguage.text("السماح بالظهور على شاشة القفل"), color = PremiumGoldLight) }
 
                     TextButton(onClick = {
                         context.startActivity(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName))
-                    }) { Text("إعدادات التنبيهات في أندرويد", color = PremiumGoldLight) }
-                    if (Build.VERSION.SDK_INT >= 31 && !AdhanScheduler.exactAllowed(context)) TextButton(onClick = { startAction("enable") }) { Text("السماح بالمنبّهات والتذكيرات", color = PremiumGoldLight) }
-                    Text("على بعض الهواتف، راجع تشغيل التطبيق في الخلفية إذا تأخر الأذان. لا يغيّر التطبيق وضع عدم الإزعاج أو مستوى صوتك.", color = PremiumMuted, fontSize = 12.sp)
-                    TextButton(onClick = { page = "times" }) { Text("اختيار الصلوات", color = PremiumGoldLight) }
+                    }) { Text(AttaLanguage.text("إعدادات التنبيهات في أندرويد"), color = PremiumGoldLight) }
+                    if (Build.VERSION.SDK_INT >= 31 && !AdhanScheduler.exactAllowed(context)) TextButton(onClick = { startAction("enable") }) { Text(AttaLanguage.text("السماح بالمنبّهات والتذكيرات"), color = PremiumGoldLight) }
+                    Text(AttaLanguage.text("على بعض الهواتف، راجع تشغيل التطبيق في الخلفية إذا تأخر الأذان. لا يغيّر التطبيق وضع عدم الإزعاج أو مستوى صوتك."), color = PremiumMuted, fontSize = 12.sp)
+                    TextButton(onClick = { page = "times" }) { Text(AttaLanguage.text("اختيار الصلوات"), color = PremiumGoldLight) }
                 } }
                 item { PrayerCard {
-                    Text("صوت الأذان", color = PremiumGoldLight, fontWeight = FontWeight.Bold)
+                    Text(AttaLanguage.text("صوت الأذان"), color = PremiumGoldLight, fontWeight = FontWeight.Bold)
                     Text(when { settings.soundUri.isNotBlank() -> "ملف صوتي اخترته من الهاتف"
                         settings.voiceName.isNotBlank() -> "${settings.voiceName} • محفوظ دون إنترنت"
                         else -> "صوت الأذان المضمّن • متاح دون إنترنت" }, color = Color.White)
@@ -821,23 +821,23 @@ internal fun AzkarPrayerScreen(modifier: Modifier = Modifier, onSharePost: (Stri
                     PrayerAudioPicker(settings.soundUri, onPick = { save(settings.copy(soundUri = it, voiceId = "", voiceName = "", voiceSha256 = "")) }, onMessage = { message = it })
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Button(onClick = { if (playing) context.stopService(Intent(context, AdhanPlaybackService::class.java)) else startAction("preview") }) { Text(if (playing) "إيقاف الصوت" else "تجربة الأذان") }
-                        TextButton(onClick = { save(settings.copy(soundUri = "", voiceId = "", voiceName = "", voiceSha256 = "")) }) { Text("الصوت الافتراضي", color = PremiumGoldLight) }
+                        TextButton(onClick = { save(settings.copy(soundUri = "", voiceId = "", voiceName = "", voiceSha256 = "")) }) { Text(AttaLanguage.text("الصوت الافتراضي"), color = PremiumGoldLight) }
                     }
                 } }
                 item { PrayerCard {
-                    Text("تعديل الدقائق", color = PremiumGoldLight, fontWeight = FontWeight.Bold)
-                    Text("للمطابقة مع تقويم مسجدك؛ لا تغيّر القيم إلا عند الحاجة.", color = PremiumMuted, fontSize = 12.sp)
+                    Text(AttaLanguage.text("تعديل الدقائق"), color = PremiumGoldLight, fontWeight = FontWeight.Bold)
+                    Text(AttaLanguage.text("للمطابقة مع تقويم مسجدك؛ لا تغيّر القيم إلا عند الحاجة."), color = PremiumMuted, fontSize = 12.sp)
                     alarmPrayerIds.forEach { id ->
                         val offset = settings.offsets[id] ?: 0
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(prayerNames.getValue(id), Modifier.weight(1f), color = Color.White)
                             IconButton(onClick = { save(settings.copy(offsets = settings.offsets + (id to (offset - 1).coerceAtLeast(-30)))) }) { Text("−", color = PremiumGold, fontSize = 23.sp) }
-                            Text("$offset د", color = Color.White, modifier = Modifier.width(49.dp), textAlign = TextAlign.Center)
+                            Text(AttaLanguage.text("$offset د"), color = Color.White, modifier = Modifier.width(49.dp), textAlign = TextAlign.Center)
                             IconButton(onClick = { save(settings.copy(offsets = settings.offsets + (id to (offset + 1).coerceAtMost(30)))) }) { Text("+", color = PremiumGold, fontSize = 23.sp) }
                         }
                     }
                 } }
-                item { TextButton(onClick = { showCredits = true }) { Text("مصادر الحساب والصوت", color = PremiumMuted) } }
+                item { TextButton(onClick = { showCredits = true }) { Text(AttaLanguage.text("مصادر الحساب والصوت"), color = PremiumMuted) } }
             }
         }
     }
@@ -849,14 +849,14 @@ internal fun AzkarPrayerScreen(modifier: Modifier = Modifier, onSharePost: (Stri
         locationJob?.cancel(); enableAfterLocation = false
         save(settings.copy(place = place, confirmedPlace = true, automaticLocation = false)); customCity = false
     }
-    if (chooseMethod) AlertDialog(onDismissRequest = { chooseMethod = false }, title = { Text("طريقة حساب المواقيت") }, text = {
+    if (chooseMethod) AlertDialog(onDismissRequest = { chooseMethod = false }, title = { Text(AttaLanguage.text("طريقة حساب المواقيت")) }, text = {
         Column(Modifier.verticalScroll(rememberScrollState())) { prayerMethods.forEach { (id, title) ->
             TextButton(onClick = { save(settings.copy(method = id)); chooseMethod = false }, modifier = Modifier.fillMaxWidth()) { Text(title) }
         } }
-    }, confirmButton = { TextButton(onClick = { chooseMethod = false }) { Text("رجوع") } })
-    if (showCredits) AlertDialog(onDismissRequest = { showCredits = false }, title = { Text("مصادر الحساب والصوت") }, text = {
-        Text("المواقيت: مكتبة Adhan من Batoul Apps بترخيص MIT.\n\nالصوت المضمّن: Beautiful adhan — Adam-synagda، من Wikimedia Commons بترخيص CC0.\n\nتسجيلات المؤذنين بأسمائهم: روابط الاستماع والتنزيل من دار الإسلام، مع رابط المصدر لكل تسجيل. تسجيلات الإدارة تضاف من لوحة المدير. يتم تنزيل الصوت عند اختيارك وحفظه محليًا.\n\nالموقع التلقائي اختياري ويستخدم إذن موقع الهاتف أثناء الاستخدام فقط؛ لا توجد متابعة دائمة في الخلفية. المدينة والإحداثيات والعدادات والصوت المختار تُحفظ على الجهاز، ولا تُرفع إلى خادم التطبيق.")
-    }, confirmButton = { TextButton(onClick = { showCredits = false }) { Text("حسنًا") } })
+    }, confirmButton = { TextButton(onClick = { chooseMethod = false }) { Text(AttaLanguage.text("رجوع")) } })
+    if (showCredits) AlertDialog(onDismissRequest = { showCredits = false }, title = { Text(AttaLanguage.text("مصادر الحساب والصوت")) }, text = {
+        Text(AttaLanguage.text("المواقيت: مكتبة Adhan من Batoul Apps بترخيص MIT.\n\nالصوت المضمّن: Beautiful adhan — Adam-synagda، من Wikimedia Commons بترخيص CC0.\n\nتسجيلات المؤذنين بأسمائهم: روابط الاستماع والتنزيل من دار الإسلام، مع رابط المصدر لكل تسجيل. تسجيلات الإدارة تضاف من لوحة المدير. يتم تنزيل الصوت عند اختيارك وحفظه محليًا.\n\nالموقع التلقائي اختياري ويستخدم إذن موقع الهاتف أثناء الاستخدام فقط؛ لا توجد متابعة دائمة في الخلفية. المدينة والإحداثيات والعدادات والصوت المختار تُحفظ على الجهاز، ولا تُرفع إلى خادم التطبيق."))
+    }, confirmButton = { TextButton(onClick = { showCredits = false }) { Text(AttaLanguage.text("حسنًا")) } })
 }
 
 private fun formatPrayerTime(at: Long, zone: ZoneId): String =
@@ -873,23 +873,23 @@ private fun PrayerAudioPicker(uri: String, onPick: (String) -> Unit, onMessage: 
             onPick(chosen.toString())
         }.onFailure { onMessage("تعذر الاحتفاظ بإذن الملف. اختر ملف صوت من مساحة الهاتف؛ الصوت الافتراضي متاح.") }
     }
-    TextButton(onClick = { picker.launch(arrayOf("audio/*")) }) { Text("اختيار صوت من الهاتف", color = PremiumGoldLight) }
+    TextButton(onClick = { picker.launch(arrayOf("audio/*")) }) { Text(AttaLanguage.text("اختيار صوت من الهاتف"), color = PremiumGoldLight) }
 }
 
 @Composable
 private fun PrayerCityDialog(onDismiss: () -> Unit, onCustom: () -> Unit, onSelect: (PrayerPlace) -> Unit) {
     var search by remember { mutableStateOf("") }
-    AlertDialog(onDismissRequest = onDismiss, title = { Text("اختر مدينتك") }, text = {
+    AlertDialog(onDismissRequest = onDismiss, title = { Text(AttaLanguage.text("اختر مدينتك")) }, text = {
         Column {
-            OutlinedTextField(search, { search = it }, label = { Text("البحث عن المدينة") }, singleLine = true)
+            OutlinedTextField(search, { search = it }, label = { Text(AttaLanguage.text("البحث عن المدينة")) }, singleLine = true)
             LazyColumn(Modifier.heightIn(max = 340.dp)) {
                 items(prayerPlaces.filter { it.name.contains(search, true) }) { place ->
                     TextButton(onClick = { onSelect(place) }, modifier = Modifier.fillMaxWidth()) { Text(place.name) }
                 }
             }
-            TextButton(onClick = onCustom) { Text("مدينة أخرى / إحداثيات يدوية") }
+            TextButton(onClick = onCustom) { Text(AttaLanguage.text("مدينة أخرى / إحداثيات يدوية")) }
         }
-    }, confirmButton = { TextButton(onClick = onDismiss) { Text("رجوع") } })
+    }, confirmButton = { TextButton(onClick = onDismiss) { Text(AttaLanguage.text("رجوع")) } })
 }
 
 @Composable
@@ -899,17 +899,17 @@ private fun PrayerCustomCityDialog(initial: PrayerPlace, onDismiss: () -> Unit, 
     var lon by remember { mutableStateOf(initial.longitude.toString()) }
     var zone by remember { mutableStateOf(initial.zone) }
     var error by remember { mutableStateOf("") }
-    AlertDialog(onDismissRequest = onDismiss, title = { Text("إضافة مدينة") }, text = {
+    AlertDialog(onDismissRequest = onDismiss, title = { Text(AttaLanguage.text("إضافة مدينة")) }, text = {
         Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedTextField(name, { name = it.take(80) }, label = { Text("اسم المدينة") }, singleLine = true)
-            OutlinedTextField(lat, { lat = it }, label = { Text("خط العرض • 24.7136") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))
-            OutlinedTextField(lon, { lon = it }, label = { Text("خط الطول • 46.6753") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))
-            OutlinedTextField(zone, { zone = it.trim() }, label = { Text("المنطقة الزمنية • Asia/Riyadh") }, singleLine = true)
-            Text("استخدم إحداثيات المدينة والمنطقة الزمنية الصحيحة لضبط التوقيت الصيفي تلقائيًا. لا نطلب إذن موقع الهاتف.", color = PremiumMuted, fontSize = 12.sp)
+            OutlinedTextField(name, { name = it.take(80) }, label = { Text(AttaLanguage.text("اسم المدينة")) }, singleLine = true)
+            OutlinedTextField(lat, { lat = it }, label = { Text(AttaLanguage.text("خط العرض • 24.7136")) }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))
+            OutlinedTextField(lon, { lon = it }, label = { Text(AttaLanguage.text("خط الطول • 46.6753")) }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))
+            OutlinedTextField(zone, { zone = it.trim() }, label = { Text(AttaLanguage.text("المنطقة الزمنية • Asia/Riyadh")) }, singleLine = true)
+            Text(AttaLanguage.text("استخدم إحداثيات المدينة والمنطقة الزمنية الصحيحة لضبط التوقيت الصيفي تلقائيًا. لا نطلب إذن موقع الهاتف."), color = PremiumMuted, fontSize = 12.sp)
             if (error.isNotBlank()) Text(error, color = Color(0xFFFFB4AB))
         }
     }, confirmButton = { TextButton(onClick = {
         runCatching { PrayerPlace(name.trim(), lat.toDouble(), lon.toDouble(), zone, initial.method).validate() }
             .onSuccess(onSelect).onFailure { error = it.message ?: "راجع الإحداثيات والمنطقة الزمنية" }
-    }) { Text("حفظ المدينة") } }, dismissButton = { TextButton(onClick = onDismiss) { Text("إلغاء") } })
+    }) { Text(AttaLanguage.text("حفظ المدينة")) } }, dismissButton = { TextButton(onClick = onDismiss) { Text(AttaLanguage.text("إلغاء")) } })
 }
