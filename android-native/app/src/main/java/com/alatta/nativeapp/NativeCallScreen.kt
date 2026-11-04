@@ -301,7 +301,7 @@ internal fun NativeCallScreen(
             ) {
                 AndroidView(factory = { localRenderer }, modifier = Modifier.fillMaxSize())
                 if (!localReady) {
-                    Text("جارٍ تشغيل كاميرتك...", modifier = Modifier.align(Alignment.Center)
+                    Text(AttaLanguage.text("جارٍ تشغيل كاميرتك..."), modifier = Modifier.align(Alignment.Center)
                         .padding(5.dp), textAlign = TextAlign.Center,
                         color = CallGold, fontSize = 10.sp)
                 }
@@ -312,7 +312,7 @@ internal fun NativeCallScreen(
                     contentAlignment = Alignment.Center) {
                     SiteIcon("repeat", tint = CallWhite, size = 22.dp)
                 }
-                Text("أنت", color = CallWhite, fontSize = 11.sp,
+                Text(AttaLanguage.text("أنت"), color = CallWhite, fontSize = 11.sp,
                     modifier = Modifier.align(Alignment.BottomStart)
                         .background(Color(0xB0050709)).padding(horizontal = 8.dp, vertical = 2.dp))
             }
