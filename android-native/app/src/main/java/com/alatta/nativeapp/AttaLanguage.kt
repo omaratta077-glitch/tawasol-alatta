@@ -7,7 +7,7 @@ import androidx.compose.runtime.setValue
 
 /** App UI language only: user content, Quran text, hadith text and API keys remain original. */
 internal object AttaLanguage {
-    private const val PREF = "alatta_native"
+    private const val PREF = "alatta_language_prefs"
     private const val KEY = "ui_language"
     var code by mutableStateOf("ar")
         private set
