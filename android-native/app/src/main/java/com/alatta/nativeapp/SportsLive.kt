@@ -271,11 +271,11 @@ internal fun SportsLivePanel(token: String, isAdmin: Boolean, expanded: Boolean,
                 when {
                     status.isNotBlank() -> Text(status, color = Color.White, fontSize = 12.sp)
                     live != null -> Text("${live?.optString("title")} • ${live?.optString("broadcaster")} • ${live?.optInt("viewerCount")} مشاهد", color = Color.White, fontSize = 12.sp)
-                    else -> Text("شاهد البث المباشر من هنا عند بدء المدير له.", color = PremiumMuted, fontSize = 12.sp)
+                    else -> Text(AttaLocale.tr("شاهد البث المباشر من هنا عند بدء المدير له."), color = PremiumMuted, fontSize = 12.sp)
                 }
-                if (isAdmin && live == null && !configured) Text("يتطلب تفعيل البث إضافة CLOUDFLARE_REALTIME_APP_ID وCLOUDFLARE_REALTIME_APP_SECRET كأسرار في إعدادات Worker.", color = Color(0xFFFFD782), fontSize = 12.sp)
+                if (isAdmin && live == null && !configured) Text(AttaLocale.tr("يتطلب تفعيل البث إضافة CLOUDFLARE_REALTIME_APP_ID وCLOUDFLARE_REALTIME_APP_SECRET كأسرار في إعدادات Worker."), color = Color(0xFFFFD782), fontSize = 12.sp)
                 if (isAdmin && live == null && configured) {
-                    OutlinedTextField(title, { title = it.take(100) }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("عنوان البث") })
+                    OutlinedTextField(title, { title = it.take(100) }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text(AttaLocale.tr("عنوان البث")) })
                     Button(enabled = !busy && title.trim().length >= 2, onClick = {
                         busy = true
                         scope.launch {
@@ -285,14 +285,14 @@ internal fun SportsLivePanel(token: String, isAdmin: Boolean, expanded: Boolean,
                             } catch (e: Exception) { status = e.message ?: "تعذر طلب مشاركة الشاشة" }
                             finally { busy = false }
                         }
-                    }) { Text("بدء بث الشاشة") }
+                    }) { Text(AttaLocale.tr("بدء بث الشاشة")) }
                 }
                 if (isAdmin && live != null) Button(onClick = {
                     val id = live?.optString("liveId").orEmpty(); busy = true
                     scope.launch(Dispatchers.IO) { runCatching { sportsApi(token, JSONObject().put("action", "stop").put("liveId", id)) }
                         .onSuccess { withContext(Dispatchers.Main) { publisher?.stop(false); publisher = null; live = null; status = "تم إيقاف البث" } }
                         .onFailure { withContext(Dispatchers.Main) { status = it.message ?: "تعذر إيقاف البث" } }; busy = false }
-                }) { Text("إيقاف البث") }
+                }) { Text(AttaLocale.tr("إيقاف البث")) }
             }
             if (!expanded && status.isNotBlank()) Text(status, color = PremiumMuted, fontSize = 12.sp, modifier = Modifier.widthIn(max = 240.dp))
             if (live != null && !live!!.optBoolean("isOwner")) {
