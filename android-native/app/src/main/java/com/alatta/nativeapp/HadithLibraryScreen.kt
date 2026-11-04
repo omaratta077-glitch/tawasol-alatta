@@ -178,7 +178,7 @@ internal fun HadithLibraryScreen(query: String, modifier: Modifier = Modifier,
             showReadings -> {
                 result?.let { data ->
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        Text(AttaLocale.tr("${data.total} حديثًا • ${if (query.isNotBlank()) ")نتائج البحث" else if (section > 0) "مجموعة القراءة $section" else "كل الكتاب"}", Modifier.weight(1f), color = PremiumMuted, fontSize = 12.sp)
+                        Text("${data.total} حديثًا • ${if (query.isNotBlank()) "نتائج البحث" else if (section > 0) "مجموعة القراءة $section" else "كل الكتاب"}", Modifier.weight(1f), color = PremiumMuted, fontSize = 12.sp)
                         TextButton(onClick = { fontSize = (fontSize - 1).coerceAtLeast(17); preferences.edit().putInt("font_size", fontSize).apply() }, contentPadding = PaddingValues(4.dp), modifier = Modifier.width(34.dp).clip(RoundedCornerShape(12.dp)).attaGoldShine(true), colors = hadithTextColors, shape = RoundedCornerShape(12.dp)) { Text(AttaLocale.tr("أ−"), color = PremiumGold) }
                         TextButton(onClick = { fontSize = (fontSize + 1).coerceAtMost(30); preferences.edit().putInt("font_size", fontSize).apply() }, contentPadding = PaddingValues(4.dp), modifier = Modifier.width(34.dp).clip(RoundedCornerShape(12.dp)).attaGoldShine(true), colors = hadithTextColors, shape = RoundedCornerShape(12.dp)) { Text(AttaLocale.tr("أ+"), color = PremiumGold) }
                     }
