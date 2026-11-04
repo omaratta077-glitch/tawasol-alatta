@@ -223,13 +223,13 @@ internal fun AttaFreshYouTubePlayer(
                     if(error.isBlank()){
                         CircularProgressIndicator(color=Color(0xFFE6B94E),modifier=Modifier.size(26.dp))
                         Spacer(Modifier.height(10.dp))
-                        Text("جاري تجهيز YouTube",color=Color(0xFFF6D776),fontSize=13.sp)
+                        Text(AttaLanguage.text("جاري تجهيز YouTube"),color=Color(0xFFF6D776),fontSize=13.sp)
                     }else{
                         Text(error,color=Color(0xFFFFB0B0),textAlign=TextAlign.Center,fontSize=13.sp)
                         Spacer(Modifier.height(12.dp))
                         OutlinedButton(onClick={reload++},border=BorderStroke(1.dp,Color(0xFFE6B94E)),
                             shape=RoundedCornerShape(12.dp)){
-                            Text("إعادة المحاولة",color=Color(0xFFF6D776))
+                            Text(AttaLanguage.text("إعادة المحاولة"),color=Color(0xFFF6D776))
                         }
                     }
                 }
