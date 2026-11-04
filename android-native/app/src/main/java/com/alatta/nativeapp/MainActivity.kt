@@ -3070,7 +3070,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                             }
                                         }
                                         })
-                                        pickedUri?.let { Text(AttaLocale.tr("مرفق: ${it.lastPathSegment ?: ")ملف"}", color = GoldLight, fontSize = 11.sp) }
+                                        pickedUri?.let { Text("مرفق: ${it.lastPathSegment ?: "ملف"}", color = GoldLight, fontSize = 11.sp) }
                                         youtubePostDraftId.takeIf { it.isNotBlank() }?.let { videoId ->
                                             Text(if (youtubePostDraftIsShort) "YouTube Short — سيظهر في الريلز"
                                                 else "فيديو يوتيوب مرفق", color = GoldLight, fontSize = 12.sp)
@@ -3507,7 +3507,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                         AdminStatisticsPanel(adminSummary)
                                         GoldButton("تحديث الإحصائيات", !busy) { task { load("الإدارة") } }
                                         adminSummary.optJSONObject("deletion")?.takeIf { adminRole == "super_admin" }?.let { deletion ->
-                                            Text(AttaLocale.tr("حذف حساب قيد الاستكمال: @${deletion.optString(")username")}", color = GoldLight)
+                                            Text("حذف حساب قيد الاستكمال: @${deletion.optString("username")}", color = GoldLight)
                                             GoldButton("استكمال حذف الحساب", !busy) {
                                                 confirmAccountAction = "delete_user"; confirmAccountUser = deletion.optString("username")
                                                 accountDeleteProgress = ""; error = ""
@@ -3587,7 +3587,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                     CardBox {
                                         Text("${if (report.optString("targetType") == "post") "منشور" else "حساب"} • ${report.optString("targetId")}", color = GoldLight)
                                         Text(report.optString("reason"), color = White)
-                                        Text(AttaLocale.tr("مقدّم البلاغ: @${report.optString(")reporter")}", color = Muted)
+                                        Text("مقدّم البلاغ: @${report.optString("reporter")}", color = Muted)
                                         val author = report.optString("targetUsername")
                                         if (author.isNotBlank()) TextButton(onClick = { openPublicProfile(author) }) { Text(AttaLocale.tr("مراجعة حساب الناشر"), color = GoldLight) }
                                         if (adminRole == "super_admin" && report.optString("targetType") == "post") TextButton(onClick = { confirmPostDelete = report.optString("targetId") }) {
@@ -3834,7 +3834,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                             }
                             items(groups) { g -> CardBox {
                                 Text(g.optString("name"), color = GoldLight, fontWeight = FontWeight.Bold)
-                                Text(AttaLocale.tr("الأعضاء: ${g.optJSONArray(")members")?.length() ?: 0}", color = Color.LightGray)
+                                Text("الأعضاء: ${g.optJSONArray("members")?.length() ?: 0}", color = Color.LightGray)
                             } }
                         }
                         "يوتيوب" -> LazyColumn(Modifier.weight(1f).padding(8.dp), state = youtubeListState,
@@ -4059,7 +4059,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                             "التعليم" to profileEducation, "العمل" to profileWork).forEach { (label, value) ->
                                             if (value.isNotBlank()) Text("$label: $value", color = White)
                                         }
-                                        Text(AttaLocale.tr("طلبات الصداقة: ${if (allowFriendRequests) ")مسموحة" else "مخفية"}", color = Muted)
+                                        Text("طلبات الصداقة: ${if (allowFriendRequests) "مسموحة" else "مخفية"}", color = Muted)
                                     }
                                     Spacer(Modifier.height(6.dp))
                                     PremiumAuthOutlineButton("تغيير كلمة السر") { changePasswordDialog = true }
