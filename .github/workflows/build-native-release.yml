@@ -40,7 +40,7 @@ jobs:
       - name: Set up Gradle 8.9
         uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: '8.9'
+          gradle-version: '8.11.1'
 
       - name: Verify native source and version
         shell: bash
@@ -179,7 +179,7 @@ jobs:
           set -euo pipefail
           echo "sdk.dir=$ANDROID_HOME" > android-native/local.properties
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
-            'platforms;android-35' 'build-tools;35.0.0' >/dev/null
+            'platforms;android-36' 'build-tools;36.0.0' >/dev/null
 
       - name: Restore official signing key
         shell: bash
@@ -253,7 +253,7 @@ jobs:
           python3 scripts/check_mushaf_apk.py "$APK"
           python3 scripts/check_slim_apk.py "$APK"
           python3 scripts/check_store_apk.py "$APK" --channel direct
-          APKSIGNER="$ANDROID_HOME/build-tools/35.0.0/apksigner"
+          APKSIGNER="$ANDROID_HOME/build-tools/36.0.0/apksigner"
           "$APKSIGNER" verify --verbose "$APK"
           ACTUAL_SHA1="$("$APKSIGNER" verify --print-certs "$APK" | sed -n 's/.*certificate SHA-1 digest:[[:space:]]*//p' | head -n 1 | tr -d ':[:space:]' | tr '[:lower:]' '[:upper:]')"
           test "$ACTUAL_SHA1" = '62E90655FDAF3788706105CF4D998592CBBD8275' || {
@@ -284,8 +284,8 @@ jobs:
           python3 ../scripts/check_mushaf_apk.py "$APK"
           python3 ../scripts/check_slim_apk.py "$APK"
           python3 ../scripts/check_store_apk.py "$APK" --channel appgallery
-          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose "$APK"
-          ACTUAL_SHA1="$("$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --print-certs "$APK" | sed -n 's/.*certificate SHA-1 digest:[[:space:]]*//p' | head -n 1 | tr -d ':[:space:]' | tr '[:lower:]' '[:upper:]')"
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose "$APK"
+          ACTUAL_SHA1="$("$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --print-certs "$APK" | sed -n 's/.*certificate SHA-1 digest:[[:space:]]*//p' | head -n 1 | tr -d ':[:space:]' | tr '[:lower:]' '[:upper:]')"
           test "$ACTUAL_SHA1" = '62E90655FDAF3788706105CF4D998592CBBD8275'
           cp "$APK" "../release-output/tawasol-alatta-v${RELEASE_VERSION}-appgallery.apk"
           cd ../release-output
