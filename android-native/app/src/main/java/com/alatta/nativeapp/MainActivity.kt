@@ -937,6 +937,8 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
 }
 
 @Composable private fun NativeApp() {
+    val context = LocalContext.current
+    remember(context) { AttaLocale.init(context); true }
     AttaPrivacyGate { revoke, onSignedIn -> NativeAppContent(revoke, onSignedIn) }
 }
 
