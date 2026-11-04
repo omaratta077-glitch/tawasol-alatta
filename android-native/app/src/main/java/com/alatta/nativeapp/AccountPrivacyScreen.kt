@@ -37,7 +37,7 @@ internal fun AccountPrivacyScreen(
         Text(AttaLocale.tr("حذف الحساب والبيانات"), color = PremiumGoldLight)
         Text(AttaLocale.tr("يمكنك إرسال طلب حذف حسابك والمنشورات والوسائط والرسائل والروابط المرتبطة به. تراجعه الإدارة للتحقق من الملكية وتنفّذ الحذف من الآلية نفسها. إرسال الطلب لا يحذف الحساب فورًا."), color = Color.White)
         if (deletionRequest?.optString("status") == "pending") {
-            Text(AttaLocale.tr("طلبك قيد المعالجة • ${deletionRequest.optString(")id").take(8)}", color = PremiumGoldLight)
+            Text("طلبك قيد المعالجة • ${deletionRequest.optString("id").take(8)}", color = PremiumGoldLight)
             OutlinedButton(onClick = onCancelDeletion, enabled = !busy) { Text(AttaLocale.tr("إلغاء طلب الحذف")) }
         } else Button(onClick = { confirmation = ""; reason = ""; deleteDialog = true }, enabled = !busy) { Text(AttaLocale.tr("طلب حذف حسابي")) }
         TextButton(onClick = onRefresh, enabled = !busy) { Text(AttaLocale.tr("تحديث حالة الطلب")) }
