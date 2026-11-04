@@ -54,7 +54,21 @@ internal object AttaLocale {
     }
 
     fun choose(context: Context, choice: String) {
-        language = if (choice == "en") "en" else "ar/**
+        language = if (choice == "en") "en" else "ar"
+        context.getSharedPreferences("alatta_native", Context.MODE_PRIVATE).edit()
+            .putString("ui_language", language).apply()
+    }
+
+    fun tr(original: String): String {
+        if (language != "en") return original
+        english[original]?.let { return it }
+        val trimmed = original.trim()
+        return english[trimmed]?.let { original.takeWhile(Char::isWhitespace) + it +
+            original.takeLastWhile(Char::isWhitespace) } ?: original
+    }
+}
+
+/**
  * One reusable language dropdown for login, in-app settings and any other entry point.
  * Switching updates Compose immediately; AttaLocale.choose persists the selection.
  */
