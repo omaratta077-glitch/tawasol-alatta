@@ -183,7 +183,7 @@ internal fun PremiumSearchBar(onClick: () -> Unit) {
         horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         SiteIcon("search", size = 20.dp, tint = PremiumGold)
-        Text("ابحث عن الأشخاص أو المنشورات...", color = PremiumMuted, fontSize = 12.sp,
+        Text(AttaLocale.tr("ابحث عن الأشخاص أو المنشورات..."), color = PremiumMuted, fontSize = 12.sp,
             maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
@@ -242,7 +242,7 @@ internal fun PremiumBottomNav(current: String, go: (String) -> Unit) {
                     tint = if (name == "ريلز") Color.White else if (selected) PremiumGoldLight else PremiumMuted,
                     size = 23.dp)
                 Spacer(Modifier.height(4.dp))
-                Text(label, color = if (selected) PremiumGoldLight else PremiumMuted,
+                Text(AttaLocale.tr(label), color = if (selected) PremiumGoldLight else PremiumMuted,
                     fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 if (selected) Box(Modifier.padding(top = 3.dp).width(20.dp).height(2.dp)
                     .background(PremiumGold, CircleShape))
@@ -263,7 +263,7 @@ internal fun PremiumOutlineAction(icon: String, text: String, onClick: () -> Uni
         horizontalArrangement = Arrangement.spacedBy(5.dp)
     ) {
         SiteIcon(icon, size = 18.dp)
-        Text(text, fontSize = 11.sp, color = PremiumGoldLight, maxLines = 1)
+        Text(AttaLocale.tr(text), fontSize = 11.sp, color = PremiumGoldLight, maxLines = 1)
     }
 }
 
@@ -391,7 +391,7 @@ internal fun PremiumMenuEntry(icon: String, label: String, danger: Boolean = fal
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         SiteIcon(icon, size = 22.dp, tint = if (danger) Color(0xFFFF8989) else PremiumGoldLight)
-        Text(label, color = if (danger) Color(0xFFFF8989) else Color.White,
+        Text(AttaLocale.tr(label), color = if (danger) Color(0xFFFF8989) else Color.White,
             fontSize = 15.sp, fontWeight = FontWeight.Medium)
     }
 }
