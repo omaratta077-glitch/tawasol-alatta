@@ -40,16 +40,16 @@ internal fun AdhanVoiceSelector(settings: PrayerSettings, onSelect: (AdhanVoice)
         catch (_: Exception) { error = "تعذر تحديث تسجيلات الإدارة. الأصوات المحفوظة والقائمة الأساسية متاحة." }
         finally { loading = false }
     } }
-    TextButton(onClick = { open = true }) { Text("اختيار المؤذن • الحرمين وكبار القراء", color = PremiumGoldLight) }
+    TextButton(onClick = { open = true }) { Text(AttaLocale.tr("اختيار المؤذن • الحرمين وكبار القراء"), color = PremiumGoldLight) }
     if (open) {
         LaunchedEffect(Unit) {
             voices = withContext(Dispatchers.IO) { AdhanVoices.catalog(context) }
             refresh()
         }
         AlertDialog(onDismissRequest = { if (downloading.isBlank()) open = false },
-            title = { Text("أصوات المؤذنين") }, text = {
+            title = { Text(AttaLocale.tr("أصوات المؤذنين")) }, text = {
                 Column(Modifier.heightIn(max = 460.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("اختر تسجيلًا لتنزيله مرة واحدة، ثم يعمل الأذان به دون إنترنت. يمكنك تجربة الصوت بعد الاختيار.", fontSize = 13.sp)
+                    Text(AttaLocale.tr("اختر تسجيلًا لتنزيله مرة واحدة، ثم يعمل الأذان به دون إنترنت. يمكنك تجربة الصوت بعد الاختيار."), fontSize = 13.sp)
                     if (loading) LinearProgressIndicator(Modifier.fillMaxWidth())
                     if (error.isNotBlank()) Text(error, color = Color(0xFFD3A846), fontSize = 12.sp)
                     voices.forEach { voice ->
@@ -61,7 +61,7 @@ internal fun AdhanVoiceSelector(settings: PrayerSettings, onSelect: (AdhanVoice)
                         Text(if (cached) "محفوظ على الهاتف" else "حجم التنزيل: ${"%.1f".format(voice.size / 1048576f)} ميجابايت", fontSize = 11.sp)
                         if (voice.sourceUrl.isNotBlank()) TextButton(onClick = {
                             runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(voice.sourceUrl))) }
-                        }) { Text("مصدر التسجيل", fontSize = 11.sp) }
+                        }) { Text(AttaLocale.tr("مصدر التسجيل"), fontSize = 11.sp) }
                         Button(enabled = downloading.isBlank(), onClick = { scope.launch {
                             downloading = voice.id; error = ""
                             try {
@@ -74,8 +74,8 @@ internal fun AdhanVoiceSelector(settings: PrayerSettings, onSelect: (AdhanVoice)
                         } }) { Text(when { downloading == voice.id -> "جارٍ تنزيل التسجيل…"; selected -> "المؤذن المختار"; cached -> "اختيار هذا المؤذن"; else -> "تنزيل واختيار" }) }
                     }
                 }
-            }, confirmButton = { TextButton(enabled = !loading && downloading.isBlank(), onClick = { refresh() }) { Text("تحديث القائمة") } },
-            dismissButton = { TextButton(enabled = downloading.isBlank(), onClick = { open = false }) { Text("رجوع") } })
+            }, confirmButton = { TextButton(enabled = !loading && downloading.isBlank(), onClick = { refresh() }) { Text(AttaLocale.tr("تحديث القائمة")) } },
+            dismissButton = { TextButton(enabled = downloading.isBlank(), onClick = { open = false }) { Text(AttaLocale.tr("رجوع")) } })
     }
 }
 
@@ -122,14 +122,14 @@ internal fun AdminAdhanVoicesPanel(token: String) {
         if (uri != null) { picked = uri; uploaded = null; message = "تم اختيار التسجيل" }
     }
     suspend fun load() { voices = AdhanVoices.refresh(context).filter { it.id.startsWith("admin-") } }
-    OutlinedButton(onClick = { open = true }) { Text("إدارة أصوات المؤذنين", color = PremiumGoldLight) }
+    OutlinedButton(onClick = { open = true }) { Text(AttaLocale.tr("إدارة أصوات المؤذنين"), color = PremiumGoldLight) }
     if (open) {
         LaunchedEffect(Unit) { try { load() } catch (e: CancellationException) { throw e } catch (_: Exception) { message = "تعذر تحميل القائمة؛ أعد فتحها عند عودة الاتصال" } }
-        AlertDialog(onDismissRequest = { if (!busy) open = false }, title = { Text("إدارة أصوات المؤذنين") }, text = {
+        AlertDialog(onDismissRequest = { if (!busy) open = false }, title = { Text(AttaLocale.tr("إدارة أصوات المؤذنين")) }, text = {
             Column(Modifier.heightIn(max = 460.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text("أضف اسم المؤذن وتسجيل الأذان ليظهر الاختيار لكل مستخدمي التطبيق. التسجيل حتى 20 ميجابايت و10 دقائق.", fontSize = 13.sp)
-                OutlinedTextField(name, onValueChange = { name = it.take(80) }, label = { Text("اسم المؤذن") }, singleLine = true, enabled = !busy)
-                OutlinedTextField(mosque, onValueChange = { mosque = it.take(120) }, label = { Text("المسجد أو وصف التسجيل (اختياري)") }, singleLine = true, enabled = !busy)
+                Text(AttaLocale.tr("أضف اسم المؤذن وتسجيل الأذان ليظهر الاختيار لكل مستخدمي التطبيق. التسجيل حتى 20 ميجابايت و10 دقائق."), fontSize = 13.sp)
+                OutlinedTextField(name, onValueChange = { name = it.take(80) }, label = { Text(AttaLocale.tr("اسم المؤذن")) }, singleLine = true, enabled = !busy)
+                OutlinedTextField(mosque, onValueChange = { mosque = it.take(120) }, label = { Text(AttaLocale.tr("المسجد أو وصف التسجيل (اختياري)")) }, singleLine = true, enabled = !busy)
                 OutlinedButton(enabled = !busy, onClick = { picker.launch(arrayOf("audio/*")) }) { Text(if (picked == null) "اختيار ملف الأذان" else "تغيير التسجيل المختار") }
                 if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
                 if (message.isNotBlank()) Text(message, fontSize = 12.sp)
@@ -144,22 +144,22 @@ internal fun AdminAdhanVoicesPanel(token: String) {
                     } catch (e: CancellationException) { throw e }
                     catch (e: Exception) { message = e.message ?: "تعذر حفظ التسجيل؛ أعد المحاولة" }
                     finally { busy = false }
-                } }) { Text("إضافة المؤذن للتطبيق") }
+                } }) { Text(AttaLocale.tr("إضافة المؤذن للتطبيق")) }
                 voices.forEach { voice ->
                     HorizontalDivider(); Text(voice.name)
                     if (voice.mosque.isNotBlank()) Text(voice.mosque, fontSize = 12.sp)
-                    TextButton(enabled = !busy, onClick = { remove = voice }) { Text("إزالة من القائمة") }
+                    TextButton(enabled = !busy, onClick = { remove = voice }) { Text(AttaLocale.tr("إزالة من القائمة")) }
                 }
             }
-        }, confirmButton = { TextButton(enabled = !busy, onClick = { open = false }) { Text("تم") } })
+        }, confirmButton = { TextButton(enabled = !busy, onClick = { open = false }) { Text(AttaLocale.tr("تم")) } })
     }
-    remove?.let { voice -> AlertDialog(onDismissRequest = { remove = null }, title = { Text("إزالة ${voice.name}؟") },
-        text = { Text("يتوقف ظهوره للاختيارات الجديدة. التسجيلات التي حفظها المستخدمون تظل تعمل على أجهزتهم.") },
+    remove?.let { voice -> AlertDialog(onDismissRequest = { remove = null }, title = { Text(AttaLocale.tr("إزالة ${voice.name}؟")) },
+        text = { Text(AttaLocale.tr("يتوقف ظهوره للاختيارات الجديدة. التسجيلات التي حفظها المستخدمون تظل تعمل على أجهزتهم.")) },
         confirmButton = { TextButton(enabled = !busy, onClick = { scope.launch {
             busy = true
             try { withContext(Dispatchers.IO) { attaApi("/api/admin/adhan-voices/delete", JSONObject().put("token", token).put("id", voice.id)) }; remove = null; load() }
             catch (e: CancellationException) { throw e }
             catch (e: Exception) { message = e.message ?: "تعذرت إزالة التسجيل"; remove = null }
             finally { busy = false }
-        } }) { Text("إزالة") } }, dismissButton = { TextButton(onClick = { remove = null }) { Text("رجوع") } }) }
+        } }) { Text(AttaLocale.tr("إزالة")) } }, dismissButton = { TextButton(onClick = { remove = null }) { Text(AttaLocale.tr("رجوع")) } }) }
 }

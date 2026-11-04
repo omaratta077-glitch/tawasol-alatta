@@ -1,5 +1,5 @@
-const CACHE="tawasol-alatta-web14-17";
-const STATIC_RE=/\.(?:css|js|png|jpg|jpeg|webp|svg|ico|wav|mp3|woff2?)$/i;
+const CACHE="tawasol-alatta-web14-23-bilingual";
+const STATIC_RE=/\.(?:css|js|png|jpg|jpeg|webp|svg|ico|wav|mp3|woff2?|json|webmanifest)$/i;
 
 self.addEventListener("install",event=>{
   self.skipWaiting();

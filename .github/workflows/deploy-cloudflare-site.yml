@@ -1,0 +1,49 @@
+name: Deploy AL-ATTA Cloudflare Site
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'cloudflare-site/**'
+      - 'scripts/build_web_assets.mjs'
+      - '.github/workflows/deploy-cloudflare-site.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: alatta-cloudflare-site-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check Cloudflare deployment credentials
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID || vars.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          if [[ -z "$CLOUDFLARE_API_TOKEN" || -z "$CLOUDFLARE_ACCOUNT_ID" ]]; then
+            echo 'Cloudflare deploy credentials not configured in repository settings.' >> "$GITHUB_STEP_SUMMARY"
+            echo '::warning::Missing CLOUDFLARE_API_TOKEN or CLOUDFLARE_ACCOUNT_ID. Live site left unchanged.'
+            echo 'false' > "$RUNNER_TEMP/alatta-deploy-ready"
+          else
+            echo 'true' > "$RUNNER_TEMP/alatta-deploy-ready"
+          fi
+      - name: Deploy existing worker and public assets
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID || vars.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          if [[ "$(cat "$RUNNER_TEMP/alatta-deploy-ready")" != 'true' ]]; then
+            exit 0
+          fi
+          npm install --prefix cloudflare-site --no-package-lock --ignore-scripts --no-audit --no-fund
+          cd cloudflare-site
+          npx --no-install wrangler deploy

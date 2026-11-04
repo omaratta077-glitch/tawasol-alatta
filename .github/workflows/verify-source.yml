@@ -72,6 +72,7 @@ jobs:
           node scripts/web-tests/watch-room.mjs
           node scripts/web-tests/admin-profile.mjs
           node scripts/web-tests/pwa-layout.mjs
+          node scripts/web-tests/i18n.mjs
           node scripts/web-tests/birthdate.mjs
           node scripts/web-tests/google-signup.mjs
           node scripts/web-tests/youtube-mobile.mjs

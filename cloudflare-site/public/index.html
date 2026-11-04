@@ -23,7 +23,7 @@
     "AL ATTA Media"
   ],
   "description": "تواصل العطا (تواصل العطاء) – AL-ATTA Media، منصة عربية للتواصل الاجتماعي والرسائل والمكالمات الصوتية والمرئية، والقرآن الكريم والأذكار والرياضة.",
-  "inLanguage": "ar"
+  "inLanguage": ["ar", "en"]
 }
 </script>
 <meta property="og:site_name" content="تواصل العطا">
@@ -286,6 +286,40 @@
   }
 }
 </style>
+<style id="atta-i18n-styles">
+.atta-language-selector{display:flex;justify-content:center;align-items:center;gap:10px;
+  font-size:13px;color:#e6ba53;min-height:36px;margin:4px auto 12px}
+.atta-language-selector select{color:#f4d17a;background:#101315;border:1px solid #987734;
+  border-radius:12px;padding:8px 12px;min-width:110px;max-width:100%;font:inherit}
+.atta-language-menu{justify-content:flex-start;margin:0 0 14px}
+html[lang="en"] body,html[lang="en"] #appView,html[lang="en"] .atta-login-card{direction:ltr}
+html[lang="en"] #appView .reference-header-inner,
+html[lang="en"] #appView .reference-header-actions,
+html[lang="en"] #appView .premium-nav,
+html[lang="en"] .atta-signup-legal,
+html[lang="en"] .mobile-install-actions,
+html[lang="en"] .post-media-viewer,
+html[lang="en"] .post-interactions-overlay,
+html[lang="en"] .admin-secret-dialog,
+html[lang="en"] #callOverlay,
+html[lang="en"] #incomingModal .modal-card{direction:ltr!important}
+html[lang="en"] #appView .native-search-bar,
+html[lang="en"] #appView .person-main,
+html[lang="en"] #appView .friend-card,
+html[lang="en"] #appView .reference-suggestion-user,
+html[lang="en"] #appView .profile-title-block,
+html[lang="en"] #appView .profile-bio,
+html[lang="en"] #appView .profile-post-head,
+html[lang="en"] #appView .profile-post-card,
+html[lang="en"] #appView .smart-notification-card,
+html[lang="en"] #appView .reference-search span,
+html[lang="en"] #appView .reference-composer-name,
+html[lang="en"] #authView .atta-login-card input,
+html[lang="en"] #authView .atta-login-card select{text-align:left!important}
+
+html[lang="ar"] body,html[lang="ar"] #appView,html[lang="ar"] .atta-login-card{direction:rtl}
+.post-text,.reference-post-text,.chat-message-text,.comment-body,.hadith-text,.quran-content,.adhkar-text{unicode-bidi:plaintext}
+</style>
 </head>
 <body>
 
@@ -301,7 +335,11 @@
     <div class="atta-login-card">
       <!-- Tawasol Al-Atta: رابط التنزيل الرسمي لـAndroid، ظاهر قبل تسجيل الدخول -->
 
-      <div class="atta-language">العربية</div>
+      <label class="atta-language-selector" for="attaLoginLanguage">اللغة / Language
+        <select id="attaLoginLanguage" data-atta-language aria-label="Language / اللغة">
+          <option value="ar">العربية</option><option value="en">English</option>
+        </select>
+      </label>
 
       <div class="atta-login-brand">
         <img src="logo-premium.png?v=14.15" class="atta-login-logo" alt="AL-ATTA MEDIA">
@@ -904,6 +942,11 @@
 </section>
 <section id="morePage" class="page" aria-label="المزيد">
  <h2>المزيد</h2>
+ <label class="atta-language-selector atta-language-menu" for="attaMenuLanguage">اللغة / Language
+   <select id="attaMenuLanguage" data-atta-language aria-label="Language / اللغة">
+     <option value="ar">العربية</option><option value="en">English</option>
+   </select>
+ </label>
  <div class="native-more-list">
 
   <button class="native-button" data-web-go="searchPage"><span data-atta-icon="search"></span>استكشاف</button>
@@ -983,6 +1026,7 @@
 
 <script src="config.js"></script>
 <script src="icons.js?v=14.15"></script>
+<script src="i18n.js?v=1"></script>
 <script src="app.js?v=14.19"></script>
 <script src="sports-browser-player.js?v=14.20" defer></script>
 <script src="ytv-web-launch.js?v=14.21" defer></script>
