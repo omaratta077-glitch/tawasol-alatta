@@ -283,7 +283,7 @@ internal fun AttaFreshReelsViewer(
                     social!=null -> key(reel.key){
                         SocialVideoPostEmbed(social,Modifier.fillMaxSize(),portrait=true,onSwipe=onWebDrag)
                     }
-                    else -> Text("جاري تحميل الفيديو...",color=Color.White,
+                    else -> Text(AttaLanguage.text("جاري تحميل الفيديو..."),color=Color.White,
                         modifier=Modifier.align(Alignment.Center))
                 }
                 // The YouTube iframe consumes touch events. These empty side rails
@@ -379,7 +379,7 @@ internal fun AttaFreshReelsViewer(
                         horizontalAlignment=Alignment.CenterHorizontally){
                         Text(error,color=Color(0xFFFFAAAA),fontSize=12.sp)
                         if(isUploaded&&player!=null)TextButton(onClick={error="";player.prepare();player.play()}){
-                            Text("إعادة المحاولة",color=Color(0xFFF6D776))
+                            Text(AttaLanguage.text("إعادة المحاولة"),color=Color(0xFFF6D776))
                         }
                     }
                 }
