@@ -143,7 +143,7 @@ internal fun FootballScreen(query: String, modifier: Modifier = Modifier,
             val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
             clipboard.setPrimaryClip(android.content.ClipData.newPlainText("آخر تقرير للقناة", report))
             android.widget.Toast.makeText(context, "تم نسخ آخر تقرير", android.widget.Toast.LENGTH_SHORT).show()
-        }) { Text("نسخ آخر تقرير للقناة", color = PremiumGoldLight) }
+        }) { Text(AttaLocale.tr("نسخ آخر تقرير للقناة"), color = PremiumGoldLight) }
     }
     playerFailure?.let { YtvPlayerErrorDialog(it, onDismiss = { playerFailure = null }) }
     nativeSession?.let { session -> key(session.id) {
@@ -192,7 +192,7 @@ internal fun FootballContent(catalog: FootballCatalog, query: String, favorites:
                 contentPadding = PaddingValues(horizontal = 7.dp, vertical = 4.dp), shape = RoundedCornerShape(12.dp)) {
                 SiteIcon("users", size = 16.dp, tint = PremiumGoldLight)
                 Spacer(Modifier.width(4.dp))
-                Text("شاهد مع أصحابك", color = PremiumGoldLight, fontSize = 11.sp, lineHeight = 14.sp,
+                Text(AttaLocale.tr("شاهد مع أصحابك"), color = PremiumGoldLight, fontSize = 11.sp, lineHeight = 14.sp,
                     maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             IconButton(onClick = onBroadcast, modifier = Modifier.size(40.dp)
@@ -212,8 +212,8 @@ internal fun FootballContent(catalog: FootballCatalog, query: String, favorites:
         if (loading) LinearProgressIndicator(Modifier.fillMaxWidth(), color = PremiumGold)
         if (error.isNotBlank()) Text(error, color = Color(0xFFFFB4A9), fontSize = 12.sp)
         if (directTab) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            FilterChip(selected = !showSchedule, onClick = { showSchedule = false }, label = { Text("بث القنوات", fontSize = 12.sp) })
-            FilterChip(selected = showSchedule, onClick = { showSchedule = true }, label = { Text("جدول اليوم", fontSize = 12.sp) })
+            FilterChip(selected = !showSchedule, onClick = { showSchedule = false }, label = { Text(AttaLocale.tr("بث القنوات"), fontSize = 12.sp) })
+            FilterChip(selected = showSchedule, onClick = { showSchedule = true }, label = { Text(AttaLocale.tr("جدول اليوم"), fontSize = 12.sp) })
         }
         if (directTab && showSchedule) {
             Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -221,11 +221,11 @@ internal fun FootballContent(catalog: FootballCatalog, query: String, favorites:
                     FilterChip(selected = day == index, onClick = { day = index }, label = { Text(label, fontSize = 12.sp) })
                 }
             }
-            Text("المواعيد بتوقيت جهازك • ${ZoneId.systemDefault().id}", color = PremiumMuted, fontSize = 11.sp)
+            Text(AttaLocale.tr("المواعيد بتوقيت جهازك • ${ZoneId.systemDefault().id}"), color = PremiumMuted, fontSize = 11.sp)
             val date = if (day == 2) null else LocalDate.now().plusDays(day.toLong())
             val matches = footballMatchesOn(catalog.matches, date, query)
             LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                if (!loading && matches.isEmpty()) item { FootballPanel { Text("لا توجد مباريات لهذا الموعد", color = PremiumMuted) } }
+                if (!loading && matches.isEmpty()) item { FootballPanel { Text(AttaLocale.tr("لا توجد مباريات لهذا الموعد"), color = PremiumMuted) } }
                 items(matches, key = { it.id }) { match ->
                     val channel = visible.firstOrNull { it.id == match.channelId }
                     FootballPanel {
@@ -241,7 +241,7 @@ internal fun FootballContent(catalog: FootballCatalog, query: String, favorites:
                         }
                         if (day == 2) Text(footballDate(match.startsAt).toString(), color = PremiumMuted, fontSize = 12.sp)
                         if (channel != null) OutlinedButton(onClick = { playVisible(channel) }, enabled = channel.format != "ytv" || !callInProgress,
-                            modifier = Modifier.fillMaxWidth()) { Text("مشاهدة • ${channel.name}", color = PremiumGoldLight) }
+                            modifier = Modifier.fillMaxWidth()) { Text(AttaLocale.tr("مشاهدة • ${channel.name}"), color = PremiumGoldLight) }
                     }
                 }
             }
@@ -288,7 +288,7 @@ internal fun FootballChannelCard(channel: FootballChannel, favorite: Boolean, en
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     SiteIcon("play", size = 16.dp, tint = PremiumGoldLight)
-                    Text("تشغيل", color = PremiumGoldLight, fontSize = 12.sp)
+                    Text(AttaLocale.tr("تشغيل"), color = PremiumGoldLight, fontSize = 12.sp)
                 }
                 footballQuality(channel.category).takeIf { it.isNotBlank() }?.let { Text(it, color = PremiumMuted, fontSize = 11.sp) }
             }
