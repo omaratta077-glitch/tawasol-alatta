@@ -183,13 +183,14 @@ internal fun PremiumSearchBar(onClick: () -> Unit) {
         horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         SiteIcon("search", size = 20.dp, tint = PremiumGold)
-        Text("ابحث عن الأشخاص أو المنشورات...", color = PremiumMuted, fontSize = 12.sp,
+        Text(AttaLanguage.text("ابحث عن الأشخاص أو المنشورات..."), color = PremiumMuted, fontSize = 12.sp,
             maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 
 @Composable
 internal fun PremiumBottomNav(current: String, go: (String) -> Unit) {
+    val languageContext = androidx.compose.ui.platform.LocalContext.current
     // يقع هذا الشريط داخل safeDrawingPadding() في الحاوية الأم، فوق
     // عناصر الرجوع والرئيسية في Android، لا متداخلًا معها.
     // شريط تنقل أفقي قابل للتمرير؛ يحل محل الشريط القديم الثابت ذي خمسة عناصر.
@@ -206,7 +207,8 @@ internal fun PremiumBottomNav(current: String, go: (String) -> Unit) {
         Triple("الأذكار", "hand-heart", "الأذكار"),
         Triple("الرياضة", "trophy", "الرياضة"),
         Triple("يوتيوب", "play-circle", "يوتيوب"),
-        Triple("القائمة", "ellipsis", "المزيد")
+        Triple("القائمة", "ellipsis", "المزيد"),
+        Triple("__language__", "languages", if (AttaLanguage.code == "ar") "English" else "العربية")
     )
     val scroll = rememberScrollState()
     Row(
@@ -234,7 +236,7 @@ internal fun PremiumBottomNav(current: String, go: (String) -> Unit) {
                         if (selected) PremiumGoldLight else PremiumBorder.copy(alpha = .30f),
                         RoundedCornerShape(13.dp))
                     .attaGoldShine(selected)
-                    .clickable { go(name) },
+                    .clickable { if (name == "__language__") AttaLanguage.toggle(languageContext) else go(name) },
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center
             ) {
@@ -242,7 +244,7 @@ internal fun PremiumBottomNav(current: String, go: (String) -> Unit) {
                     tint = if (name == "ريلز") Color.White else if (selected) PremiumGoldLight else PremiumMuted,
                     size = 23.dp)
                 Spacer(Modifier.height(4.dp))
-                Text(label, color = if (selected) PremiumGoldLight else PremiumMuted,
+                Text(if (name == "__language__") label else AttaLanguage.text(label), color = if (selected) PremiumGoldLight else PremiumMuted,
                     fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 if (selected) Box(Modifier.padding(top = 3.dp).width(20.dp).height(2.dp)
                     .background(PremiumGold, CircleShape))
@@ -344,7 +346,7 @@ internal fun PremiumReactionAction(
             modifier = Modifier.background(PremiumPanel)
                 .border(1.dp, PremiumBorder, RoundedCornerShape(16.dp))
         ) {
-            Text("اختر تفاعلك", color = PremiumGoldLight, fontSize = 12.sp,
+            Text(AttaLanguage.text("اختر تفاعلك"), color = PremiumGoldLight, fontSize = 12.sp,
                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 3.dp))
             Row(Modifier.padding(horizontal = 7.dp, vertical = 4.dp),
                 horizontalArrangement = Arrangement.spacedBy(3.dp)) {
