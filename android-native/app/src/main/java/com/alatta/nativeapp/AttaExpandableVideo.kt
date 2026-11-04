@@ -127,6 +127,19 @@ internal data class AttaReelEntry(val post: JSONObject, val key: String,
     val videoUrl: String = "", val youtubeId: String? = null, val social: SocialVideoLink? = null,
     val youtubeIsShort: Boolean = false)
 
+/** Return a publicly shareable HTTPS reel link, never a local data URI or a signed/private URL. */
+internal fun externalReelShareUrl(entry: AttaReelEntry): String? {
+    val url = if (entry.youtubeId != null) {
+        val videoId = entry.youtubeId.takeIf { it.matches(Regex("[A-Za-z0-9_-]{11}")) } ?: return null
+        "https://www.youtube.com/watch?v=$videoId"
+    } else entry.social?.url ?: entry.videoUrl
+    val uri = runCatching { android.net.Uri.parse(url.trim()) }.getOrNull() ?: return null
+    if (uri.scheme != "https" || uri.host.isNullOrBlank() || uri.userInfo != null) return null
+    val sensitive = setOf("token", "access_token", "auth", "signature", "sig", "key")
+    if (uri.queryParameterNames.any { it.lowercase() in sensitive }) return null
+    return url.trim()
+}
+
 /** ريلز العطا تعرض الفيديوهات المرفوعة وروابط YouTube وMeta العامة من المنشورات. */
 internal fun uploadedPostReels(
     posts: List<JSONObject>,

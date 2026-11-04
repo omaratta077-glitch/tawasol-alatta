@@ -93,6 +93,8 @@ internal fun AttaFreshReelsViewer(
     var controls by remember(reel.key){mutableStateOf(true)}
     var error by remember(reel.key){mutableStateOf("")}
     var sheet by remember(reel.key){mutableStateOf<String?>(null)}
+    var shareMenu by remember(reel.key){mutableStateOf(false)}
+    val externalShareLink = remember(reel.key){externalReelShareUrl(reel)}
     var reactBusy by remember(reel.key){mutableStateOf(false)}
     var reactions by remember(reel.key){mutableIntStateOf(post.optInt("reactionCount",post.optInt("likesCount",0)))}
     var comments by remember(reel.key){mutableIntStateOf(post.optInt("commentCount",0))}
@@ -359,14 +361,8 @@ internal fun AttaFreshReelsViewer(
                                 lineHeight=15.sp,maxLines=1)
                         }
                     }
-                    if(onShare!=null){
-                        IconButton(onClick={
-                            scope.launch{
-                                try{onShare(id)}
-                                catch(cancelled:CancellationException){throw cancelled}
-                                catch(_:Exception){error="تعذّرت مشاركة المنشور."}
-                            }
-                        },modifier=Modifier.size(42.dp)
+                    if(onShare!=null || externalShareLink!=null){
+                        IconButton(onClick={shareMenu=true},modifier=Modifier.size(42.dp)
                             .background(Color(0xAA070707),CircleShape)){
                             SiteIcon("send",size=26.dp,tint=Color.White)
                         }
@@ -384,9 +380,9 @@ internal fun AttaFreshReelsViewer(
                     }
                 }
                 if(isUploaded && controls && player!=null && duration>0L){
-                    // Visually 2.5dp tall, but 44dp high to remain easy to scrub.
+                    // Keep the thin 2.5dp progress line, but lift it 12dp above its former position; 44dp touch target remains.
                     Canvas(Modifier.align(Alignment.BottomCenter).fillMaxWidth()
-                        .padding(start=17.dp,end=17.dp,bottom=20.dp).height(44.dp)
+                        .padding(start=17.dp,end=17.dp,bottom=32.dp).height(44.dp)
                         .pointerInput(player,duration){
                             detectTapGestures { position ->
                                 val fraction=(position.x/size.width.coerceAtLeast(1)).coerceIn(0f,1f)
@@ -421,6 +417,44 @@ internal fun AttaFreshReelsViewer(
                     }
                 }
             }
+        }
+        if(shareMenu){
+            AlertDialog(
+                onDismissRequest={shareMenu=false},
+                title={Text(AttaLocale.tr("مشاركة الريلز"))},
+                text={
+                    Column(verticalArrangement=Arrangement.spacedBy(6.dp)){
+                        if(onShare!=null) TextButton(onClick={
+                            shareMenu=false
+                            scope.launch {
+                                try { onShare(id) }
+                                catch(cancelled:CancellationException){throw cancelled}
+                                catch(_:Exception){error="تعذّرت مشاركة المنشور."}
+                            }
+                        }){Text(AttaLocale.tr("مشاركة كمنشور داخل العطا"))}
+                        if(externalShareLink!=null) TextButton(onClick={
+                            shareMenu=false
+                            try{
+                                val intent=android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                                    type="text/plain"
+                                    putExtra(android.content.Intent.EXTRA_TEXT,externalShareLink)
+                                }
+                                context.startActivity(android.content.Intent.createChooser(
+                                    intent,AttaLocale.tr("مشاركة خارج التطبيق")))
+                            }catch(_:Exception){
+                                error="تعذّرت المشاركة الخارجية."
+                                controls=true
+                            }
+                        }){Text(AttaLocale.tr("مشاركة خارج التطبيق"))}
+                    }
+                },
+                confirmButton={
+                    TextButton(onClick={shareMenu=false}){Text(AttaLocale.tr("إلغاء"))}
+                },
+                containerColor=Color(0xFF101315),
+                titleContentColor=Color(0xFFF6D776),
+                textContentColor=Color.White
+            )
         }
         if(sheet!=null && loadInteractions!=null && sendComment!=null)key(id,sheet){
             PostInteractionsSheet(id,sheet!!,loadInteractions,sendComment,

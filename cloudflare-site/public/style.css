@@ -4587,6 +4587,7 @@ body.post-media-open{overflow:hidden!important}
 .post-media-actions button{display:flex;align-items:center;gap:6px;padding:6px 9px}
 .post-media-actions svg{width:25px;height:25px}
 .post-media-actions button.active{color:#e6b94e}
+.post-media-actions button[data-media-external-share][hidden]{display:none!important}
 .post-media-error{color:#ffb5b5;font-size:14px}
 .post-media-progress{width:100%;height:24px;accent-color:#e6b94e;direction:ltr;margin:0}
 .post-media-viewer.controls-hidden .post-media-tools,.post-media-viewer.controls-hidden.playing .post-media-play{opacity:0;pointer-events:none}

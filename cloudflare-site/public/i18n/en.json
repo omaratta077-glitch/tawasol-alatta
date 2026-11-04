@@ -636,5 +636,13 @@
   "الجزء 28": "Juz 28",
   "الجزء 29": "Juz 29",
   "الجزء 30": "Juz 30",
-  "اختر لغة عرض التطبيق. يُحفظ اختيارك تلقائيًا.": "Choose your app display language. Your choice is saved automatically."
+  "اختر لغة عرض التطبيق. يُحفظ اختيارك تلقائيًا.": "Choose your app display language. Your choice is saved automatically.",
+  "مشاركة الريلز": "Share reel",
+  "مشاركة كمنشور داخل العطا": "Repost in AL-ATTA",
+  "مشاركة خارج التطبيق": "Share outside the app",
+  "مشاركة الفيديو خارج التطبيق": "Share video externally",
+  "تم نسخ رابط الفيديو للمشاركة.": "Video link copied for sharing.",
+  "هذا الفيديو ليس له رابط عام قابل للمشاركة.": "This video has no public shareable link.",
+  "تعذر فتح المشاركة. انسخ الرابط وأعد المحاولة.": "Could not open sharing. Copy the link and retry.",
+  "انسخ رابط الفيديو وشاركه:": "Copy and share this video link:"
 }

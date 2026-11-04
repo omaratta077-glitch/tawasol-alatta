@@ -2441,6 +2441,32 @@ function postTotalReactionCount(post){
   return names.size;
 }
 function currentMediaPost(){return postMediaUI.playlist[postMediaUI.index]||null;}
+
+/** Share only public HTTPS reels; don't expose session credentials or local data URLs. */
+function externalReelUrl(post){
+  if(!post||typeof post.video!=="string"||!post.video.trim())return "";
+  try{
+    const url=new URL(post.video,location.origin);
+    if(url.protocol!=="https:"||url.username||url.password)return "";
+    const privateKeys=new Set(["token","access_token","auth","signature","sig","key"]);
+    if([...url.searchParams.keys()].some(key=>privateKeys.has(key.toLowerCase())))return "";
+    return url.href;
+  }catch{return "";}
+}
+async function shareReelExternally(){
+  const url=externalReelUrl(currentMediaPost());
+  const note=postMediaUI.root?.querySelector('.post-media-error');
+  if(!url){if(note)note.textContent="هذا الفيديو ليس له رابط عام قابل للمشاركة.";return;}
+  try{
+    if(navigator.share){await navigator.share({title:"AL-ATTA Media",url});return;}
+    if(navigator.clipboard?.writeText){await navigator.clipboard.writeText(url);
+      if(note)note.textContent="تم نسخ رابط الفيديو للمشاركة.";return;}
+    window.prompt("انسخ رابط الفيديو وشاركه:",url);
+  }catch(error){
+    if(error?.name!=="AbortError"&&note)note.textContent="تعذر فتح المشاركة. انسخ الرابط وأعد المحاولة.";
+  }
+}
+
 function mediaLayerState(panel=null){return {session:postMediaUI.session,viewer:postMediaUI.viewerOpen,panel};}
 function pushMediaHistory(panel=null){history.pushState({...history.state,attaPostMedia:mediaLayerState(panel)},"");}
 function postMediaBack(){history.back();}
@@ -2514,7 +2540,7 @@ function createPostMediaRoot(){
   root.innerHTML=`<div class="post-media-stage"><img alt="صورة المنشور" draggable="false"><video playsinline preload="metadata"></video></div>
     <button class="post-media-play" aria-label="تشغيل الفيديو">${uiIcon("play")}</button>
     <div class="post-media-tools"><div class="post-media-error" role="status"></div><input class="post-media-progress" type="range" min="0" max="1000" value="0" aria-label="موضع تشغيل الفيديو">
-    <div class="post-media-actions"><button data-media-react aria-label="إعجاب">${iconHeart()}</button><button data-media-people aria-label="عرض أصحاب التفاعلات">0</button><button data-media-comments aria-label="عرض التعليقات">${iconComment()}<span>0</span></button></div></div>
+    <div class="post-media-actions"><button data-media-react aria-label="إعجاب">${iconHeart()}</button><button data-media-people aria-label="عرض أصحاب التفاعلات">0</button><button data-media-comments aria-label="عرض التعليقات">${iconComment()}<span>0</span></button><button data-media-external-share aria-label="مشاركة الفيديو خارج التطبيق">${iconShare()}</button></div></div>
     <button class="post-media-accessible-close" aria-label="الرجوع إلى المنشورات">الرجوع</button>`;
   document.body.append(root);postMediaUI.root=root;
   const video=root.querySelector("video"),play=root.querySelector(".post-media-play"),range=root.querySelector("input"),stage=root.querySelector(".post-media-stage"),image=root.querySelector("img");
@@ -2532,6 +2558,7 @@ function createPostMediaRoot(){
   };
   root.querySelector('[data-media-people]').onclick=()=>openPostPanel(currentMediaPost().id,"reactions");
   root.querySelector('[data-media-comments]').onclick=()=>openPostPanel(currentMediaPost().id,"comments");
+  root.querySelector('[data-media-external-share]').onclick=shareReelExternally;
   root.querySelector('.post-media-accessible-close').onclick=postMediaBack;
   const points=new Map();let down=null,pinch=0,baseZoom=1,moved=false,wasPinch=false;
   function transformImage(){
@@ -2580,6 +2607,7 @@ function renderPostMedia(autoplay=false){
   root.dataset.postId=post.id;root.dataset.kind=postMediaUI.kind;
   const isVideo=postMediaUI.kind==="video";video.hidden=!isVideo;image.hidden=isVideo;
   root.querySelector('.post-media-play').hidden=!isVideo;root.querySelector('.post-media-progress').hidden=!isVideo;
+  root.querySelector('[data-media-external-share]').hidden=!isVideo;
   if(isVideo){image.removeAttribute('src');video.src=post.video;video.load();if(autoplay)video.play().catch(()=>setMediaControls(true));}
   else{video.removeAttribute('src');video.load();image.src=post.image;}
   updateMediaStats(post.id,{reactionCount:postTotalReactionCount(post),commentCount:post.commentCount||post.comments?.length||0,myReaction:post.myReaction||""});

@@ -1054,7 +1054,6 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
     // كل فيديو له زر مشاركة واحد وخياران بدل حقل إدخال Shorts المنفصل.
     var youtubeShareSelection by remember { mutableStateOf<Pair<String, String>?>(null) }
     var youtubeShareChecking by remember { mutableStateOf(false) }
-    var socialVideoDraftUrl by remember { mutableStateOf("") }
     var activeYoutubePostId by remember { mutableStateOf("") }
     var activeYoutubePostVideoId by remember { mutableStateOf("") }
     // أعد تحميل الرئيسية من دون بدء عمل تمرير من عنصر تنقل خارج الشاشة.
@@ -3938,40 +3937,6 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                                 }
                                             }
                                         }
-                                    }
-                                }
-                            }
-                            item(key = "social_video_embed_input") {
-                                CardBox {
-                                    Text(AttaLocale.tr("فيديوهات فيسبوك وإنستجرام"), color = GoldLight,
-                                        fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                                    Text(AttaLocale.tr("شارك رابط فيديو أو ريلز عام داخل منشور العطا؛")
-                                        + " التشغيل داخل التطبيق حسب سماح المنصة بالتضمين.",
-                                        color = Muted, fontSize = 12.sp)
-                                    OutlinedTextField(
-                                        value = socialVideoDraftUrl,
-                                        onValueChange = { socialVideoDraftUrl = it.take(1000) },
-                                        modifier = Modifier.fillMaxWidth(),
-                                        label = { Text(AttaLocale.tr("رابط Facebook أو Instagram Reel")) },
-                                        singleLine = true
-                                    )
-                                    val socialLink = socialVideoUrl(socialVideoDraftUrl)
-                                    OutlinedButton(
-                                        enabled = socialLink != null && !busy,
-                                        onClick = {
-                                            if (socialLink != null) {
-                                                draft = if (draft.isBlank()) socialLink.url
-                                                    else draft.trim() + "\n\n" + socialLink.url
-                                                socialVideoDraftUrl = ""
-                                                youtubePlayRequested = false
-                                                openHomeComposer()
-                                            }
-                                        },
-                                        border = BorderStroke(1.dp, Gold),
-                                        shape = RoundedCornerShape(14.dp)) {
-                                        SiteIcon("share", tint = GoldLight, size = 18.dp)
-                                        Spacer(Modifier.width(6.dp))
-                                        Text(AttaLocale.tr("مشاركة الفيديو كمنشور داخل العطا"), color = GoldLight)
                                     }
                                 }
                             }
