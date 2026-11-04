@@ -12,9 +12,21 @@ android {
         versionCode = 2
         versionName = "1.1.0"
     }
+    signingConfigs {
+        create("officialRelease") {
+            val path = System.getenv("ALATTA_KEYSTORE_PATH")
+            if (!path.isNullOrBlank()) {
+                storeFile = file(path)
+                storePassword = System.getenv("ALATTA_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("ALATTA_KEY_ALIAS")
+                keyPassword = System.getenv("ALATTA_KEY_PASSWORD")
+            }
+        }
+    }
     buildTypes {
         getByName("release") {
             isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("officialRelease")
         }
     }
 }
