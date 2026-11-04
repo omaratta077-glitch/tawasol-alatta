@@ -49,7 +49,8 @@ internal fun AttaPrivacyGate(content: @Composable ((() -> Unit), (() -> Unit)) -
     var document by remember { mutableStateOf<String?>(null) }
     var agreedPrivacy by remember { mutableStateOf(false) }
     var agreedTerms by remember { mutableStateOf(false) }
-    CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
+    CompositionLocalProvider(LocalLayoutDirection provides
+        (if (AttaLocale.language == "en") LayoutDirection.Ltr else LayoutDirection.Rtl)) {
         MaterialTheme(colorScheme = darkColorScheme(primary = PremiumGold, background = PremiumBackground)) {
             if (!showWithdrawalGate) content({
                 AttaPrivacy.revoke(context)
@@ -62,6 +63,7 @@ internal fun AttaPrivacyGate(content: @Composable ((() -> Unit), (() -> Unit)) -
                 QuranReaderScreen(onExit = { offlineReader = false }, allowOnlineFeatures = false)
             } else Column(Modifier.fillMaxSize().background(PremiumBackground).safeDrawingPadding()
                 .verticalScroll(rememberScrollState()).padding(24.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                AttaLanguageSwitcher()
                 Text(AttaLocale.tr("خصوصيتك في تواصل العطا"), color = PremiumGoldLight, style = MaterialTheme.typography.headlineSmall)
                 Text(AttaLocale.tr("الفاتحة والصفحات المحفوظة متاحة بدون حساب أو اتصال. تُنزّل بقية صفحات المصحف عند فتحها، ويمكن تنزيل المصحف كاملًا من الفهرس. الخدمات الاجتماعية تحتاج بيانات الحساب والمنشورات والرسائل لتعمل، وتُحفظ لدى Cloudflare."), color = Color.White)
                 Text(AttaLocale.tr("الكاميرا والميكروفون عند المكالمة فقط. تسجيل Google والإشعارات ويوتيوب خدمات اختيارية، وتُستخدم عند اختيار وظائفها. يمكنك إيقاف الإشعارات وسحب الموافقة من القائمة."), color = PremiumMuted)
