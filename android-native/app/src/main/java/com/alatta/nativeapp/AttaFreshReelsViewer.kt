@@ -2,10 +2,13 @@ package com.alatta.nativeapp
 
 import android.view.WindowManager
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -15,11 +18,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.AbsoluteAlignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -69,7 +73,6 @@ internal fun AttaFreshReelsViewer(
     nextReelsCursor: String? = null,
     onLoadMoreReels: (() -> Unit)? = null,
     onRefreshReels: (() -> Unit)? = null,
-    onReelsNavigate: ((String) -> Unit)? = null,
     reelsLoading: Boolean = false
 ) {
     val context=LocalContext.current
@@ -98,6 +101,7 @@ internal fun AttaFreshReelsViewer(
     var youtubeCommand by remember(reel.key){mutableIntStateOf(0)}
     var youtubeCommandPlay by remember(reel.key){mutableStateOf(true)}
     var progress by remember(reel.key){mutableFloatStateOf(0f)}
+    var scrubbing by remember(reel.key){mutableStateOf(false)}
     var duration by remember(reel.key){mutableLongStateOf(0L)}
     var playing by remember{mutableStateOf(false)}
     var aspect by remember(reel.key){mutableFloatStateOf(16f/9f)}
@@ -155,7 +159,7 @@ internal fun AttaFreshReelsViewer(
         while(true){
             if(player!=null && isUploaded){
                 duration=player.duration.coerceAtLeast(0L)
-                progress=if(duration>0)(player.currentPosition.toFloat()/duration).coerceIn(0f,1f)else 0f
+                if(!scrubbing)progress=if(duration>0)(player.currentPosition.toFloat()/duration).coerceIn(0f,1f)else 0f
             }
             delay(400)
         }
@@ -326,27 +330,47 @@ internal fun AttaFreshReelsViewer(
                     .padding(10.dp).background(Color(0x99000000),CircleShape)){
                     SiteIcon("x",size=23.dp,tint=Color.White)
                 }
-                Column(Modifier.align(AbsoluteAlignment.CenterRight).padding(end=14.dp),
-                    verticalArrangement=Arrangement.spacedBy(18.dp),
+                // Compact vertical actions: counts stay immediately below their icons.
+                Column(Modifier.align(AbsoluteAlignment.CenterRight).padding(end=10.dp),
+                    verticalArrangement=Arrangement.spacedBy(12.dp),
                     horizontalAlignment=Alignment.CenterHorizontally){
                     if(sendReaction!=null){
-                        IconButton(onClick=react,enabled=!reactBusy){
-                            SiteIcon("heart",size=28.dp,
-                                tint=if(myReaction=="like")Color(0xFFF4CC71) else Color.White)
+                        Column(horizontalAlignment=Alignment.CenterHorizontally,
+                            verticalArrangement=Arrangement.spacedBy(0.dp)){
+                            IconButton(onClick=react,enabled=!reactBusy,
+                                modifier=Modifier.size(42.dp)
+                                    .background(Color(0xAA070707),CircleShape)){
+                                SiteIcon("heart",size=27.dp,
+                                    tint=if(myReaction=="like")Color(0xFFF4CC71) else Color.White)
+                            }
+                            Text("$reactions",color=Color.White,fontSize=12.sp,
+                                lineHeight=15.sp,maxLines=1)
                         }
-                        Text("$reactions",color=Color.White,fontSize=12.sp)
                     }
                     if(loadInteractions!=null && sendComment!=null){
-                        IconButton(onClick={sheet="comments"}){SiteIcon("message-circle",size=27.dp,tint=Color.White)}
-                        Text("$comments",color=Color.White,fontSize=12.sp)
-                    }
-                    if(onShare!=null)IconButton(onClick={
-                        scope.launch{
-                            try{onShare(id)}
-                            catch(cancelled:CancellationException){throw cancelled}
-                            catch(_:Exception){error="تعذّرت مشاركة المنشور."}
+                        Column(horizontalAlignment=Alignment.CenterHorizontally,
+                            verticalArrangement=Arrangement.spacedBy(0.dp)){
+                            IconButton(onClick={sheet="comments"},
+                                modifier=Modifier.size(42.dp)
+                                    .background(Color(0xAA070707),CircleShape)){
+                                SiteIcon("message-circle",size=26.dp,tint=Color.White)
+                            }
+                            Text("$comments",color=Color.White,fontSize=12.sp,
+                                lineHeight=15.sp,maxLines=1)
                         }
-                    }){SiteIcon("send",size=26.dp,tint=Color.White)}
+                    }
+                    if(onShare!=null){
+                        IconButton(onClick={
+                            scope.launch{
+                                try{onShare(id)}
+                                catch(cancelled:CancellationException){throw cancelled}
+                                catch(_:Exception){error="تعذّرت مشاركة المنشور."}
+                            }
+                        },modifier=Modifier.size(42.dp)
+                            .background(Color(0xAA070707),CircleShape)){
+                            SiteIcon("send",size=26.dp,tint=Color.White)
+                        }
+                    }
                 }
                 if(reelsLoading)CircularProgressIndicator(modifier=Modifier.align(Alignment.TopCenter)
                     .padding(top=22.dp).size(23.dp),color=Color(0xFFE6B94E))
@@ -360,16 +384,41 @@ internal fun AttaFreshReelsViewer(
                     }
                 }
                 if(isUploaded && controls && player!=null && duration>0L){
-                    Slider(value=progress,onValueChange={progress=it;player.seekTo((duration*it).toLong())},
-                        modifier=Modifier.align(Alignment.BottomCenter).padding(horizontal=16.dp,vertical=24.dp),
-                        colors=SliderDefaults.colors(thumbColor=Color(0xFFE6B94E),activeTrackColor=Color(0xFFE6B94E)))
-                }
-            }
-            if(onReelsNavigate!=null){
-                if(controls)PremiumBottomNav("ريلز",onReelsNavigate)
-                else Box(Modifier.fillMaxWidth().height(24.dp).clickable{controls=true},
-                    contentAlignment=Alignment.Center){
-                    Box(Modifier.width(40.dp).height(3.dp).background(Color(0xFFF1CB6E),RoundedCornerShape(30.dp)))
+                    // Visually 2.5dp tall, but 44dp high to remain easy to scrub.
+                    Canvas(Modifier.align(Alignment.BottomCenter).fillMaxWidth()
+                        .padding(horizontal=17.dp,bottom=4.dp).height(44.dp)
+                        .pointerInput(player,duration){
+                            detectTapGestures { position ->
+                                val fraction=(position.x/size.width.coerceAtLeast(1)).coerceIn(0f,1f)
+                                progress=fraction
+                                player.seekTo((duration*fraction).toLong())
+                            }
+                        }
+                        .pointerInput(player,duration){
+                            detectHorizontalDragGestures(
+                                onDragStart={ pos ->
+                                    scrubbing=true
+                                    progress=(pos.x/size.width.coerceAtLeast(1)).coerceIn(0f,1f)
+                                },
+                                onDragCancel={scrubbing=false},
+                                onDragEnd={
+                                    player.seekTo((duration*progress).toLong())
+                                    scrubbing=false
+                                },
+                                onHorizontalDrag={change,_ ->
+                                    progress=(change.position.x/size.width.coerceAtLeast(1)).coerceIn(0f,1f)
+                                    change.consume()
+                                }
+                            )
+                        }){
+                        val y=size.height/2f
+                        val filled=size.width*progress.coerceIn(0f,1f)
+                        drawLine(Color(0xFF545762),Offset(0f,y),Offset(size.width,y),
+                            strokeWidth=2.5.dp.toPx(),cap=StrokeCap.Round)
+                        drawLine(Color(0xFFE6B94E),Offset(0f,y),Offset(filled,y),
+                            strokeWidth=2.5.dp.toPx(),cap=StrokeCap.Round)
+                        drawCircle(Color(0xFFF6D776),radius=3.dp.toPx(),center=Offset(filled,y))
+                    }
                 }
             }
         }
