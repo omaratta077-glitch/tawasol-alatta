@@ -1,0 +1,69 @@
+name: Build AL-ATTA TV Gold Companion
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'android-native/tv-shell/**'
+      - 'android-native/settings.gradle.kts'
+      - 'android-native/app/src/main/java/com/alatta/nativeapp/YtvPlayer.kt'
+      - '.github/workflows/build-tv-gold-companion.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'android-native/tv-shell/**'
+      - 'android-native/settings.gradle.kts'
+      - '.github/workflows/build-tv-gold-companion.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  companion:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 16
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+      - name: Android 16 toolchain
+        run: |
+          echo "sdk.dir=$ANDROID_HOME" > android-native/local.properties
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" 'platforms;android-36' 'build-tools;36.0.0' >/dev/null
+      - name: Build separately signed gold companion (never repackage YTV)
+        working-directory: android-native
+        run: gradle --no-daemon --console=plain :tv-shell:assembleDebug
+      - name: Verify package, exported launcher and no copied YTV native libraries
+        run: |
+          set -euo pipefail
+          APK=android-native/tv-shell/build/outputs/apk/debug/tv-shell-debug.apk
+          test -s "$APK"
+          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$APK" | grep -F "package: name='com.alatta.tv'"
+          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$APK" | grep -F "launchable-activity: name='com.alatta.tv.LauncherActivity'"
+          test "$(unzip -Z1 "$APK" | grep -Ec '^lib/arm64-v8a/libpk-lib\.so$' || true)" -eq 0
+      - name: Upload signed trial APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: AL_ATTA_TV_GOLD_COMPANION_v1.0.0
+          path: android-native/tv-shell/build/outputs/apk/debug/tv-shell-debug.apk
+          if-no-files-found: error
+      - name: Release gold companion test APK on main
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          cp android-native/tv-shell/build/outputs/apk/debug/tv-shell-debug.apk AL_ATTA_TV_GOLD_COMPANION_v1.0.0.apk
+          TAG="alatta-tv-shell-v1.0.0"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" AL_ATTA_TV_GOLD_COMPANION_v1.0.0.apk --clobber
+          else
+            gh release create "$TAG" AL_ATTA_TV_GOLD_COMPANION_v1.0.0.apk \
+              --title "AL-ATTA TV Gold Companion v1.0.0 (trial)" \
+              --notes "Trial independent black/gold Android companion. Requires working com.ytv.pronew player installed; does not modify or contain its APK, video engine, or private channel service. Test build only."
+          fi

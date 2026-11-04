@@ -45,6 +45,20 @@ class YtvPlayerTest {
         } finally { parcel.recycle() }
     }
 
+    @Test fun companionSelectionPreservesExactChannelPayloadAndFallback() {
+        val original = requireNotNull(YtvPlayer.channelIntent("9223372036854775807"))
+        assertSame(original, YtvPlayer.choosePlayer(original, false))
+        val viaGold = YtvPlayer.choosePlayer(original, true)
+        assertEquals("com.alatta.tv", viaGold.component!!.packageName)
+        assertEquals("com.alatta.tv.LauncherActivity", viaGold.component!!.className)
+        assertEquals(Intent.ACTION_VIEW, viaGold.action)
+        assertEquals(Long.MAX_VALUE, viaGold.getLongExtra("id", -1))
+        assertEquals(1, viaGold.getIntExtra("type", -1))
+        assertEquals(setOf("id", "type"), viaGold.extras!!.keySet())
+        assertNull(viaGold.data)
+        assertEquals("com.ytv.pronew", original.component!!.packageName)
+    }
+
     @Test fun channelIdsNormalizeArabicDigitsAndRejectUrlsMalformedValuesAndOverflow() {
         assertEquals("41", YtvPlayer.channelId(" ٠٠٤١ "))
         assertEquals("4294967296", YtvPlayer.channelId("۴۲۹۴۹۶۷۲۹۶"))
