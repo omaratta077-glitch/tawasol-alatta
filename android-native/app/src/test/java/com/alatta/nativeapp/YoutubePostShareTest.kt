@@ -56,4 +56,24 @@ class YoutubePostShareTest {
         assertNull(youtubePostId(ordinary))
         assertEquals(ordinary, visibleYoutubePostText(ordinary))
     }
+    @Test fun externalReelsSharePublicLinksWithoutLeakingPrivateTokens() {
+        val post = org.json.JSONObject().put("id", "public")
+        assertEquals("https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+            externalReelShareUrl(AttaReelEntry(post, "yt", youtubeId = video)))
+        assertEquals("https://example.com/media/public.mp4",
+            externalReelShareUrl(AttaReelEntry(post, "video",
+                videoUrl = "https://example.com/media/public.mp4")))
+        assertEquals("https://www.instagram.com/reel/ABC123/",
+            externalReelShareUrl(AttaReelEntry(post, "social",
+                social = SocialVideoLink("instagram", "https://www.instagram.com/reel/ABC123/", ""))))
+        assertNull(externalReelShareUrl(AttaReelEntry(post, "private",
+            videoUrl = "https://example.com/media/private.mp4?token=secret")))
+        assertNull(externalReelShareUrl(AttaReelEntry(post, "local",
+            videoUrl = "data:video/mp4;base64,aaaa")))
+        assertNull(externalReelShareUrl(AttaReelEntry(post, "http",
+            videoUrl = "http://example.com/video.mp4")))
+        assertNull(externalReelShareUrl(AttaReelEntry(post, "invalid",
+            youtubeId = "incorrect")))
+    }
+
 }
