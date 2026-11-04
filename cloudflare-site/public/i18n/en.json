@@ -461,5 +461,21 @@
   "إعداد قراءة القائمة": "Catalog reading settings",
   "إعداد القراءة": "Reading settings",
   "يُحفظ على هذا الهاتف، ولا يظهر ضمن نسخ النتيجة.": "Stored on this phone; not included when copying results.",
-  "حذف الإعداد من الهاتف": "Delete phone setting"
+  "حذف الإعداد من الهاتف": "Delete phone setting",
+  "خصوصيتك في تواصل العطا": "Your privacy in AL-ATTA Media",
+  "الفاتحة والصفحات المحفوظة متاحة بدون حساب أو اتصال. تُنزّل بقية صفحات المصحف عند فتحها، ويمكن تنزيل المصحف كاملًا من الفهرس. الخدمات الاجتماعية تحتاج بيانات الحساب والمنشورات والرسائل لتعمل، وتُحفظ لدى Cloudflare.": "Al-Fatiha and saved Quran pages are available without an account or internet. Other pages download when opened, and you can download the full Mushaf from its index. Social features need account, post and message data stored on Cloudflare.",
+  "الكاميرا والميكروفون عند المكالمة فقط. تسجيل Google والإشعارات ويوتيوب خدمات اختيارية، وتُستخدم عند اختيار وظائفها. يمكنك إيقاف الإشعارات وسحب الموافقة من القائمة.": "Camera and microphone are used only during calls. Google sign-in, notifications and YouTube are optional features used when selected. You can disable notifications and withdraw consent from the menu.",
+  "قرأت سياسة الخصوصية وأوافق على معالجة البيانات اللازمة للخدمات التي أختارها.": "I read the Privacy Policy and agree to processing required for the features I choose.",
+  "قرأت شروط الاستخدام وألتزم بحقوق الآخرين وقواعد نشر المحتوى.": "I read the Terms of Use and agree to respect others and the content rules.",
+  "الموافقة والمتابعة": "Agree and continue",
+  "قراءة الصفحات المحفوظة دون اتصال": "Read saved pages offline",
+  "عدم الموافقة والخروج": "Decline and exit",
+  "شروط الاستخدام وقواعد المحتوى": "Terms of Use and content rules",
+  "حقوق البيانات وحذف الحساب": "Data rights and account deletion",
+  "قراءة الصفحات": "Read pages",
+  "حذف البيانات": "Delete data",
+  "عرض المستند": "View document",
+  "المواصلة باستخدام جوجل": "Continue with Google",
+  "إعداد حساب": "Set up account",
+  "العطا ميديا": "AL-ATTA Media"
 }
