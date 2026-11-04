@@ -179,7 +179,7 @@ jobs:
           set -euo pipefail
           echo "sdk.dir=$ANDROID_HOME" > android-native/local.properties
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
-            'platforms;android-35' 'build-tools;35.0.0' >/dev/null
+            'platforms;android-36' 'build-tools;35.0.0' >/dev/null
 
       - name: Restore official signing key
         shell: bash
