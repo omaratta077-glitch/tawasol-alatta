@@ -156,10 +156,10 @@ internal fun MessengerInbox(
 ) {
     var deletePeer by remember { mutableStateOf<ChatPreview?>(null) }
     deletePeer?.let { peer ->
-        AlertDialog(onDismissRequest = { deletePeer = null }, title = { Text("حذف المحادثة") },
-            text = { Text("حذف محادثة ${contactName(peer.user)} من حسابك؟ ستبقى لدى الطرف الآخر.") },
-            confirmButton = { TextButton(onClick = { deletePeer = null; onDeleteConversation(peer.username) }) { Text("حذف", color = Color.Red) } },
-            dismissButton = { TextButton(onClick = { deletePeer = null }) { Text("إلغاء") } }, containerColor = ChatPanel)
+        AlertDialog(onDismissRequest = { deletePeer = null }, title = { Text(AttaLanguage.text("حذف المحادثة")) },
+            text = { Text(AttaLanguage.text("حذف محادثة ${contactName(peer.user)} من حسابك؟ ستبقى لدى الطرف الآخر.")) },
+            confirmButton = { TextButton(onClick = { deletePeer = null; onDeleteConversation(peer.username) }) { Text(AttaLanguage.text("حذف"), color = Color.Red) } },
+            dismissButton = { TextButton(onClick = { deletePeer = null }) { Text(AttaLanguage.text("إلغاء")) } }, containerColor = ChatPanel)
     }
     var query by remember { mutableStateOf("") }
     var segment by remember { mutableStateOf("الكل") }
@@ -167,9 +167,9 @@ internal fun MessengerInbox(
     if (showNewChat) {
         AlertDialog(
             onDismissRequest = { showNewChat = false },
-            title = { Text("رسالة جديدة", color = ChatGoldBright) },
+            title = { Text(AttaLanguage.text("رسالة جديدة"), color = ChatGoldBright) },
             text = {
-                if (contacts.isEmpty()) Text("أضف أصدقاء من تبويب الأصدقاء أولًا", color = ChatSecondary)
+                if (contacts.isEmpty()) Text(AttaLanguage.text("أضف أصدقاء من تبويب الأصدقاء أولًا"), color = ChatSecondary)
                 else LazyColumn(Modifier.heightIn(max = 380.dp)) {
                     items(contacts, key = { it.optString("username") }) { person ->
                         Row(Modifier.fillMaxWidth().clickable {
@@ -184,7 +184,7 @@ internal fun MessengerInbox(
                 }
             },
             confirmButton = {
-                TextButton(onClick = { showNewChat = false }) { Text("إغلاق", color = ChatGold) }
+                TextButton(onClick = { showNewChat = false }) { Text(AttaLanguage.text("إغلاق"), color = ChatGold) }
             },
             containerColor = ChatPanel
         )
@@ -210,7 +210,7 @@ internal fun MessengerInbox(
         Row(Modifier.fillMaxWidth().padding(start = 14.dp, end = 14.dp, top = 4.dp, bottom = 4.dp),
             verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text("الدردشات", fontWeight = FontWeight.ExtraBold, color = ChatText, fontSize = 23.sp)
+                Text(AttaLanguage.text("الدردشات"), fontWeight = FontWeight.ExtraBold, color = ChatText, fontSize = 23.sp)
             }
             ChatCircleAction("plus", "بدء دردشة") { showNewChat = true }
             Spacer(Modifier.width(5.dp))
@@ -236,7 +236,7 @@ internal fun MessengerInbox(
                     textStyle = androidx.compose.ui.text.TextStyle(fontSize = 12.sp, color = ChatText),
                     decorationBox = { innerField ->
                         Box(contentAlignment = Alignment.CenterStart) {
-                            if (query.isBlank()) Text("بحث...", fontSize = 12.sp, color = ChatSecondary)
+                            if (query.isBlank()) Text(AttaLanguage.text("بحث..."), fontSize = 12.sp, color = ChatSecondary)
                             innerField()
                         }
                     }
@@ -265,7 +265,7 @@ internal fun MessengerInbox(
                 Spacer(Modifier.height(15.dp))
                 Text(if (query.isNotBlank()) "لا توجد نتائج" else if (segment == "محادثات") "لا توجد محادثات بعد" else "أضف أصدقاء لبدء الدردشة",
                     color = ChatText, fontWeight = FontWeight.Bold, fontSize = 17.sp)
-                Text("افتح اسم الصديق لبدء محادثة خاصة", color = ChatSecondary,
+                Text(AttaLanguage.text("افتح اسم الصديق لبدء محادثة خاصة"), color = ChatSecondary,
                     fontSize = 13.sp, modifier = Modifier.padding(top = 8.dp), textAlign = TextAlign.Center)
             }
         } else {
@@ -337,7 +337,7 @@ private fun ChatPdfDocument(url: String, mine: Boolean) {
         verticalAlignment = Alignment.CenterVertically) {
         SiteIcon("paperclip", size = 21.dp, tint = if (mine) Color.Black else ChatGoldBright)
         Spacer(Modifier.width(9.dp))
-        Text("فتح ملف PDF", color = if (mine) Color.Black else ChatText, fontSize = 12.sp)
+        Text(AttaLanguage.text("فتح ملف PDF"), color = if (mine) Color.Black else ChatText, fontSize = 12.sp)
     }
 }
 
@@ -373,7 +373,7 @@ private fun ChatBubble(message: JSONObject, mine: Boolean, onCall: (String) -> U
                 fontSize = 14.sp, lineHeight = 21.sp)
             if (body.contains("الكود") || body.contains("كود الغرفة") || body.contains("room code", ignoreCase = true))
                 watchRoomInviteCode(body)?.let { code -> TextButton(onClick = { onCopyCode(code) }) {
-                    Text("نسخ كود الغرفة • $code", color = if (mine) Color(0xFF17130B) else ChatGoldBright, fontSize = 12.sp)
+                    Text(AttaLanguage.text("نسخ كود الغرفة • $code"), color = if (mine) Color(0xFF17130B) else ChatGoldBright, fontSize = 12.sp)
                 } }
             if (mediaUrl.isNotBlank()) {
                 Spacer(Modifier.height(if (body.isNotBlank()) 7.dp else 0.dp))
@@ -386,7 +386,7 @@ private fun ChatBubble(message: JSONObject, mine: Boolean, onCall: (String) -> U
                         if (videoExpanded) {
                             NativeVideo(mediaUrl)
                             TextButton(onClick = { videoExpanded = false }) {
-                                Text("إيقاف الفيديو", color = if (mine) Color.Black else ChatGoldBright)
+                                Text(AttaLanguage.text("إيقاف الفيديو"), color = if (mine) Color.Black else ChatGoldBright)
                             }
                         } else {
                             Box(Modifier.width(235.dp).height(136.dp)
@@ -395,7 +395,7 @@ private fun ChatBubble(message: JSONObject, mine: Boolean, onCall: (String) -> U
                                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                     SiteIcon("play", size = 38.dp, tint = ChatGold)
                                     Spacer(Modifier.height(7.dp))
-                                    Text("تشغيل الفيديو", color = ChatText, fontSize = 12.sp)
+                                    Text(AttaLanguage.text("تشغيل الفيديو"), color = ChatText, fontSize = 12.sp)
                                 }
                             }
                         }
@@ -405,7 +405,7 @@ private fun ChatBubble(message: JSONObject, mine: Boolean, onCall: (String) -> U
                 } else if (mediaType == "file") {
                     ChatPdfDocument(mediaUrl, mine)
                 } else {
-                    Text("📎 مرفق (${mediaType})", color = if (mine) Color.Black else ChatGoldBright)
+                    Text(AttaLanguage.text("📎 مرفق (${mediaType})"), color = if (mine) Color.Black else ChatGoldBright)
                 }
             }
             Row(Modifier.padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically,
@@ -445,17 +445,17 @@ internal fun MessengerThread(
     var deleteMessage by remember(fallbackUsername) { mutableStateOf<JSONObject?>(null) }
     deleteMessage?.let { item ->
         val mine = item.optString("from").equals(myUsername, ignoreCase = true)
-        AlertDialog(onDismissRequest = { deleteMessage = null }, title = { Text("خيارات الرسالة") },
+        AlertDialog(onDismissRequest = { deleteMessage = null }, title = { Text(AttaLanguage.text("خيارات الرسالة")) },
             text = { Column {
                 if (item.optString("text").isNotBlank()) TextButton(onClick = {
                     clipboard.setText(AnnotatedString(item.optString("text"))); deleteMessage = null
-                }) { Text("نسخ", color = ChatGoldBright) }
+                }) { Text(AttaLanguage.text("نسخ"), color = ChatGoldBright) }
                 watchRoomInviteCode(item.optString("text"))?.let { code -> TextButton(onClick = {
                     clipboard.setText(AnnotatedString(code)); deleteMessage = null
-                }) { Text("نسخ كود الغرفة", color = ChatGoldBright) } }
-                TextButton(onClick = { deleteMessage = null; onDeleteMessage(item.optString("id"), "me") }) { Text("حذف لديّ", color = ChatGoldBright) }
-                if (mine) TextButton(onClick = { deleteMessage = null; onDeleteMessage(item.optString("id"), "everyone") }) { Text("حذف لدى الطرفين", color = Color.Red) }
-            } }, confirmButton = { TextButton(onClick = { deleteMessage = null }) { Text("إلغاء") } }, containerColor = ChatPanel)
+                }) { Text(AttaLanguage.text("نسخ كود الغرفة"), color = ChatGoldBright) } }
+                TextButton(onClick = { deleteMessage = null; onDeleteMessage(item.optString("id"), "me") }) { Text(AttaLanguage.text("حذف لديّ"), color = ChatGoldBright) }
+                if (mine) TextButton(onClick = { deleteMessage = null; onDeleteMessage(item.optString("id"), "everyone") }) { Text(AttaLanguage.text("حذف لدى الطرفين"), color = Color.Red) }
+            } }, confirmButton = { TextButton(onClick = { deleteMessage = null }) { Text(AttaLanguage.text("إلغاء")) } }, containerColor = ChatPanel)
     }
     val listState = rememberLazyListState()
     var showAttachments by remember(fallbackUsername) { mutableStateOf(false) }
@@ -465,7 +465,7 @@ internal fun MessengerThread(
             dragHandle = { BottomSheetDefaults.DragHandle(color = ChatGold) }) {
             Column(Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, bottom = 30.dp),
                 verticalArrangement = Arrangement.spacedBy(9.dp)) {
-                Text("إرفاق بالمحادثة", color = ChatGoldBright, fontSize = 19.sp,
+                Text(AttaLanguage.text("إرفاق بالمحادثة"), color = ChatGoldBright, fontSize = 19.sp,
                     fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 6.dp))
                 listOf(
                     Triple("image", "صورة من المعرض", onPickImage),
@@ -487,7 +487,7 @@ internal fun MessengerThread(
                         Text(label, fontSize = 14.sp, color = ChatText)
                     }
                 }
-                Text("الحد الأقصى للمرفق 50 ميجابايت", fontSize = 11.sp,
+                Text(AttaLanguage.text("الحد الأقصى للمرفق 50 ميجابايت"), fontSize = 11.sp,
                     color = ChatSecondary, modifier = Modifier.padding(top = 5.dp))
             }
         }
@@ -513,7 +513,7 @@ internal fun MessengerThread(
             Column(Modifier.weight(1f)) {
                 Text(name, color = ChatText, fontWeight = FontWeight.Bold,
                     fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text("محادثة خاصة", color = ChatSecondary, fontSize = 11.sp)
+                Text(AttaLanguage.text("محادثة خاصة"), color = ChatSecondary, fontSize = 11.sp)
             }
             ChatCircleAction("phone", "اتصال صوتي", onVoiceCall)
             Spacer(Modifier.width(6.dp))
@@ -527,7 +527,7 @@ internal fun MessengerThread(
                 ChatAvatar(person, size = 78, showRing = true, onClick = onProfile)
                 Spacer(Modifier.height(12.dp))
                 Text(name, color = ChatGoldBright, fontWeight = FontWeight.Bold, fontSize = 19.sp)
-                Text("ابدأ المحادثة برسالة لطيفة ✨", color = ChatSecondary,
+                Text(AttaLanguage.text("ابدأ المحادثة برسالة لطيفة ✨"), color = ChatSecondary,
                     fontSize = 13.sp, modifier = Modifier.padding(top = 6.dp))
             }
         } else {
@@ -585,7 +585,7 @@ internal fun MessengerThread(
                 decorationBox = { innerTextField ->
                     Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterStart) {
                         if (chatText.isEmpty()) {
-                            Text("اكتب رسالة...", color = ChatSecondary, fontSize = 15.sp)
+                            Text(AttaLanguage.text("اكتب رسالة..."), color = ChatSecondary, fontSize = 15.sp)
                         }
                         innerTextField()
                     }
