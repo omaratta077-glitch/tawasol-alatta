@@ -2536,6 +2536,11 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                         verticalArrangement = Arrangement.spacedBy(13.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                            TextButton(onClick = { AttaLanguage.toggle(ctx) }) {
+                                Text(if (AttaLanguage.code == "ar") "English" else "العربية", color = GoldLight)
+                            }
+                        }
                         Image(painterResource(R.drawable.logo_premium), "شعار العطا",
                             Modifier.size(98.dp).clip(CircleShape).attaGoldShine())
                         Text("AL-ATTA", color = GoldLight, fontSize = 18.sp,
