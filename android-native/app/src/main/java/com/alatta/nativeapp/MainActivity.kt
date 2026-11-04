@@ -210,7 +210,7 @@ private fun AttaPostReactorsDialog(
                 .border(1.dp, Border, RoundedCornerShape(20.dp))
                 .padding(12.dp)) {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Text("المعجبون والمتفاعلون", color = GoldLight,
+                    Text(AttaLanguage.text("المعجبون والمتفاعلون"), color = GoldLight,
                         fontSize = 19.sp, fontWeight = FontWeight.Bold,
                         modifier = Modifier.weight(1f))
                     TextButton(onClick = onClose) { SiteIcon("x", size = 23.dp) }
@@ -252,7 +252,7 @@ private fun AttaPostReactorsDialog(
                     }
                 }
                 if (people.isEmpty() && !loading && failure.isBlank())
-                    Text("لا توجد تفاعلات ظاهرة حاليًا", color = Muted,
+                    Text(AttaLanguage.text("لا توجد تفاعلات ظاهرة حاليًا"), color = Muted,
                         modifier = Modifier.padding(12.dp))
                 if (failure.isNotBlank())
                     Text(failure, color = Color(0xFFFFAFAF),
@@ -347,7 +347,7 @@ private fun AttaRightAlignedComments(
                 Row(Modifier.fillMaxWidth().height(56.dp)
                     .border(.5.dp, Border).padding(horizontal = 12.dp),
                     verticalAlignment = Alignment.CenterVertically) {
-                    Text("التعليقات", color = White, fontSize = 20.sp,
+                    Text(AttaLanguage.text("التعليقات"), color = White, fontSize = 20.sp,
                         fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f),
                         textAlign = TextAlign.Center)
                     Text("${comments.size}", color = GoldLight, fontSize = 14.sp)
@@ -371,11 +371,11 @@ private fun AttaRightAlignedComments(
                 }
                 if (replyTo.isNotBlank()) Row(Modifier.fillMaxWidth()
                     .padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text("رد على ${replyName}", color = GoldLight, fontSize = 12.sp,
+                    Text(AttaLanguage.text("رد على ${replyName}"), color = GoldLight, fontSize = 12.sp,
                         modifier = Modifier.weight(1f), maxLines = 2,
                         overflow = TextOverflow.Ellipsis)
                     TextButton(onClick = { replyTo = ""; replyName = "" }) {
-                        Text("إلغاء", color = Muted)
+                        Text(AttaLanguage.text("إلغاء"), color = Muted)
                     }
                 }
                 // يبقى مربع الكتابة فوق لوحة المفاتيح مباشرةً؛ فحاوية الحوار عالجت الهوامش
@@ -384,7 +384,7 @@ private fun AttaRightAlignedComments(
                     .padding(horizontal = 10.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically) {
                     OutlinedTextField(value = content, onValueChange = { content = it },
-                        placeholder = { Text("اكتب تعليقًا...", color = Muted) },
+                        placeholder = { Text(AttaLanguage.text("اكتب تعليقًا..."), color = Muted) },
                         modifier = Modifier.weight(1f).focusRequester(commentFocusRequester), maxLines = 4,
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedTextColor = White, unfocusedTextColor = White,
@@ -610,7 +610,11 @@ class MainActivity : ComponentActivity(), WatchRoomPipStateHost {
         // لا تستعد إلا عند تشغيل Activity، وبعد التحقق من مستقبل منبّه بدء التشغيل البارد.
         AdhanScheduler.restore(this)
         consumePushIntent(intent)
-        setContent { NativeApp() }
+        AttaLanguage.initialize(this)
+        setContent {
+            val direction = if (AttaLanguage.code == "en") LayoutDirection.Ltr else LayoutDirection.Rtl
+            CompositionLocalProvider(LocalLayoutDirection provides direction) { NativeApp() }
+        }
     }
 
     private var prayerLocationJob: kotlinx.coroutines.Job? = null
@@ -693,21 +697,21 @@ private fun SignupLegalConsent(
         .border(1.dp, Gold.copy(alpha = .65f), RoundedCornerShape(13.dp))
         .background(Panel, RoundedCornerShape(13.dp))
         .padding(9.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        Text("اقرأ السياسات قبل إنشاء الحساب", color = GoldLight,
+        Text(AttaLanguage.text("اقرأ السياسات قبل إنشاء الحساب"), color = GoldLight,
             fontSize = 14.sp, fontWeight = FontWeight.Bold)
         Row(verticalAlignment = Alignment.CenterVertically) {
             TextButton(onClick = { openDocument("privacy.html") }, modifier = Modifier.weight(1f)) {
-                Text("قراءة سياسة الخصوصية", color = GoldLight, fontSize = 12.sp)
+                Text(AttaLanguage.text("قراءة سياسة الخصوصية"), color = GoldLight, fontSize = 12.sp)
             }
             Checkbox(checked = privacyAccepted, onCheckedChange = onPrivacyAccepted)
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
             TextButton(onClick = { openDocument("terms.html") }, modifier = Modifier.weight(1f)) {
-                Text("قراءة شروط الاستخدام", color = GoldLight, fontSize = 12.sp)
+                Text(AttaLanguage.text("قراءة شروط الاستخدام"), color = GoldLight, fontSize = 12.sp)
             }
             Checkbox(checked = termsAccepted, onCheckedChange = onTermsAccepted)
         }
-        Text("حدد المربعين بعد القراءة للموافقة والمتابعة.", color = Muted, fontSize = 11.sp)
+        Text(AttaLanguage.text("حدد المربعين بعد القراءة للموافقة والمتابعة."), color = Muted, fontSize = 11.sp)
     }
 }
 
@@ -716,16 +720,16 @@ private fun SignupLegalConsent(
     hideChoice: Boolean?, onHideChoice: (Boolean?) -> Unit
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Text("النوع (إجباري)", color = GoldLight, fontSize = 13.sp)
+        Text(AttaLanguage.text("النوع (إجباري)"), color = GoldLight, fontSize = 13.sp)
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            FilterChip(selected = gender == "male", onClick = { onGender("male"); onHideChoice(false) }, label = { Text("ذكر") })
-            FilterChip(selected = gender == "female", onClick = { onGender("female"); onHideChoice(null) }, label = { Text("أنثى") })
+            FilterChip(selected = gender == "male", onClick = { onGender("male"); onHideChoice(false) }, label = { Text(AttaLanguage.text("ذكر")) })
+            FilterChip(selected = gender == "female", onClick = { onGender("female"); onHideChoice(null) }, label = { Text(AttaLanguage.text("أنثى")) })
         }
         if (gender == "female") {
-            Text("هل تريدين إخفاء الحساب من البحث وقوائم الأصدقاء؟", color = GoldLight, fontSize = 13.sp)
+            Text(AttaLanguage.text("هل تريدين إخفاء الحساب من البحث وقوائم الأصدقاء؟"), color = GoldLight, fontSize = 13.sp)
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                FilterChip(selected = hideChoice == true, onClick = { onHideChoice(true) }, label = { Text("نعم، إخفاء") })
-                FilterChip(selected = hideChoice == false, onClick = { onHideChoice(false) }, label = { Text("لا، إظهار") })
+                FilterChip(selected = hideChoice == true, onClick = { onHideChoice(true) }, label = { Text(AttaLanguage.text("نعم، إخفاء")) })
+                FilterChip(selected = hideChoice == false, onClick = { onHideChoice(false) }, label = { Text(AttaLanguage.text("لا، إظهار")) })
             }
         }
     }
@@ -746,7 +750,7 @@ private fun SignupLegalConsent(
         shape = RoundedCornerShape(13.dp),
         modifier = Modifier
             .heightIn(min = 36.dp).clip(RoundedCornerShape(13.dp)).attaGoldShine(enabled)) {
-        Text("نشر", fontWeight = FontWeight.Bold, fontSize = 14.sp, maxLines = 1)
+        Text(AttaLanguage.text("نشر"), fontWeight = FontWeight.Bold, fontSize = 14.sp, maxLines = 1)
     }
 }
 
@@ -882,14 +886,14 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
         horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         if (onRead != null) TextButton(onClick = { onRead(attachment.pages) }) {
             SiteIcon("book-open", size = 18.dp)
-            Text("قراءة الصفحات ${attachment.pages.first}–${attachment.pages.last}", color = GoldLight, fontSize = 12.sp)
+            Text(AttaLanguage.text("قراءة الصفحات ${attachment.pages.first}–${attachment.pages.last}"), color = GoldLight, fontSize = 12.sp)
         }
         TextButton(onClick = {
             try { context.startActivity(Intent(Intent.ACTION_VIEW,Uri.parse(attachment.pdfUrl))) }
             catch (_: ActivityNotFoundException) {
                 android.widget.Toast.makeText(context,"لا يوجد تطبيق لفتح الملف",android.widget.Toast.LENGTH_SHORT).show()
             }
-        }) { Text("ملف الصفحات كاملًا", color = GoldLight, fontSize = 12.sp) }
+        }) { Text(AttaLanguage.text("ملف الصفحات كاملًا"), color = GoldLight, fontSize = 12.sp) }
     }
 }
 
@@ -1982,45 +1986,45 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
     }
     if (confirmExit) AlertDialog(
         onDismissRequest = { confirmExit = false },
-        title = { Text("إغلاق تواصل العطا؟") },
-        text = { Text("هل تريد الخروج من التطبيق؟") },
-        confirmButton = { TextButton(onClick = { confirmExit = false; (ctx as? ComponentActivity)?.finish() }) { Text("خروج") } },
-        dismissButton = { TextButton(onClick = { confirmExit = false }) { Text("إلغاء") } }
+        title = { Text(AttaLanguage.text("إغلاق تواصل العطا؟")) },
+        text = { Text(AttaLanguage.text("هل تريد الخروج من التطبيق؟")) },
+        confirmButton = { TextButton(onClick = { confirmExit = false; (ctx as? ComponentActivity)?.finish() }) { Text(AttaLanguage.text("خروج")) } },
+        dismissButton = { TextButton(onClick = { confirmExit = false }) { Text(AttaLanguage.text("إلغاء")) } }
     )
     if (confirmLogout) AlertDialog(
         onDismissRequest = { confirmLogout = false },
         containerColor = Panel,
         titleContentColor = GoldLight,
         textContentColor = White,
-        title = { Text("تسجيل الخروج") },
-        text = { Text("هل تريد تسجيل الخروج من حسابك على هذا الجهاز؟") },
+        title = { Text(AttaLanguage.text("تسجيل الخروج")) },
+        text = { Text(AttaLanguage.text("هل تريد تسجيل الخروج من حسابك على هذا الجهاز؟")) },
         confirmButton = {
             TextButton(onClick = {
                 confirmLogout = false
                 AttaPush.unregister(ctx.applicationContext, token)
                 clearLocalSession()
-            }) { Text("تسجيل الخروج", color = GoldLight) }
+            }) { Text(AttaLanguage.text("تسجيل الخروج"), color = GoldLight) }
         },
-        dismissButton = { TextButton(onClick = { confirmLogout = false }) { Text("إلغاء", color = White) } }
+        dismissButton = { TextButton(onClick = { confirmLogout = false }) { Text(AttaLanguage.text("إلغاء"), color = White) } }
     )
     legalDocument?.let { LegalDocument(it) { legalDocument = null } }
     reportTarget?.let { target -> AlertDialog(
         onDismissRequest = { if (!busy) reportTarget = null }, containerColor = Panel,
-        title = { Text("الإبلاغ عن محتوى أو حساب", color = GoldLight) },
+        title = { Text(AttaLanguage.text("الإبلاغ عن محتوى أو حساب"), color = GoldLight) },
         text = { Column {
-            Text("راجع سبب البلاغ. ستطّلع عليه الإدارة لاتخاذ الإجراء المناسب. لا تضع كلمات مرور أو بيانات خاصة.", color = White)
-            OutlinedTextField(reportReason, { reportReason = it.take(500) }, label = { Text("سبب الإبلاغ") }, minLines = 3)
+            Text(AttaLanguage.text("راجع سبب البلاغ. ستطّلع عليه الإدارة لاتخاذ الإجراء المناسب. لا تضع كلمات مرور أو بيانات خاصة."), color = White)
+            OutlinedTextField(reportReason, { reportReason = it.take(500) }, label = { Text(AttaLanguage.text("سبب الإبلاغ")) }, minLines = 3)
         } },
         confirmButton = { TextButton(enabled = !busy && reportReason.trim().length >= 3, onClick = { task {
             val result = post("/api/report", JSONObject().put("targetType", target.first).put("targetId", target.second).put("reason", reportReason.trim()))
             reportTarget = null; reportReason = ""
             featureMessage = if (result.optBoolean("alreadyReported")) "البلاغ موجود بالفعل وقيد المراجعة" else "تم إرسال البلاغ إلى الإدارة"
-        } }) { Text("إرسال البلاغ", color = GoldLight) } },
-        dismissButton = { TextButton(onClick = { reportTarget = null }) { Text("إلغاء") } }
+        } }) { Text(AttaLanguage.text("إرسال البلاغ"), color = GoldLight) } },
+        dismissButton = { TextButton(onClick = { reportTarget = null }) { Text(AttaLanguage.text("إلغاء")) } }
     ) }
     if (changePasswordDialog) AlertDialog(
         onDismissRequest = { changePasswordDialog = false; currentPassword = ""; nextPassword = ""; nextPasswordAgain = "" },
-        title = { Text("تغيير كلمة السر", color = GoldLight) },
+        title = { Text(AttaLanguage.text("تغيير كلمة السر"), color = GoldLight) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 PremiumAuthTextField(currentPassword, { currentPassword = it }, "كلمة المرور الحالية", password = true)
@@ -2041,10 +2045,10 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                     featureMessage = "تم تغيير كلمة المرور. سجل الدخول بكلمة المرور الجديدة."
                 }
             }, enabled = !busy && currentPassword.isNotBlank() && nextPassword.length >= 8 && nextPassword == nextPasswordAgain) {
-                Text("حفظ", color = GoldLight)
+                Text(AttaLanguage.text("حفظ"), color = GoldLight)
             }
         },
-        dismissButton = { TextButton(onClick = { changePasswordDialog = false }) { Text("إلغاء") } }
+        dismissButton = { TextButton(onClick = { changePasswordDialog = false }) { Text(AttaLanguage.text("إلغاء")) } }
     )
     incomingCall?.let { invitation ->
         var callerName by remember(invitation.callId) { mutableStateOf(
@@ -2064,17 +2068,17 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
 
     if (featureMessage.isNotBlank()) AlertDialog(
         onDismissRequest = { featureMessage = "" },
-        title = { Text("معلومة") }, text = { Text(featureMessage) },
+        title = { Text(AttaLanguage.text("معلومة")) }, text = { Text(featureMessage) },
         confirmButton = {
             if (featureMessage.contains("الأذونات")) TextButton(onClick = {
                 val intent = Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
                     Uri.parse("package:${ctx.packageName}"))
                 ctx.startActivity(intent)
                 featureMessage = ""
-            }) { Text("فتح إعدادات الأذونات") }
-            else TextButton(onClick = { featureMessage = "" }) { Text("حسنًا") }
+            }) { Text(AttaLanguage.text("فتح إعدادات الأذونات")) }
+            else TextButton(onClick = { featureMessage = "" }) { Text(AttaLanguage.text("حسنًا")) }
         },
-        dismissButton = { TextButton(onClick = { featureMessage = "" }) { Text("إغلاق") } }
+        dismissButton = { TextButton(onClick = { featureMessage = "" }) { Text(AttaLanguage.text("إغلاق")) } }
     )
     youtubeShareSelection?.let { (shareId, shareTitle) ->
         AlertDialog(
@@ -2085,12 +2089,12 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
             titleContentColor = GoldLight,
             textContentColor = White,
             shape = RoundedCornerShape(22.dp),
-            title = { Text("مشاركة فيديو يوتيوب", fontWeight = FontWeight.Bold) },
+            title = { Text(AttaLanguage.text("مشاركة فيديو يوتيوب"), fontWeight = FontWeight.Bold) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
                     Text(shareTitle.ifBlank { "فيديو يوتيوب" }, color = White,
                         maxLines = 2, overflow = TextOverflow.Ellipsis, fontSize = 13.sp)
-                    Text("اختر مكان ظهور الفيديو في العطا", color = Muted, fontSize = 12.sp)
+                    Text(AttaLanguage.text("اختر مكان ظهور الفيديو في العطا"), color = Muted, fontSize = 12.sp)
                     OutlinedButton(
                         enabled = !youtubeShareChecking,
                         onClick = {
@@ -2108,7 +2112,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                     ) {
                         SiteIcon("file-text", tint = GoldLight, size = 20.dp)
                         Spacer(Modifier.width(8.dp))
-                        Text("مشاركة كمنشور", color = GoldLight)
+                        Text(AttaLanguage.text("مشاركة كمنشور"), color = GoldLight)
                     }
                     Button(
                         enabled = !youtubeShareChecking,
@@ -2154,14 +2158,14 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                         Spacer(Modifier.width(8.dp))
                         Text(if (youtubeShareChecking) "جارٍ التحقق من الفيديو…" else "مشاركة في الريلز")
                     }
-                    Text("يسمح الريلز بالفيديوهات الطويلة أيضًا ما دام يوتيوب يسمح بالتضمين.",
+                    Text(AttaLanguage.text("يسمح الريلز بالفيديوهات الطويلة أيضًا ما دام يوتيوب يسمح بالتضمين."),
                         color = Muted, fontSize = 11.sp)
                 }
             },
             confirmButton = {
                 TextButton(onClick = { youtubeShareSelection = null },
                     enabled = !youtubeShareChecking) {
-                    Text("إلغاء", color = GoldLight)
+                    Text(AttaLanguage.text("إلغاء"), color = GoldLight)
                 }
             }
         )
@@ -2172,19 +2176,19 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
         titleContentColor = GoldLight,
         textContentColor = White,
         shape = RoundedCornerShape(24.dp),
-        title = { Text("إضافة قصة ✨", fontWeight = FontWeight.Bold) },
+        title = { Text(AttaLanguage.text("إضافة قصة ✨"), fontWeight = FontWeight.Bold) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("شارك نصًا أو صورة أو فيديو", color = Muted, fontSize = 14.sp)
+                Text(AttaLanguage.text("شارك نصًا أو صورة أو فيديو"), color = Muted, fontSize = 14.sp)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    TextButton(enabled = !busy, onClick = { storyImagePicker.launch("image/*") }) { Text("صورة", color = GoldLight) }
-                    TextButton(enabled = !busy, onClick = { storyVideoPicker.launch("video/*") }) { Text("فيديو", color = GoldLight) }
-                    if (storyMediaUri != null) TextButton(enabled = !busy, onClick = { storyMediaUri = null; storyMediaType = "" }) { Text("إزالة", color = Muted) }
+                    TextButton(enabled = !busy, onClick = { storyImagePicker.launch("image/*") }) { Text(AttaLanguage.text("صورة"), color = GoldLight) }
+                    TextButton(enabled = !busy, onClick = { storyVideoPicker.launch("video/*") }) { Text(AttaLanguage.text("فيديو"), color = GoldLight) }
+                    if (storyMediaUri != null) TextButton(enabled = !busy, onClick = { storyMediaUri = null; storyMediaType = "" }) { Text(AttaLanguage.text("إزالة"), color = Muted) }
                 }
                 if (storyMediaUri != null) Text(if (storyMediaType == "video") "تم اختيار فيديو" else "تم اختيار صورة", color = GoldLight)
                 OutlinedTextField(
                     value = storyText, onValueChange = { storyText = it },
-                    label = { Text("اكتب قصتك", color = Muted) },
+                    label = { Text(AttaLanguage.text("اكتب قصتك"), color = Muted) },
                     textStyle = androidx.compose.ui.text.TextStyle(color = White, fontSize = 18.sp),
                     minLines = 3,
                     modifier = Modifier.fillMaxWidth(),
@@ -2215,7 +2219,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                 Text(if (busy) "جارٍ النشر…" else "نشر القصة", color = GoldLight)
             }
         },
-        dismissButton = { TextButton(onClick = { showStoryComposer = false }) { Text("إلغاء", color = Muted) } }
+        dismissButton = { TextButton(onClick = { showStoryComposer = false }) { Text(AttaLanguage.text("إلغاء"), color = Muted) } }
     )
     selectedStory?.let { st ->
         AlertDialog(
@@ -2233,27 +2237,27 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                     }
                 }
             },
-            confirmButton = { TextButton(onClick = { selectedStory = null }) { Text("إغلاق", color = GoldLight) } }
+            confirmButton = { TextButton(onClick = { selectedStory = null }) { Text(AttaLanguage.text("إغلاق"), color = GoldLight) } }
         )
     }
     adminPasswordAction?.let { action ->
         AlertDialog(onDismissRequest = { adminPasswordAction = null; adminProtectionPassword = "" },
-            containerColor = Panel, title = { Text("كلمة حماية الإدارة", color = GoldLight) },
+            containerColor = Panel, title = { Text(AttaLanguage.text("كلمة حماية الإدارة"), color = GoldLight) },
             text = { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("كلمة حذف الحسابات المحفوظة في حساب المدير. اكتبها لكل عملية حذف.", color = Muted, fontSize = 12.sp)
+                Text(AttaLanguage.text("كلمة حذف الحسابات المحفوظة في حساب المدير. اكتبها لكل عملية حذف."), color = Muted, fontSize = 12.sp)
                 PremiumAuthTextField(adminProtectionPassword, { adminProtectionPassword = it.take(128) }, "كلمة الحماية", password = true)
             } },
             confirmButton = { TextButton(enabled = adminProtectionPassword.isNotBlank(), onClick = {
                 val secret = adminProtectionPassword; adminProtectionPassword = ""; adminPasswordAction = null; action(secret)
-            }) { Text("تأكيد", color = GoldLight) } },
-            dismissButton = { TextButton(onClick = { adminPasswordAction = null; adminProtectionPassword = "" }) { Text("إلغاء") } })
+            }) { Text(AttaLanguage.text("تأكيد"), color = GoldLight) } },
+            dismissButton = { TextButton(onClick = { adminPasswordAction = null; adminProtectionPassword = "" }) { Text(AttaLanguage.text("إلغاء")) } })
     }
     if (adminEditUser.isNotBlank() || adminEditPost.isNotBlank()) AlertDialog(
         onDismissRequest = { adminEditUser = ""; adminEditPost = "" }, containerColor = Panel,
         title = { Text(if (adminEditUser.isNotBlank()) "تعديل اسم الحساب" else "تعديل المنشور", color = GoldLight) },
         text = { OutlinedTextField(if (adminEditUser.isNotBlank()) adminEditUserName else adminEditPostText,
             { if (adminEditUser.isNotBlank()) adminEditUserName = it.take(60) else adminEditPostText = it.take(50000) },
-            modifier = Modifier.fillMaxWidth(), label = { Text("النص الجديد") }) },
+            modifier = Modifier.fillMaxWidth(), label = { Text(AttaLanguage.text("النص الجديد")) }) },
         confirmButton = { TextButton(onClick = {
             val username = adminEditUser; val id = adminEditPost; val name = adminEditUserName; val text = adminEditPostText
             adminEditUser = ""; adminEditPost = ""
@@ -2262,13 +2266,13 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                     .put("username", username).put("postId", id).put("displayName", name).put("text", text))
                 load("الإدارة")
             }
-        }) { Text("حفظ", color = GoldLight) } },
-        dismissButton = { TextButton(onClick = { adminEditUser = ""; adminEditPost = "" }) { Text("إلغاء") } }
+        }) { Text(AttaLanguage.text("حفظ"), color = GoldLight) } },
+        dismissButton = { TextButton(onClick = { adminEditUser = ""; adminEditPost = "" }) { Text(AttaLanguage.text("إلغاء")) } }
     )
     if (confirmPostDelete.isNotBlank()) AlertDialog(
         onDismissRequest = { confirmPostDelete = "" }, containerColor = Panel,
-        title = { Text("حذف المنشور؟", color = GoldLight) },
-        text = { Text("الحذف نهائي ولن تتمكن من استعادة المنشور.", color = White) },
+        title = { Text(AttaLanguage.text("حذف المنشور؟"), color = GoldLight) },
+        text = { Text(AttaLanguage.text("الحذف نهائي ولن تتمكن من استعادة المنشور."), color = White) },
         confirmButton = { TextButton(onClick = {
             val id = confirmPostDelete; confirmPostDelete = ""
             task {
@@ -2276,8 +2280,8 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                 else post("/api/post-delete", JSONObject().put("postId", id))
                 load(tab)
             }
-        }) { Text("حذف نهائي", color = Color(0xFFFF8B8B)) } },
-        dismissButton = { TextButton(onClick = { confirmPostDelete = "" }) { Text("إلغاء", color = GoldLight) } }
+        }) { Text(AttaLanguage.text("حذف نهائي"), color = Color(0xFFFF8B8B)) } },
+        dismissButton = { TextButton(onClick = { confirmPostDelete = "" }) { Text(AttaLanguage.text("إلغاء"), color = GoldLight) } }
     )
     if (confirmAccountUser.isNotBlank() && adminPasswordAction == null) {
         val permanent = confirmAccountAction == "delete_user"
@@ -2308,7 +2312,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                 } }
                 if (permanent) adminPasswordAction = perform else perform("")
             }) { Text(if (busy) "جاري التنفيذ..." else actionLabel, color = Color(0xFFFF8B8B)) } },
-            dismissButton = { TextButton(enabled = !busy, onClick = { confirmAccountUser = "" }) { Text("إغلاق", color = GoldLight) } }
+            dismissButton = { TextButton(enabled = !busy, onClick = { confirmAccountUser = "" }) { Text(AttaLanguage.text("إغلاق"), color = GoldLight) } }
         )
     }
     LaunchedEffect(token, myUsername) {
@@ -2558,7 +2562,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                 }
                             }
                             if (unregisteredEmailOffer.isNotBlank()) {
-                                Text("هذا البريد غير مسجّل في تواصل العطا. هل تريد إنشاء حساب جديد؟",
+                                Text(AttaLanguage.text("هذا البريد غير مسجّل في تواصل العطا. هل تريد إنشاء حساب جديد؟"),
                                     color = GoldLight, fontSize = 13.sp)
                                 PremiumAuthGoldButton("إنشاء حساب بهذا البريد", !busy) {
                                     regEmail = unregisteredEmailOffer
@@ -2568,26 +2572,26 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                 }
                             }
                             if (hasGoogleServices) {
-                            Text("أو اختر حساب Google من داخل التطبيق", color = GoldLight,
+                            Text(AttaLanguage.text("أو اختر حساب Google من داخل التطبيق"), color = GoldLight,
                                 fontSize = 12.sp, textAlign = TextAlign.Center)
                             PremiumGoogleButton(enabled = !busy, label = "الدخول بحساب Google") {
                                 chooseGoogle(false)
                             }
-                            if (!googleEnabled) Text("يتطلب خدمات Google Play وتطابق OAuth مع توقيع التطبيق. اضغط لإعادة التحقق.", color = Muted, fontSize = 11.sp)
-                            } else Text("هذا الهاتف يستخدم تسجيل الدخول بالبريد أو اسم المستخدم وكلمة المرور.", color = Muted, fontSize = 12.sp)
+                            if (!googleEnabled) Text(AttaLanguage.text("يتطلب خدمات Google Play وتطابق OAuth مع توقيع التطبيق. اضغط لإعادة التحقق."), color = Muted, fontSize = 11.sp)
+                            } else Text(AttaLanguage.text("هذا الهاتف يستخدم تسجيل الدخول بالبريد أو اسم المستخدم وكلمة المرور."), color = Muted, fontSize = 12.sp)
                             TextButton(onClick = { authMode = "forgot" }) {
-                                Text("هل نسيت كلمة السر؟", color = GoldLight, fontWeight = FontWeight.Bold)
+                                Text(AttaLanguage.text("هل نسيت كلمة السر؟"), color = GoldLight, fontWeight = FontWeight.Bold)
                             }
                             PremiumAuthOutlineButton("إنشاء حساب جديد") { authMode = "register"; error = ""; unregisteredEmailOffer = "" }
                         } else if (authMode == "register") {
-                            Text("إنشاء حساب جديد", color = GoldLight, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                            Text(AttaLanguage.text("إنشاء حساب جديد"), color = GoldLight, fontSize = 20.sp, fontWeight = FontWeight.Bold)
                             if (hasGoogleServices) {
                             PremiumGoogleButton(enabled = !busy, label = "إنشاء حساب عن طريق جوجل") {
                                 chooseGoogle(true)
                             }
-                            if (!googleEnabled) Text("اضغط Google للتحقق من الاتصال والإعداد. لو تعذر الاختيار ستظهر رسالة بالسبب.", color = Muted, fontSize = 11.sp)
+                            if (!googleEnabled) Text(AttaLanguage.text("اضغط Google للتحقق من الاتصال والإعداد. لو تعذر الاختيار ستظهر رسالة بالسبب."), color = Muted, fontSize = 11.sp)
                             }
-                            Text("أو أنشئ حسابًا بالبريد الإلكتروني", color = GoldLight, fontSize = 13.sp)
+                            Text(AttaLanguage.text("أو أنشئ حسابًا بالبريد الإلكتروني"), color = GoldLight, fontSize = 13.sp)
                             PremiumAuthTextField(regName, { regName = it }, "الاسم الكامل")
                             PremiumAuthTextField(regUsername, { regUsername = it.lowercase().filter { c -> c.isLetterOrDigit() && c.code < 128 || c == '_' }.take(24) }, "اختر اسم مستخدم فريد (مطلوب)")
                             AttaBirthDatePicker(regBirthDate, { regBirthDate = it })
@@ -2600,7 +2604,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                             PremiumAuthTextField(regConfirm, { regConfirm = it }, "تأكيد كلمة المرور", password = true)
                             SignupLegalConsent(regPoliciesAccepted, { regPoliciesAccepted = it },
                                 regTermsAccepted, { regTermsAccepted = it }, { legalDocument = it })
-                            if (!birthDateSignup) Text("إنشاء حساب بتاريخ الميلاد يحتاج نشر تحديث Cloudflare v1.0.14 أولًا.", color = Color(0xFFFFC78E), fontSize = 12.sp)
+                            if (!birthDateSignup) Text(AttaLanguage.text("إنشاء حساب بتاريخ الميلاد يحتاج نشر تحديث Cloudflare v1.0.14 أولًا."), color = Color(0xFFFFC78E), fontSize = 12.sp)
                             PremiumAuthGoldButton("إرسال كود التأكيد", !busy && regPoliciesAccepted && regTermsAccepted && birthDateSignup && regName.trim().length >= 3 && regUsername.matches(Regex("[a-z0-9_]{3,24}")) && attaAgeFromBirthDate(regBirthDate) != null && regEmail.isNotBlank() && regGender in listOf("male", "female") && (regGender != "female" || regHideChoice != null) && regPass.length >= 6 && regPass == regConfirm) {
                                 task {
                                     val body = JSONObject()
@@ -2619,8 +2623,8 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                             }
                             PremiumAuthOutlineButton("العودة لتسجيل الدخول") { authMode = "login"; error = "" }
                         } else if (authMode == "verify") {
-                            Text("تأكيد البريد الإلكتروني", color = GoldLight, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                            Text("أرسلنا كودًا من 6 أرقام إلى $verificationDelivery", color = Muted,
+                            Text(AttaLanguage.text("تأكيد البريد الإلكتروني"), color = GoldLight, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                            Text(AttaLanguage.text("أرسلنا كودًا من 6 أرقام إلى $verificationDelivery"), color = Muted,
                                 fontSize = 13.sp, textAlign = TextAlign.Center)
                             PremiumAuthTextField(verificationCode, { verificationCode = it.filter(Char::isDigit).take(6) }, "كود التأكيد")
                             PremiumAuthGoldButton("تأكيد وإنشاء الحساب", !busy && verificationCode.length == 6) {
@@ -2636,13 +2640,13 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                     withContext(Dispatchers.IO) { api("/api/register-resend", JSONObject().put("verificationId", verificationId)) }
                                     featureMessage = "تم إرسال كود جديد إلى بريدك الإلكتروني"
                                 }
-                            }) { Text("إعادة إرسال الكود", color = GoldLight) }
+                            }) { Text(AttaLanguage.text("إعادة إرسال الكود"), color = GoldLight) }
                             PremiumAuthOutlineButton("الرجوع") { authMode = "register" }
                         } else if (authMode == "googleProfile") {
                             Box(Modifier.fillMaxWidth().border(1.dp, Gold, RoundedCornerShape(16.dp))
                                 .background(Brush.horizontalGradient(listOf(Color(0xFF4F3713), Color(0xFF241909))), RoundedCornerShape(16.dp))
                                 .padding(horizontal = 12.dp, vertical = 18.dp), contentAlignment = Alignment.Center) {
-                                Text("إنشاء حساب عن طريق Google", color = GoldLight, fontSize = 20.sp,
+                                Text(AttaLanguage.text("إنشاء حساب عن طريق Google"), color = GoldLight, fontSize = 20.sp,
                                     fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
                             }
                             Text(googleEmail, color = Muted, textAlign = TextAlign.Center, fontSize = 13.sp)
@@ -2698,8 +2702,8 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                             }
                             PremiumAuthOutlineButton("رجوع") { googleIdToken = ""; authMode = "register"; error = "" }
                         } else if (authMode == "forgot") {
-                            Text("استعادة كلمة السر", color = GoldLight, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                            Text("أدخل البريد المرتبط بحسابك. سنرسل كودًا صالحًا لمدة 10 دقائق.", color = Muted, fontSize = 13.sp)
+                            Text(AttaLanguage.text("استعادة كلمة السر"), color = GoldLight, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                            Text(AttaLanguage.text("أدخل البريد المرتبط بحسابك. سنرسل كودًا صالحًا لمدة 10 دقائق."), color = Muted, fontSize = 13.sp)
                             PremiumAuthTextField(resetEmail, { resetEmail = it }, "البريد الإلكتروني")
                             PremiumAuthGoldButton("إرسال كود استعادة كلمة السر", !busy && resetEmail.contains("@")) {
                                 task {
@@ -2713,8 +2717,8 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                             }
                             PremiumAuthOutlineButton("العودة لتسجيل الدخول") { authMode = "login"; error = "" }
                         } else if (authMode == "resetVerify") {
-                            Text("تعيين كلمة مرور جديدة", color = GoldLight, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                            Text("لو البريد مسجلًا بحساب بكلمة مرور، ستصلك رسالة بها كود التأكيد.", color = Muted,
+                            Text(AttaLanguage.text("تعيين كلمة مرور جديدة"), color = GoldLight, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                            Text(AttaLanguage.text("لو البريد مسجلًا بحساب بكلمة مرور، ستصلك رسالة بها كود التأكيد."), color = Muted,
                                 textAlign = TextAlign.Center, fontSize = 13.sp)
                             PremiumAuthTextField(resetCode, { resetCode = it.filter(Char::isDigit).take(6) }, "كود التأكيد من 6 أرقام")
                             PremiumAuthTextField(resetPassword, { resetPassword = it }, "كلمة المرور الجديدة (8 أحرف على الأقل)", password = true)
@@ -2731,11 +2735,11 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                     featureMessage = "تم تحديث كلمة المرور. ادخل الآن باستخدام كلمة المرور الجديدة."
                                 }
                             }
-                            TextButton(onClick = { authMode = "forgot" }) { Text("لم يصل الكود؟ اطلب كودًا جديدًا", color = GoldLight) }
+                            TextButton(onClick = { authMode = "forgot" }) { Text(AttaLanguage.text("لم يصل الكود؟ اطلب كودًا جديدًا"), color = GoldLight) }
                             PremiumAuthOutlineButton("العودة لتسجيل الدخول") { authMode = "login"; error = "" }
                         }
                         HorizontalDivider(color = Border.copy(alpha = .7f))
-                        Text("العطا", color = GoldLight, fontSize = 14.sp)
+                        Text(AttaLanguage.text("العطا"), color = GoldLight, fontSize = 14.sp)
                         if (busy) LinearProgressIndicator(modifier = Modifier.fillMaxWidth(), color = Gold)
                         if (error.isNotBlank()) Text(error, color = Color(0xFFFF8888), textAlign = TextAlign.Center)
                     }
@@ -2761,7 +2765,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                 onValueChange = { search = it },
                                 modifier = Modifier.fillMaxWidth().padding(horizontal = 11.dp, vertical = 4.dp),
                                 singleLine = true,
-                                placeholder = { Text("ابحث عن الأشخاص أو المنشورات...", color = Muted) },
+                                placeholder = { Text(AttaLanguage.text("ابحث عن الأشخاص أو المنشورات..."), color = Muted) },
                                 leadingIcon = { SiteIcon("search", tint = GoldLight, size = 23.dp) },
                                 shape = RoundedCornerShape(22.dp)
                             )
@@ -2812,7 +2816,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(error, color = Color(0xFFFFA0A0), fontSize = 12.sp, modifier = Modifier.weight(1f))
-                        TextButton(enabled = !busy && !screenLoading, onClick = { refresh() }) { Text("إعادة المحاولة", color = GoldLight) }
+                        TextButton(enabled = !busy && !screenLoading, onClick = { refresh() }) { Text(AttaLanguage.text("إعادة المحاولة"), color = GoldLight) }
                     }
                     when (tab) {
                         "القرآن" -> QuranReaderScreen(Modifier.weight(1f),
@@ -2899,9 +2903,9 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                                         reelMoreError = loadingFailureMessage(e)
                                                     } finally { reelMoreLoading = false }
                                                 }
-                                            }) { Text("البحث في منشورات أقدم", color = GoldLight) }
+                                            }) { Text(AttaLanguage.text("البحث في منشورات أقدم"), color = GoldLight) }
                                         if (!screenLoading) TextButton(onClick = { navigate("الرئيسية") }) {
-                                            Text("العودة للرئيسية", color = GoldLight)
+                                            Text(AttaLanguage.text("العودة للرئيسية"), color = GoldLight)
                                         }
                                     }
                                 } else {
@@ -2989,7 +2993,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                 ) {
                             if (tab == "استكشاف") {
                                 item { SectionTitle("الأشخاص") }
-                                if (users.isEmpty()) item { Text("لا يوجد أشخاص مطابقون للبحث", color = Muted, modifier = Modifier.padding(12.dp)) }
+                                if (users.isEmpty()) item { Text(AttaLanguage.text("لا يوجد أشخاص مطابقون للبحث"), color = Muted, modifier = Modifier.padding(12.dp)) }
                                 items(users.filter { u -> search.isBlank() || u.name().contains(search.trim(), ignoreCase = true) || u.optString("username").contains(search.trim(), ignoreCase = true) }) { u ->
                                     CardBox {
                                         Row(Modifier.fillMaxWidth().clickable { openPublicProfile(u.optString("username")) }, verticalAlignment = Alignment.CenterVertically) {
@@ -3017,7 +3021,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                         // معالج التحميل والنشر الحالي دون تغيير.
                                         OutlinedTextField(draft, { draft = it },
                                             modifier = Modifier.fillMaxWidth().heightIn(min = 76.dp),
-                                            placeholder = { Text("بم تفكر؟", fontSize = 14.sp) },
+                                            placeholder = { Text(AttaLanguage.text("بم تفكر؟"), fontSize = 14.sp) },
                                             minLines = 2, shape = RoundedCornerShape(14.dp),
                                             trailingIcon = {
                                             Box(Modifier.padding(horizontal = 6.dp)) {
@@ -3076,13 +3080,13 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                                 Text(youtubePostDraftTitle, color = White, fontSize = 12.sp)
                                             TextButton(onClick = {
                                                 youtubePostDraftId = ""; youtubePostDraftTitle = ""; youtubePostDraftIsShort = false
-                                            }) { Text("إزالة فيديو يوتيوب", color = Muted) }
+                                            }) { Text(AttaLanguage.text("إزالة فيديو يوتيوب"), color = Muted) }
                                         }
                                         mushafPostDraft?.let { shared ->
                                             MushafPostGallery(shared.selection.pages, Uri.fromFile(shared.preview), Modifier.fillMaxWidth())
-                                            Text("${shared.selection.title} • ${shared.selection.pageCount} صفحة • ملف كامل للقراءة", color = GoldLight, fontSize = 11.sp)
+                                            Text(AttaLanguage.text("${shared.selection.title} • ${shared.selection.pageCount} صفحة • ملف كامل للقراءة"), color = GoldLight, fontSize = 11.sp)
                                             TextButton(onClick = { shared.discard(); mushafPostDraft = null; pickedUri = null }, enabled = !busy) {
-                                                Text("إزالة المرفق", color = Muted)
+                                                Text(AttaLanguage.text("إزالة المرفق"), color = Muted)
                                             }
                                         }
                                         Spacer(Modifier.height(8.dp))
@@ -3144,31 +3148,31 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                             DropdownMenu(expanded = postMenuExpanded, onDismissRequest = { postMenuExpanded = false },
                                                 modifier = Modifier.background(Panel).border(1.dp, Border, RoundedCornerShape(10.dp))) {
                                                 if (isMyPost) {
-                                                    DropdownMenuItem(text = { Text("أرشفة المنشور", color = GoldLight) }, onClick = {
+                                                    DropdownMenuItem(text = { Text(AttaLanguage.text("أرشفة المنشور"), color = GoldLight) }, onClick = {
                                                         postMenuExpanded = false
                                                         task { post("/api/post-archive", JSONObject().put("postId", postId).put("archived", true)); load(tab) }
                                                     })
                                                 }
                                                 if (isMyPost || canModerate) {
-                                                    DropdownMenuItem(text = { Text("حذف المنشور", color = Color(0xFFFF8B8B)) }, onClick = {
+                                                    DropdownMenuItem(text = { Text(AttaLanguage.text("حذف المنشور"), color = Color(0xFFFF8B8B)) }, onClick = {
                                                         postMenuExpanded = false; confirmPostDelete = postId
                                                     })
                                                 }
                                                 if (!isMyPost) {
-                                                    DropdownMenuItem(text = { Text("الإبلاغ عن المنشور أو تعليقاته", color = GoldLight) }, onClick = {
+                                                    DropdownMenuItem(text = { Text(AttaLanguage.text("الإبلاغ عن المنشور أو تعليقاته"), color = GoldLight) }, onClick = {
                                                         postMenuExpanded = false; reportReason = ""; reportTarget = "post" to postId
                                                     })
-                                                    DropdownMenuItem(text = { Text("حظر صاحب المنشور", color = White) }, onClick = {
+                                                    DropdownMenuItem(text = { Text(AttaLanguage.text("حظر صاحب المنشور"), color = White) }, onClick = {
                                                         postMenuExpanded = false
                                                         task { post("/api/personal-block", JSONObject().put("username", p.optString("author")).put("action", "block")); load(tab) }
                                                     })
-                                                    DropdownMenuItem(text = { Text("إلغاء الصداقة", color = White) }, onClick = {
+                                                    DropdownMenuItem(text = { Text(AttaLanguage.text("إلغاء الصداقة"), color = White) }, onClick = {
                                                         postMenuExpanded = false
                                                         task { post("/api/friend-action", JSONObject().put("username", p.optString("author")).put("action", "remove")); load(tab) }
                                                     })
                                                 }
                                                 if (!isMyPost && canModerate) {
-                                                    DropdownMenuItem(text = { Text("إيقاف حساب الناشر", color = Color(0xFFFF8B8B)) }, onClick = {
+                                                    DropdownMenuItem(text = { Text(AttaLanguage.text("إيقاف حساب الناشر"), color = Color(0xFFFF8B8B)) }, onClick = {
                                                         postMenuExpanded = false; confirmAccountUser = p.optString("author")
                                                     })
                                                 }
@@ -3357,7 +3361,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                 }
                             }
                             if (posts.isEmpty() && !screenLoading && error.isBlank()) item {
-                                Text("لا توجد منشورات ظاهرة حاليًا", color = Muted, modifier = Modifier.padding(16.dp))
+                                Text(AttaLanguage.text("لا توجد منشورات ظاهرة حاليًا"), color = Muted, modifier = Modifier.padding(16.dp))
                             }
                                 }
                             }
@@ -3393,7 +3397,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                             item {
                                 CardBox {
                                     SectionTitle("القائمة")
-                                    Text("تواصل العطا", color = Muted, fontSize = 12.sp)
+                                    Text(AttaLanguage.text("تواصل العطا"), color = Muted, fontSize = 12.sp)
                                 }
                             }
                             item {
@@ -3482,7 +3486,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                     TextButton(onClick = { task {
                                         post("/api/post-archive", JSONObject().put("postId", p.optString("id")).put("archived", false))
                                         archivedPosts = get("/api/post-archive-list").arr("posts")
-                                    } }) { Text("استعادة المنشور", color = GoldLight) }
+                                    } }) { Text(AttaLanguage.text("استعادة المنشور"), color = GoldLight) }
                                 }
                             }
                         }
@@ -3525,17 +3529,17 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                                 if (u.optBoolean("banned") || u.optBoolean("disabled")) TextButton(enabled = !busy, onClick = { task {
                                                     post("/api/admin/action", JSONObject().put("action", "activate").put("username", username))
                                                     load("الإدارة")
-                                                } }) { Text("إعادة تفعيل", color = GoldLight) }
+                                                } }) { Text(AttaLanguage.text("إعادة تفعيل"), color = GoldLight) }
                                                 else {
-                                                    TextButton(onClick = { confirmAccountAction = "suspend"; confirmAccountUser = username; error = "" }) { Text("تعطيل", color = GoldLight) }
-                                                    TextButton(onClick = { confirmAccountAction = "ban"; confirmAccountUser = username; error = "" }) { Text("حظر", color = Color(0xFFFF8B8B)) }
+                                                    TextButton(onClick = { confirmAccountAction = "suspend"; confirmAccountUser = username; error = "" }) { Text(AttaLanguage.text("تعطيل"), color = GoldLight) }
+                                                    TextButton(onClick = { confirmAccountAction = "ban"; confirmAccountUser = username; error = "" }) { Text(AttaLanguage.text("حظر"), color = Color(0xFFFF8B8B)) }
                                                 }
                                                 if (adminRole == "super_admin") TextButton(onClick = {
                                                     confirmAccountAction = "delete_user"; confirmAccountUser = username
                                                     accountDeleteProgress = ""; error = ""
-                                                }) { Text("حذف نهائي", color = Color(0xFFFF8B8B)) }
+                                                }) { Text(AttaLanguage.text("حذف نهائي"), color = Color(0xFFFF8B8B)) }
                                                 if (adminRole == "super_admin") {
-                                                    TextButton(onClick = { adminEditUser = username; adminEditUserName = u.optString("displayName") }) { Text("تعديل الاسم", color = GoldLight) }
+                                                    TextButton(onClick = { adminEditUser = username; adminEditUserName = u.optString("displayName") }) { Text(AttaLanguage.text("تعديل الاسم"), color = GoldLight) }
                                                     TextButton(onClick = { task {
                                                         post("/api/admin/action", JSONObject().put("action", if (u.optString("role") == "moderator") "remove_moderator" else "make_moderator")
                                                             .put("username", username)); load("الإدارة")
@@ -3556,36 +3560,36 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                     } }
                                 }
                                 item { SectionTitle("طلبات حذف الحساب") }
-                                if (deletionRequests.isEmpty()) item { Text("لا توجد طلبات حذف معلّقة", color = Muted) }
+                                if (deletionRequests.isEmpty()) item { Text(AttaLanguage.text("لا توجد طلبات حذف معلّقة"), color = Muted) }
                                 items(deletionRequests, key = { "deletion:" + it.optString("id") }) { request ->
                                     val target = request.optString("username")
                                     CardBox {
-                                        Text("طلب حذف @$target", color = GoldLight)
+                                        Text(AttaLanguage.text("طلب حذف @$target"), color = GoldLight)
                                         Text(request.optString("reason").ifBlank { "بدون سبب إضافي" }, color = White)
-                                        TextButton(onClick = { openPublicProfile(target) }) { Text("مراجعة الحساب", color = GoldLight) }
+                                        TextButton(onClick = { openPublicProfile(target) }) { Text(AttaLanguage.text("مراجعة الحساب"), color = GoldLight) }
                                         if (adminRole == "super_admin" && target != adminSummary.optString("owner") && target != myUsername) TextButton(onClick = {
                                             confirmAccountAction = "delete_user"; confirmAccountUser = target
                                             accountDeleteProgress = ""
-                                        }) { Text("مراجعة وتنفيذ الحذف", color = Color(0xFFFF8B8B)) }
-                                        else Text("حساب المدير الرئيسي محمي دائمًا.", color = Muted)
+                                        }) { Text(AttaLanguage.text("مراجعة وتنفيذ الحذف"), color = Color(0xFFFF8B8B)) }
+                                        else Text(AttaLanguage.text("حساب المدير الرئيسي محمي دائمًا."), color = Muted)
                                     }
                                 }
                                 item { SectionTitle("بلاغات المحتوى") }
-                                if (adminReports.none { !it.optBoolean("resolved") }) item { Text("لا توجد بلاغات معلّقة", color = Muted) }
+                                if (adminReports.none { !it.optBoolean("resolved") }) item { Text(AttaLanguage.text("لا توجد بلاغات معلّقة"), color = Muted) }
                                 items(adminReports.filter { !it.optBoolean("resolved") }, key = { "report:" + it.optString("id") }) { report ->
                                     CardBox {
                                         Text("${if (report.optString("targetType") == "post") "منشور" else "حساب"} • ${report.optString("targetId")}", color = GoldLight)
                                         Text(report.optString("reason"), color = White)
                                         Text("مقدّم البلاغ: @${report.optString("reporter")}", color = Muted)
                                         val author = report.optString("targetUsername")
-                                        if (author.isNotBlank()) TextButton(onClick = { openPublicProfile(author) }) { Text("مراجعة حساب الناشر", color = GoldLight) }
+                                        if (author.isNotBlank()) TextButton(onClick = { openPublicProfile(author) }) { Text(AttaLanguage.text("مراجعة حساب الناشر"), color = GoldLight) }
                                         if (adminRole == "super_admin" && report.optString("targetType") == "post") TextButton(onClick = { confirmPostDelete = report.optString("targetId") }) {
-                                            Text("حذف المنشور المخالف", color = Color(0xFFFF8B8B))
+                                            Text(AttaLanguage.text("حذف المنشور المخالف"), color = Color(0xFFFF8B8B))
                                         }
                                         TextButton(enabled = !busy, onClick = { task {
                                             post("/api/admin/action", JSONObject().put("action", "resolve_report").put("reportId", report.optString("id")))
                                             load("الإدارة")
-                                        } }) { Text("تمت مراجعة البلاغ", color = GoldLight) }
+                                        } }) { Text(AttaLanguage.text("تمت مراجعة البلاغ"), color = GoldLight) }
                                     }
                                 }
                                 item {
@@ -3597,13 +3601,13 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                     CardBox {
                                         Text("@${p.optString("author")}", color = GoldLight)
                                         Text(p.optString("text"), color = White)
-                                        if (adminRole == "super_admin") TextButton(onClick = { adminEditPost = p.optString("id"); adminEditPostText = p.optString("text") }) { Text("تعديل المنشور", color = GoldLight) }
+                                        if (adminRole == "super_admin") TextButton(onClick = { adminEditPost = p.optString("id"); adminEditPostText = p.optString("text") }) { Text(AttaLanguage.text("تعديل المنشور"), color = GoldLight) }
                                         if (adminRole == "super_admin") TextButton(onClick = { confirmPostDelete = p.optString("id") }) {
-                                            Text("حذف المنشور", color = Color(0xFFFF8B8B))
+                                            Text(AttaLanguage.text("حذف المنشور"), color = Color(0xFFFF8B8B))
                                         }
                                     }
                                 }
-                            } else item { Text("هذه الصفحة متاحة للإدارة فقط", color = Muted) }
+                            } else item { Text(AttaLanguage.text("هذه الصفحة متاحة للإدارة فقط"), color = Muted) }
                         }
                         "الأصدقاء" -> LazyColumn(Modifier.weight(1f).padding(horizontal = 8.dp)) {
                             if (requests.isNotEmpty()) item { SectionTitle("طلبات الصداقة (${requests.size})") }
@@ -3618,7 +3622,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                     }
                                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                         GoldButton("قبول", !busy) { updateFriend(peer, "accept") }
-                                        TextButton(onClick = { updateFriend(peer, "decline") }, enabled = !busy) { Text("رفض") }
+                                        TextButton(onClick = { updateFriend(peer, "decline") }, enabled = !busy) { Text(AttaLanguage.text("رفض")) }
                                     }
                                 }
                             }
@@ -3638,14 +3642,14 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                             maxLines = 1)
                                         when (state) {
                                             "incoming" -> TextButton(onClick = { updateFriend(peer, "accept") }, enabled = !busy) {
-                                                Text("قبول", color = GoldLight, fontSize = 12.sp)
+                                                Text(AttaLanguage.text("قبول"), color = GoldLight, fontSize = 12.sp)
                                             }
                                             "outgoing" -> TextButton(onClick = { updateFriend(peer, "cancel") }, enabled = !busy) {
-                                                Text("إلغاء الطلب", color = Muted, fontSize = 12.sp)
+                                                Text(AttaLanguage.text("إلغاء الطلب"), color = Muted, fontSize = 12.sp)
                                             }
                                             else -> if (u.optBoolean("allowFriendRequests", true))
                                                 TextButton(onClick = { updateFriend(peer, "request") }, enabled = !busy) {
-                                                    Text("+ إضافة صديق", color = GoldLight, fontSize = 12.sp)
+                                                    Text(AttaLanguage.text("+ إضافة صديق"), color = GoldLight, fontSize = 12.sp)
                                                 }
                                         }
                                     }
@@ -3653,7 +3657,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                             }
                             item { SectionTitle("أصدقائي (${friends.size})") }
                             if (friends.isEmpty()) item {
-                                Text("لم تضف أصدقاء بعد. ابحث عن شخص واضغط إضافة صديق.", color = Muted,
+                                Text(AttaLanguage.text("لم تضف أصدقاء بعد. ابحث عن شخص واضغط إضافة صديق."), color = Muted,
                                     modifier = Modifier.padding(12.dp))
                             }
                             items(friends, key = { "friend_" + it.optString("username") }) { u ->
@@ -3751,10 +3755,10 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                             item {
                                 Row(Modifier.fillMaxWidth().padding(vertical = 6.dp),
                                     verticalAlignment = Alignment.CenterVertically) {
-                                    Text("الإشعارات", color = GoldLight, fontSize = 23.sp,
+                                    Text(AttaLanguage.text("الإشعارات"), color = GoldLight, fontSize = 23.sp,
                                         fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
                                     val unread = notifications.count { !it.optBoolean("read", false) }
-                                    if (unread > 0) Text("$unread جديد", color = GoldLight,
+                                    if (unread > 0) Text(AttaLanguage.text("$unread جديد"), color = GoldLight,
                                         modifier = Modifier.background(Panel, RoundedCornerShape(12.dp))
                                             .padding(horizontal = 10.dp, vertical = 5.dp),
                                         fontSize = 12.sp)
@@ -3766,7 +3770,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                         verticalAlignment = Alignment.CenterVertically) {
                                         SiteIcon("bell", size = 29.dp, tint = GoldLight)
                                         Spacer(Modifier.width(12.dp))
-                                        Text("لا توجد إشعارات حتى الآن", color = Muted, fontSize = 15.sp)
+                                        Text(AttaLanguage.text("لا توجد إشعارات حتى الآن"), color = Muted, fontSize = 15.sp)
                                     }
                                 }
                             }
@@ -3818,7 +3822,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                         }
                         "المجموعات" -> LazyColumn(Modifier.weight(1f).padding(8.dp)) {
                             item { SectionTitle("المجموعات")
-                                OutlinedTextField(groupName, { groupName = it }, label = { Text("اسم المجموعة الجديدة") }, modifier = Modifier.fillMaxWidth())
+                                OutlinedTextField(groupName, { groupName = it }, label = { Text(AttaLanguage.text("اسم المجموعة الجديدة")) }, modifier = Modifier.fillMaxWidth())
                                 GoldButton("إنشاء مجموعة", groupName.isNotBlank()) { task { post("/api/groups", JSONObject().put("name", groupName).put("members", JSONArray())); groupName = ""; load(tab) } }
                             }
                             items(groups) { g -> CardBox {
@@ -3847,7 +3851,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                             }
                             item(key = "youtube_recommendation_topics") {
                                 Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                                    Text("اقتراحات", color = GoldLight,
+                                    Text(AttaLanguage.text("اقتراحات"), color = GoldLight,
                                         fontSize = 14.sp, fontWeight = FontWeight.Bold)
                                     Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                                         horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -3887,7 +3891,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                 }
                                 if (suggestions.isNotEmpty()) {
                                     Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                                        Text("اقتراحات $youtubeCategory", color = GoldLight, fontSize = 13.sp)
+                                        Text(AttaLanguage.text("اقتراحات $youtubeCategory"), color = GoldLight, fontSize = 13.sp)
                                         Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                                             horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                             suggestions.forEach { suggestion ->
@@ -3907,16 +3911,16 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                             }
                             item(key = "social_video_embed_input") {
                                 CardBox {
-                                    Text("فيديوهات فيسبوك وإنستجرام", color = GoldLight,
+                                    Text(AttaLanguage.text("فيديوهات فيسبوك وإنستجرام"), color = GoldLight,
                                         fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                                    Text("شارك رابط فيديو أو ريلز عام داخل منشور العطا؛"
+                                    Text(AttaLanguage.text("شارك رابط فيديو أو ريلز عام داخل منشور العطا؛")
                                         + " التشغيل داخل التطبيق حسب سماح المنصة بالتضمين.",
                                         color = Muted, fontSize = 12.sp)
                                     OutlinedTextField(
                                         value = socialVideoDraftUrl,
                                         onValueChange = { socialVideoDraftUrl = it.take(1000) },
                                         modifier = Modifier.fillMaxWidth(),
-                                        label = { Text("رابط Facebook أو Instagram Reel") },
+                                        label = { Text(AttaLanguage.text("رابط Facebook أو Instagram Reel")) },
                                         singleLine = true
                                     )
                                     val socialLink = socialVideoUrl(socialVideoDraftUrl)
@@ -3935,7 +3939,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                         shape = RoundedCornerShape(14.dp)) {
                                         SiteIcon("share", tint = GoldLight, size = 18.dp)
                                         Spacer(Modifier.width(6.dp))
-                                        Text("مشاركة الفيديو كمنشور داخل العطا", color = GoldLight)
+                                        Text(AttaLanguage.text("مشاركة الفيديو كمنشور داخل العطا"), color = GoldLight)
                                     }
                                 }
                             }
@@ -4006,27 +4010,27 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                     }
                                     if (editProfileDetails) {
                                     OutlinedTextField(profileBio, { profileBio = it.take(300) },
-                                        label = { Text("نبذة عني") }, modifier = Modifier.fillMaxWidth())
+                                        label = { Text(AttaLanguage.text("نبذة عني")) }, modifier = Modifier.fillMaxWidth())
                                     Spacer(Modifier.height(6.dp))
                                     OutlinedTextField(profileCountry, { profileCountry = it.take(60) },
-                                        label = { Text("البلد") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                                        label = { Text(AttaLanguage.text("البلد")) }, modifier = Modifier.fillMaxWidth(), singleLine = true)
                                     Spacer(Modifier.height(6.dp))
                                     OutlinedTextField(profileCity, { profileCity = it.take(60) },
-                                        label = { Text("المدينة") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                                        label = { Text(AttaLanguage.text("المدينة")) }, modifier = Modifier.fillMaxWidth(), singleLine = true)
                                     Spacer(Modifier.height(6.dp))
                                     OutlinedTextField(profileEducation, { profileEducation = it.take(100) },
-                                        label = { Text("التعليم / الجامعة") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                                        label = { Text(AttaLanguage.text("التعليم / الجامعة")) }, modifier = Modifier.fillMaxWidth(), singleLine = true)
                                     Spacer(Modifier.height(6.dp))
                                     OutlinedTextField(profileWork, { profileWork = it.take(100) },
-                                        label = { Text("العمل") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                                        label = { Text(AttaLanguage.text("العمل")) }, modifier = Modifier.fillMaxWidth(), singleLine = true)
                                     Spacer(Modifier.height(8.dp))
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         Switch(checked = allowFriendRequests, onCheckedChange = { allowFriendRequests = it })
-                                        Text(" استقبال طلبات الصداقة", color = GoldLight)
+                                        Text(AttaLanguage.text(" استقبال طلبات الصداقة"), color = GoldLight)
                                     }
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         Switch(checked = accountPrivate, onCheckedChange = { accountPrivate = it })
-                                        Text(" حساب خاص (المنشورات للأصدقاء فقط)", color = GoldLight)
+                                        Text(AttaLanguage.text(" حساب خاص (المنشورات للأصدقاء فقط)"), color = GoldLight)
                                     }
                                     GoldButton("حفظ المعلومات", !busy) {
                                         task {
@@ -4056,7 +4060,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                 }
                             }
                             if (ownProfileFilter !in listOf("حول", "الأصدقاء")) item { SectionTitle("منشوراتي") }
-                            if (ownPosts.isEmpty() && !screenLoading && error.isBlank()) item { Text("لا توجد منشورات ظاهرة حاليًا", color = White) }
+                            if (ownPosts.isEmpty() && !screenLoading && error.isBlank()) item { Text(AttaLanguage.text("لا توجد منشورات ظاهرة حاليًا"), color = White) }
                             items(ownPosts.filter { p -> when (ownProfileFilter) {
                                 "الصور" -> p.optString("image").isNotBlank()
                                 "الفيديوهات" -> p.optString("video").isNotBlank() || youtubePostId(p.optString("text")) != null
@@ -4143,7 +4147,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                         if (!youtubePipMode) {
                             Row(Modifier.fillMaxWidth().height(28.dp).padding(horizontal = 5.dp),
                                 verticalAlignment = Alignment.CenterVertically) {
-                                Text("يوتيوب", color = GoldLight, fontSize = 10.sp,
+                                Text(AttaLanguage.text("يوتيوب"), color = GoldLight, fontSize = 10.sp,
                                     modifier = Modifier.weight(1f).clickable { navigate("يوتيوب") })
                                 if (onMiniDrag != null) Box(Modifier.size(width = 42.dp, height = 28.dp)
                                     .pointerInput(Unit) {
@@ -4174,7 +4178,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                         IconButton(onClick = { activeYoutubePostId = ""; activeYoutubePostVideoId = "" }) {
                             SiteIcon("x", tint = Color.White, size = 25.dp)
                         }
-                        Text("فيديو المنشور", color = GoldLight, fontSize = 16.sp,
+                        Text(AttaLanguage.text("فيديو المنشور"), color = GoldLight, fontSize = 16.sp,
                             fontWeight = FontWeight.Bold)
                     }
                     Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
@@ -4229,9 +4233,9 @@ private fun AdminOwnerHero(accountName: String, avatarUrl: String, username: Str
                 else SiteIcon("shield", size = 36.dp, tint = GoldLight)
             }
             Column(Modifier.weight(1f)) {
-                Text("لوحة القيادة", color = GoldLight,
+                Text(AttaLanguage.text("لوحة القيادة"), color = GoldLight,
                     fontWeight = FontWeight.ExtraBold, fontSize = 23.sp)
-                Text("تواصل العطا • الإدارة الرئيسية",
+                Text(AttaLanguage.text("تواصل العطا • الإدارة الرئيسية"),
                     color = Color(0xFFD6C8A4), fontSize = 12.sp)
             }
         }
@@ -4248,9 +4252,9 @@ private fun AdminOwnerHero(accountName: String, avatarUrl: String, username: Str
                 .border(1.dp, Gold.copy(alpha = .48f), RoundedCornerShape(12.dp))
                 .padding(horizontal = 10.dp, vertical = 7.dp),
                 horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("👑 المدير الرئيسي", color = GoldLight,
+                Text(AttaLanguage.text("👑 المدير الرئيسي"), color = GoldLight,
                     fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                Text("وصول معتمد", color = Color(0xFFDBCBA9), fontSize = 10.sp)
+                Text(AttaLanguage.text("وصول معتمد"), color = Color(0xFFDBCBA9), fontSize = 10.sp)
             }
         }
     }
@@ -4270,7 +4274,7 @@ private fun AdminStatisticsPanel(summary: JSONObject) {
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         SiteIcon("chart", size = 21.dp, tint = GoldLight)
         Spacer(Modifier.width(8.dp))
-        Text("نظرة عامة على المنصة", color = GoldLight, fontSize = 18.sp,
+        Text(AttaLanguage.text("نظرة عامة على المنصة"), color = GoldLight, fontSize = 18.sp,
             fontWeight = FontWeight.Bold)
     }
     metrics.chunked(2).forEach { pair ->
@@ -4288,8 +4292,8 @@ private fun AdminStatisticsPanel(summary: JSONObject) {
             }
         }
     }
-    Text("آخر ٧ أيام • بتوقيت الرياض", color = GoldLight, fontSize = 13.sp)
-    Text("ذهبي: مستخدمون جدد   •   أزرق: منشورات", color = Muted, fontSize = 11.sp)
+    Text(AttaLanguage.text("آخر ٧ أيام • بتوقيت الرياض"), color = GoldLight, fontSize = 13.sp)
+    Text(AttaLanguage.text("ذهبي: مستخدمون جدد   •   أزرق: منشورات"), color = Muted, fontSize = 11.sp)
     val daily = summary.arr("daily")
     val maximum = daily.maxOfOrNull { maxOf(it.optInt("users"), it.optInt("posts")) }?.coerceAtLeast(1) ?: 1
     daily.forEach { day ->
