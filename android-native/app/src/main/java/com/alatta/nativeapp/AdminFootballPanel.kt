@@ -76,25 +76,25 @@ internal fun AdminFootballPanel(token: String, owner: String) {
             catch (_: Exception) { /* Keep the form and last known catalog for an explicit retry. */ }
         } finally { busy = false }
     } }
-    OutlinedButton(onClick = { open = true }) { Text("إدارة القنوات والمباريات", color = PremiumGoldLight) }
+    OutlinedButton(onClick = { open = true }) { Text(AttaLanguage.text("إدارة القنوات والمباريات"), color = PremiumGoldLight) }
     if (open) {
         LaunchedEffect(Unit) { load() }
         Dialog(onDismissRequest = { if (!busy) { probeOpen = false; open = false } }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
             Surface(Modifier.fillMaxSize().safeDrawingPadding(), color = PremiumBackground) {
                 Column(Modifier.fillMaxSize().padding(12.dp)) {
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        Text("القنوات وجدول المباريات", Modifier.weight(1f), color = PremiumGoldLight, fontSize = 19.sp)
-                        TextButton(enabled = !busy, onClick = { probeOpen = false; open = false }) { Text("إغلاق") }
+                        Text(AttaLanguage.text("القنوات وجدول المباريات"), Modifier.weight(1f), color = PremiumGoldLight, fontSize = 19.sp)
+                        TextButton(enabled = !busy, onClick = { probeOpen = false; open = false }) { Text(AttaLanguage.text("إغلاق")) }
                     }
                     if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
                     if (message.isNotBlank()) Text(message, color = PremiumGoldLight, fontSize = 12.sp)
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        TextButton(enabled = loaded && !busy, onClick = { channel = null; channelForm = true; message = "" }) { Text("إضافة قناة") }
-                        TextButton(enabled = loaded && !busy, onClick = { match = null; matchForm = true; message = "" }) { Text("إضافة مباراة") }
-                        TextButton(enabled = !busy, onClick = { load() }) { Text("تحديث") }
+                        TextButton(enabled = loaded && !busy, onClick = { channel = null; channelForm = true; message = "" }) { Text(AttaLanguage.text("إضافة قناة")) }
+                        TextButton(enabled = loaded && !busy, onClick = { match = null; matchForm = true; message = "" }) { Text(AttaLanguage.text("إضافة مباراة")) }
+                        TextButton(enabled = !busy, onClick = { load() }) { Text(AttaLanguage.text("تحديث")) }
                     }
                     TextButton(enabled = loaded && !busy, onClick = { probeOpen = true }) {
-                        Text("تجربة قائمة ياسين من الهاتف", color = PremiumGoldLight)
+                        Text(AttaLanguage.text("تجربة قائمة ياسين من الهاتف"), color = PremiumGoldLight)
                     }
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Switch(automatic, enabled = !busy, onCheckedChange = { enabled -> scope.launch {
@@ -102,45 +102,45 @@ internal fun AdminFootballPanel(token: String, owner: String) {
                             try { if (CatalogAutoUpdater.automatic(context, owner, enabled)) automatic = enabled }
                             finally { busy = false }
                         } })
-                        Text("تحديث قائمة beIN تلقائيًا", color = PremiumGoldLight, fontSize = 13.sp)
+                        Text(AttaLanguage.text("تحديث قائمة beIN تلقائيًا"), color = PremiumGoldLight, fontSize = 13.sp)
                     }
                     if (automatic || links.isNotEmpty()) {
-                        Text("تُجلب قنوات قسم 1080 كاملة. التحقق كل 30 ثانية أثناء ظهور العطا، ودوريًا في الخلفية حسب نظام الهاتف.",
+                        Text(AttaLanguage.text("تُجلب قنوات قسم 1080 كاملة. التحقق كل 30 ثانية أثناء ظهور العطا، ودوريًا في الخلفية حسب نظام الهاتف."),
                             color = PremiumMuted, fontSize = 12.sp)
                         TextButton(enabled = !busy, onClick = { scope.launch {
                             busy = true
                             try { CatalogAutoUpdater.refresh(context, token, owner, force = true)?.let {
                                 it.catalog?.let { next -> catalog = next }; message = it.message
                             } } finally { busy = false }
-                        } }) { Text("تحديث القنوات الآن", color = PremiumGoldLight) }
+                        } }) { Text(AttaLanguage.text("تحديث القنوات الآن"), color = PremiumGoldLight) }
                     }
                     CatalogAutoUpdater.message(owner).takeIf { it.isNotBlank() }?.let {
                         Text(it, color = PremiumMuted, fontSize = 12.sp)
                     }
                     LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        item { Text("القنوات • ${catalog.channels.size}/40", color = PremiumGoldLight) }
-                        if (loaded && catalog.channels.isEmpty()) item { Text("أضف قناة ورابط بث يتيحه الناشر للعرض في التطبيق. لا توجد قنوات مضافة بعد.", color = PremiumMuted, fontSize = 13.sp) }
+                        item { Text(AttaLanguage.text("القنوات • ${catalog.channels.size}/40"), color = PremiumGoldLight) }
+                        if (loaded && catalog.channels.isEmpty()) item { Text(AttaLanguage.text("أضف قناة ورابط بث يتيحه الناشر للعرض في التطبيق. لا توجد قنوات مضافة بعد."), color = PremiumMuted, fontSize = 13.sp) }
                         items(catalog.channels, key = { it.id }) { item -> FootballPanel {
                             Text(item.name, color = Color.White)
                             Text("${footballChannelCategory(item)} • ${if (item.enabled) "مفعلة" else "موقوفة"}", color = PremiumMuted, fontSize = 12.sp)
                             links.firstOrNull { it.channelId == item.id }?.let { link ->
-                                Text("ربط تلقائي: ${link.sourceName} • القسم ${link.categoryId}", color = PremiumGoldLight, fontSize = 12.sp)
+                                Text(AttaLanguage.text("ربط تلقائي: ${link.sourceName} • القسم ${link.categoryId}"), color = PremiumGoldLight, fontSize = 12.sp)
                                 if (item.format != "ytv" || item.streamUrl != link.lastPublishedId)
-                                    Text("توقف التحديث لهذا الربط بعد التعديل اليدوي. أعد الربط لاستئنافه.", color = PremiumMuted, fontSize = 12.sp)
+                                    Text(AttaLanguage.text("توقف التحديث لهذا الربط بعد التعديل اليدوي. أعد الربط لاستئنافه."), color = PremiumMuted, fontSize = 12.sp)
                             }
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                TextButton(enabled = !busy, onClick = { channel = item; channelForm = true; message = "" }) { Text("تعديل") }
+                                TextButton(enabled = !busy, onClick = { channel = item; channelForm = true; message = "" }) { Text(AttaLanguage.text("تعديل")) }
                                 TextButton(enabled = !busy, onClick = { change("saveChannel", JSONObject().put("channel", item.copy(enabled = !item.enabled).json())) }) { Text(if (item.enabled) "إيقاف" else "تفعيل") }
-                                TextButton(enabled = !busy, onClick = { remove = "deleteChannel" to item.id }) { Text("إزالة") }
+                                TextButton(enabled = !busy, onClick = { remove = "deleteChannel" to item.id }) { Text(AttaLanguage.text("إزالة")) }
                             }
                         } }
-                        item { Text("المباريات • ${catalog.matches.size}/80", color = PremiumGoldLight) }
+                        item { Text(AttaLanguage.text("المباريات • ${catalog.matches.size}/80"), color = PremiumGoldLight) }
                         items(catalog.matches.sortedBy { it.startsAt }, key = { it.id }) { item -> FootballPanel {
                             Text("${item.home} — ${item.away}", color = Color.White)
                             Text("${item.league} • ${footballKickoffInput(item.startsAt)} • ${footballStatus(item.status)}", color = PremiumMuted, fontSize = 12.sp)
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                TextButton(enabled = !busy, onClick = { match = item; matchForm = true; message = "" }) { Text("تعديل / تحديث النتيجة") }
-                                TextButton(enabled = !busy, onClick = { remove = "deleteMatch" to item.id }) { Text("إزالة") }
+                                TextButton(enabled = !busy, onClick = { match = item; matchForm = true; message = "" }) { Text(AttaLanguage.text("تعديل / تحديث النتيجة")) }
+                                TextButton(enabled = !busy, onClick = { remove = "deleteMatch" to item.id }) { Text(AttaLanguage.text("إزالة")) }
                             }
                         } }
                     }
@@ -156,8 +156,8 @@ internal fun AdminFootballPanel(token: String, owner: String) {
         remove?.let { target -> AlertDialog(onDismissRequest = { if (!busy) remove = null },
             title = { Text(if (target.first == "deleteChannel") "إزالة القناة؟" else "إزالة المباراة؟") },
             text = { Text(if (target.first == "deleteChannel") "تُزال القناة من القائمة، وتبقى مبارياتها بدون قناة ناقلة حتى تختار بديلًا." else "تُزال المباراة من جدول التطبيق.") },
-            confirmButton = { TextButton(enabled = !busy, onClick = { change(target.first, JSONObject().put("id", target.second)) }) { Text("إزالة") } },
-            dismissButton = { TextButton(enabled = !busy, onClick = { remove = null }) { Text("رجوع") } }) }
+            confirmButton = { TextButton(enabled = !busy, onClick = { change(target.first, JSONObject().put("id", target.second)) }) { Text(AttaLanguage.text("إزالة")) } },
+            dismissButton = { TextButton(enabled = !busy, onClick = { remove = null }) { Text(AttaLanguage.text("رجوع")) } }) }
     }
 }
 
@@ -175,7 +175,7 @@ internal fun FootballChannelEditor(item: FootballChannel?, busy: Boolean, messag
     var validation by remember(item?.id) { mutableStateOf("") }
     AlertDialog(onDismissRequest = { if (!busy) onDismiss() }, title = { Text(if (item == null) "إضافة قناة" else "تعديل القناة") }, text = {
         Column(Modifier.heightIn(max = 480.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("تُحدّث قائمة القنوات تلقائيًا. يمكنك أيضًا تعديل قناة أو إضافة مصدر مشاهدة هنا.", fontSize = 12.sp)
+            Text(AttaLanguage.text("تُحدّث قائمة القنوات تلقائيًا. يمكنك أيضًا تعديل قناة أو إضافة مصدر مشاهدة هنا."), fontSize = 12.sp)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 listOf("hls" to "HLS", "dash" to "DASH", "youtube" to "يوتيوب", "external" to "موقع الناشر", "ytv" to "مشغّل القنوات").forEach { (value, label) ->
                     FilterChip(selected = format == value, enabled = !busy, onClick = {
@@ -196,9 +196,9 @@ internal fun FootballChannelEditor(item: FootballChannel?, busy: Boolean, messag
             }
             if (format == "ytv") {
                 FootballField(ytvId, "رقم القناة", !busy, 40, KeyboardType.Number) { ytvId = it; validation = "" }
-                Text("استخدم الرقم الحقيقي للقناة لدى المشغّل، وليس ترتيبها في القائمة. تظهر القناة للمستخدمين بعد حفظها.", fontSize = 12.sp)
+                Text(AttaLanguage.text("استخدم الرقم الحقيقي للقناة لدى المشغّل، وليس ترتيبها في القائمة. تظهر القناة للمستخدمين بعد حفظها."), fontSize = 12.sp)
             } else FootballField(stream, "رابط البث أو المشاهدة HTTPS", !busy, 2048, KeyboardType.Uri) { stream = it }
-            Row(verticalAlignment = Alignment.CenterVertically) { Switch(enabled, onCheckedChange = { enabled = it }, enabled = !busy); Text("إظهار القناة للمستخدمين") }
+            Row(verticalAlignment = Alignment.CenterVertically) { Switch(enabled, onCheckedChange = { enabled = it }, enabled = !busy); Text(AttaLanguage.text("إظهار القناة للمستخدمين")) }
             if (message.isNotBlank()) Text(message, fontSize = 12.sp)
             if (validation.isNotBlank()) Text(validation, color = Color(0xFFFFB4A9), fontSize = 12.sp)
             if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
@@ -207,8 +207,8 @@ internal fun FootballChannelEditor(item: FootballChannel?, busy: Boolean, messag
         val target = if (format == "ytv") YtvPlayer.channelId(ytvId) else stream.trim()
         if (target == null) validation = "أدخل رقم قناة صحيحًا"
         else onSave(FootballChannel(item?.id.orEmpty(), name.trim(), category.trim(), provider.trim(), source.trim(), target, format, enabled).json())
-    }) { Text("حفظ") } },
-        dismissButton = { TextButton(enabled = !busy, onClick = onDismiss) { Text("رجوع") } })
+    }) { Text(AttaLanguage.text("حفظ")) } },
+        dismissButton = { TextButton(enabled = !busy, onClick = onDismiss) { Text(AttaLanguage.text("رجوع")) } })
 }
 
 @Composable
@@ -233,7 +233,7 @@ private fun FootballMatchEditor(item: FootballMatch?, channels: List<FootballCha
             Box {
                 OutlinedButton(enabled = !busy, onClick = { channelMenu = true }) { Text(channels.firstOrNull { it.id == channelId }?.name ?: "بدون قناة ناقلة") }
                 DropdownMenu(channelMenu, onDismissRequest = { channelMenu = false }, modifier = Modifier.heightIn(max = 280.dp)) {
-                    DropdownMenuItem(text = { Text("بدون قناة ناقلة") }, onClick = { channelId = ""; channelMenu = false })
+                    DropdownMenuItem(text = { Text(AttaLanguage.text("بدون قناة ناقلة")) }, onClick = { channelId = ""; channelMenu = false })
                     channels.forEach { c -> DropdownMenuItem(text = { Text(c.name + if (c.enabled) "" else " • موقوفة") }, onClick = { channelId = c.id; channelMenu = false }) }
                 }
             }
@@ -241,8 +241,8 @@ private fun FootballMatchEditor(item: FootballMatch?, channels: List<FootballCha
                 listOf("scheduled", "live", "finished").forEach { value -> FilterChip(selected = status == value, enabled = !busy, onClick = { status = value }, label = { Text(footballStatus(value), fontSize = 12.sp) }) }
             }
             if (status != "scheduled") Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(homeScore, onValueChange = { homeScore = it.take(2) }, label = { Text("الأول") }, modifier = Modifier.weight(1f), singleLine = true, enabled = !busy, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
-                OutlinedTextField(awayScore, onValueChange = { awayScore = it.take(2) }, label = { Text("الثاني") }, modifier = Modifier.weight(1f), singleLine = true, enabled = !busy, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+                OutlinedTextField(homeScore, onValueChange = { homeScore = it.take(2) }, label = { Text(AttaLanguage.text("الأول")) }, modifier = Modifier.weight(1f), singleLine = true, enabled = !busy, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+                OutlinedTextField(awayScore, onValueChange = { awayScore = it.take(2) }, label = { Text(AttaLanguage.text("الثاني")) }, modifier = Modifier.weight(1f), singleLine = true, enabled = !busy, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
             }
             if (validation.isNotBlank()) Text(validation, color = Color(0xFFFFB4A9), fontSize = 12.sp)
             if (message.isNotBlank()) Text(message, fontSize = 12.sp)
@@ -260,7 +260,7 @@ private fun FootballMatchEditor(item: FootballMatch?, channels: List<FootballCha
                 .put("homeScore", if (status == "scheduled") JSONObject.NULL else first ?: JSONObject.NULL)
                 .put("awayScore", if (status == "scheduled") JSONObject.NULL else second ?: JSONObject.NULL))
         }
-    }) { Text("حفظ") } }, dismissButton = { TextButton(enabled = !busy, onClick = onDismiss) { Text("رجوع") } })
+    }) { Text(AttaLanguage.text("حفظ")) } }, dismissButton = { TextButton(enabled = !busy, onClick = onDismiss) { Text(AttaLanguage.text("رجوع")) } })
 }
 
 @Composable
