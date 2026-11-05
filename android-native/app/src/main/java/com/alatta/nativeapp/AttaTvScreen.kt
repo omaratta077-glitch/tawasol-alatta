@@ -52,7 +52,7 @@ internal fun tvPlaybackFailureMessage(channel: FootballChannel, failure: AttaApi
     val upstreamHttp = Regex("HTTP (\\d{3})").find(detail)?.groupValues?.getOrNull(1)
     val diagnostic = listOfNotNull("HTTP العطا ${failure.statusCode}",
         upstreamHttp?.let { "HTTP المصدر $it" }, safeCode).joinToString(" • ")
-    return "القناة ${channel.name} (رقم ${channel.streamUrl}): $description\\nرمز التشخيص: $diagnostic"
+    return "القناة ${channel.name} (رقم ${channel.streamUrl}): $description\nرمز التشخيص: $diagnostic"
 }
 
 /**
