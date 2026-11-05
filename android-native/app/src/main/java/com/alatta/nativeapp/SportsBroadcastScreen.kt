@@ -1,9 +1,5 @@
 package com.alatta.nativeapp
 
-import android.content.ComponentName
-import android.content.Context
-import android.content.Intent
-import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -40,13 +36,13 @@ internal fun SportsBroadcastScreen(
     onReload: () -> Unit,
     onStop: () -> Unit,
     onRetry: () -> Unit,
+    onOpenTv: () -> Unit = {},
     onLegacyPlayback: (() -> Unit)? = null,
     watchRoomExpanded: Boolean = false,
     onWatchRoom: () -> Unit = {},
     watchRoomContent: @Composable () -> Unit = {},
     extraContent: @Composable () -> Unit = {}
 ) {
-    val context = LocalContext.current
     Column(
         modifier.fillMaxSize().background(PremiumBackground).verticalScroll(rememberScrollState())
             .padding(horizontal = 12.dp, vertical = 10.dp),
@@ -67,7 +63,7 @@ internal fun SportsBroadcastScreen(
             if (session == null) {
                 Box(Modifier.fillMaxWidth().aspectRatio(16f / 9f),
                     contentAlignment = Alignment.Center) {
-                    Text("اختر قناة من AL-ATTA TV لعرض البث هنا",
+                    Text("صفحة الرياضة مستقلة. افتح تبويب العطا TV للقنوات والمشغّل.",
                         color = PremiumGoldLight, fontSize = 14.sp)
                 }
             } else {
@@ -87,19 +83,8 @@ internal fun SportsBroadcastScreen(
                 }
             }
         }
-        Button(onClick = {
-            // Explicit launcher: only a channel ID returns in the AL-ATTA TV handoff.
-            try {
-                onStop()
-                context.startActivity(Intent(Intent.ACTION_MAIN).apply {
-                    component = ComponentName("com.alatta.tv", "com.alatta.tv.LauncherActivity")
-                    addCategory(Intent.CATEGORY_LAUNCHER)
-                })
-            } catch (_: Exception) {
-                Toast.makeText(context, "ثبّت AL-ATTA TV لعرض قائمة القنوات.", Toast.LENGTH_LONG).show()
-            }
-        }, modifier = Modifier.fillMaxWidth()) {
-            Text("اختيار قناة من AL-ATTA TV")
+        Button(onClick = { onStop(); onOpenTv() }, modifier = Modifier.fillMaxWidth()) {
+            Text("فتح تبويب العطا TV")
         }
         if (loading) LinearProgressIndicator(Modifier.fillMaxWidth(), color = PremiumGold)
         if (error.isNotBlank()) {
@@ -112,7 +97,7 @@ internal fun SportsBroadcastScreen(
             OutlinedButton(onClick = onLegacyPlayback, modifier = Modifier.fillMaxWidth()) {
                 Text("تشغيل القناة بالمشغّل القديم", color = PremiumGoldLight)
             }
-            Text("المشغّل القديم يفتح تطبيق AL-ATTA TV المجرّب بصورة مستقلة؛ لا يتم عرضه داخل هذه الصفحة.",
+            Text("المشغّل القديم يفتح كشاشة مستقلة إذا كان مثبتًا؛ لا يتم عرضه داخل هذه الصفحة.",
                 color = PremiumMuted, fontSize = 11.sp)
         }
         OutlinedButton(onClick = onBroadcast, modifier = Modifier.fillMaxWidth()) {
