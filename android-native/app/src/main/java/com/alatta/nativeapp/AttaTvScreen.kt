@@ -17,6 +17,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
@@ -184,7 +186,12 @@ internal fun AttaTvScreen(
                             )
                         }
                     } else {
-                        LegacyInlineStreamPlayer(session!!)
+                        Box(
+                            Modifier.fillMaxWidth().aspectRatio(16f / 9f),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("يتم تشغيل القناة داخل العطا بملء الشاشة", color = PremiumGoldLight)
+                        }
                     }
                     selected?.let { channel ->
                         Row(
@@ -228,6 +235,44 @@ internal fun AttaTvScreen(
                 "اختيار القنوات والأرقام في AL-ATTA TV. تشغيل الروابط المباشرة داخل العطا Media.",
                 color = PremiumMuted, fontSize = 12.sp
             )
+        }
+    }
+
+    // TV video is displayed within AL-ATTA Media, covering the app chrome.
+    // Closing the dialog disposes and releases the native player immediately.
+    session?.let { playback ->
+        Dialog(
+            onDismissRequest = {
+                playback.onDismiss("back")
+                session = null
+            },
+            properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
+        ) {
+            Box(Modifier.fillMaxSize().background(Color.Black), contentAlignment = Alignment.Center) {
+                LegacyInlineStreamPlayer(playback, modifier = Modifier.fillMaxSize())
+                TextButton(
+                    onClick = {
+                        playback.onDismiss("close")
+                        session = null
+                    },
+                    modifier = Modifier.align(Alignment.TopEnd).padding(12.dp)
+                ) {
+                    Text("إغلاق البث", color = PremiumGoldLight, fontSize = 16.sp)
+                }
+                if (playback.terminal) {
+                    Column(
+                        Modifier.align(Alignment.BottomCenter)
+                            .fillMaxWidth().background(Color(0xE6121212))
+                            .padding(18.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(playback.lastError ?: "تعذر تشغيل مصدر القناة", color = Color(0xFFFFB4A9))
+                        TextButton(onClick = { playChannel(playback.channel) }, enabled = !busy) {
+                            Text("إعادة المحاولة بمصدر جديد", color = PremiumGoldLight)
+                        }
+                    }
+                }
+            }
         }
     }
 }
