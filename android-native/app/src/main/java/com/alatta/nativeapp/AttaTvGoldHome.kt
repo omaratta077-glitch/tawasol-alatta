@@ -14,6 +14,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -36,6 +38,7 @@ internal fun AttaTvGoldHome(
     var aboutOpen by remember { mutableStateOf(false) }
     val gold = PremiumGoldLight
     Column(modifier.fillMaxSize().background(Color(0xFF090B0D))) {
+        CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
         Row(
             Modifier.fillMaxWidth().height(55.dp)
                 .background(Color(0xFF111416)).padding(horizontal = 10.dp),
@@ -103,6 +106,7 @@ internal fun AttaTvGoldHome(
             IconButton(onClick = onExit, modifier = Modifier.size(43.dp)) {
                 SiteIcon("log-out", tint = Color.White, size = 21.dp)
             }
+        }
         }
         Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
             // The exact source illustration was recovered from the old APK.
