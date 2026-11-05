@@ -30,7 +30,7 @@ import kotlinx.coroutines.delay
  */
 @Suppress("DEPRECATION")
 @Composable
-internal fun SportsInlinePlayer(session: NativePlaybackSession, attemptTimeoutMs: Long = 20_000) {
+internal fun LegacyInlineStreamPlayer(session: NativePlaybackSession, attemptTimeoutMs: Long = 20_000) {
     val context = LocalContext.current
     val token = session.attemptToken
     val source = session.source
