@@ -107,7 +107,7 @@ internal fun FootballScreen(query: String, modifier: Modifier = Modifier,
                         onBeforePlayback(); nativeSession = NativePlaybackSession(channel, sources)
                     } else {
                         // Keep the proven channel-tab behavior intact. Only live-tab/TV handoff uses Media3.
-                        YtvPlayer.openWithWatchRoom(context, channel.streamUrl, onBeforePlayback)
+                        YtvPlayer.openWorkingEngine(context, channel.streamUrl, onBeforePlayback)
                             ?.let { playerFailure = it; return@launch }
                     }
                 }
