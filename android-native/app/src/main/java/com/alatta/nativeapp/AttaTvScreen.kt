@@ -23,6 +23,39 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
 /**
+ * Only expose fixed diagnostic categories from AL-ATTA's playback endpoint.
+ * Never echo upstream URLs, tokens, response bodies, or exception messages.
+ */
+internal fun tvPlaybackFailureMessage(channel: FootballChannel, failure: AttaApiException): String {
+    val detail = failure.message.orEmpty()
+    val description = when {
+        failure.statusCode == 401 -> "جلسة الدخول انتهت. افتح العطا وسجّل الدخول ثم أعد اختيار القناة."
+        failure.statusCode == 429 -> "طلب تشغيل آخر ما زال قيد الحماية. انتظر ثانيتين قبل إعادة المحاولة."
+        failure.statusCode == 404 -> "القناة لم تعد موجودة في قائمة العطا أو تم إيقافها. حدّث القنوات."
+        "CLOUDFLARE_1042" in detail -> "مزود المصدر رفض اتصال خادم العطا (Cloudflare 1042). تغيير المشغّل لا يحل رفض المصدر."
+        "HTTP 403" in detail || "HTTP 401" in detail -> "مصدر القناة رفض طلب بيانات التشغيل. يلزم مصدر مصرح به أو تكامل رسمي."
+        "FRESH_ID_UNCHANGED" in detail -> "رقم القناة ما زال كما هو في المصدر، لكن طلب التشغيل يرجع 404."
+        "CHANNEL_NOT_FOUND" in detail || "CATEGORY_NOT_FOUND" in detail ->
+            "لم يستطع الخادم العثور على القناة أو قسمها الحالي في المصدر."
+        "CHANNEL_AMBIGUOUS" in detail || "CATEGORY_AMBIGUOUS" in detail ->
+            "وجد الخادم أكثر من قناة أو قسم بالاسم نفسه؛ أوقف الاختيار لتجنب بث قناة مختلفة."
+        "HTTP 404" in detail -> "المصدر أعاد 404 حتى بعد فحص تحديث رقم القناة أو تعذر تحديد الرقم الحالي."
+        "NO_SUPPORTED_NATIVE_SOURCE" in detail -> "وصلت بيانات التشغيل، لكن ليس بها رابط مباشر متوافق مع مشغّل العطا. قد يتطلب المصدر ترخيصًا أو إعدادات لا يملكها العطا."
+        "SOURCE_TIMEOUT" in detail -> "انتهت مهلة اتصال خادم العطا بمصدر القناة."
+        "SOURCE_NETWORK_ERROR" in detail -> "فشل اتصال خادم العطا بمصدر القناة، قبل وصول رابط تشغيل."
+        "PLAYBACK_API_DECODE" in detail -> "وصل رد من المصدر، لكن الخادم لم يستطع قراءة بيانات تشغيل صالحة."
+        "PROBE_KEY" in detail -> "إعداد قراءة المصدر غير مكتمل في خادم العطا. راجع إعدادات Cloudflare."
+        else -> "تعذر جلب مصدر بث متوافق من الخادم؛ لا يمكن تحويل رقم القناة وحده إلى فيديو."
+    }
+    val safeCode = Regex("(CLOUDFLARE_\\d{4}|SOURCE_[A-Z_]+|NO_SUPPORTED_NATIVE_SOURCE|FRESH_ID_UNCHANGED|CHANNEL_[A-Z_]+|CATEGORY_[A-Z_]+|PLAYBACK_API_[A-Z_]+)")
+        .find(detail)?.value
+    val upstreamHttp = Regex("HTTP (\\d{3})").find(detail)?.groupValues?.getOrNull(1)
+    val diagnostic = listOfNotNull("HTTP العطا ${failure.statusCode}",
+        upstreamHttp?.let { "HTTP المصدر $it" }, safeCode).joinToString(" • ")
+    return "القناة ${channel.name} (رقم ${channel.streamUrl}): $description\\nرمز التشخيص: $diagnostic"
+}
+
+/**
  * AL-ATTA Media is the TV playback receiver; AL-ATTA TV is the channel chooser.
  * Only the stable catalog ID crosses the app boundary. Neither an unsigned
  * stream URL nor the third-party YTV player is launched from this screen.
@@ -109,12 +142,8 @@ internal fun AttaTvScreen(
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (failure: AttaApiException) {
-                // Don't suggest installing the YTV player. It's not this app's
-                // playback engine and cannot be embedded via an Intent.
-                error = if (channel.format == "ytv")
-                    "الخادم لم يقدّم رابط بث مباشر متوافقًا للقناة " + channel.name +
-                        " (رقم " + channel.streamUrl + "). لا يمكن تشغيل رقم القناة كفيديو."
-                else "لم يتوفر مصدر بث متوافق لهذه القناة."
+                error = if (channel.format == "ytv") tvPlaybackFailureMessage(channel, failure)
+                else "لم يتوفر مصدر بث متوافق لهذه القناة (HTTP ${failure.statusCode})."
             } catch (_: Exception) {
                 error = "تعذّر تجهيز بث القناة داخل العطا. تحقّق من مصدر البث وحاول مجددًا."
             } finally {
