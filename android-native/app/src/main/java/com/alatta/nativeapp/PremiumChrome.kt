@@ -205,6 +205,7 @@ internal fun PremiumBottomNav(current: String, go: (String) -> Unit) {
         Triple("الأحاديث", "book-text", "الأحاديث"),
         Triple("الأذكار", "hand-heart", "الأذكار"),
         Triple("الرياضة", "trophy", "الرياضة"),
+        Triple("العطا TV", "monitor", "العطا TV"),
         Triple("يوتيوب", "play-circle", "يوتيوب"),
         Triple("القائمة", "ellipsis", "المزيد")
     )
