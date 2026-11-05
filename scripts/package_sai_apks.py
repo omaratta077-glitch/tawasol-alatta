@@ -25,7 +25,7 @@ def main():
 
     if not options.apk.is_file() or not is_zipfile(options.apk):
         parser.error("The input must be an existing Android APK (ZIP).")
-    if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*(?:\\.[A-Za-z_][A-Za-z0-9_]*)+", options.package):
+    if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)+", options.package):
         parser.error("Invalid Android package name.")
     if options.code <= 0 or not options.version or options.min_sdk > options.target_sdk:
         parser.error("Invalid APK version or SDK.")
