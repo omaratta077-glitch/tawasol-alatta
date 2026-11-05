@@ -58,7 +58,7 @@ internal fun SportsBroadcastScreen(
                 }
             } else {
                 Column {
-                    SportsInlinePlayer(session)
+                    LegacyInlineStreamPlayer(session)
                     Row(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically) {
                         Text(session.channel.name, color = PremiumGoldLight,
