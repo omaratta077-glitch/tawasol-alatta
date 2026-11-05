@@ -49,7 +49,7 @@ public final class LauncherActivity extends Activity {
     private static final String CHANNEL_ID = "com.alatta.nativeapp.extra.TV_CHANNEL_ID";
     private static final int GOLD = 0xFFE6B64D;
     private static final int PAGE = 0xFF070707;
-    private static final int REQUIRED_VERSION = 370;
+    private static final int REQUIRED_VERSION = 371;
 
     private final ExecutorService network = Executors.newSingleThreadExecutor();
     private final Handler main = new Handler(Looper.getMainLooper());
@@ -268,7 +268,7 @@ public final class LauncherActivity extends Activity {
             long version = Build.VERSION.SDK_INT >= 28 ?
                 packageInfo.getLongVersionCode() : packageInfo.versionCode;
             if (version < REQUIRED_VERSION) {
-                state.setText("حدّث العطا Media إلى 1.0.270 ليبدأ البث داخله.");
+                state.setText("حدّث العطا Media إلى 1.0.271 ليبدأ البث داخله.");
                 return;
             }
         } catch (PackageManager.NameNotFoundException error) {
