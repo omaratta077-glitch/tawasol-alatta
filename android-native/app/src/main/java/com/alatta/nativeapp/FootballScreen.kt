@@ -85,7 +85,7 @@ internal fun FootballScreen(query: String, modifier: Modifier = Modifier,
         while (true) { delay(CatalogAutoUpdater.SHARED_CATALOG_REFRESH_MS); if (lifecycle?.currentState?.isAtLeast(Lifecycle.State.STARTED) == true) reload++ }
     }
     // القنوات المعتادة تفتح بالمشغّل السابق؛ تجربة Media3 داخل تبويب البث المباشر فقط.
-    fun play(channel: FootballChannel, nativePlayback: Boolean = false) {
+    fun play(channel: FootballChannel, nativePlayback: Boolean = true) {
         if (openingChannel) return
         openingChannel = true
         playbackScope.launch {
@@ -104,8 +104,7 @@ internal fun FootballScreen(query: String, modifier: Modifier = Modifier,
                         val sources = NativeChannelPlayback.load(token, channel.id)
                         onBeforePlayback(); nativeSession = NativePlaybackSession(channel, sources)
                     } else {
-                        YtvPlayer.openWithWatchRoom(context, channel.streamUrl, onBeforePlayback)
-                            ?.let { playerFailure = it; return@launch }
+                        error = "افتح القناة من AL-ATTA TV لتشغيل البث داخل العطا."
                     }
                 }
                 "hls", "dash" -> {
@@ -141,20 +140,26 @@ internal fun FootballScreen(query: String, modifier: Modifier = Modifier,
         }
     }
 
-    FootballContent(catalog, query, favorites, recent, loading || openingChannel, error, isAdmin, callInProgress, modifier,
-        onReload = { reload++ }, onManage = onManage, onPlay = { play(it) }, onPlayDirect = { play(it, nativePlayback = true) },
-        onFavorite = { id ->
-            favorites = if (id in favorites) favorites - id else favorites + id
-            preferences.edit().putStringSet("favorites", favorites.toSet()).apply()
-        }, onWatch = { watchEntryRequest++ },
-        watchEnabled = token.isNotBlank() && !callInProgress && !WatchRoomController.closing,
-        onBroadcast = { broadcastExpanded = !broadcastExpanded }, broadcastExpanded = broadcastExpanded,
-        livePanel = {
-            WatchRoomPanel(token, catalog.channels, callInProgress, entryRequest = watchEntryRequest,
-                onPlay = { play(it) }, onBeforeJoin = onBeforePlayback)
+    // The sports page is the live-screen receiver. Channel discovery remains in AL-ATTA TV.
+    SportsBroadcastScreen(
+        session = nativeSession,
+        loading = loading || openingChannel,
+        error = error,
+        isAdmin = isAdmin,
+        broadcastExpanded = broadcastExpanded,
+        onBroadcast = { broadcastExpanded = !broadcastExpanded },
+        onManage = onManage,
+        onReload = { reload++ },
+        onStop = {
+            nativeSession?.let { it.onDismiss("closed"); lastChannelReport = it.report() }
+            nativeSession = null
+        },
+        onRetry = { nativeSession?.channel?.let { play(it, nativePlayback = true) } },
+        extraContent = {
             SportsLivePanel(token = token, isAdmin = isAdmin, expanded = broadcastExpanded,
                 onExpandedChange = { broadcastExpanded = it })
-        })
+        }
+    )
     lastChannelReport?.let { report ->
         TextButton(onClick = {
             val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
@@ -163,10 +168,6 @@ internal fun FootballScreen(query: String, modifier: Modifier = Modifier,
         }) { Text(AttaLocale.tr("نسخ آخر تقرير للقناة"), color = PremiumGoldLight) }
     }
     playerFailure?.let { YtvPlayerErrorDialog(it, onDismiss = { playerFailure = null }) }
-    nativeSession?.let { session -> key(session.id) {
-        NativeChannelPlaybackDialog(session, onDismiss = { if (nativeSession?.id == session.id) nativeSession = null },
-            onFinalReport = { lastChannelReport = it })
-    } }
     selected?.let { channel ->
         val posts = remember(channel) { listOf(JSONObject().put("id", channel.id).put("video", channel.streamUrl)) }
         AttaPostMediaViewer(posts, channel.id, "video", onDismiss = { selected = null },
