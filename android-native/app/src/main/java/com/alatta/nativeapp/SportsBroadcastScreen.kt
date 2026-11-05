@@ -30,6 +30,7 @@ import kotlinx.coroutines.delay
 @Composable
 internal fun SportsBroadcastScreen(
     session: NativePlaybackSession?,
+    modifier: Modifier = Modifier,
     loading: Boolean,
     error: String,
     isAdmin: Boolean,
@@ -39,11 +40,14 @@ internal fun SportsBroadcastScreen(
     onReload: () -> Unit,
     onStop: () -> Unit,
     onRetry: () -> Unit,
+    watchRoomExpanded: Boolean = false,
+    onWatchRoom: () -> Unit = {},
+    watchRoomContent: @Composable () -> Unit = {},
     extraContent: @Composable () -> Unit = {}
 ) {
     val context = LocalContext.current
     Column(
-        Modifier.fillMaxSize().background(PremiumBackground).verticalScroll(rememberScrollState())
+        modifier.fillMaxSize().background(PremiumBackground).verticalScroll(rememberScrollState())
             .padding(horizontal = 12.dp, vertical = 10.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
@@ -102,6 +106,11 @@ internal fun SportsBroadcastScreen(
             Text(if (broadcastExpanded) "إخفاء أدوات بث الشاشة" else "إظهار أدوات بث الشاشة",
                 color = PremiumGoldLight)
         }
+        OutlinedButton(onClick = onWatchRoom, modifier = Modifier.fillMaxWidth()) {
+            Text(if (watchRoomExpanded) "إخفاء شاهد مع أصحابك" else "شاهد مع أصحابك",
+                color = PremiumGoldLight)
+        }
+        if (watchRoomExpanded) watchRoomContent()
         extraContent()
     }
 }
