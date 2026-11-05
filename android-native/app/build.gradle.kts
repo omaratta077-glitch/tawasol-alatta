@@ -24,9 +24,9 @@ android {
         applicationId = "com.alatta.nativeapp"
         minSdk = 26
         targetSdk = 36
-        // الإصدار 1.0.265: الاحتفاظ بالقنوات والبث المباشر، وإضافة تشغيل اختياري عبر محرك النسخة القديمة المثبتة.
-        versionCode = 365
-        versionName = "1.0.265"
+        // الإصدار 1.0.266: إضافة تبويب مستقل للعطا TV في الشريط السفلي، مع فصل قنوات الرياضة.
+        versionCode = 366
+        versionName = "1.0.266"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("boolean", "IS_APPGALLERY", appGalleryBuild.toString())
         val hmsId = (System.getenv("ALATTA_HMS_APP_ID") ?: "").trim().takeIf { it.matches(Regex("[0-9]{1,20}")) } ?: ""
