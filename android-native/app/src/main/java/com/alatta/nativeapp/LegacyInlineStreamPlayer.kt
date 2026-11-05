@@ -30,7 +30,11 @@ import kotlinx.coroutines.delay
  */
 @Suppress("DEPRECATION")
 @Composable
-internal fun LegacyInlineStreamPlayer(session: NativePlaybackSession, attemptTimeoutMs: Long = 20_000) {
+internal fun LegacyInlineStreamPlayer(
+    session: NativePlaybackSession,
+    modifier: Modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f),
+    attemptTimeoutMs: Long = 20_000
+) {
     val context = LocalContext.current
     val token = session.attemptToken
     val source = session.source
@@ -85,7 +89,7 @@ internal fun LegacyInlineStreamPlayer(session: NativePlaybackSession, attemptTim
                 androidx.media3.common.PlaybackException.ERROR_CODE_TIMEOUT))
         }
     }
-    Box(Modifier.fillMaxWidth().aspectRatio(16f / 9f).background(Color.Black),
+    Box(modifier.background(Color.Black),
         contentAlignment = Alignment.Center) {
         AndroidView(factory = { ctx ->
             PlayerView(ctx).apply {
