@@ -101,7 +101,12 @@ internal fun SportsBroadcastScreen(
             Text("اختيار قناة من AL-ATTA TV")
         }
         if (loading) LinearProgressIndicator(Modifier.fillMaxWidth(), color = PremiumGold)
-        if (error.isNotBlank()) Text(error, color = Color(0xFFFFB4A9), fontSize = 13.sp)
+        if (error.isNotBlank()) {
+            Text(error, color = Color(0xFFFFB4A9), fontSize = 13.sp)
+            if (session == null) OutlinedButton(onClick = onRetry, modifier = Modifier.fillMaxWidth()) {
+                Text("إعادة محاولة تشغيل القناة", color = PremiumGoldLight)
+            }
+        }
         OutlinedButton(onClick = onBroadcast, modifier = Modifier.fillMaxWidth()) {
             Text(if (broadcastExpanded) "إخفاء أدوات بث الشاشة" else "إظهار أدوات بث الشاشة",
                 color = PremiumGoldLight)
