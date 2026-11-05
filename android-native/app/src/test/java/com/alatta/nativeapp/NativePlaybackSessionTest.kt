@@ -19,7 +19,7 @@ class NativePlaybackSessionTest {
 
     @Test fun attemptsShareOneClockAndRetainBothFailuresWithoutClosingTheSession() {
         var now = 1_000L
-        val session = NativePlaybackSession(channel, sources()) { now }
+        val session = NativePlaybackSession(channel, sources(), clock = { now })
         assertEquals(1, JSONObject(session.report()).getJSONArray("attempts").length())
         now += 20_000; session.fail(0, timeout())
         assertEquals(1, session.position); assertFalse(session.terminal)
@@ -41,7 +41,7 @@ class NativePlaybackSessionTest {
 
     @Test fun releasedPlayerCallbacksAndDuplicateSnapshotsCannotResetTheActiveAttempt() {
         var now = 0L
-        val session = NativePlaybackSession(channel, sources()) { now }
+        val session = NativePlaybackSession(channel, sources(), clock = { now })
         now = 20_000; session.fail(0, timeout())
         session.onStarted(0)
         session.onSnapshot(0, MediaPlaybackSnapshot("stale", isPlaying = true))
@@ -62,7 +62,7 @@ class NativePlaybackSessionTest {
         val headers = mutableMapOf("User-Agent" to "original-agent")
         val original = sources().toMutableList()
         original[0] = original[0].copy(headers = headers)
-        val session = NativePlaybackSession(channel, original) { 0L }
+        val session = NativePlaybackSession(channel, original, clock = { 0L })
         val id = session.id
         headers["User-Agent"] = "replacement-agent"
         original.clear()
