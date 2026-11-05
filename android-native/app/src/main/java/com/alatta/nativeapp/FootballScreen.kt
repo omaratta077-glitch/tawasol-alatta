@@ -163,7 +163,7 @@ internal fun FootballScreen(query: String, modifier: Modifier = Modifier,
         watchEnabled = token.isNotBlank() && !callInProgress && !WatchRoomController.closing,
         onBroadcast = { broadcastExpanded = !broadcastExpanded },
         broadcastExpanded = broadcastExpanded,
-        onPlayDirect = { play(it, nativePlayback = true) },
+        onPlayDirect = { channel -> lastRequestedChannel = channel; play(channel, nativePlayback = true) },
         livePanel = {
             WatchRoomPanel(token, catalog.channels, callInProgress, entryRequest = watchEntryRequest,
                 onPlay = { play(it, nativePlayback = true) }, onBeforeJoin = onBeforePlayback)
@@ -189,6 +189,17 @@ internal fun FootballScreen(query: String, modifier: Modifier = Modifier,
                         play(channel, nativePlayback = true)
                     } ?: run { reload++ }
                 },
+                onLegacyPlayback = if (lastRequestedChannel?.format == "ytv") {
+                    {
+                        lastRequestedChannel?.let { channel ->
+                            playbackScope.launch {
+                                val failure = YtvPlayer.openWorkingEngine(context, channel.streamUrl, onBeforePlayback)
+                                if (failure != null) playerFailure = failure else error = ""
+                            }
+                        }
+                        Unit
+                    }
+                } else null,
                 watchRoomExpanded = watchRoomExpanded,
                 onWatchRoom = { watchRoomExpanded = !watchRoomExpanded },
                 watchRoomContent = {
