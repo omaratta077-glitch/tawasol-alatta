@@ -105,7 +105,7 @@ internal fun FootballScreen(query: String, modifier: Modifier = Modifier,
                     if (nativePlayback) {
                         if (token.isBlank()) { error = "سجّل الدخول لتشغيل القناة."; return@launch }
                         val sources = NativeChannelPlayback.load(token, channel.id)
-                        onBeforePlayback(); nativeSession = NativePlaybackSession(channel, sources)
+                        onBeforePlayback(); nativeSession = NativePlaybackSession(channel, sources, engineName = "ExoPlayer2")
                     } else {
                         // Keep the proven channel-tab behavior intact. Only live-tab/TV handoff uses Media3.
                         YtvPlayer.openWorkingEngine(context, channel.streamUrl, onBeforePlayback)
@@ -116,7 +116,7 @@ internal fun FootballScreen(query: String, modifier: Modifier = Modifier,
                     if (nativePlayback) {
                         if (callInProgress) { error = "أنهِ المكالمة أولًا لتشغيل القناة."; return@launch }
                         val sources = NativeChannelPlayback.fromPublishedChannel(channel)
-                        onBeforePlayback(); nativeSession = NativePlaybackSession(channel, sources)
+                        onBeforePlayback(); nativeSession = NativePlaybackSession(channel, sources, engineName = "ExoPlayer2")
                     } else { onBeforePlayback(); selected = channel }
                 }
                 else -> { onBeforePlayback(); selected = channel }
