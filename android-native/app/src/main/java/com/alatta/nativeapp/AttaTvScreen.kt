@@ -1,12 +1,11 @@
 package com.alatta.nativeapp
 
+import android.content.ActivityNotFoundException
+import android.content.ComponentName
+import android.content.Intent
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -22,9 +21,12 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
 /**
- * A standalone AL-ATTA TV destination. It does not replace the sports section.
- * Inline playback uses the legacy ExoPlayer 2 engine. The external YTV Activity
- * remains a manual fallback when the provider has no authorized direct source.
+ * AL-ATTA Media is the TV playback receiver; AL-ATTA TV is the channel chooser.
+ * Only the stable catalog ID crosses the app boundary. Neither an unsigned
+ * stream URL nor the third-party YTV player is launched from this screen.
+ *
+ * Existing reels, post-video and chat players are untouched. This screen
+ * uses the internal ExoPlayer2 player for authorized HLS/DASH sources only.
  */
 @Composable
 internal fun AttaTvScreen(
@@ -37,253 +39,195 @@ internal fun AttaTvScreen(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val scroll = rememberLazyListState()
     var catalog by remember { mutableStateOf(FootballCatalog()) }
     var reload by remember { mutableIntStateOf(0) }
     var loading by remember { mutableStateOf(true) }
     var busy by remember { mutableStateOf(false) }
-    var search by remember { mutableStateOf("") }
     var selected by remember { mutableStateOf<FootballChannel?>(null) }
     var session by remember { mutableStateOf<NativePlaybackSession?>(null) }
     var error by remember { mutableStateOf("") }
-    var legacyFailure by remember { mutableStateOf<YtvPlayer.Failure?>(null) }
     var goldHomeVisible by rememberSaveable { mutableStateOf(true) }
+
+    fun openChannelChooser() {
+        // AL-ATTA TV remains a separate, signed catalog app, not a player.
+        try {
+            context.startActivity(Intent(Intent.ACTION_MAIN).apply {
+                component = ComponentName("com.alatta.tv", "com.alatta.tv.LauncherActivity")
+                addCategory(Intent.CATEGORY_LAUNCHER)
+            })
+        } catch (_: ActivityNotFoundException) {
+            error = "تطبيق AL-ATTA TV الخاص باختيار القنوات غير مثبت. ثبّت تطبيق القنوات، وليس مشغّل YTV."
+            goldHomeVisible = false
+        } catch (_: SecurityException) {
+            error = "تعذر فتح تطبيق اختيار القنوات من إعدادات الجهاز."
+            goldHomeVisible = false
+        }
+    }
 
     LaunchedEffect(reload) {
         loading = true
         try {
             catalog = FootballRepository.load()
-            error = ""
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (_: Exception) {
-            error = "تعذر تحميل القنوات. اضغط تحديث للمحاولة مرة أخرى."
+            error = "تعذر تحديث معلومات القنوات من خادم العطا."
         } finally {
             loading = false
         }
     }
 
-    // Try a legitimate direct HLS/DASH stream inside the tab first. The gold
-    // engine accepts a numeric YTV channel, not a URL. When direct-source
-    // negotiation fails, gracefully open the installed gold engine. Android
-    // cannot render another application's Activity inside this Compose tab.
-    fun play(channel: FootballChannel, tryInline: Boolean = true) {
+    fun playChannel(channel: FootballChannel) {
         if (busy) return
         busy = true
-        error = ""
-        legacyFailure = null
         selected = channel
+        session?.onDismiss("next_channel")
         session = null
+        error = ""
+        goldHomeVisible = false
         scope.launch {
-            suspend fun openGoldEngine() {
-                onBeforePlayback()
-                val failure = YtvPlayer.openWorkingEngine(context, channel.streamUrl)
-                if (failure != null) {
-                    legacyFailure = failure
-                    error = failure.explanation
-                }
-            }
             try {
-                if (channel.format == "ytv" && (!tryInline || token.isBlank())) {
-                    // No account required to use the existing installed player.
-                    openGoldEngine()
-                } else {
-                    val sources = if (channel.format == "ytv") {
+                val sources = when (channel.format) {
+                    "hls", "dash" -> NativeChannelPlayback.fromPublishedChannel(channel)
+                    "ytv" -> {
+                        if (token.isBlank()) {
+                            error = "القناة رقم " + channel.streamUrl +
+                                " تحتاج مصدر بث مباشر من خادم العطا. رقم القناة وحده ليس رابط فيديو."
+                            return@launch
+                        }
                         NativeChannelPlayback.load(token, channel.id)
-                    } else {
-                        NativeChannelPlayback.fromPublishedChannel(channel)
                     }
-                    onBeforePlayback()
-                    session = NativePlaybackSession(channel, sources, engineName = "ExoPlayer2")
+                    else -> {
+                        error = "صيغة القناة غير مدعومة في مشغّل العطا TV الداخلي."
+                        return@launch
+                    }
                 }
+                onBeforePlayback()
+                session = NativePlaybackSession(channel, sources, engineName = "ExoPlayer2")
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (failure: AttaApiException) {
-                if (channel.format == "ytv") {
-                    // Source is unavailable, not necessarily the video decoder.
-                    openGoldEngine()
-                } else {
-                    error = "لم يصل رابط بث مباشر صالح. حدّث القائمة وحاول مجددًا."
-                }
+                // Don't suggest installing the YTV player. It's not this app's
+                // playback engine and cannot be embedded via an Intent.
+                error = if (channel.format == "ytv")
+                    "الخادم لم يقدّم رابط بث مباشر متوافقًا للقناة " + channel.name +
+                        " (رقم " + channel.streamUrl + "). لا يمكن تشغيل رقم القناة كفيديو."
+                else "لم يتوفر مصدر بث متوافق لهذه القناة."
             } catch (_: Exception) {
-                error = "تعذر بدء القناة. جرّب إعادة فتحها أو تحديث القائمة."
+                error = "تعذّر تجهيز بث القناة داخل العطا. تحقّق من مصدر البث وحاول مجددًا."
             } finally {
                 busy = false
             }
         }
     }
 
-    // If the provider gives a URL that fails after decoding/timeout, do not
-    // strand the user on a black player. Use the installed working gold app once.
-    val failedSession = session?.takeIf { it.terminal && it.channel.format == "ytv" }
-    LaunchedEffect(failedSession?.id) {
-        val current = failedSession ?: return@LaunchedEffect
-        if (session?.id != current.id) return@LaunchedEffect
-        session = null
-        selected = current.channel
-        error = ""
-        val failure = YtvPlayer.openWorkingEngine(context, current.channel.streamUrl)
-        if (failure != null) {
-            legacyFailure = failure
-            error = failure.explanation
-        }
-    }
-
-    LaunchedEffect(requestedChannelId, catalog, loading) {
+    LaunchedEffect(requestedChannelId, catalog, loading, token) {
         val id = requestedChannelId ?: return@LaunchedEffect
         if (loading) return@LaunchedEffect
         val channel = catalog.channels.firstOrNull {
-            it.enabled && it.id == id && it.format in setOf("ytv", "hls", "dash")
+            it.id == id && it.enabled && it.format in setOf("ytv", "hls", "dash")
         }
         onRequestedChannelConsumed()
         goldHomeVisible = false
         if (channel == null) {
-            error = "القناة المختارة غير موجودة. حدّث قائمة القنوات."
+            error = "القناة المختارة غير موجودة أو لم تعد مفعلة في قائمة العطا TV."
         } else {
-            play(channel)
-            scroll.animateScrollToItem(0)
+            playChannel(channel)
         }
     }
 
-    val channels = remember(catalog, search) {
-        val keyword = search.trim()
-        catalog.channels.asSequence()
-            .filter { it.enabled && it.format in setOf("ytv", "hls", "dash") }
-            .filter { channel ->
-                keyword.isBlank() || channel.name.contains(keyword, ignoreCase = true) ||
-                    channel.category.contains(keyword, ignoreCase = true) ||
-                    (channel.format == "ytv" && channel.streamUrl.contains(keyword))
-            }
-            .sortedWith(footballChannelOrder())
-            .toList()
-    }
+    // Leave the original gold landing page intact when opening this tab.
     if (goldHomeVisible) {
         AttaTvGoldHome(
-            onOnlineVideos = { goldHomeVisible = false },
+            onOnlineVideos = { openChannelChooser() },
             onExit = onExit,
             modifier = modifier
         )
-        return
-    }
-    LazyColumn(
-        modifier = modifier.fillMaxSize().background(PremiumBackground),
-        state = scroll,
-        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
-    ) {
-        item(key = "tv-player") {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    TextButton(onClick = {
-                        goldHomeVisible = true
-                        session = null
-                        selected = null
-                        error = ""
-                    }) { Text("الرئيسية", color = PremiumGoldLight) }
-                    SiteIcon("monitor", tint = PremiumGoldLight, size = 29.dp)
-                    Spacer(Modifier.width(10.dp))
-                    Text("AL-ATTA TV", color = PremiumGoldLight, fontWeight = FontWeight.Bold,
-                        fontSize = 22.sp, modifier = Modifier.weight(1f))
-                    TextButton(onClick = { reload++ }, enabled = !loading) {
-                        Text("تحديث", color = PremiumGoldLight)
-                    }
-                }
-                Text("قنوات AL-ATTA TV • اختر القناة لمشاهدة البث.",
-                    color = PremiumMuted, fontSize = 12.sp)
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    color = Color.Black,
-                    shape = RoundedCornerShape(15.dp),
-                    border = BorderStroke(1.dp, PremiumBorder)
-                ) {
-                    Column {
-                        if (session == null) {
-                            Box(
-                                Modifier.fillMaxWidth().aspectRatio(16f / 9f)
-                                    .background(Color.Black),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    if (selected == null) "اختَر قناة لبدء البث"
-                                    else if (selected?.format == "ytv")
-                                        "القناة: " + selected?.name + "\nيُفتح المحرك الذهبي المثبّت عند تعذّر المصدر المباشر."
-                                    else "جارٍ تجهيز المشغّل...",
-                                    color = PremiumGoldLight, fontSize = 13.sp
-                                )
-                            }
-                        } else {
-                            LegacyInlineStreamPlayer(session!!)
-                        }
-                        selected?.let { channel ->
-                            Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp),
-                                verticalAlignment = Alignment.CenterVertically) {
-                                Text(channel.name, color = PremiumGoldLight,
-                                    modifier = Modifier.weight(1f), fontSize = 13.sp)
-                                if (session != null) TextButton(onClick = { session = null }) {
-                                    Text("إيقاف", color = PremiumGoldLight)
-                                }
-                            }
-                            if (session?.terminal == true) {
-                                Text(session?.lastError ?: "تعذّر بدء البث.",
-                                    color = Color(0xFFFFB4A9), fontSize = 12.sp,
-                                    modifier = Modifier.padding(8.dp))
-                            }
-                            if (channel.format == "ytv") {
-                                OutlinedButton(
-                                    onClick = { play(channel, tryInline = false) },
-                                    enabled = !busy, modifier = Modifier.fillMaxWidth()
-                                        .padding(horizontal = 8.dp)
-                                ) { Text("فتح المشغّل الذهبي الأصلي", color = PremiumGoldLight) }
-                                TextButton(
-                                    onClick = { play(channel, tryInline = true) },
-                                    enabled = !busy && token.isNotBlank(),
-                                    modifier = Modifier.fillMaxWidth()
-                                ) { Text("تشغيل المصدر المباشر داخل التبويب", color = PremiumGoldLight) }
-                            }
-                        }
-                    }
-                }
-                if (loading || busy) LinearProgressIndicator(
-                    Modifier.fillMaxWidth(), color = PremiumGold)
-                if (error.isNotBlank()) Text(error, color = Color(0xFFFFB4A9), fontSize = 13.sp)
-                OutlinedTextField(
-                    value = search, onValueChange = { search = it },
-                    label = { Text("ابحث عن قناة أو رقمها") },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true
-                )
-                Text("القنوات (" + channels.size + ")", color = PremiumGoldLight,
-                    fontSize = 15.sp, fontWeight = FontWeight.Bold)
+    } else {
+        Column(
+            modifier.fillMaxSize().background(PremiumBackground)
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                TextButton(onClick = {
+                    session?.onDismiss("gold_home")
+                    session = null
+                    selected = null
+                    error = ""
+                    goldHomeVisible = true
+                }) { Text("الرئيسية", color = PremiumGoldLight) }
+                Spacer(Modifier.width(5.dp))
+                SiteIcon("monitor", tint = PremiumGoldLight, size = 27.dp)
+                Spacer(Modifier.width(8.dp))
+                Text("AL-ATTA TV", color = PremiumGoldLight,
+                    fontSize = 21.sp, fontWeight = FontWeight.Bold,
+                    modifier = Modifier.weight(1f))
             }
-        }
-        items(channels, key = { it.id }) { channel ->
             Surface(
-                modifier = Modifier.fillMaxWidth()
-                    .clickable(enabled = !busy) { play(channel) },
-                color = PremiumPanel,
-                shape = RoundedCornerShape(13.dp),
-                border = BorderStroke(.7.dp, PremiumBorder)
+                modifier = Modifier.fillMaxWidth(),
+                color = Color.Black,
+                shape = RoundedCornerShape(14.dp),
+                border = BorderStroke(1.dp, PremiumBorder)
             ) {
-                Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                        Text(channel.name, color = PremiumGoldLight,
-                            fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
-                        val number = if (channel.format == "ytv") channel.streamUrl else ""
-                        Text(
-                            if (number.isNotBlank()) "رقم القناة: " + number
-                            else channel.category.ifBlank { "بث مباشر" },
-                            color = PremiumMuted, fontSize = 11.sp
-                        )
+                Column {
+                    if (session == null) {
+                        Box(
+                            Modifier.fillMaxWidth().aspectRatio(16f / 9f),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                if (selected == null) "اختر قناة من AL-ATTA TV لعرضها هنا"
+                                else "القناة: " + selected!!.name,
+                                color = PremiumGoldLight,
+                                fontSize = 14.sp
+                            )
+                        }
+                    } else {
+                        LegacyInlineStreamPlayer(session!!)
                     }
-                    SiteIcon("play-circle", tint = PremiumGold, size = 25.dp)
+                    selected?.let { channel ->
+                        Row(
+                            Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(channel.name, color = PremiumGoldLight, fontSize = 14.sp,
+                                modifier = Modifier.weight(1f))
+                            if (session != null) {
+                                TextButton(onClick = {
+                                    session?.onDismiss("stop")
+                                    session = null
+                                }) { Text("إيقاف", color = PremiumGoldLight) }
+                            }
+                        }
+                    }
                 }
             }
-        }
-        if (!loading && channels.isEmpty()) item(key = "tv-empty") {
-            Text("لا توجد قنوات مطابقة. استخدم تحديث أو غيّر البحث.",
-                color = PremiumMuted, fontSize = 13.sp)
+
+            if (session?.terminal == true) {
+                Text(session?.lastError ?: "تعذّر تشغيل رابط البث.",
+                    color = Color(0xFFFFB4A9), fontSize = 13.sp)
+            }
+            if (loading || busy) LinearProgressIndicator(
+                modifier = Modifier.fillMaxWidth(), color = PremiumGold)
+            if (error.isNotBlank()) {
+                Text(error, color = Color(0xFFFFB4A9), fontSize = 13.sp)
+            }
+            selected?.let { channel ->
+                OutlinedButton(
+                    onClick = { playChannel(channel) },
+                    enabled = !busy && !loading,
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text("إعادة محاولة تشغيل القناة", color = PremiumGoldLight) }
+            }
+            Button(
+                onClick = { openChannelChooser() },
+                modifier = Modifier.fillMaxWidth()
+            ) { Text("اختيار قناة من AL-ATTA TV") }
+            Text(
+                "اختيار القنوات والأرقام في AL-ATTA TV. تشغيل الروابط المباشرة داخل العطا Media.",
+                color = PremiumMuted, fontSize = 12.sp
+            )
         }
     }
-    legacyFailure?.let { YtvPlayerErrorDialog(it, onDismiss = { legacyFailure = null }) }
 }
