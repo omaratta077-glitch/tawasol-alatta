@@ -9,18 +9,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.viewinterop.AndroidView
-import androidx.media3.common.MediaItem
-import androidx.media3.common.PlaybackException
-import androidx.media3.common.Player
-import androidx.media3.exoplayer.ExoPlayer
-import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
-import androidx.media3.ui.AspectRatioFrameLayout
-import androidx.media3.ui.PlayerView
-import kotlinx.coroutines.delay
 
 /** AL-ATTA displays the selected live stream inline; AL-ATTA TV owns the channel list. */
 @Composable
@@ -110,68 +100,5 @@ internal fun SportsBroadcastScreen(
         }
         if (watchRoomExpanded) watchRoomContent()
         extraContent()
-    }
-}
-
-/** One Media3 player for the active channel; failover keeps the existing session/reporting model. */
-@Composable
-internal fun SportsInlinePlayer(session: NativePlaybackSession, attemptTimeoutMs: Long = 20_000) {
-    val context = LocalContext.current
-    val token = session.attemptToken
-    val source = session.source
-    var playing by remember(session.id, token) { mutableStateOf(false) }
-    val player = remember(session.id, token, context) {
-        val transport = NativeChannelPlayback.transport(context, source.headers)
-        ExoPlayer.Builder(context)
-            .setMediaSourceFactory(DefaultMediaSourceFactory(transport))
-            .setLoadControl(VideoTransport.loadControl(true))
-            .build()
-    }
-    DisposableEffect(player) {
-        val listener = object : Player.Listener {
-            override fun onEvents(player: Player, events: Player.Events) {
-                session.onSnapshot(token, MediaPlaybackSnapshot(
-                    "player_event", player.playbackState, player.playWhenReady,
-                    player.isLoading, player.isPlaying, player.playbackSuppressionReason,
-                    player.videoSize.width, player.videoSize.height))
-            }
-            override fun onIsPlayingChanged(isPlaying: Boolean) {
-                playing = isPlaying
-                if (isPlaying) session.onStarted(token)
-            }
-            override fun onPlayerError(error: PlaybackException) { session.fail(token, error) }
-        }
-        player.addListener(listener)
-        if (!session.terminal) {
-            player.setMediaItem(MediaItem.Builder().setUri(source.url)
-                .setMimeType(source.mimeType).build())
-            player.prepare()
-            player.playWhenReady = true
-        }
-        onDispose {
-            player.removeListener(listener)
-            player.release()
-        }
-    }
-    LaunchedEffect(session.id, token) {
-        delay((attemptTimeoutMs - session.attemptElapsedMs()).coerceAtLeast(0))
-        if (!session.started && !session.terminal) {
-            session.fail(token, PlaybackException("Startup timeout", null,
-                PlaybackException.ERROR_CODE_TIMEOUT))
-        }
-    }
-    Box(Modifier.fillMaxWidth().aspectRatio(16f / 9f).background(Color.Black),
-        contentAlignment = Alignment.Center) {
-        AndroidView(factory = { ctx ->
-            PlayerView(ctx).apply {
-                this.player = player
-                useController = true
-                resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-            }
-        }, update = { it.player = player }, modifier = Modifier.fillMaxSize())
-        if (!playing && !session.terminal) {
-            CircularProgressIndicator(color = PremiumGoldLight,
-                modifier = Modifier.size(32.dp).align(Alignment.Center))
-        }
     }
 }
