@@ -87,6 +87,21 @@ internal object YtvPlayer {
         catch (_: SecurityException) { Failure.NOT_ALLOWED }
     }
 
+    /**
+     * Use the proven installed YTV-family engine, not the tiny AL-ATTA TV channel
+     * chooser. This remains an external Activity; it is not an embedded player.
+     * Never repackage, resign, or copy its private APK/native libraries.
+     */
+    suspend fun openWorkingEngine(context: Context, value: String, beforeLaunch: () -> Unit = {}): Failure? {
+        val playerIntent = channelIntent(value) ?: return Failure.INVALID_ID
+        if (WatchRoomController.active) {
+            if (playerIntent.resolveActivity(context.packageManager) == null) return Failure.UNAVAILABLE
+            WatchRoomPip.enterAndWait(context)?.let { return it.playerFailure() }
+        }
+        val launchIntent = if (WatchRoomController.active) WatchRoomPip.playerIntent(playerIntent) else playerIntent
+        return launch(context, launchIntent, beforeLaunch)
+    }
+
     suspend fun openWithWatchRoom(context: Context, value: String, beforeLaunch: () -> Unit = {}): Failure? {
         val original = channelIntent(value) ?: return Failure.INVALID_ID
         // Watch room PiP keeps its already tested direct-player contract.
