@@ -66,6 +66,7 @@ internal fun FootballScreen(query: String, modifier: Modifier = Modifier,
     var playerFailure by remember { mutableStateOf<YtvPlayer.Failure?>(null) }
     var watchEntryRequest by remember { mutableIntStateOf(0) }
     var broadcastExpanded by rememberSaveable { mutableStateOf(false) }
+    var watchRoomExpanded by rememberSaveable { mutableStateOf(false) }
     val generation = CatalogAutoUpdater.generation
     LaunchedEffect(reload, generation) {
         // التحديث المتكرر لا يمسح القنوات المعروضة أو يوقف المشغّل عند كل فحص.
@@ -84,7 +85,7 @@ internal fun FootballScreen(query: String, modifier: Modifier = Modifier,
         val lifecycle = context.mediaActivity()?.lifecycle
         while (true) { delay(CatalogAutoUpdater.SHARED_CATALOG_REFRESH_MS); if (lifecycle?.currentState?.isAtLeast(Lifecycle.State.STARTED) == true) reload++ }
     }
-    // القنوات المعتادة تفتح بالمشغّل السابق؛ تجربة Media3 داخل تبويب البث المباشر فقط.
+    // بث الرياضة داخل Media3؛ قائمة القنوات الخارجية في AL-ATTA TV فقط.
     fun play(channel: FootballChannel, nativePlayback: Boolean = true) {
         if (openingChannel) return
         openingChannel = true
@@ -143,6 +144,7 @@ internal fun FootballScreen(query: String, modifier: Modifier = Modifier,
     // The sports page is the live-screen receiver. Channel discovery remains in AL-ATTA TV.
     SportsBroadcastScreen(
         session = nativeSession,
+        modifier = modifier,
         loading = loading || openingChannel,
         error = error,
         isAdmin = isAdmin,
@@ -155,6 +157,12 @@ internal fun FootballScreen(query: String, modifier: Modifier = Modifier,
             nativeSession = null
         },
         onRetry = { nativeSession?.channel?.let { play(it, nativePlayback = true) } },
+        watchRoomExpanded = watchRoomExpanded,
+        onWatchRoom = { watchRoomExpanded = !watchRoomExpanded },
+        watchRoomContent = {
+            WatchRoomPanel(token, catalog.channels, callInProgress, entryRequest = watchEntryRequest,
+                onPlay = { play(it, nativePlayback = true) }, onBeforeJoin = onBeforePlayback)
+        },
         extraContent = {
             SportsLivePanel(token = token, isAdmin = isAdmin, expanded = broadcastExpanded,
                 onExpandedChange = { broadcastExpanded = it })
