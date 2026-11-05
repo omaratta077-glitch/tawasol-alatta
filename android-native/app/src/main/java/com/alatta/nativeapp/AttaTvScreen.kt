@@ -63,27 +63,31 @@ internal fun AttaTvScreen(
         }
     }
 
-    // All channel taps start inside AL-ATTA TV; never auto-launch another app.
+    // Try a legitimate direct HLS/DASH stream inside the tab first. The gold
+    // engine accepts a numeric YTV channel, not a URL. When direct-source
+    // negotiation fails, gracefully open the installed gold engine. Android
+    // cannot render another application's Activity inside this Compose tab.
     fun play(channel: FootballChannel, tryInline: Boolean = true) {
         if (busy) return
         busy = true
         error = ""
+        legacyFailure = null
         selected = channel
         session = null
         scope.launch {
+            suspend fun openGoldEngine() {
+                onBeforePlayback()
+                val failure = YtvPlayer.openWorkingEngine(context, channel.streamUrl)
+                if (failure != null) {
+                    legacyFailure = failure
+                    error = failure.explanation
+                }
+            }
             try {
-                if (channel.format == "ytv" && !tryInline) {
-                    onBeforePlayback()
-                    val failure = YtvPlayer.openWorkingEngine(context, channel.streamUrl)
-                    if (failure != null) {
-                        legacyFailure = failure
-                        error = failure.explanation
-                    }
+                if (channel.format == "ytv" && (!tryInline || token.isBlank())) {
+                    // No account required to use the existing installed player.
+                    openGoldEngine()
                 } else {
-                    if (channel.format == "ytv" && token.isBlank()) {
-                        error = "سجّل الدخول لتجربة مصدر القناة داخل العطا."
-                        return@launch
-                    }
                     val sources = if (channel.format == "ytv") {
                         NativeChannelPlayback.load(token, channel.id)
                     } else {
@@ -95,9 +99,14 @@ internal fun AttaTvScreen(
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (failure: AttaApiException) {
-                error = "لم يقدّم المصدر رابط تشغيل مباشرًا. المشغّل داخل الصفحة يحتاج رابط فيديو صالحًا."
+                if (channel.format == "ytv") {
+                    // Source is unavailable, not necessarily the video decoder.
+                    openGoldEngine()
+                } else {
+                    error = "لم يصل رابط بث مباشر صالح. حدّث القائمة وحاول مجددًا."
+                }
             } catch (_: Exception) {
-                error = "تعذر تشغيل القناة. حدّث القائمة وحاول مجددًا."
+                error = "تعذر بدء القناة. جرّب إعادة فتحها أو تحديث القائمة."
             } finally {
                 busy = false
             }
@@ -181,7 +190,7 @@ internal fun AttaTvScreen(
                                 Text(
                                     if (selected == null) "اختَر قناة لبدء البث"
                                     else if (selected?.format == "ytv")
-                                        "القناة: " + selected?.name + "\nالمشغّل القديم يعمل في شاشة مستقلة."
+                                        "القناة: " + selected?.name + "\nيُفتح المحرك الذهبي المثبّت عند تعذّر المصدر المباشر."
                                     else "جارٍ تجهيز المشغّل...",
                                     color = PremiumGoldLight, fontSize = 13.sp
                                 )
@@ -208,12 +217,12 @@ internal fun AttaTvScreen(
                                     onClick = { play(channel, tryInline = false) },
                                     enabled = !busy, modifier = Modifier.fillMaxWidth()
                                         .padding(horizontal = 8.dp)
-                                ) { Text("تشغيل بالمشغّل القديم", color = PremiumGoldLight) }
+                                ) { Text("فتح المشغّل الذهبي الأصلي", color = PremiumGoldLight) }
                                 TextButton(
                                     onClick = { play(channel, tryInline = true) },
                                     enabled = !busy && token.isNotBlank(),
                                     modifier = Modifier.fillMaxWidth()
-                                ) { Text("تجربة التشغيل داخل الصفحة", color = PremiumGoldLight) }
+                                ) { Text("تشغيل المصدر المباشر داخل التبويب", color = PremiumGoldLight) }
                             }
                         }
                     }
