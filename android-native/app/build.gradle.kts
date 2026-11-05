@@ -24,9 +24,9 @@ android {
         applicationId = "com.alatta.nativeapp"
         minSdk = 26
         targetSdk = 36
-        // الإصدار 1.0.272: AL-ATTA TV لاختيار القنوات؛ العطا Media لاستقبال رقم القناة وتشغيل روابط البث المتوافقة داخليًا.
-        versionCode = 372
-        versionName = "1.0.272"
+        // الإصدار 1.0.273: AL-ATTA TV لاختيار القنوات؛ العطا Media لاستقبال رقم القناة وتشغيل روابط البث المتوافقة داخليًا.
+        versionCode = 373
+        versionName = "1.0.273"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("boolean", "IS_APPGALLERY", appGalleryBuild.toString())
         val hmsId = (System.getenv("ALATTA_HMS_APP_ID") ?: "").trim().takeIf { it.matches(Regex("[0-9]{1,20}")) } ?: ""
