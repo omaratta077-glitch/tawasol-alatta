@@ -85,7 +85,7 @@ internal fun FootballScreen(query: String, modifier: Modifier = Modifier,
         val lifecycle = context.mediaActivity()?.lifecycle
         while (true) { delay(CatalogAutoUpdater.SHARED_CATALOG_REFRESH_MS); if (lifecycle?.currentState?.isAtLeast(Lifecycle.State.STARTED) == true) reload++ }
     }
-    // بث الرياضة داخل Media3؛ قائمة القنوات الخارجية في AL-ATTA TV فقط.
+    // Channel cards retain their previous route; external TV handoff and live tab use native Media3.
     fun play(channel: FootballChannel, nativePlayback: Boolean = true) {
         if (openingChannel) return
         openingChannel = true
@@ -105,7 +105,9 @@ internal fun FootballScreen(query: String, modifier: Modifier = Modifier,
                         val sources = NativeChannelPlayback.load(token, channel.id)
                         onBeforePlayback(); nativeSession = NativePlaybackSession(channel, sources)
                     } else {
-                        error = "افتح القناة من AL-ATTA TV لتشغيل البث داخل العطا."
+                        // Keep the proven channel-tab behavior intact. Only live-tab/TV handoff uses Media3.
+                        YtvPlayer.openWithWatchRoom(context, channel.streamUrl, onBeforePlayback)
+                            ?.let { playerFailure = it; return@launch }
                     }
                 }
                 "hls", "dash" -> {
@@ -146,7 +148,7 @@ internal fun FootballScreen(query: String, modifier: Modifier = Modifier,
     FootballContent(catalog, query, favorites, recent, loading || openingChannel, error, isAdmin,
         callInProgress, modifier,
         onReload = { reload++ }, onManage = onManage,
-        onPlay = { play(it, nativePlayback = true) },
+        onPlay = { play(it, nativePlayback = false) },
         onFavorite = { id ->
             favorites = if (id in favorites) favorites - id else favorites + id
             preferences.edit().putStringSet("favorites", favorites.toSet()).apply()
