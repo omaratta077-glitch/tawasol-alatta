@@ -40,6 +40,7 @@ internal fun SportsBroadcastScreen(
     onReload: () -> Unit,
     onStop: () -> Unit,
     onRetry: () -> Unit,
+    onLegacyPlayback: (() -> Unit)? = null,
     watchRoomExpanded: Boolean = false,
     onWatchRoom: () -> Unit = {},
     watchRoomContent: @Composable () -> Unit = {},
@@ -106,6 +107,13 @@ internal fun SportsBroadcastScreen(
             if (session == null) OutlinedButton(onClick = onRetry, modifier = Modifier.fillMaxWidth()) {
                 Text("إعادة محاولة تشغيل القناة", color = PremiumGoldLight)
             }
+        }
+        if (session == null && onLegacyPlayback != null) {
+            OutlinedButton(onClick = onLegacyPlayback, modifier = Modifier.fillMaxWidth()) {
+                Text("تشغيل القناة بالمشغّل القديم", color = PremiumGoldLight)
+            }
+            Text("المشغّل القديم يفتح تطبيق AL-ATTA TV المجرّب بصورة مستقلة؛ لا يتم عرضه داخل هذه الصفحة.",
+                color = PremiumMuted, fontSize = 11.sp)
         }
         OutlinedButton(onClick = onBroadcast, modifier = Modifier.fillMaxWidth()) {
             Text(if (broadcastExpanded) "إخفاء أدوات بث الشاشة" else "إظهار أدوات بث الشاشة",
