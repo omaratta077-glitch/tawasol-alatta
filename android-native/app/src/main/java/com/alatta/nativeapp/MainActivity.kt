@@ -2884,7 +2884,8 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                             modifier = Modifier.weight(1f),
                             requestedChannelId = (ctx as? MainActivity)?.requestedTvChannelId,
                             onRequestedChannelConsumed = { (ctx as? MainActivity)?.clearRequestedTvChannel() },
-                            onBeforePlayback = { youtubePlayRequested = false; activeYoutubePostId = "" }
+                            onBeforePlayback = { youtubePlayRequested = false; activeYoutubePostId = "" },
+                            onExit = { navigate("الرئيسية") }
                         )
                         "ريلز" -> {
                             // Uses the same single mixed reels viewer from post cards; it is NOT a second player.
