@@ -47,11 +47,11 @@ internal fun tvPlaybackFailureMessage(channel: FootballChannel, failure: AttaApi
         "PROBE_KEY" in detail -> "إعداد قراءة المصدر غير مكتمل في خادم العطا. راجع إعدادات Cloudflare."
         else -> "تعذر جلب مصدر بث متوافق من الخادم؛ لا يمكن تحويل رقم القناة وحده إلى فيديو."
     }
-    val safeCode = Regex("(CLOUDFLARE_\\d{4}|SOURCE_[A-Z_]+|NO_SUPPORTED_NATIVE_SOURCE|FRESH_ID_UNCHANGED|CHANNEL_[A-Z_]+|CATEGORY_[A-Z_]+|PLAYBACK_API_[A-Z_]+)")
-        .find(detail)?.value
+    val safeCodes = Regex("(CLOUDFLARE_\\d{4}|SOURCE_[A-Z_]+|NO_SUPPORTED_NATIVE_SOURCE|FRESH_ID_UNCHANGED|CHANNEL_[A-Z_]+|CATEGORY_[A-Z_]+|PLAYBACK_API_[A-Z_]+)")
+        .findAll(detail).map { it.value }.distinct().take(3).toList()
     val upstreamHttp = Regex("HTTP (\\d{3})").find(detail)?.groupValues?.getOrNull(1)
-    val diagnostic = listOfNotNull("HTTP العطا ${failure.statusCode}",
-        upstreamHttp?.let { "HTTP المصدر $it" }, safeCode).joinToString(" • ")
+    val diagnostic = (listOfNotNull("HTTP العطا ${failure.statusCode}",
+        upstreamHttp?.let { "HTTP المصدر $it" }) + safeCodes).joinToString(" • ")
     return "القناة ${channel.name} (رقم ${channel.streamUrl}): $description\nرمز التشخيص: $diagnostic"
 }
 
