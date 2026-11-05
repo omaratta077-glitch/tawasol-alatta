@@ -24,9 +24,9 @@ android {
         applicationId = "com.alatta.nativeapp"
         minSdk = 26
         targetSdk = 36
-        // الإصدار 1.0.263: قائمة القنوات في AL-ATTA TV، والبث المباشر داخل صفحة الرياضة في العطا.
-        versionCode = 363
-        versionName = "1.0.263"
+        // الإصدار 1.0.264: استعادة تبويبي القنوات والبث المباشر، مع حماية مسار المشغّل القديم.
+        versionCode = 364
+        versionName = "1.0.264"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("boolean", "IS_APPGALLERY", appGalleryBuild.toString())
         val hmsId = (System.getenv("ALATTA_HMS_APP_ID") ?: "").trim().takeIf { it.matches(Regex("[0-9]{1,20}")) } ?: ""
