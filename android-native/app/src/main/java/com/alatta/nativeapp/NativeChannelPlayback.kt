@@ -86,7 +86,8 @@ internal object NativeChannelPlayback {
  * تحمل استدعاءات الخيط الرئيسي رمز المحاولة، كيلا يغيّر مشغّل محرر حالة المشغّل الذي يليه.
  */
 internal class NativePlaybackSession(channel: FootballChannel, initialSources: List<NativeChannelSource>,
-    private val clock: () -> Long = android.os.SystemClock::elapsedRealtime) {
+    private val clock: () -> Long = android.os.SystemClock::elapsedRealtime,
+    private val engineName: String = "Media3") {
     val id: String = java.util.UUID.randomUUID().toString()
     val channel = channel.copy()
     private val sources = initialSources.map { it.copy(headers = it.headers.toMap()) }
@@ -170,7 +171,7 @@ internal class NativePlaybackSession(channel: FootballChannel, initialSources: L
     fun report(): String {
         val now = clock()
         return JSONObject().put("test", "native-channel-3").put("version", BuildConfig.VERSION_NAME)
-            .put("sessionId", id).put("channel", channel.name).put("engine", "Media3")
+            .put("sessionId", id).put("channel", channel.name).put("engine", engineName)
             .put("sourceIndex", source.index).put("attemptNumber", position + 1).put("sourceCount", sources.size)
             .put("playing", !terminal && snapshot.isPlaying)
             .put("elapsedMs", (now - createdAt).coerceAtLeast(0))
