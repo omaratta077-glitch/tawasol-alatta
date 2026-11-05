@@ -94,7 +94,7 @@ internal fun AttaTvScreen(
                         NativeChannelPlayback.fromPublishedChannel(channel)
                     }
                     onBeforePlayback()
-                    session = NativePlaybackSession(channel, sources)
+                    session = NativePlaybackSession(channel, sources, engineName = "ExoPlayer2")
                 }
             } catch (cancelled: CancellationException) {
                 throw cancelled
@@ -110,6 +110,22 @@ internal fun AttaTvScreen(
             } finally {
                 busy = false
             }
+        }
+    }
+
+    // If the provider gives a URL that fails after decoding/timeout, do not
+    // strand the user on a black player. Use the installed working gold app once.
+    val failedSession = session?.takeIf { it.terminal && it.channel.format == "ytv" }
+    LaunchedEffect(failedSession?.id) {
+        val current = failedSession ?: return@LaunchedEffect
+        if (session?.id != current.id) return@LaunchedEffect
+        session = null
+        selected = current.channel
+        error = ""
+        val failure = YtvPlayer.openWorkingEngine(context, current.channel.streamUrl)
+        if (failure != null) {
+            legacyFailure = failure
+            error = failure.explanation
         }
     }
 
