@@ -10,6 +10,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -31,7 +32,8 @@ internal fun AttaTvScreen(
     modifier: Modifier = Modifier,
     requestedChannelId: String? = null,
     onRequestedChannelConsumed: () -> Unit = {},
-    onBeforePlayback: () -> Unit = {}
+    onBeforePlayback: () -> Unit = {},
+    onExit: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -45,6 +47,7 @@ internal fun AttaTvScreen(
     var session by remember { mutableStateOf<NativePlaybackSession?>(null) }
     var error by remember { mutableStateOf("") }
     var legacyFailure by remember { mutableStateOf<YtvPlayer.Failure?>(null) }
+    var goldHomeVisible by rememberSaveable { mutableStateOf(true) }
 
     LaunchedEffect(reload) {
         loading = true
@@ -108,6 +111,7 @@ internal fun AttaTvScreen(
             it.enabled && it.id == id && it.format in setOf("ytv", "hls", "dash")
         }
         onRequestedChannelConsumed()
+        goldHomeVisible = false
         if (channel == null) {
             error = "القناة المختارة غير موجودة. حدّث قائمة القنوات."
         } else {
@@ -128,6 +132,14 @@ internal fun AttaTvScreen(
             .sortedWith(footballChannelOrder())
             .toList()
     }
+    if (goldHomeVisible) {
+        AttaTvGoldHome(
+            onOnlineVideos = { goldHomeVisible = false },
+            onExit = onExit,
+            modifier = modifier
+        )
+        return
+    }
     LazyColumn(
         modifier = modifier.fillMaxSize().background(PremiumBackground),
         state = scroll,
@@ -137,6 +149,12 @@ internal fun AttaTvScreen(
         item(key = "tv-player") {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    TextButton(onClick = {
+                        goldHomeVisible = true
+                        session = null
+                        selected = null
+                        error = ""
+                    }) { Text("الرئيسية", color = PremiumGoldLight) }
                     SiteIcon("monitor", tint = PremiumGoldLight, size = 29.dp)
                     Spacer(Modifier.width(10.dp))
                     Text("AL-ATTA TV", color = PremiumGoldLight, fontWeight = FontWeight.Bold,
@@ -145,7 +163,7 @@ internal fun AttaTvScreen(
                         Text("تحديث", color = PremiumGoldLight)
                     }
                 }
-                Text("صفحة العطا TV مستقلة عن الرياضة • اختر القناة من القائمة.",
+                Text("قنوات AL-ATTA TV • اختر القناة لمشاهدة البث.",
                     color = PremiumMuted, fontSize = 12.sp)
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
