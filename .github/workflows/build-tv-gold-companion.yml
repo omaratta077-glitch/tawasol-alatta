@@ -49,7 +49,7 @@ jobs:
       - name: Upload PR validation APK (debug signer; not stable production key)
         uses: actions/upload-artifact@v4
         with:
-          name: AL_ATTA_TV_CHANNELS_v1.1.1
+          name: AL_ATTA_TV_CHANNELS_v1.1.2
           path: android-native/tv-shell/build/outputs/apk/debug/tv-shell-debug.apk
           if-no-files-found: error
       - name: Restore official signing key for stable channel-catalog release
@@ -76,18 +76,19 @@ jobs:
           test -s "$APK"
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose "$APK"
           "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$APK" | grep -F "package: name='com.alatta.tv'"
-      - name: Publish AL-ATTA TV channel catalog v1.1.1 on main
+      - name: Publish AL-ATTA TV channel catalog v1.1.2 on main
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          cp android-native/tv-shell/build/outputs/apk/release/tv-shell-release.apk AL_ATTA_TV_CHANNELS_v1.1.1.apk
-          TAG="alatta-tv-shell-v1.1.1"
+          cp android-native/tv-shell/build/outputs/apk/release/tv-shell-release.apk AL_ATTA_TV_CHANNELS_v1.1.2.apk
+          python3 scripts/package_sai_apks.py AL_ATTA_TV_CHANNELS_v1.1.2.apk AL_ATTA_TV_CHANNELS_v1.1.2.apks --package com.alatta.tv --label "AL-ATTA TV" --version "1.1.2" --code 4 --min-sdk 26 --target-sdk 36
+          TAG="alatta-tv-shell-v1.1.2"
           if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release upload "$TAG" AL_ATTA_TV_CHANNELS_v1.1.1.apk --clobber
+            gh release upload "$TAG" AL_ATTA_TV_CHANNELS_v1.1.2.apk AL_ATTA_TV_CHANNELS_v1.1.2.apks --clobber
           else
-            gh release create "$TAG" AL_ATTA_TV_CHANNELS_v1.1.1.apk \
-              --title "AL-ATTA TV Channel Catalog v1.1.1" \
-              --notes "AL-ATTA TV channel catalog that sends channel IDs to AL-ATTA Media v1.0.270 for internal playback of supported direct streams. No YTV original code included. Playback depends on authorized source availability."
+            gh release create "$TAG" AL_ATTA_TV_CHANNELS_v1.1.2.apk AL_ATTA_TV_CHANNELS_v1.1.2.apks \
+              --title "AL-ATTA TV Channel Catalog v1.1.2" \
+              --notes "AL-ATTA TV channel catalog that sends channel IDs to AL-ATTA Media v1.0.271 for internal playback of supported direct streams. No YTV original code included. Playback depends on authorized source availability."
           fi
