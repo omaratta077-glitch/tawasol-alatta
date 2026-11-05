@@ -49,7 +49,8 @@ internal fun FootballPanel(modifier: Modifier = Modifier, content: @Composable C
 internal fun FootballScreen(query: String, modifier: Modifier = Modifier,
     isAdmin: Boolean = false, token: String = "", onManage: () -> Unit = {}, callInProgress: Boolean = false,
     onBeforePlayback: () -> Unit, onYoutube: (String) -> Unit,
-    externalChannelId: String? = null, onExternalChannelConsumed: () -> Unit = {}) {
+    externalChannelId: String? = null, onExternalChannelConsumed: () -> Unit = {},
+    onOpenTv: () -> Unit = {}) {
     val context = LocalContext.current
     val playbackScope = rememberCoroutineScope()
     var openingChannel by remember { mutableStateOf(false) }
@@ -179,6 +180,7 @@ internal fun FootballScreen(query: String, modifier: Modifier = Modifier,
                 isAdmin = isAdmin, broadcastExpanded = broadcastExpanded,
                 onBroadcast = { broadcastExpanded = !broadcastExpanded },
                 onManage = onManage, onReload = { reload++ },
+                onOpenTv = onOpenTv,
                 onStop = {
                     nativeSession?.let { it.onDismiss("closed"); lastChannelReport = it.report() }
                     nativeSession = null
