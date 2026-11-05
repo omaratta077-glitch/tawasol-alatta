@@ -24,9 +24,9 @@ android {
         applicationId = "com.alatta.nativeapp"
         minSdk = 26
         targetSdk = 36
-        // الإصدار 1.0.268: استعادة واجهة AL-ATTA TV الذهبية الأصلية داخل تبويب العطا TV، وعرض القنوات بعد ONLINE VIDEOS.
-        versionCode = 368
-        versionName = "1.0.268"
+        // الإصدار 1.0.269: إصلاح ربط القناة بالمشغّل الذهبي عند غياب مصدر مباشر مع بقاء Media3 لفيديوهات التطبيق.
+        versionCode = 369
+        versionName = "1.0.269"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("boolean", "IS_APPGALLERY", appGalleryBuild.toString())
         val hmsId = (System.getenv("ALATTA_HMS_APP_ID") ?: "").trim().takeIf { it.matches(Regex("[0-9]{1,20}")) } ?: ""
