@@ -141,31 +141,52 @@ internal fun FootballScreen(query: String, modifier: Modifier = Modifier,
         }
     }
 
-    // The sports page is the live-screen receiver. Channel discovery remains in AL-ATTA TV.
-    SportsBroadcastScreen(
-        session = nativeSession,
-        modifier = modifier,
-        loading = loading || openingChannel,
-        error = error,
-        isAdmin = isAdmin,
-        broadcastExpanded = broadcastExpanded,
-        onBroadcast = { broadcastExpanded = !broadcastExpanded },
-        onManage = onManage,
-        onReload = { reload++ },
-        onStop = {
-            nativeSession?.let { it.onDismiss("closed"); lastChannelReport = it.report() }
-            nativeSession = null
+
+    // Keep the original channel grid in its own tab. Only the live tab owns the player.
+    FootballContent(catalog, query, favorites, recent, loading || openingChannel, error, isAdmin,
+        callInProgress, modifier,
+        onReload = { reload++ }, onManage = onManage,
+        onPlay = { play(it, nativePlayback = true) },
+        onFavorite = { id ->
+            favorites = if (id in favorites) favorites - id else favorites + id
+            preferences.edit().putStringSet("favorites", favorites.toSet()).apply()
         },
-        onRetry = { nativeSession?.channel?.let { play(it, nativePlayback = true) } },
-        watchRoomExpanded = watchRoomExpanded,
-        onWatchRoom = { watchRoomExpanded = !watchRoomExpanded },
-        watchRoomContent = {
+        onWatch = { watchEntryRequest++ },
+        watchEnabled = token.isNotBlank() && !callInProgress && !WatchRoomController.closing,
+        onBroadcast = { broadcastExpanded = !broadcastExpanded },
+        broadcastExpanded = broadcastExpanded,
+        onPlayDirect = { play(it, nativePlayback = true) },
+        livePanel = {
             WatchRoomPanel(token, catalog.channels, callInProgress, entryRequest = watchEntryRequest,
                 onPlay = { play(it, nativePlayback = true) }, onBeforeJoin = onBeforePlayback)
-        },
-        extraContent = {
             SportsLivePanel(token = token, isAdmin = isAdmin, expanded = broadcastExpanded,
                 onExpandedChange = { broadcastExpanded = it })
+        },
+        requestedLiveChannelId = externalChannelId,
+        activeLiveSessionId = nativeSession?.id,
+        liveReceiver = {
+            SportsBroadcastScreen(
+                session = nativeSession, modifier = Modifier.fillMaxSize(),
+                loading = loading || openingChannel, error = error,
+                isAdmin = isAdmin, broadcastExpanded = broadcastExpanded,
+                onBroadcast = { broadcastExpanded = !broadcastExpanded },
+                onManage = onManage, onReload = { reload++ },
+                onStop = {
+                    nativeSession?.let { it.onDismiss("closed"); lastChannelReport = it.report() }
+                    nativeSession = null
+                },
+                onRetry = { nativeSession?.channel?.let { play(it, nativePlayback = true) } },
+                watchRoomExpanded = watchRoomExpanded,
+                onWatchRoom = { watchRoomExpanded = !watchRoomExpanded },
+                watchRoomContent = {
+                    WatchRoomPanel(token, catalog.channels, callInProgress, entryRequest = watchEntryRequest,
+                        onPlay = { play(it, nativePlayback = true) }, onBeforeJoin = onBeforePlayback)
+                },
+                extraContent = {
+                    SportsLivePanel(token = token, isAdmin = isAdmin, expanded = broadcastExpanded,
+                        onExpandedChange = { broadcastExpanded = it })
+                }
+            )
         }
     )
     lastChannelReport?.let { report ->
@@ -190,8 +211,14 @@ internal fun FootballContent(catalog: FootballCatalog, query: String, favorites:
     onReload: () -> Unit, onManage: () -> Unit, onPlay: (FootballChannel) -> Unit, onFavorite: (String) -> Unit,
     livePanel: @Composable () -> Unit = {}, onWatch: () -> Unit = {}, watchEnabled: Boolean = true,
     onBroadcast: () -> Unit = {}, broadcastExpanded: Boolean = false,
-    onPlayDirect: ((FootballChannel) -> Unit)? = null) {
+    onPlayDirect: ((FootballChannel) -> Unit)? = null,
+    requestedLiveChannelId: String? = null, activeLiveSessionId: String? = null,
+    liveReceiver: (@Composable () -> Unit)? = null) {
     var tab by rememberSaveable { mutableStateOf("القنوات") }
+    // A channel chosen from AL-ATTA TV must reveal the live tab even before a source arrives.
+    LaunchedEffect(requestedLiveChannelId, activeLiveSessionId) {
+        if (requestedLiveChannelId != null || activeLiveSessionId != null) tab = "البث المباشر"
+    }
     var showSchedule by rememberSaveable { mutableStateOf(false) }
     var category by rememberSaveable { mutableStateOf("") }
     var day by rememberSaveable { mutableIntStateOf(0) }
@@ -212,6 +239,9 @@ internal fun FootballContent(catalog: FootballCatalog, query: String, favorites:
                         selectedLabelColor = Color.Black, labelColor = PremiumGoldLight))
             }
         }
+        if (directTab && liveReceiver != null) {
+            Box(Modifier.fillMaxWidth().weight(1f)) { liveReceiver() }
+        } else {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
             OutlinedButton(onClick = onWatch, enabled = watchEnabled,
                 modifier = Modifier.weight(1f).height(40.dp).semantics { contentDescription = "شاهد مع أصحابك" },
@@ -287,6 +317,7 @@ internal fun FootballContent(catalog: FootballCatalog, query: String, favorites:
                 }
             }
         }
+        } // original channel cards and schedule (the old live tab remains testable without receiver)
     }
 }
 
