@@ -114,6 +114,8 @@ dependencies {
     implementation("androidx.compose.foundation:foundation")
     implementation("androidx.compose.material3:material3")
     implementation("io.coil-kt:coil-compose:2.7.0")
+    // Media3 is retained for reels, user videos and calls. TV uses legacy ExoPlayer2 below.
+    implementation("com.google.android.exoplayer:exoplayer:2.19.1")
     implementation("androidx.media3:media3-exoplayer:1.5.1")
     implementation("androidx.media3:media3-datasource-okhttp:1.5.1")
     implementation("androidx.media3:media3-exoplayer-hls:1.5.1")
