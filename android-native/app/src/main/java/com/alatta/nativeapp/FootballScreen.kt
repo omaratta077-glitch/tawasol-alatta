@@ -62,6 +62,7 @@ internal fun FootballScreen(query: String, modifier: Modifier = Modifier,
     var error by remember { mutableStateOf("") }
     var selected by remember { mutableStateOf<FootballChannel?>(null) }
     var nativeSession by remember { mutableStateOf<NativePlaybackSession?>(null) }
+    var lastRequestedChannel by remember { mutableStateOf<FootballChannel?>(null) }
     var lastChannelReport by remember { mutableStateOf<String?>(null) }
     var playerFailure by remember { mutableStateOf<YtvPlayer.Failure?>(null) }
     var watchEntryRequest by remember { mutableIntStateOf(0) }
@@ -122,7 +123,12 @@ internal fun FootballScreen(query: String, modifier: Modifier = Modifier,
             recent = footballRecent(recent, channel.id)
             preferences.edit().putString("recent", recent.joinToString(",")).apply()
         } catch (cancelled: CancellationException) { throw cancelled }
-        catch (failure: AttaApiException) { error = failure.message ?: "تعذر جلب بيانات التشغيل." }
+        catch (failure: AttaApiException) {
+            val detail = failure.message.orEmpty()
+            error = if (detail.contains("لم يصل رابط مباشر") || detail.contains("NO_SUPPORTED_NATIVE_SOURCE")) {
+                "لم يقدّم مصدر القناة رابط بث مباشر متوافقًا مع مشغّل العطا. اختر قناة أخرى أو أعد المحاولة؛ لا يحل تغيير توقيع التطبيق هذه المشكلة."
+            } else detail.ifBlank { "تعذر جلب بيانات التشغيل." }
+        }
         catch (_: Exception) { error = "تعذر تشغيل القناة. حدّث القائمة وحاول مجددًا." }
         finally { openingChannel = false }
         }
@@ -139,7 +145,7 @@ internal fun FootballScreen(query: String, modifier: Modifier = Modifier,
             channel == null -> error = "القناة المختارة غير موجودة أو غير مفعلة. حدّث القائمة."
             channel.format !in setOf("ytv", "hls", "dash") ->
                 error = "القناة المختارة ليس لها مصدر تشغيل داخلي مدعوم."
-            else -> play(channel, nativePlayback = true)
+            else -> { lastRequestedChannel = channel; play(channel, nativePlayback = true) }
         }
     }
 
@@ -177,7 +183,12 @@ internal fun FootballScreen(query: String, modifier: Modifier = Modifier,
                     nativeSession?.let { it.onDismiss("closed"); lastChannelReport = it.report() }
                     nativeSession = null
                 },
-                onRetry = { nativeSession?.channel?.let { play(it, nativePlayback = true) } },
+                onRetry = {
+                    (nativeSession?.channel ?: lastRequestedChannel)?.let { channel ->
+                        error = ""
+                        play(channel, nativePlayback = true)
+                    } ?: run { reload++ }
+                },
                 watchRoomExpanded = watchRoomExpanded,
                 onWatchRoom = { watchRoomExpanded = !watchRoomExpanded },
                 watchRoomContent = {
