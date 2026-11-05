@@ -22,9 +22,8 @@ import kotlinx.coroutines.launch
 
 /**
  * A standalone AL-ATTA TV destination. It does not replace the sports section.
- * Direct HLS/DASH plays inline with Media3. Numeric legacy/YTV channels use the
- * proven installed engine's own Activity; the external engine cannot be embedded
- * by changing the package name or by copying an APK signature.
+ * Inline playback uses the legacy ExoPlayer 2 engine. The external YTV Activity
+ * remains a manual fallback when the provider has no authorized direct source.
  */
 @Composable
 internal fun AttaTvScreen(
@@ -61,9 +60,8 @@ internal fun AttaTvScreen(
         }
     }
 
-    // Legacy numeric channels play through the exact working installed player.
-    // Only directly published HLS/DASH sources are assumed to play inline.
-    fun play(channel: FootballChannel, tryInline: Boolean = channel.format != "ytv") {
+    // All channel taps start inside AL-ATTA TV; never auto-launch another app.
+    fun play(channel: FootballChannel, tryInline: Boolean = true) {
         if (busy) return
         busy = true
         error = ""
@@ -94,7 +92,7 @@ internal fun AttaTvScreen(
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (failure: AttaApiException) {
-                error = "المصدر المباشر غير متوافق مع مشغّل العطا لهذه القناة. جرّب المشغّل القديم."
+                error = "لم يقدّم المصدر رابط تشغيل مباشرًا. المشغّل داخل الصفحة يحتاج رابط فيديو صالحًا."
             } catch (_: Exception) {
                 error = "تعذر تشغيل القناة. حدّث القائمة وحاول مجددًا."
             } finally {
@@ -171,7 +169,7 @@ internal fun AttaTvScreen(
                                 )
                             }
                         } else {
-                            SportsInlinePlayer(session!!)
+                            LegacyInlineStreamPlayer(session!!)
                         }
                         selected?.let { channel ->
                             Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp),
