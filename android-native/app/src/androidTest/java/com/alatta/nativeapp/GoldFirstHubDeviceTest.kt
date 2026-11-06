@@ -24,8 +24,11 @@ class GoldFirstHubDeviceTest {
             )
             val activity = instr.waitForMonitorWithTimeout(monitor, 15000)
             assertNotNull("Gold-first hub did not start on an Android emulator", activity)
+            instr.waitForIdleSync()
             instr.runOnMainSync {
-                assertTrue("Gold-first UI missing", activity!!.window.decorView.isAttachedToWindow)
+                val root = activity!!.findViewById<android.view.ViewGroup>(android.R.id.content)
+                assertNotNull("Gold-first content container missing", root)
+                assertTrue("Gold-first content never rendered", root.childCount > 0)
                 assertEquals(context.packageName,
                     GoldFirstTargets.goldPlayerIntent(context.packageName).component!!.packageName)
                 assertEquals(context.packageName,
