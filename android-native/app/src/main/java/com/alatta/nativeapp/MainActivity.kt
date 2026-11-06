@@ -4,6 +4,7 @@ import android.content.Intent
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceError
 import android.widget.FrameLayout
+import android.view.KeyEvent
 import android.view.WindowManager
 import android.view.ViewGroup
 import android.view.View
@@ -607,6 +608,9 @@ class MainActivity : ComponentActivity(), WatchRoomPipStateHost {
         super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
         youtubePipMode = isInPictureInPictureMode
     }
+
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean =
+        AdhanPlaybackService.stopOnVolumeKey(this, event) || super.dispatchKeyEvent(event)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
