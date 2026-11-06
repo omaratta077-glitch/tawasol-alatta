@@ -4,4 +4,5 @@
         android:resizeableActivity="true" android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout" />
     <activity android:name=".WatchRoomExternalTestActivity" android:exported="false" android:excludeFromRecents="true"
         android:taskAffinity="com.alatta.nativeapp.watch.testplayer" />
+    <activity android:name=".GoldFirstHubActivity" android:exported="false" android:theme="@android:style/Theme.Material.NoActionBar" />
 </application></manifest>
