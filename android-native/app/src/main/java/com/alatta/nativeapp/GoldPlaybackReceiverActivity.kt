@@ -1,6 +1,9 @@
 package com.alatta.nativeapp
 
 import android.app.Activity
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import android.content.Intent
 import android.graphics.Color
 import android.graphics.Typeface
@@ -9,6 +12,7 @@ import android.view.Gravity
 import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
+import android.widget.Toast
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -33,6 +37,9 @@ class GoldPlaybackReceiverActivity : Activity() {
     private lateinit var title: TextView
     private val resolveScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var resolvingChannel: Job? = null
+    private var goldLaunchRequested = false
+    private var goldWentToBackground = false
+    private var lastGoldNumber: String? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -59,8 +66,22 @@ class GoldPlaybackReceiverActivity : Activity() {
             text = "الرجوع إلى القنوات"
             setOnClickListener { finish() }
         }
+        val copyDiagnostic = Button(this).apply {
+            text = "نسخ تقرير المحرّك"
+            setOnClickListener {
+                val status = GoldCrashDiagnostics.lastFailure(this@GoldPlaybackReceiverActivity)
+                    ?: "No Gold crash record was captured."
+                val report = "Gold engine handoff\n" +
+                    "package=" + packageName + "\n" +
+                    "channel=" + (lastGoldNumber ?: "unknown") + "\n" + status
+                val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                clipboard.setPrimaryClip(ClipData.newPlainText("Gold engine diagnostic", report))
+                Toast.makeText(this@GoldPlaybackReceiverActivity, "تم نسخ تقرير المحرّك", Toast.LENGTH_LONG).show()
+            }
+        }
         root.addView(title, LinearLayout.LayoutParams(-1, -2))
         root.addView(message, LinearLayout.LayoutParams(-1, -2))
+        root.addView(copyDiagnostic, LinearLayout.LayoutParams(-1, -2))
         root.addView(close, LinearLayout.LayoutParams(-1, -2))
         setContentView(root)
         openRequestedChannel(intent)
@@ -72,6 +93,25 @@ class GoldPlaybackReceiverActivity : Activity() {
         openRequestedChannel(intent)
     }
 
+    override fun onPause() {
+        super.onPause()
+        if (goldLaunchRequested) goldWentToBackground = true
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (goldLaunchRequested && goldWentToBackground) {
+            goldLaunchRequested = false
+            val crash = GoldCrashDiagnostics.lastFailure(this)
+            message.text = if (crash != null) {
+                "تعطّل المحرّك الذهبي أثناء فتح القناة. اضغط «نسخ تقرير المحرّك» وأرسله هنا لمعرفة السبب."
+            } else {
+                "رجعنا من شاشة المحرّك الذهبي قبل تأكيد تشغيل الفيديو. " +
+                    "لو القناة لم تظهر، اضغط «نسخ تقرير المحرّك» للحصول على التشخيص."
+            }
+        }
+    }
+
     override fun onDestroy() {
         resolvingChannel?.cancel()
         resolveScope.cancel()
@@ -80,6 +120,8 @@ class GoldPlaybackReceiverActivity : Activity() {
 
     private fun openRequestedChannel(intent: Intent?) {
         resolvingChannel?.cancel()
+        goldLaunchRequested = false
+        goldWentToBackground = false
         when (intent?.action) {
             ACTION -> launchGoldNumber(intent.getStringExtra(EXTRA_SOURCE_NUMBER))
             ACTION_LEGACY_CATALOG -> resolveLegacyCatalogId(intent.getStringExtra(EXTRA_CATALOG_ID))
@@ -125,8 +167,16 @@ class GoldPlaybackReceiverActivity : Activity() {
             return
         }
         message.text = "جارٍ تسليم القناة إلى المحرّك الذهبي..."
+        lastGoldNumber = validNumber
+        GoldCrashDiagnostics.clear(this)
         when (EmbeddedGoldEngine.launch(this, validNumber)) {
-            EmbeddedGoldEngine.Result.STARTED -> finish()
+            EmbeddedGoldEngine.Result.STARTED -> {
+                // startActivity only means Android accepted the handoff, NOT that
+                // the separate :gold process rendered a video. Do not finish
+                // the receiver or hide a subsequent Gold crash.
+                goldLaunchRequested = true
+                message.text = "تم إرسال القناة إلى المحرّك. جارٍ انتظار فتح شاشة المشغّل..."
+            }
             EmbeddedGoldEngine.Result.NOT_PACKAGED ->
                 message.text = "محرّك النسخة الذهبية لم يُدمج داخل العطا Media بعد. لا يتم تشغيل ExoPlayer بديلًا عنه."
             EmbeddedGoldEngine.Result.NOT_ALLOWED ->
