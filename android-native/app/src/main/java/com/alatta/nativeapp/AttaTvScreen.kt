@@ -122,6 +122,23 @@ internal fun AttaTvScreen(
         goldHomeVisible = false
         scope.launch {
             try {
+                // When the original gold engine has been PORTED as an Android
+                // component of this same APK, prefer its proven id/type contract.
+                // Absent the port, preserve current native playback unchanged.
+                if (channel.format == "ytv") {
+                    when (EmbeddedGoldEngine.launch(context, channel.streamUrl, onBeforePlayback)) {
+                        EmbeddedGoldEngine.Result.STARTED -> return@launch
+                        EmbeddedGoldEngine.Result.INVALID_CHANNEL -> {
+                            error = "رقم القناة غير صالح للتشغيل داخل المحرّك الذهبي."
+                            return@launch
+                        }
+                        EmbeddedGoldEngine.Result.NOT_ALLOWED, EmbeddedGoldEngine.Result.FAILED -> {
+                            error = "مكوّن المحرّك الذهبي داخل العطا لم يبدأ بصورة صحيحة. راجع التهيئة والموارد."
+                            return@launch
+                        }
+                        EmbeddedGoldEngine.Result.NOT_PACKAGED -> Unit
+                    }
+                }
                 val sources = when (channel.format) {
                     "hls", "dash" -> NativeChannelPlayback.fromPublishedChannel(channel)
                     "ytv" -> {
