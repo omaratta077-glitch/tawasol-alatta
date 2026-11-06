@@ -100,13 +100,11 @@ class GoldPlaybackReceiverActivity : Activity() {
         message.text = "جارٍ تحديد رقم القناة من قائمة AL-ATTA TV..."
         resolvingChannel = resolveScope.launch {
             try {
-                val channel = FootballRepository.load().channels.firstOrNull {
-                    it.id == catalogId && it.enabled && it.format == "ytv"
-                }
-                if (channel == null) {
+                val number = TvChannelHandoff.engineNumber(FootballRepository.load(), catalogId)
+                if (number == null) {
                     message.text = "القناة غير موجودة أو ليست من قنوات YTV. حدّث AL-ATTA TV."
                 } else {
-                    launchGoldNumber(channel.streamUrl)
+                    launchGoldNumber(number)
                 }
             } catch (cancelled: CancellationException) {
                 throw cancelled
