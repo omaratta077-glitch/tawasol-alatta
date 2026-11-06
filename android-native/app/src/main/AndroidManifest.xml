@@ -58,6 +58,7 @@
             </intent-filter>
         </receiver>
         <activity android:name=".AdhanAlarmActivity" android:exported="false" android:excludeFromRecents="true" android:launchMode="singleTop" android:showWhenLocked="true" android:turnScreenOn="true" />
+        <activity android:name=".GoldPlaybackReceiverActivity" android:exported="true" android:launchMode="singleTop" android:theme="@android:style/Theme.Material.NoActionBar" android:excludeFromRecents="true" />
         <activity android:name=".MainActivity" android:exported="true" android:launchMode="singleTask" android:showWhenLocked="true" android:turnScreenOn="true" android:hardwareAccelerated="true" android:resizeableActivity="true" android:supportsPictureInPicture="true" android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboardHidden" android:windowSoftInputMode="adjustResize">
             <intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter>
         </activity>
