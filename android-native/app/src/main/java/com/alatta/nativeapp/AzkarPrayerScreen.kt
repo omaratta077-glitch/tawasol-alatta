@@ -238,6 +238,7 @@ internal fun AzkarPrayerScreen(modifier: Modifier = Modifier, onSharePost: (Stri
     val local = remember { context.getSharedPreferences("alatta_azkar", Context.MODE_PRIVATE) }
     var settings by remember { mutableStateOf(PrayerStore.read(context)) }
     var page by rememberSaveable { mutableStateOf("home") }
+    ReadingScreenAwake()
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
     var message by remember { mutableStateOf("") }
     var shareChoice by remember { mutableStateOf<Pair<DhikrGroup, Dhikr>?>(null) }

@@ -1,6 +1,9 @@
 package com.alatta.nativeapp
 
+import android.content.BroadcastReceiver
 import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.graphics.Canvas
 import android.graphics.Color as AndroidColor
 import android.graphics.RectF
@@ -42,6 +45,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.content.ContextCompat
 import com.caverock.androidsvg.SVG
 import java.util.Locale
 import kotlinx.coroutines.Dispatchers
@@ -60,6 +64,7 @@ internal fun QuranReaderScreen(modifier: Modifier = Modifier, onExit: () -> Unit
     onSharePost: (MushafPostDraft) -> Unit = {}, onStartAudio: () -> Unit = {},
     allowOnlineFeatures: Boolean = true) {
     val context = LocalContext.current
+    ReadingScreenAwake()
     val prefs = remember { context.getSharedPreferences("atta_native_mushaf", Context.MODE_PRIVATE) }
     var page by remember { mutableIntStateOf(initialPage.coerceIn(1,604)) }
     var pageZoom by remember { mutableFloatStateOf(1f) }
@@ -102,7 +107,26 @@ internal fun QuranReaderScreen(modifier: Modifier = Modifier, onExit: () -> Unit
     var rangeMode by remember { mutableStateOf("page") }
     var customEnd by remember { mutableStateOf("") }
     val audio = remember { AyahSequencePlayer() }
-    DisposableEffect(Unit) { onDispose { audio.stop() } }
+    DisposableEffect(context, audio) {
+        val screenOffReceiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context, intent: Intent) {
+                if (intent.action == Intent.ACTION_SCREEN_OFF && (isPlaying || isPaused)) {
+                    audio.stop()
+                    isPlaying = false
+                    isPaused = false
+                    playbackStatus = "تم إيقاف التلاوة عند قفل الشاشة"
+                }
+            }
+        }
+        ContextCompat.registerReceiver(
+            context, screenOffReceiver, IntentFilter(Intent.ACTION_SCREEN_OFF),
+            ContextCompat.RECEIVER_NOT_EXPORTED
+        )
+        onDispose {
+            context.unregisterReceiver(screenOffReceiver)
+            audio.stop()
+        }
+    }
     val cream = Color(0xFFFFF9E8)
     val gold = Color(0xFF884300)
     var indexData by remember { mutableStateOf<MushafIndex?>(null) }
