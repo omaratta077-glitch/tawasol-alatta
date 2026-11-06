@@ -1,0 +1,28 @@
+name: Gold Android SDK resource validation tool bundle
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/gold-android-resource-cli-tools.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  sdk-resource-tools:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download verified official Android SDK Build Tools 36
+        run: |
+          set -euo pipefail
+          "${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager" 'build-tools;36.0.0' >/dev/null
+          mkdir -p /tmp/android-gold-tools/build-tools
+          cp -a "${ANDROID_HOME}/build-tools/36.0.0" /tmp/android-gold-tools/build-tools/
+          /tmp/android-gold-tools/build-tools/36.0.0/aapt2 version
+      - name: Upload Android SDK validation tools for private local binary checks
+        uses: actions/upload-artifact@v4
+        with:
+          name: gold-official-android-sdk36-tools
+          path: /tmp/android-gold-tools/
+          retention-days: 1
+          if-no-files-found: error
