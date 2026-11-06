@@ -39,4 +39,31 @@ class GoldFirstHubDeviceTest {
             instr.removeMonitor(monitor)
         }
     }
+    @Test fun mediaEntryCanStartItsRealActivityOnAndroid() {
+        // This checks Media's real native MainActivity startup on an Android
+        // emulator. In a Gold-first private merged APK the process is :media;
+        // public CI does not contain the Gold binary or altered Manifest.
+        val instr = InstrumentationRegistry.getInstrumentation()
+        val context = instr.targetContext
+        val target = GoldFirstTargets.mediaIntent(context.packageName)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        val resolved = context.packageManager.resolveActivity(target, 0)
+        assertNotNull("Media MainActivity is not registered in the target package", resolved)
+        val monitor = instr.addMonitor(MainActivity::class.java.name, null, false)
+        try {
+            context.startActivity(target)
+            val activity = instr.waitForMonitorWithTimeout(monitor, 20000)
+            assertNotNull("Media MainActivity could not start", activity)
+            instr.waitForIdleSync()
+            instr.runOnMainSync {
+                val content = activity!!.findViewById<android.view.ViewGroup>(android.R.id.content)
+                assertNotNull("Media MainActivity root is missing", content)
+                assertTrue("Media MainActivity has no content", content.childCount > 0)
+                activity.finish()
+            }
+        } finally {
+            instr.removeMonitor(monitor)
+        }
+    }
+
 }
