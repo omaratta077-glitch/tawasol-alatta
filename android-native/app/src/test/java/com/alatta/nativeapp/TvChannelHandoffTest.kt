@@ -1,6 +1,10 @@
 package com.alatta.nativeapp
 
 import android.content.Intent
+import android.content.ComponentName
+import org.robolectric.RuntimeEnvironment
+import org.json.JSONArray
+import org.json.JSONObject
 import org.junit.Assert.*
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -22,4 +26,35 @@ class TvChannelHandoffTest {
         assertNull(TvChannelHandoff.read(Intent(Intent.ACTION_VIEW).putExtra(key, "fc-5")))
         assertNull(TvChannelHandoff.read(Intent(action).putExtra("url", "https://x.test/a.m3u8")))
     }
+    @Test fun oldTvRequestNeverReopensTheLegacySportsTab() {
+        val context = RuntimeEnvironment.getApplication()
+        val request = Intent(TvChannelHandoff.ACTION)
+            .putExtra(TvChannelHandoff.CHANNEL_ID, "fc-1424")
+        val forwarded = TvChannelHandoff.legacyReceiverIntent(context, request)
+        assertEquals(ComponentName("com.alatta.nativeapp",
+            "com.alatta.nativeapp.GoldPlaybackReceiverActivity"), forwarded?.component)
+        assertEquals(GoldPlaybackReceiverActivity.ACTION_LEGACY_CATALOG, forwarded?.action)
+        assertEquals("fc-1424",
+            forwarded?.getStringExtra(GoldPlaybackReceiverActivity.EXTRA_CATALOG_ID))
+        assertFalse(forwarded?.hasExtra(GoldPlaybackReceiverActivity.EXTRA_SOURCE_NUMBER) ?: true)
+        assertNull(TvChannelHandoff.legacyReceiverIntent(context, Intent(Intent.ACTION_VIEW)))
+    }
+
+    @Test fun onlyEnabledYtvCatalogChannelMayBecomeGoldEngineNumber() {
+        fun ch(id: String, value: String, format: String = "ytv", enabled: Boolean = true) =
+            JSONObject().put("id", id).put("streamUrl", value)
+                .put("format", format).put("enabled", enabled)
+        val catalog = JSONObject().put("channels", JSONArray().apply {
+            put(ch("fc-valid", "1424"))
+            put(ch("fc-disabled", "1425", enabled = false))
+            put(ch("fc-hls", "https://example.com/live.m3u8", format = "hls"))
+            put(ch("fc-bad", "1;malformed"))
+        })
+        assertEquals("1424", TvChannelHandoff.engineNumber(catalog, "fc-valid"))
+        assertNull(TvChannelHandoff.engineNumber(catalog, "fc-disabled"))
+        assertNull(TvChannelHandoff.engineNumber(catalog, "fc-hls"))
+        assertNull(TvChannelHandoff.engineNumber(catalog, "fc-bad"))
+        assertNull(TvChannelHandoff.engineNumber(catalog, "fc-missing"))
+    }
+
 }

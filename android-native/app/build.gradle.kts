@@ -25,8 +25,8 @@ android {
         minSdk = 26
         targetSdk = 36
         // الإصدار 1.0.273: AL-ATTA TV لاختيار القنوات؛ العطا Media لاستقبال رقم القناة وتشغيل روابط البث المتوافقة داخليًا.
-        versionCode = 373
-        versionName = "1.0.273"
+        versionCode = 374
+        versionName = "1.0.274"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("boolean", "IS_APPGALLERY", appGalleryBuild.toString())
         val hmsId = (System.getenv("ALATTA_HMS_APP_ID") ?: "").trim().takeIf { it.matches(Regex("[0-9]{1,20}")) } ?: ""
@@ -114,8 +114,8 @@ dependencies {
     implementation("androidx.compose.foundation:foundation")
     implementation("androidx.compose.material3:material3")
     implementation("io.coil-kt:coil-compose:2.7.0")
-    // Media3 is retained for reels, user videos and calls. TV uses legacy ExoPlayer2 below.
-    implementation("com.google.android.exoplayer:exoplayer:2.19.1")
+    // Media3 remains for user videos, YouTube and existing media features.
+    // The deprecated ExoPlayer2 TV-only dependency was removed.
     implementation("androidx.media3:media3-exoplayer:1.5.1")
     implementation("androidx.media3:media3-datasource-okhttp:1.5.1")
     implementation("androidx.media3:media3-exoplayer-hls:1.5.1")

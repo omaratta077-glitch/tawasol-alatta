@@ -44,12 +44,12 @@ public final class LauncherActivity extends Activity {
     private static final String CATALOG =
         "https://tawasol-alatta.omaratta077-4fd.workers.dev/api/football";
     private static final String TARGET_PACKAGE = "com.alatta.nativeapp";
-    private static final String TARGET_ACTIVITY = "com.alatta.nativeapp.MainActivity";
-    private static final String ACTION = "com.alatta.nativeapp.action.OPEN_TV_CHANNEL";
-    private static final String CHANNEL_ID = "com.alatta.nativeapp.extra.TV_CHANNEL_ID";
+    private static final String TARGET_ACTIVITY = "com.alatta.nativeapp.GoldPlaybackReceiverActivity";
+    private static final String ACTION = "com.alatta.nativeapp.action.OPEN_GOLD_PLAYER";
+    private static final String CHANNEL_ID = "com.alatta.nativeapp.extra.GOLD_SOURCE_NUMBER";
     private static final int GOLD = 0xFFE6B64D;
     private static final int PAGE = 0xFF070707;
-    private static final int REQUIRED_VERSION = 371;
+    private static final int REQUIRED_VERSION = 374;
 
     private final ExecutorService network = Executors.newSingleThreadExecutor();
     private final Handler main = new Handler(Looper.getMainLooper());
@@ -213,13 +213,15 @@ public final class LauncherActivity extends Activity {
                 JSONObject item = entries.optJSONObject(i);
                 if (item == null || !item.optBoolean("enabled", false)) continue;
                 String format = item.optString("format", "");
-                if (!format.equals("ytv") && !format.equals("hls") && !format.equals("dash")) continue;
+                if (!format.equals("ytv")) continue;
                 String id = item.optString("id", "");
                 if (!id.matches("[A-Za-z0-9._-]{1,80}")) continue;
                 String name = item.optString("name", "").trim();
                 if (name.isEmpty()) continue;
                 String stream = item.optString("streamUrl", "");
-                String number = format.equals("ytv") && stream.matches("[0-9]{1,19}") ? stream : "";
+                String number = stream.matches("[0-9]{1,19}") ? stream : "";
+                try { if (Long.parseLong(number) <= 0) continue; }
+                catch (NumberFormatException invalidNumber) { continue; }
                 list.add(new Channel(id, name, item.optString("category", ""), format, number));
             }
             return list;
@@ -268,7 +270,7 @@ public final class LauncherActivity extends Activity {
             long version = Build.VERSION.SDK_INT >= 28 ?
                 packageInfo.getLongVersionCode() : packageInfo.versionCode;
             if (version < REQUIRED_VERSION) {
-                state.setText("حدّث العطا Media إلى 1.0.271 ليبدأ البث داخله.");
+                state.setText("النسخة الحالية من Media لا تدعم استقبال المحرّك الذهبي. يلزم إصدار الدمج بعد اكتماله.");
                 return;
             }
         } catch (PackageManager.NameNotFoundException error) {
@@ -277,7 +279,7 @@ public final class LauncherActivity extends Activity {
         }
         Intent intent = new Intent(ACTION);
         intent.setComponent(new ComponentName(TARGET_PACKAGE, TARGET_ACTIVITY));
-        intent.putExtra(CHANNEL_ID, channel.id);
+        intent.putExtra(CHANNEL_ID, channel.number);
         try {
             startActivity(intent);
         } catch (ActivityNotFoundException | SecurityException error) {

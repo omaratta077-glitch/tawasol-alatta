@@ -122,30 +122,23 @@ internal fun AttaTvScreen(
         goldHomeVisible = false
         scope.launch {
             try {
-                val sources = when (channel.format) {
-                    "hls", "dash" -> NativeChannelPlayback.fromPublishedChannel(channel)
-                    "ytv" -> {
-                        if (token.isBlank()) {
-                            error = "القناة رقم " + channel.streamUrl +
-                                " تحتاج مصدر بث مباشر من خادم العطا. رقم القناة وحده ليس رابط فيديو."
-                            return@launch
-                        }
-                        NativeChannelPlayback.load(token, channel.id)
-                    }
-                    else -> {
-                        error = "صيغة القناة غير مدعومة في مشغّل العطا TV الداخلي."
-                        return@launch
-                    }
+                if (channel.format != "ytv") {
+                    error = "صيغة القناة هذه ليست قناة YTV رقمية. اختر قناة من AL-ATTA TV."
+                    return@launch
                 }
-                onBeforePlayback()
-                session = NativePlaybackSession(channel, sources, engineName = "ExoPlayer2")
+                when (EmbeddedGoldEngine.launch(context, channel.streamUrl, onBeforePlayback)) {
+                    EmbeddedGoldEngine.Result.STARTED -> Unit
+                    EmbeddedGoldEngine.Result.NOT_PACKAGED ->
+                        error = "المحرّك الذهبي لم يكتمل دمجه داخل Media؛ لن يُستبدل بمشغّل ExoPlayer أو YTV خارجي."
+                    EmbeddedGoldEngine.Result.INVALID_CHANNEL ->
+                        error = "رقم القناة غير صالح للتشغيل داخل المحرّك الذهبي."
+                    EmbeddedGoldEngine.Result.NOT_ALLOWED, EmbeddedGoldEngine.Result.FAILED ->
+                        error = "فشل تشغيل مكوّن الذهب داخل Media. راجع التهيئة والموارد."
+                }
             } catch (cancelled: CancellationException) {
                 throw cancelled
-            } catch (failure: AttaApiException) {
-                error = if (channel.format == "ytv") tvPlaybackFailureMessage(channel, failure)
-                else "لم يتوفر مصدر بث متوافق لهذه القناة (HTTP ${failure.statusCode})."
             } catch (_: Exception) {
-                error = "تعذّر تجهيز بث القناة داخل العطا. تحقّق من مصدر البث وحاول مجددًا."
+                error = "تعذّر تجهيز شاشة المحرّك الذهبي داخل العطا."
             } finally {
                 busy = false
             }
@@ -278,7 +271,7 @@ internal fun AttaTvScreen(
             properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
         ) {
             Box(Modifier.fillMaxSize().background(Color.Black), contentAlignment = Alignment.Center) {
-                LegacyInlineStreamPlayer(playback, modifier = Modifier.fillMaxSize())
+                Text("المشغّل السابق غير مستخدم. التشغيل عبر المحرّك الذهبي فقط.", color = PremiumGoldLight)
                 TextButton(
                     onClick = {
                         playback.onDismiss("close")

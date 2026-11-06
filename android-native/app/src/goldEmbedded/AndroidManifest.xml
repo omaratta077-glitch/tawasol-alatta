@@ -1,0 +1,31 @@
+<!-- STAGING ONLY: this overlay is not activated in standard Media builds.
+     Apply only after Gold DEX, native libs, resource table and assets are inside
+     the signed Media package and verified. Original Media App stays intact. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+          xmlns:tools="http://schemas.android.com/tools">
+    <application android:appComponentFactory="com.alatta.nativeapp.GoldEngineAppComponentFactory"
+                 tools:replace="android:appComponentFactory">
+        <!-- Factory instantiates original YtvApp ONLY in the :gold subprocess. -->
+        <activity android:name="dev.google.ytvplayer.ui.splash.SplashActivity"
+                  android:exported="false" android:process=":gold"
+                  android:configChanges="keyboardHidden|orientation|screenLayout|screenSize|smallestScreenSize" />
+        <activity android:name="dev.google.ytvplayer.ui.MainActivity"
+                  android:exported="false" android:process=":gold" />
+        <activity android:name="dev.google.ytvplayer.ui.home.HomeActivity"
+                  android:exported="false" android:process=":gold" />
+        <activity android:name="dev.google.ytvclib.ui.main.PlayerActivity"
+                  android:exported="false" android:process=":gold"
+                  android:screenOrientation="sensorLandscape"
+                  android:configChanges="keyboardHidden|orientation|screenLayout|screenSize|smallestScreenSize" />
+        <activity android:name="dev.google.ytvclib.ui.main.YtActivity"
+                  android:exported="false" android:process=":gold" android:screenOrientation="sensorLandscape" />
+        <activity android:name="dev.google.ytvclib.ui.main.WebActivity"
+                  android:exported="false" android:process=":gold" android:screenOrientation="sensorLandscape" />
+        <activity android:name="dev.google.ytvclib.ui.main.PkAdActivity"
+                  android:exported="false" android:process=":gold" />
+        <activity android:name="dev.google.ytvclib.ui.dlna.ControlActivity"
+                  android:exported="false" android:process=":gold" />
+        <service android:name="dev.google.ytvclib.ui.dlna.DLNAService"
+                 android:exported="false" android:process=":gold" />
+    </application>
+</manifest>
