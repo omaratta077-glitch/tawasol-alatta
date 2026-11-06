@@ -3,6 +3,7 @@ package com.alatta.nativeapp
 import android.content.Intent
 import android.os.Bundle
 import android.os.Build
+import android.view.KeyEvent
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -22,6 +23,9 @@ import androidx.compose.ui.unit.sp
 
 /** لا تُفتح إلا لمن فعّل منبّه صلاة مجدولًا؛ ولا تتجاوز قفل شاشة الجهاز. */
 class AdhanAlarmActivity : ComponentActivity() {
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean =
+        AdhanPlaybackService.stopOnVolumeKey(this, event) || super.dispatchKeyEvent(event)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         if (Build.VERSION.SDK_INT >= 27) { setShowWhenLocked(true); setTurnScreenOn(true) }

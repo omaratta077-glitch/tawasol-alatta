@@ -12,6 +12,7 @@ import android.app.Service
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.media.AudioAttributes
 import android.media.AudioFocusRequest
@@ -23,6 +24,7 @@ import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import android.os.PowerManager
+import android.view.KeyEvent
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
@@ -166,10 +168,34 @@ class AdhanPlaybackService : Service() {
         val playing = MutableStateFlow(false)
         internal val activePrayer = MutableStateFlow("")
         private const val NOTIFICATION_ID = 8311
+
+        internal fun stopOnVolumeKey(context: Context, event: KeyEvent): Boolean {
+            if (event.action != KeyEvent.ACTION_DOWN || event.repeatCount != 0 || activePrayer.value.isEmpty()) return false
+            if (event.keyCode != KeyEvent.KEYCODE_VOLUME_UP && event.keyCode != KeyEvent.KEYCODE_VOLUME_DOWN &&
+                event.keyCode != KeyEvent.KEYCODE_VOLUME_MUTE) return false
+            return context.stopService(Intent(context, AdhanPlaybackService::class.java))
+        }
     }
     private var player: MediaPlayer? = null
     private var focus: AudioFocusRequest? = null
     private val handler = Handler(Looper.getMainLooper())
+    private val screenOffReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            if (intent.action == Intent.ACTION_SCREEN_OFF && activePrayer.value.isNotEmpty()) {
+                releasePlayer()
+                stopSelf()
+            }
+        }
+    }
+
+    override fun onCreate() {
+        super.onCreate()
+        ContextCompat.registerReceiver(
+            this, screenOffReceiver, IntentFilter(Intent.ACTION_SCREEN_OFF),
+            ContextCompat.RECEIVER_NOT_EXPORTED
+        )
+    }
+
     override fun onBind(intent: Intent?): IBinder? = null
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val action = intent?.action
@@ -226,7 +252,12 @@ class AdhanPlaybackService : Service() {
         focus?.let { (getSystemService(Context.AUDIO_SERVICE) as AudioManager).abandonAudioFocusRequest(it) }
         focus = null; playing.value = false; activePrayer.value = ""
     }
-    override fun onDestroy() { releasePlayer(); stopForeground(STOP_FOREGROUND_REMOVE); super.onDestroy() }
+    override fun onDestroy() {
+        unregisterReceiver(screenOffReceiver)
+        releasePlayer()
+        stopForeground(STOP_FOREGROUND_REMOVE)
+        super.onDestroy()
+    }
 }
 
 internal fun adhanNotification(context: Context, settings: PrayerSettings, prayer: String, preview: Boolean): Notification {
