@@ -636,11 +636,13 @@ class MainActivity : ComponentActivity(), WatchRoomPipStateHost {
     }
 
     private fun consumePushIntent(intent: Intent?) {
-        val tvChannel = TvChannelHandoff.read(intent)
-        if (tvChannel != null) {
-            requestedTvChannelId = tvChannel
-            requestedNotificationTab = "العطا TV"
+        // Legacy AL-ATTA TV builds still target MainActivity with a catalog ID.
+        // Route them to the very same Gold receiver used by new TV builds, not
+        // to AttaTvScreen or the old ExoPlayer playback page.
+        val legacyGoldRequest = TvChannelHandoff.legacyReceiverIntent(this, intent)
+        if (legacyGoldRequest != null) {
             intent?.let { it.removeExtra(TvChannelHandoff.CHANNEL_ID); it.action = Intent.ACTION_MAIN }
+            startActivity(legacyGoldRequest)
             return
         }
         if (intent?.action == WatchRoomService.ACTION_OPEN) {
