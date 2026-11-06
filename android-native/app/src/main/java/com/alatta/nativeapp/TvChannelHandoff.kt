@@ -2,6 +2,7 @@ package com.alatta.nativeapp
 
 import android.content.Intent
 import android.content.Context
+import org.json.JSONObject
 
 /** The AL-ATTA TV -> AL-ATTA handoff transports only the catalog ID, never a URL or token. */
 internal object TvChannelHandoff {
@@ -26,9 +27,21 @@ internal object TvChannelHandoff {
             .putExtra(GoldPlaybackReceiverActivity.EXTRA_CATALOG_ID, catalogId)
     }
 
-    /** Converts a list ID from old TV versions into the actual YTV engine number. */
-    fun engineNumber(catalog: FootballCatalog, id: String): String? =
-        catalog.channels.firstOrNull {
-            it.id == id && it.enabled && it.format == "ytv"
-        }?.streamUrl?.let(YtvPlayer::channelId)
+    /**
+     * Match the public AL-ATTA TV chooser's catalog contract directly. Do not
+     * use FootballRepository.parse here: it additionally requires sourceUrl
+     * and provider fields that the TV chooser does not need.
+     */
+    fun engineNumber(catalog: JSONObject, id: String): String? {
+        if (!allowed.matches(id)) return null
+        val channels = catalog.optJSONArray("channels") ?: return null
+        for (index in 0 until minOf(channels.length(), 500)) {
+            val channel = channels.optJSONObject(index) ?: continue
+            if (channel.optString("id") == id &&
+                channel.optBoolean("enabled", false) &&
+                channel.optString("format") == "ytv"
+            ) return YtvPlayer.channelId(channel.optString("streamUrl"))
+        }
+        return null
+    }
 }
