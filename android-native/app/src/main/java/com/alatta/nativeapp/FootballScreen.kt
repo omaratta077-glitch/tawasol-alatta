@@ -102,22 +102,21 @@ internal fun FootballScreen(query: String, modifier: Modifier = Modifier,
                 }
                 "ytv" -> {
                     if (callInProgress) { error = "أنهِ المكالمة أولًا لتشغيل القناة."; return@launch }
-                    if (nativePlayback) {
-                        if (token.isBlank()) { error = "سجّل الدخول لتشغيل القناة."; return@launch }
-                        val sources = NativeChannelPlayback.load(token, channel.id)
-                        onBeforePlayback(); nativeSession = NativePlaybackSession(channel, sources, engineName = "ExoPlayer2")
-                    } else {
-                        // Keep the proven channel-tab behavior intact. Only live-tab/TV handoff uses Media3.
-                        YtvPlayer.openWorkingEngine(context, channel.streamUrl, onBeforePlayback)
-                            ?.let { playerFailure = it; return@launch }
+                    when (EmbeddedGoldEngine.launch(context, channel.streamUrl, onBeforePlayback)) {
+                        EmbeddedGoldEngine.Result.STARTED -> Unit
+                        EmbeddedGoldEngine.Result.NOT_PACKAGED ->
+                            error = "محرّك الذهب لم يكتمل دمجه داخل Media. لن يتم تشغيل ExoPlayer أو YTV الخارجي بديلًا عنه."
+                        EmbeddedGoldEngine.Result.INVALID_CHANNEL ->
+                            error = "رقم القناة غير صالح؛ حدّث القائمة."
+                        EmbeddedGoldEngine.Result.NOT_ALLOWED, EmbeddedGoldEngine.Result.FAILED ->
+                            error = "تعذّر تشغيل المحرّك الذهبي داخل Media. راجع التهيئة والموارد."
                     }
                 }
                 "hls", "dash" -> {
-                    if (nativePlayback) {
-                        if (callInProgress) { error = "أنهِ المكالمة أولًا لتشغيل القناة."; return@launch }
-                        val sources = NativeChannelPlayback.fromPublishedChannel(channel)
-                        onBeforePlayback(); nativeSession = NativePlaybackSession(channel, sources, engineName = "ExoPlayer2")
-                    } else { onBeforePlayback(); selected = channel }
+                    // These directly published streams use the separate post-media
+                    // viewer, never the retired ExoPlayer2 football player.
+                    onBeforePlayback()
+                    selected = channel
                 }
                 else -> { onBeforePlayback(); selected = channel }
             }
@@ -191,17 +190,7 @@ internal fun FootballScreen(query: String, modifier: Modifier = Modifier,
                         play(channel, nativePlayback = true)
                     } ?: run { reload++ }
                 },
-                onLegacyPlayback = if (lastRequestedChannel?.format == "ytv") {
-                    {
-                        lastRequestedChannel?.let { channel ->
-                            playbackScope.launch {
-                                val failure = YtvPlayer.openWorkingEngine(context, channel.streamUrl, onBeforePlayback)
-                                if (failure != null) playerFailure = failure else error = ""
-                            }
-                        }
-                        Unit
-                    }
-                } else null,
+                onLegacyPlayback = null,
                 watchRoomExpanded = watchRoomExpanded,
                 onWatchRoom = { watchRoomExpanded = !watchRoomExpanded },
                 watchRoomContent = {
