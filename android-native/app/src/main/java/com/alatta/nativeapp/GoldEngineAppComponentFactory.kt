@@ -39,7 +39,7 @@ class GoldEngineAppComponentFactory : CoreComponentFactory() {
         return super.instantiateApplication(cl, className)
     }
 
-    override fun instantiateActivity(cl: ClassLoader, className: String, intent: Intent): Activity {
+    override fun instantiateActivity(cl: ClassLoader, className: String, intent: Intent?): Activity {
         // Gold libraries may install their own handlers during onCreate().
         // Re-install the recorder before Android calls the Gold Activity onCreate().
         if (Build.VERSION.SDK_INT >= 28 && Application.getProcessName().endsWith(":gold")) {
