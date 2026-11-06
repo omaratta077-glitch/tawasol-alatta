@@ -43,7 +43,24 @@ internal object EmbeddedGoldEngine {
         val component = ComponentName(context.packageName, ENTRY_ACTIVITY)
         return try {
             context.packageManager.getActivityInfo(component, 0)
-            true
+            // A manifest entry alone does not mean the original Gold code
+            // is in the Media APK. Verify the real engine classes too.
+            val loader = context.classLoader
+            listOf(
+                ENTRY_ACTIVITY,
+                "dev.google.ytvclib.ui.main.PlayerActivity",
+                "dev.google.ytvplayer.YtvApp",
+                "dev.google.ytvclib.utils.C"
+            ).all { name ->
+                try {
+                    Class.forName(name, false, loader)
+                    true
+                } catch (_: ClassNotFoundException) {
+                    false
+                } catch (_: LinkageError) {
+                    false
+                }
+            }
         } catch (_: PackageManager.NameNotFoundException) {
             false
         } catch (_: SecurityException) {
