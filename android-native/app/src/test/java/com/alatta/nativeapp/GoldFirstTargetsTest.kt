@@ -15,6 +15,8 @@ class GoldFirstTargetsTest {
         val media = GoldFirstTargets.mediaIntent("com.ytv.pronew")
         assertEquals("com.ytv.pronew", gold.component!!.packageName)
         assertEquals("com.ytv.pronew", media.component!!.packageName)
+        assertEquals("dev.google.ytvplayer.ui.splash.SplashActivity",
+            GoldFirstTargets.GOLD_ACTIVITY)
         assertEquals(GoldFirstTargets.GOLD_ACTIVITY, gold.component!!.className)
         assertEquals(GoldFirstTargets.MEDIA_ACTIVITY, media.component!!.className)
     }
