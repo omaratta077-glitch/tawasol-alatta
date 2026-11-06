@@ -3,6 +3,8 @@ package com.alatta.nativeapp
 import android.content.Intent
 import android.content.ComponentName
 import org.robolectric.RuntimeEnvironment
+import org.json.JSONArray
+import org.json.JSONObject
 import org.junit.Assert.*
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -40,14 +42,14 @@ class TvChannelHandoffTest {
 
     @Test fun onlyEnabledYtvCatalogChannelMayBecomeGoldEngineNumber() {
         fun ch(id: String, value: String, format: String = "ytv", enabled: Boolean = true) =
-            FootballChannel(id, "Channel", "TV", "provider",
-                "https://example.com/source", value, format, enabled)
-        val catalog = FootballCatalog(channels = listOf(
-            ch("fc-valid", "1424"),
-            ch("fc-disabled", "1425", enabled = false),
-            ch("fc-hls", "https://example.com/live.m3u8", format = "hls"),
-            ch("fc-bad", "1;malformed")
-        ))
+            JSONObject().put("id", id).put("streamUrl", value)
+                .put("format", format).put("enabled", enabled)
+        val catalog = JSONObject().put("channels", JSONArray().apply {
+            put(ch("fc-valid", "1424"))
+            put(ch("fc-disabled", "1425", enabled = false))
+            put(ch("fc-hls", "https://example.com/live.m3u8", format = "hls"))
+            put(ch("fc-bad", "1;malformed"))
+        })
         assertEquals("1424", TvChannelHandoff.engineNumber(catalog, "fc-valid"))
         assertNull(TvChannelHandoff.engineNumber(catalog, "fc-disabled"))
         assertNull(TvChannelHandoff.engineNumber(catalog, "fc-hls"))
