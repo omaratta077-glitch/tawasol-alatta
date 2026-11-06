@@ -36,7 +36,9 @@ jobs:
           arch: x86_64
           target: default
           working-directory: android-native
-          script: gradle --no-daemon --console=plain :app:connectedDebugAndroidTest
+          script: |
+            gradle --no-daemon --console=plain :app:connectedDebugAndroidTest
+            bash ../scripts/gold_first_media_smoke.sh
       - name: Report Android test failures
         if: always()
         run: |
