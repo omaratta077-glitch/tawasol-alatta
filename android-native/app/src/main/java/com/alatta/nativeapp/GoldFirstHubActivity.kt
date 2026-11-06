@@ -81,7 +81,8 @@ class GoldFirstHubActivity : Activity() {
 }
 
 internal object GoldFirstTargets {
-    const val GOLD_ACTIVITY = "dev.google.ytvplayer.ui.MainActivity"
+    // Respect original Gold launcher initialization: never bypass SplashActivity.
+    const val GOLD_ACTIVITY = "dev.google.ytvplayer.ui.splash.SplashActivity"
     const val MEDIA_ACTIVITY = "com.alatta.nativeapp.MainActivity"
     fun goldPlayerIntent(hostPackage: String) = Intent(Intent.ACTION_MAIN)
         .setComponent(ComponentName(hostPackage, GOLD_ACTIVITY))
