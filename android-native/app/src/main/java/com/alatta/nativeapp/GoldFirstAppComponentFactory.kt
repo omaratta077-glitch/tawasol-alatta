@@ -15,7 +15,7 @@ import androidx.core.app.CoreComponentFactory
 class GoldFirstAppComponentFactory : CoreComponentFactory() {
     override fun instantiateApplication(cl: ClassLoader, className: String): Application {
         val mediaProcess = Build.VERSION.SDK_INT >= Build.VERSION_CODES.P &&
-            Application.getProcessName() == "com.ytv.pronew:media"
+            Application.getProcessName().endsWith(":media")
         if (!mediaProcess) return super.instantiateApplication(cl, className)
         return try {
             cl.loadClass("com.alatta.nativeapp.AttaApplication")
