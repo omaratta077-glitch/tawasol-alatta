@@ -16,6 +16,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * AL-ATTA Media receives a channel number from AL-ATTA TV.
@@ -100,7 +101,10 @@ class GoldPlaybackReceiverActivity : Activity() {
         message.text = "جارٍ تحديد رقم القناة من قائمة AL-ATTA TV..."
         resolvingChannel = resolveScope.launch {
             try {
-                val number = TvChannelHandoff.engineNumber(FootballRepository.load(), catalogId)
+                val number = TvChannelHandoff.engineNumber(
+                    withContext(Dispatchers.IO) { attaApi("/api/football") },
+                    catalogId
+                )
                 if (number == null) {
                     message.text = "القناة غير موجودة أو ليست من قنوات YTV. حدّث AL-ATTA TV."
                 } else {
