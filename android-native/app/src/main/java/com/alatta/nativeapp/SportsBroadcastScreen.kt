@@ -58,7 +58,7 @@ internal fun SportsBroadcastScreen(
                 }
             } else {
                 Column {
-                    LegacyInlineStreamPlayer(session)
+                    Text("لا يوجد مشغّل ExoPlayer2 في صفحة البث. اختيار القناة من AL-ATTA TV وتشغيلها بالمحرّك الذهبي داخل Media.", color = PremiumGoldLight, modifier = Modifier.padding(12.dp))
                     Row(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically) {
                         Text(session.channel.name, color = PremiumGoldLight,
