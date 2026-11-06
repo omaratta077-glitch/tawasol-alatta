@@ -38,10 +38,10 @@ internal object EmbeddedGoldEngine {
     }
 
     /** Only a component registered inside THIS app counts as embedded. */
+    @Suppress("DEPRECATION")
     internal fun isPackaged(context: Context): Boolean {
         val component = ComponentName(context.packageName, ENTRY_ACTIVITY)
         return try {
-            @Suppress("DEPRECATION")
             context.packageManager.getActivityInfo(component, 0)
             true
         } catch (_: PackageManager.NameNotFoundException) {
