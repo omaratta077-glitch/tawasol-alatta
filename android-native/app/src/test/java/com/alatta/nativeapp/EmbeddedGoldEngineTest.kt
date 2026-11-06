@@ -1,8 +1,7 @@
 package com.alatta.nativeapp
 
 import android.content.ComponentName
-import android.content.Context
-import androidx.test.core.app.ApplicationProvider
+import org.robolectric.RuntimeEnvironment
 import org.junit.Assert.*
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -27,7 +26,7 @@ class EmbeddedGoldEngineTest {
     }
 
     @Test fun noEngineInHostMeansNoFalsePositiveOrActivityLaunch() {
-        val context = ApplicationProvider.getApplicationContext<Context>()
+        val context = RuntimeEnvironment.getApplication()
         assertFalse(EmbeddedGoldEngine.isPackaged(context))
         assertEquals(EmbeddedGoldEngine.Result.NOT_PACKAGED, EmbeddedGoldEngine.launch(context, "1424"))
     }
