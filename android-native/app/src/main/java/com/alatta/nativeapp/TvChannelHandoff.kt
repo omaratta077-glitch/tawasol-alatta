@@ -25,4 +25,10 @@ internal object TvChannelHandoff {
             .setAction(GoldPlaybackReceiverActivity.ACTION_LEGACY_CATALOG)
             .putExtra(GoldPlaybackReceiverActivity.EXTRA_CATALOG_ID, catalogId)
     }
+
+    /** Converts a list ID from old TV versions into the actual YTV engine number. */
+    fun engineNumber(catalog: FootballCatalog, id: String): String? =
+        catalog.channels.firstOrNull {
+            it.id == id && it.enabled && it.format == "ytv"
+        }?.streamUrl?.let(YtvPlayer::channelId)
 }
