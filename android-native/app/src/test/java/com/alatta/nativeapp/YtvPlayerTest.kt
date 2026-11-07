@@ -45,18 +45,15 @@ class YtvPlayerTest {
         } finally { parcel.recycle() }
     }
 
-    @Test fun companionSelectionPreservesExactChannelPayloadAndFallback() {
-        val original = requireNotNull(YtvPlayer.channelIntent("9223372036854775807"))
-        assertSame(original, YtvPlayer.choosePlayer(original, false))
-        val viaGold = YtvPlayer.choosePlayer(original, true)
-        assertEquals("com.alatta.tv", viaGold.component!!.packageName)
-        assertEquals("com.alatta.tv.LauncherActivity", viaGold.component!!.className)
-        assertEquals(Intent.ACTION_VIEW, viaGold.action)
-        assertEquals(Long.MAX_VALUE, viaGold.getLongExtra("id", -1))
-        assertEquals(1, viaGold.getIntExtra("type", -1))
-        assertEquals(setOf("id", "type"), viaGold.extras!!.keySet())
-        assertNull(viaGold.data)
-        assertEquals("com.ytv.pronew", original.component!!.packageName)
+    @Test fun restoredChannelSelectionUsesWorkingGoldPlayer() {
+        val intent = requireNotNull(YtvPlayer.channelIntent("1425"))
+        assertEquals("com.ytv.pronew", intent.component?.packageName)
+        assertEquals("dev.google.ytvplayer.ui.splash.SplashActivity", intent.component?.className)
+        assertEquals(Intent.ACTION_VIEW, intent.action)
+        assertEquals(1425L, intent.getLongExtra("id", -1L))
+        assertEquals(1, intent.getIntExtra("type", -1))
+        assertEquals(setOf("id", "type"), intent.extras!!.keySet())
+        assertNull(intent.data)
     }
 
     @Test fun channelIdsNormalizeArabicDigitsAndRejectUrlsMalformedValuesAndOverflow() {

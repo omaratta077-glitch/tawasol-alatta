@@ -24,9 +24,9 @@ android {
         applicationId = "com.alatta.nativeapp"
         minSdk = 26
         targetSdk = 36
-        // الإصدار 1.0.275: استعادة فتح قنوات الرياضة في AL-ATTA TV.
-        versionCode = 375
-        versionName = "1.0.275"
+        // الإصدار 1.0.276: استعادة القنوات والبث المباشر مع الحفاظ على إصلاحات الأذان والمصحف.
+        versionCode = 376
+        versionName = "1.0.276"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("boolean", "IS_APPGALLERY", appGalleryBuild.toString())
         val hmsId = (System.getenv("ALATTA_HMS_APP_ID") ?: "").trim().takeIf { it.matches(Regex("[0-9]{1,20}")) } ?: ""
@@ -114,8 +114,7 @@ dependencies {
     implementation("androidx.compose.foundation:foundation")
     implementation("androidx.compose.material3:material3")
     implementation("io.coil-kt:coil-compose:2.7.0")
-    // Media3 is retained for reels, user videos and calls. TV uses legacy ExoPlayer2 below.
-    implementation("com.google.android.exoplayer:exoplayer:2.19.1")
+    // Media3 retained for app video and authorized native stream formats.
     implementation("androidx.media3:media3-exoplayer:1.5.1")
     implementation("androidx.media3:media3-datasource-okhttp:1.5.1")
     implementation("androidx.media3:media3-exoplayer-hls:1.5.1")

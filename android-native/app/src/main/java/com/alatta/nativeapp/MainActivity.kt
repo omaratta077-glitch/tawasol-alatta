@@ -563,9 +563,6 @@ class MainActivity : ComponentActivity(), WatchRoomPipStateHost {
     internal var requestedNotificationEvent by mutableStateOf<String?>(null)
     internal var requestedNotificationTab by mutableStateOf<String?>(null)
         private set
-    // A catalog ID requested by AL-ATTA TV, never a raw stream URL.
-    internal var requestedTvChannelId by mutableStateOf<String?>(null)
-        private set
     internal var youtubePipMode by mutableStateOf(false)
         private set
     private var youtubePlaybackActive = false
@@ -640,13 +637,6 @@ class MainActivity : ComponentActivity(), WatchRoomPipStateHost {
     }
 
     private fun consumePushIntent(intent: Intent?) {
-        val tvChannel = TvChannelHandoff.read(intent)
-        if (tvChannel != null) {
-            requestedTvChannelId = tvChannel
-            requestedNotificationTab = "العطا TV"
-            intent?.let { it.removeExtra(TvChannelHandoff.CHANNEL_ID); it.action = Intent.ACTION_MAIN }
-            return
-        }
         if (intent?.action == WatchRoomService.ACTION_OPEN) {
             requestedNotificationTab = "الرياضة"; intent.action = Intent.ACTION_MAIN; return
         }
@@ -695,7 +685,6 @@ class MainActivity : ComponentActivity(), WatchRoomPipStateHost {
     fun clearIncomingPush() { incomingPush = null }
     fun clearNotificationEvent() { requestedNotificationEvent = null }
     fun clearNotificationNavigation() { requestedNotificationTab = null }
-    fun clearRequestedTvChannel() { requestedTvChannelId = null }
 }
 
 @Composable
@@ -2466,7 +2455,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
     // مراقبة غير مستهلكة للمس، تحترم الفيديو والريلز والمصحف والتمرير الأفقي الداخلي.
     val swipeSections = remember {
         listOf("الرئيسية", "ريلز", "الملف", "القرآن", "الأحاديث",
-            "الأذكار", "الرياضة", "العطا TV", "يوتيوب", "القائمة")
+            "الأذكار", "الرياضة", "يوتيوب", "القائمة")
     }
     var chromeVisible by remember { mutableStateOf(true) }
     var lastChromeMotion by remember { mutableLongStateOf(android.os.SystemClock.uptimeMillis()) }
@@ -2789,7 +2778,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                     AnimatedVisibility(
                         visible = chromeVisible && tab != "الرئيسية" &&
                             tab != "الرسائل" && tab != "القرآن" && tab != "الأذكار" &&
-                            tab != "الرياضة" && tab != "العطا TV" &&
+                            tab != "الرياضة" &&
                             !(compactYoutubeLayout && tab == "يوتيوب" && youtubePlayRequested),
                         enter = expandVertically() + fadeIn(),
                         exit = shrinkVertically() + fadeOut()
@@ -2878,19 +2867,10 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                             })
                         "الرياضة" -> FootballScreen("", Modifier.weight(1f), isAdmin = adminRole == "super_admin", token = token, callInProgress = activeCall != null || incomingCall != null || pendingPermissionCall != null,
                             onManage = { navigate("الإدارة") }, onBeforePlayback = { youtubePlayRequested = false; activeYoutubePostId = "" },
-                            onOpenTv = { navigate("العطا TV") },
                             onYoutube = { id ->
                                 activeYoutubePostId = ""; youtubeId = id; youtubePlayRequested = true
                                 navigate("يوتيوب")
                             })
-                        "العطا TV" -> AttaTvScreen(
-                            token = token,
-                            modifier = Modifier.weight(1f),
-                            requestedChannelId = (ctx as? MainActivity)?.requestedTvChannelId,
-                            onRequestedChannelConsumed = { (ctx as? MainActivity)?.clearRequestedTvChannel() },
-                            onBeforePlayback = { youtubePlayRequested = false; activeYoutubePostId = "" },
-                            onExit = { navigate("الرئيسية") }
-                        )
                         "ريلز" -> {
                             // Uses the same single mixed reels viewer from post cards; it is NOT a second player.
                             val rejectedShortIds = remember(shortEligibility) {

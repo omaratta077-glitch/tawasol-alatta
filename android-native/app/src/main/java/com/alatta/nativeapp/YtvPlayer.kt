@@ -18,31 +18,7 @@ internal object YtvPlayer {
     const val APP_PAGE = "https://play.google.com/store/apps/details?id=com.ytv.pronew"
     private const val PACKAGE = "com.ytv.pronew"
     private const val SPLASH = "dev.google.ytvplayer.ui.splash.SplashActivity"
-    private const val GOLD_COMPANION = "com.alatta.tv"
-    private const val GOLD_ACTIVITY = "com.alatta.tv.LauncherActivity"
-
-    /**
-     * Keep the proven YTV APK installed and unmodified. The independently signed
-     * gold UI delegates an existing channel ID to that player's original component.
-     * No stream URLs, account data or server credentials are sent.
-     */
-    internal fun choosePlayer(original: Intent, goldInstalled: Boolean): Intent =
-        if (goldInstalled) Intent(original).setComponent(ComponentName(GOLD_COMPANION, GOLD_ACTIVITY))
-        else original
-
-    private fun choosePlayer(context: Context, original: Intent): Intent {
-        val installed = try {
-            @Suppress("DEPRECATION")
-            context.packageManager.getPackageInfo(GOLD_COMPANION, 0)
-            true
-        } catch (_: android.content.pm.PackageManager.NameNotFoundException) {
-            false
-        } catch (_: SecurityException) {
-            false
-        }
-        return choosePlayer(original, installed)
-    }
-
+    // Only the user-tested installed gold player handles channel IDs.
     enum class Failure(val explanation: String) {
         INVALID_ID("رقم القناة غير صحيح. حدّث قائمة القنوات من الإدارة."),
         UNAVAILABLE("ثبّت مشغّل القنوات المساعد أو حدّثه، ثم افتح القناة من العطا مرة أخرى."),
@@ -74,7 +50,7 @@ internal object YtvPlayer {
 
     fun open(context: Context, value: String, beforeLaunch: () -> Unit = {}): Failure? {
         val request = channelIntent(value) ?: return Failure.INVALID_ID
-        return launch(context, choosePlayer(context, request), beforeLaunch)
+        return launch(context, request, beforeLaunch)
     }
 
     private fun launch(context: Context, request: Intent, beforeLaunch: () -> Unit): Failure? {
@@ -104,8 +80,8 @@ internal object YtvPlayer {
 
     suspend fun openWithWatchRoom(context: Context, value: String, beforeLaunch: () -> Unit = {}): Failure? {
         val original = channelIntent(value) ?: return Failure.INVALID_ID
-        // Watch room PiP keeps its already tested direct-player contract.
-        val request = if (WatchRoomController.active) original else choosePlayer(context, original)
+        // Route directly to the installed gold engine, including non-room playback.
+        val request = original
         if (WatchRoomController.active) {
             // تجنب الدخول إلى وضع PiP لمجرد اكتشاف عدم وجود مشغّل مثبت يعالج القناة.
             if (request.resolveActivity(context.packageManager) == null) return Failure.UNAVAILABLE
