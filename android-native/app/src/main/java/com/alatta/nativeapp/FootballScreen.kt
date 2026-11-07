@@ -98,14 +98,10 @@ internal fun FootballScreen(query: String, modifier: Modifier = Modifier,
                 }
                 "ytv" -> {
                     if (callInProgress) { error = "أنهِ المكالمة أولًا لتشغيل القناة."; return@launch }
-                    if (nativePlayback) {
-                        if (token.isBlank()) { error = "سجّل الدخول لتشغيل القناة."; return@launch }
-                        val sources = NativeChannelPlayback.load(token, channel.id)
-                        onBeforePlayback(); nativeSession = NativePlaybackSession(channel, sources)
-                    } else {
-                        YtvPlayer.openWithWatchRoom(context, channel.streamUrl, onBeforePlayback)
-                            ?.let { playerFailure = it; return@launch }
-                    }
+                    // Only the verified installed gold engine handles YTV IDs,
+                    // including channels selected from the restored live tab.
+                    YtvPlayer.openWithWatchRoom(context, channel.streamUrl, onBeforePlayback)
+                        ?.let { playerFailure = it; return@launch }
                 }
                 "hls", "dash" -> {
                     if (nativePlayback) {
