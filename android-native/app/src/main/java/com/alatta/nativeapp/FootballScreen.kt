@@ -107,8 +107,8 @@ internal fun FootballScreen(query: String, modifier: Modifier = Modifier,
                         val sources = NativeChannelPlayback.load(token, channel.id)
                         onBeforePlayback(); nativeSession = NativePlaybackSession(channel, sources, engineName = "ExoPlayer2")
                     } else {
-                        // Keep the proven channel-tab behavior intact. Only live-tab/TV handoff uses Media3.
-                        YtvPlayer.openWorkingEngine(context, channel.streamUrl, onBeforePlayback)
+                        // Open channel cards through the installed AL-ATTA TV companion.
+                        YtvPlayer.openWithWatchRoom(context, channel.streamUrl, onBeforePlayback)
                             ?.let { playerFailure = it; return@launch }
                     }
                 }

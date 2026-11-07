@@ -24,9 +24,9 @@ android {
         applicationId = "com.alatta.nativeapp"
         minSdk = 26
         targetSdk = 36
-        // الإصدار 1.0.274: تحسينات المصحف والأذكار والأذان والريلز.
-        versionCode = 374
-        versionName = "1.0.274"
+        // الإصدار 1.0.275: استعادة فتح قنوات الرياضة في AL-ATTA TV.
+        versionCode = 375
+        versionName = "1.0.275"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("boolean", "IS_APPGALLERY", appGalleryBuild.toString())
         val hmsId = (System.getenv("ALATTA_HMS_APP_ID") ?: "").trim().takeIf { it.matches(Regex("[0-9]{1,20}")) } ?: ""
