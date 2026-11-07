@@ -24,9 +24,9 @@ android {
         applicationId = "com.alatta.nativeapp"
         minSdk = 26
         targetSdk = 36
-        // الإصدار 1.0.276: استعادة القنوات والبث المباشر مع الحفاظ على إصلاحات الأذان والمصحف.
-        versionCode = 376
-        versionName = "1.0.276"
+        // الإصدار 1.0.277: إصلاح تحديد فروع القنوات وتشخيص فشل تحديث قائمة beIN دون مسح القنوات.
+        versionCode = 377
+        versionName = "1.0.277"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("boolean", "IS_APPGALLERY", appGalleryBuild.toString())
         val hmsId = (System.getenv("ALATTA_HMS_APP_ID") ?: "").trim().takeIf { it.matches(Regex("[0-9]{1,20}")) } ?: ""
