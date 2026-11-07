@@ -76,11 +76,31 @@ internal object CatalogAutoUpdater {
             val now = SystemClock.elapsedRealtime()
             if (!force && attempts[owner]?.let { now - it < FOREGROUND_REFRESH_MS } == true) return@withLock null
             attempts[owner] = now
-            service(context, token, owner).refreshSection(links) {
+            val sync = service(context, token, owner)
+            var discovery: CatalogSectionDiscovery? = null
+            val attempt = sync.refreshSection(links) {
                 val mask = CatalogFormatSettings.read(context)?.toByteArray(Charsets.US_ASCII)
-                val result = YacineCatalogProbe.fetch(YacineCatalogProbe.Kind.CATEGORIES, responseMask = mask)
-                catalogDefaultSection(result)
-            }.also { messages = messages + (owner to it.message) }
+                val root = YacineCatalogProbe.fetch(YacineCatalogProbe.Kind.CATEGORIES, responseMask = mask)
+                CatalogSectionResolver.discover(root) { categoryId ->
+                    YacineCatalogProbe.fetch(YacineCatalogProbe.Kind.CATEGORIES, categoryId, mask)
+                }.also { discovery = it }.section
+            }
+            // Only fall back to already linked channels: never import an unverified
+            // category or replace the 20 saved channels with an incomplete response.
+            val outcome = if (discovery?.section == null &&
+                attempt.message.startsWith("تعذر تحديد قسم القنوات")) {
+                val diagnostic = discovery?.explanation.orEmpty()
+                if (links.isEmpty()) attempt.copy(message = diagnostic.ifBlank { attempt.message })
+                else {
+                    val linked = sync.refresh(links)
+                    val status = if (linked.checked > 0)
+                        "تمت مراجعة ${linked.checked} قناة مرتبطة وتحديث ${linked.changed} دون إضافة قنوات جديدة."
+                    else "لم يمكن فحص القنوات المرتبطة؛ الأرقام المحفوظة كما هي."
+                    linked.copy(message = "${diagnostic} ${status} ${linked.message}".trim())
+                }
+            } else attempt
+            messages = messages + (owner to outcome.message)
+            outcome
         } }
     suspend fun bind(context: Context, token: String, owner: String, channelId: String,
         categoryId: String, entry: YacineCatalogProbe.Entry): CatalogSyncResult = withContext(Dispatchers.IO) { mutex.withLock {
