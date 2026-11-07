@@ -48,9 +48,7 @@ internal fun FootballPanel(modifier: Modifier = Modifier, content: @Composable C
 @Composable
 internal fun FootballScreen(query: String, modifier: Modifier = Modifier,
     isAdmin: Boolean = false, token: String = "", onManage: () -> Unit = {}, callInProgress: Boolean = false,
-    onBeforePlayback: () -> Unit, onYoutube: (String) -> Unit,
-    externalChannelId: String? = null, onExternalChannelConsumed: () -> Unit = {},
-    onOpenTv: () -> Unit = {}) {
+    onBeforePlayback: () -> Unit, onYoutube: (String) -> Unit) {
     val context = LocalContext.current
     val playbackScope = rememberCoroutineScope()
     var openingChannel by remember { mutableStateOf(false) }
@@ -63,12 +61,10 @@ internal fun FootballScreen(query: String, modifier: Modifier = Modifier,
     var error by remember { mutableStateOf("") }
     var selected by remember { mutableStateOf<FootballChannel?>(null) }
     var nativeSession by remember { mutableStateOf<NativePlaybackSession?>(null) }
-    var lastRequestedChannel by remember { mutableStateOf<FootballChannel?>(null) }
     var lastChannelReport by remember { mutableStateOf<String?>(null) }
     var playerFailure by remember { mutableStateOf<YtvPlayer.Failure?>(null) }
     var watchEntryRequest by remember { mutableIntStateOf(0) }
     var broadcastExpanded by rememberSaveable { mutableStateOf(false) }
-    var watchRoomExpanded by rememberSaveable { mutableStateOf(false) }
     val generation = CatalogAutoUpdater.generation
     LaunchedEffect(reload, generation) {
         // التحديث المتكرر لا يمسح القنوات المعروضة أو يوقف المشغّل عند كل فحص.
@@ -87,8 +83,8 @@ internal fun FootballScreen(query: String, modifier: Modifier = Modifier,
         val lifecycle = context.mediaActivity()?.lifecycle
         while (true) { delay(CatalogAutoUpdater.SHARED_CATALOG_REFRESH_MS); if (lifecycle?.currentState?.isAtLeast(Lifecycle.State.STARTED) == true) reload++ }
     }
-    // Channel cards retain their previous route; external TV handoff and live tab use native Media3.
-    fun play(channel: FootballChannel, nativePlayback: Boolean = true) {
+    // القنوات المعتادة تفتح بالمشغّل السابق؛ تجربة Media3 داخل تبويب البث المباشر فقط.
+    fun play(channel: FootballChannel, nativePlayback: Boolean = false) {
         if (openingChannel) return
         openingChannel = true
         playbackScope.launch {
@@ -105,9 +101,8 @@ internal fun FootballScreen(query: String, modifier: Modifier = Modifier,
                     if (nativePlayback) {
                         if (token.isBlank()) { error = "سجّل الدخول لتشغيل القناة."; return@launch }
                         val sources = NativeChannelPlayback.load(token, channel.id)
-                        onBeforePlayback(); nativeSession = NativePlaybackSession(channel, sources, engineName = "ExoPlayer2")
+                        onBeforePlayback(); nativeSession = NativePlaybackSession(channel, sources)
                     } else {
-                        // Open channel cards through the installed AL-ATTA TV companion.
                         YtvPlayer.openWithWatchRoom(context, channel.streamUrl, onBeforePlayback)
                             ?.let { playerFailure = it; return@launch }
                     }
@@ -116,7 +111,7 @@ internal fun FootballScreen(query: String, modifier: Modifier = Modifier,
                     if (nativePlayback) {
                         if (callInProgress) { error = "أنهِ المكالمة أولًا لتشغيل القناة."; return@launch }
                         val sources = NativeChannelPlayback.fromPublishedChannel(channel)
-                        onBeforePlayback(); nativeSession = NativePlaybackSession(channel, sources, engineName = "ExoPlayer2")
+                        onBeforePlayback(); nativeSession = NativePlaybackSession(channel, sources)
                     } else { onBeforePlayback(); selected = channel }
                 }
                 else -> { onBeforePlayback(); selected = channel }
@@ -124,97 +119,25 @@ internal fun FootballScreen(query: String, modifier: Modifier = Modifier,
             recent = footballRecent(recent, channel.id)
             preferences.edit().putString("recent", recent.joinToString(",")).apply()
         } catch (cancelled: CancellationException) { throw cancelled }
-        catch (failure: AttaApiException) {
-            val detail = failure.message.orEmpty()
-            error = if (detail.contains("لم يصل رابط مباشر") || detail.contains("NO_SUPPORTED_NATIVE_SOURCE")) {
-                "لم يقدّم مصدر القناة رابط بث مباشر متوافقًا مع مشغّل العطا. اختر قناة أخرى أو أعد المحاولة؛ لا يحل تغيير توقيع التطبيق هذه المشكلة."
-            } else detail.ifBlank { "تعذر جلب بيانات التشغيل." }
-        }
+        catch (failure: AttaApiException) { error = failure.message ?: "تعذر جلب بيانات التشغيل." }
         catch (_: Exception) { error = "تعذر تشغيل القناة. حدّث القائمة وحاول مجددًا." }
         finally { openingChannel = false }
         }
     }
-    // Launch the exact catalog channel selected in AL-ATTA TV, using Media3 here.
-    // Resolve a fresh authorized source through the existing AL-ATTA backend.
-    LaunchedEffect(externalChannelId, catalog, loading, token) {
-        val requestedId = externalChannelId ?: return@LaunchedEffect
-        if (token.isBlank() || loading) return@LaunchedEffect
-        if (catalog.channels.isEmpty() && error.isNotBlank()) return@LaunchedEffect
-        val channel = catalog.channels.firstOrNull { it.id == requestedId && it.enabled }
-        onExternalChannelConsumed()
-        when {
-            channel == null -> error = "القناة المختارة غير موجودة أو غير مفعلة. حدّث القائمة."
-            channel.format !in setOf("ytv", "hls", "dash") ->
-                error = "القناة المختارة ليس لها مصدر تشغيل داخلي مدعوم."
-            else -> { lastRequestedChannel = channel; play(channel, nativePlayback = true) }
-        }
-    }
-
-
-    // Keep the original channel grid in its own tab. Only the live tab owns the player.
-    FootballContent(catalog, query, favorites, recent, loading || openingChannel, error, isAdmin,
-        callInProgress, modifier,
-        onReload = { reload++ }, onManage = onManage,
-        onPlay = { play(it, nativePlayback = false) },
+    FootballContent(catalog, query, favorites, recent, loading || openingChannel, error, isAdmin, callInProgress, modifier,
+        onReload = { reload++ }, onManage = onManage, onPlay = { play(it) }, onPlayDirect = { play(it, nativePlayback = true) },
         onFavorite = { id ->
             favorites = if (id in favorites) favorites - id else favorites + id
             preferences.edit().putStringSet("favorites", favorites.toSet()).apply()
-        },
-        onWatch = { watchEntryRequest++ },
+        }, onWatch = { watchEntryRequest++ },
         watchEnabled = token.isNotBlank() && !callInProgress && !WatchRoomController.closing,
-        onBroadcast = { broadcastExpanded = !broadcastExpanded },
-        broadcastExpanded = broadcastExpanded,
-        onPlayDirect = { channel -> lastRequestedChannel = channel; play(channel, nativePlayback = true) },
+        onBroadcast = { broadcastExpanded = !broadcastExpanded }, broadcastExpanded = broadcastExpanded,
         livePanel = {
             WatchRoomPanel(token, catalog.channels, callInProgress, entryRequest = watchEntryRequest,
-                onPlay = { play(it, nativePlayback = true) }, onBeforeJoin = onBeforePlayback)
+                onPlay = { play(it) }, onBeforeJoin = onBeforePlayback)
             SportsLivePanel(token = token, isAdmin = isAdmin, expanded = broadcastExpanded,
                 onExpandedChange = { broadcastExpanded = it })
-        },
-        requestedLiveChannelId = externalChannelId,
-        activeLiveSessionId = nativeSession?.id,
-        liveReceiver = {
-            SportsBroadcastScreen(
-                session = nativeSession, modifier = Modifier.fillMaxSize(),
-                loading = loading || openingChannel, error = error,
-                isAdmin = isAdmin, broadcastExpanded = broadcastExpanded,
-                onBroadcast = { broadcastExpanded = !broadcastExpanded },
-                onManage = onManage, onReload = { reload++ },
-                onOpenTv = onOpenTv,
-                onStop = {
-                    nativeSession?.let { it.onDismiss("closed"); lastChannelReport = it.report() }
-                    nativeSession = null
-                },
-                onRetry = {
-                    (nativeSession?.channel ?: lastRequestedChannel)?.let { channel ->
-                        error = ""
-                        play(channel, nativePlayback = true)
-                    } ?: run { reload++ }
-                },
-                onLegacyPlayback = if (lastRequestedChannel?.format == "ytv") {
-                    {
-                        lastRequestedChannel?.let { channel ->
-                            playbackScope.launch {
-                                val failure = YtvPlayer.openWorkingEngine(context, channel.streamUrl, onBeforePlayback)
-                                if (failure != null) playerFailure = failure else error = ""
-                            }
-                        }
-                        Unit
-                    }
-                } else null,
-                watchRoomExpanded = watchRoomExpanded,
-                onWatchRoom = { watchRoomExpanded = !watchRoomExpanded },
-                watchRoomContent = {
-                    WatchRoomPanel(token, catalog.channels, callInProgress, entryRequest = watchEntryRequest,
-                        onPlay = { play(it, nativePlayback = true) }, onBeforeJoin = onBeforePlayback)
-                },
-                extraContent = {
-                    SportsLivePanel(token = token, isAdmin = isAdmin, expanded = broadcastExpanded,
-                        onExpandedChange = { broadcastExpanded = it })
-                }
-            )
-        }
-    )
+        })
     lastChannelReport?.let { report ->
         TextButton(onClick = {
             val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
@@ -223,6 +146,10 @@ internal fun FootballScreen(query: String, modifier: Modifier = Modifier,
         }) { Text(AttaLocale.tr("نسخ آخر تقرير للقناة"), color = PremiumGoldLight) }
     }
     playerFailure?.let { YtvPlayerErrorDialog(it, onDismiss = { playerFailure = null }) }
+    nativeSession?.let { session -> key(session.id) {
+        NativeChannelPlaybackDialog(session, onDismiss = { if (nativeSession?.id == session.id) nativeSession = null },
+            onFinalReport = { lastChannelReport = it })
+    } }
     selected?.let { channel ->
         val posts = remember(channel) { listOf(JSONObject().put("id", channel.id).put("video", channel.streamUrl)) }
         AttaPostMediaViewer(posts, channel.id, "video", onDismiss = { selected = null },
@@ -237,14 +164,8 @@ internal fun FootballContent(catalog: FootballCatalog, query: String, favorites:
     onReload: () -> Unit, onManage: () -> Unit, onPlay: (FootballChannel) -> Unit, onFavorite: (String) -> Unit,
     livePanel: @Composable () -> Unit = {}, onWatch: () -> Unit = {}, watchEnabled: Boolean = true,
     onBroadcast: () -> Unit = {}, broadcastExpanded: Boolean = false,
-    onPlayDirect: ((FootballChannel) -> Unit)? = null,
-    requestedLiveChannelId: String? = null, activeLiveSessionId: String? = null,
-    liveReceiver: (@Composable () -> Unit)? = null) {
+    onPlayDirect: ((FootballChannel) -> Unit)? = null) {
     var tab by rememberSaveable { mutableStateOf("القنوات") }
-    // A channel chosen from AL-ATTA TV must reveal the live tab even before a source arrives.
-    LaunchedEffect(requestedLiveChannelId, activeLiveSessionId) {
-        if (requestedLiveChannelId != null || activeLiveSessionId != null) tab = "البث المباشر"
-    }
     var showSchedule by rememberSaveable { mutableStateOf(false) }
     var category by rememberSaveable { mutableStateOf("") }
     var day by rememberSaveable { mutableIntStateOf(0) }
@@ -265,9 +186,6 @@ internal fun FootballContent(catalog: FootballCatalog, query: String, favorites:
                         selectedLabelColor = Color.Black, labelColor = PremiumGoldLight))
             }
         }
-        if (directTab && liveReceiver != null) {
-            Box(Modifier.fillMaxWidth().weight(1f)) { liveReceiver() }
-        } else {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
             OutlinedButton(onClick = onWatch, enabled = watchEnabled,
                 modifier = Modifier.weight(1f).height(40.dp).semantics { contentDescription = "شاهد مع أصحابك" },
@@ -343,7 +261,6 @@ internal fun FootballContent(catalog: FootballCatalog, query: String, favorites:
                 }
             }
         }
-        } // original channel cards and schedule (the old live tab remains testable without receiver)
     }
 }
 
