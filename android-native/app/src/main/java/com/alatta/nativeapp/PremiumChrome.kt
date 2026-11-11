@@ -188,27 +188,27 @@ internal fun PremiumSearchBar(onClick: () -> Unit) {
     }
 }
 
+// Keep the destinations in one testable list. Do not expose the deleted TV trial.
+internal val premiumBottomNavDestinations = listOf(
+    Triple("الرئيسية", "home", "الرئيسية"),
+    Triple("ريلز", "video", "ريلز"),
+    Triple("الملف", "user-round", "الملف"),
+    Triple("القرآن", "book-open", "القرآن"),
+    Triple("الأحاديث", "book-text", "الأحاديث"),
+    Triple("الأذكار", "hand-heart", "الأذكار"),
+    Triple("الرياضة", "trophy", "الرياضة"),
+    Triple("يوتيوب", "play-circle", "يوتيوب"),
+    Triple("القائمة", "ellipsis", "المزيد")
+)
+
+// Safety for old deep links or a previously remembered destination.
+internal fun resolvedNativeDestination(destination: String) =
+    if (destination == "العطا TV") "الرياضة" else destination
+
 @Composable
 internal fun PremiumBottomNav(current: String, go: (String) -> Unit) {
-    // يقع هذا الشريط داخل safeDrawingPadding() في الحاوية الأم، فوق
-    // عناصر الرجوع والرئيسية في Android، لا متداخلًا معها.
-    // شريط تنقل أفقي قابل للتمرير؛ يحل محل الشريط القديم الثابت ذي خمسة عناصر.
-    // يستخدم أيقونات متجهية على نمط Lucide كما في النموذج التفاعلي المعتمد.
-    val destinations = listOf(
-        // يظهر العنصر الأول عند أقصى اليمين في صف التنقل العربي.
-        // وتظل الشاشات الأخرى متاحة بالتمرير الأفقي، ولم تُحذف.
-        Triple("الرئيسية", "home", "الرئيسية"),
-        // Messenger remains accessible via PremiumHeader on the home screen.
-        Triple("ريلز", "video", "ريلز"),
-        Triple("الملف", "user-round", "الملف"),
-        Triple("القرآن", "book-open", "القرآن"),
-        Triple("الأحاديث", "book-text", "الأحاديث"),
-        Triple("الأذكار", "hand-heart", "الأذكار"),
-        Triple("الرياضة", "trophy", "الرياضة"),
-        Triple("العطا TV", "monitor", "العطا TV"),
-        Triple("يوتيوب", "play-circle", "يوتيوب"),
-        Triple("القائمة", "ellipsis", "المزيد")
-    )
+    // الشريط الأصلي فقط: الرياضة هي موضع القنوات والبث المباشر.
+    val destinations = premiumBottomNavDestinations
     val scroll = rememberScrollState()
     Row(
         Modifier.fillMaxWidth().height(74.dp)
