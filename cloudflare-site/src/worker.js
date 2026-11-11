@@ -78,7 +78,9 @@ function mergeCatalogIds(current,entries,previous={}){
   const name=canonical(channel.name),source=names.get(name);
   if(channel.format!=="ytv"||!source)continue;
   if(counts.get(name)!==1||!channel.enabled){skipped++;continue;}
-  if(bindings[channel.id]&&channel.streamUrl!==bindings[channel.id]){skipped++;continue;}
+  // A manual update that already equals the current source is safe to adopt as the new baseline.
+  // A different manual override remains protected from automatic replacement.
+  if(bindings[channel.id]&&channel.streamUrl!==bindings[channel.id]&&channel.streamUrl!==source){skipped++;continue;}
   matched++;if(channel.streamUrl!==source){channel.streamUrl=source;changed++;}
   bindings[channel.id]=source;
  }

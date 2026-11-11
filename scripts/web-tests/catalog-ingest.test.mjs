@@ -20,6 +20,19 @@ test("manual override leaves last stored catalog unchanged",()=>{
  const current=fixture();current.channels[0].enabled=false;
  assert.throws(()=>mergeCatalogIds(current,rows),/NO_MATCHING_CHANNELS/);
 });
+test("manual refresh matching source re-establishes the prior binding without changing the published channel",()=>{
+ const current=fixture();current.channels[0].streamUrl="1424";
+ const result=mergeCatalogIds(current,rows,{"stable-1":"111"});
+ assert.equal(result.changed,0);assert.equal(result.matched,1);
+ assert.equal(result.catalog.revision,current.revision);
+ assert.equal(result.catalog.channels[0].streamUrl,"1424");
+ assert.equal(result.bindings["stable-1"],"1424");
+});
+test("manual override to a different source ID stays protected",()=>{
+ const current=fixture();current.channels[0].streamUrl="4444";
+ assert.throws(()=>mergeCatalogIds(current,rows,{"stable-1":"111"}),/NO_MATCHING_CHANNELS/);
+ assert.equal(current.channels[0].streamUrl,"4444");
+});
 test("invalid, duplicate, ambiguous and colliding entries fail atomically",()=>{
  for(const entries of [[...rows,...rows],[{id:"0",name:"bad"}],[{id:"9223372036854775808",name:"bad"}],[]])
  assert.throws(()=>mergeCatalogIds(fixture(),entries));
