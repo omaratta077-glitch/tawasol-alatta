@@ -1913,24 +1913,25 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
     }
 
     fun navigate(destination: String) {
+        val target = resolvedNativeDestination(destination)
         notificationTargetPost = null
         // لا يرى لوحة الإدارة ولا يفتحها إلا المالك الذي تم التحقق منه؛ وتتحقق واجهات الخادم من ذلك أيضًا.
-        if (destination == "الإدارة" && adminRole !in listOf("super_admin", "moderator")) return
-        if (destination == "الرئيسية" && token.isNotBlank()) {
+        if (target == "الإدارة" && adminRole !in listOf("super_admin", "moderator")) return
+        if (target == "الرئيسية" && token.isNotBlank()) {
             // تعرض الرئيسية دائمًا أول منشور في الموجز، حتى إذا كانت مفتوحة بالفعل.
             // ينفذ LaunchedEffect التمرير بعد تركيب الرئيسية فعليًا.
             homeScrollTarget = 1
             homeFirstPostRequest++
-            if (tab == destination) {
+            if (tab == target) {
                 homeRefreshRequest++
                 return
             }
         }
-        if (destination == "القائمة" && tab != "القائمة") {
+        if (target == "القائمة" && tab != "القائمة") {
             // اعرض أدوات المالك أو المشرف فقط بعد أن تتحقق /api/me من الجلسة.
             adminRole = ""
         }
-        if (tab != destination) { visited.add(tab); tab = destination }
+        if (tab != target) { visited.add(tab); tab = target }
     }
     fun openHomeComposer() {
         // يجب أن يُبقي إرفاق المصحف أو YouTube مربع الكتابة ظاهرًا
