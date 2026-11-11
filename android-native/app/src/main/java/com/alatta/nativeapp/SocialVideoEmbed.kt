@@ -59,7 +59,7 @@ internal fun socialVideoInPost(text: String): SocialVideoLink? {
 @Composable
 internal fun SocialVideoPostEmbed(link: SocialVideoLink, modifier: Modifier = Modifier,
     portrait: Boolean = false, onSwipe: ((Float, Float) -> Unit)? = null) {
-    var opened by remember(link.url) { mutableStateOf(false) }
+    var opened by remember(link.url, portrait) { mutableStateOf(portrait) }
     val context = LocalContext.current
     val aspectModifier = if (portrait) Modifier.fillMaxSize() else Modifier.fillMaxWidth().height(330.dp)
     Box(modifier.then(aspectModifier).background(Color(0xFF090B0B), RoundedCornerShape(16.dp))
@@ -69,7 +69,8 @@ internal fun SocialVideoPostEmbed(link: SocialVideoLink, modifier: Modifier = Mo
                 WebView(context).apply {
                     settings.javaScriptEnabled = true
                     settings.domStorageEnabled = false
-                    settings.mediaPlaybackRequiresUserGesture = true
+                    // In reels, initialize the official embed on arrival. Provider autoplay policies still apply.
+                    settings.mediaPlaybackRequiresUserGesture = !portrait
                     webChromeClient = WebChromeClient()
                     webViewClient = object : WebViewClient() {
                         override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
@@ -79,7 +80,9 @@ internal fun SocialVideoPostEmbed(link: SocialVideoLink, modifier: Modifier = Mo
                                 "www.instagram.com", "instagram.com")
                         }
                     }
-                    loadUrl(link.embedUrl)
+                    loadUrl(if (portrait && link.provider == "فيسبوك") {
+                        link.embedUrl + "&autoplay=true&mute=true"
+                    } else link.embedUrl)
                 }
             }
             val gestureHost = remember(view) {
