@@ -24,9 +24,9 @@ android {
         applicationId = "com.alatta.nativeapp"
         minSdk = 26
         targetSdk = 36
-        // الإصدار 1.0.277: إصلاح تحديد فروع القنوات وتشخيص فشل تحديث قائمة beIN دون مسح القنوات.
-        versionCode = 377
-        versionName = "1.0.277"
+        // الإصدار 1.0.278: حذف تبويبة العطا TV اليتيمة وإعادة التوجيه للرياضة مع الحفاظ على تحديث القنوات.
+        versionCode = 378
+        versionName = "1.0.278"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("boolean", "IS_APPGALLERY", appGalleryBuild.toString())
         val hmsId = (System.getenv("ALATTA_HMS_APP_ID") ?: "").trim().takeIf { it.matches(Regex("[0-9]{1,20}")) } ?: ""
