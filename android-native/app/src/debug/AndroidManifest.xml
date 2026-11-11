@@ -1,7 +1,11 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"><application>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" xmlns:tools="http://schemas.android.com/tools"><application android:appComponentFactory="com.alatta.nativeapp.GoldFirstAppComponentFactory" tools:replace="android:appComponentFactory">
     <activity android:name=".CallDialogTestActivity" android:exported="false" />
     <activity android:name=".WatchRoomPipTestActivity" android:exported="false" android:supportsPictureInPicture="true"
         android:resizeableActivity="true" android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout" />
     <activity android:name=".WatchRoomExternalTestActivity" android:exported="false" android:excludeFromRecents="true"
         android:taskAffinity="com.alatta.nativeapp.watch.testplayer" />
+    <!-- Debug-only: emulate Gold-first Media process routing in a source-only APK. -->
+    <activity android:name=".MainActivity" android:process=":media" />
+    <activity android:name=".GoldFirstHubActivity" android:exported="false" android:theme="@android:style/Theme.Material.NoActionBar" />
+    <service android:name=".GoldFirstProcessProbeService" android:process=":media" android:exported="false" />
 </application></manifest>
