@@ -70,6 +70,10 @@ internal object CatalogAutoUpdater {
     )
     suspend fun refresh(context: Context, token: String, owner: String, force: Boolean = false): CatalogSyncResult? =
         withContext(Dispatchers.IO) { mutex.withLock {
+            // Cloudflare is the sole automatic channel-ID writer. The old per-phone
+            // 30-second loop must not overwrite the shared catalog after rebaseline.
+            // An explicit admin-triggered refresh (force=true) remains available.
+            if (!force) return@withLock null
             if (owner.isBlank() || token.isBlank()) return@withLock null
             val links = CatalogLinkStore.read(context, owner)
             if (!force && (!CatalogLinkStore.automatic(context, owner) || !CatalogFormatSettings.configured(context))) return@withLock null
@@ -122,21 +126,7 @@ internal object CatalogAutoUpdater {
 @Composable
 internal fun CatalogAutoRefreshEffect(token: String, owner: String, enabled: Boolean) {
     val context = LocalContext.current
-    val lifecycle = context.mediaActivity()?.lifecycle
-    val generation = CatalogAutoUpdater.generation
-    LaunchedEffect(token, owner, enabled, generation) {
-        val allowed = enabled && token.isNotBlank() && withContext(Dispatchers.IO) {
-            CatalogLinkStore.automatic(context, owner) && CatalogFormatSettings.configured(context)
-        }
-        CatalogRefreshJob.schedule(context.applicationContext, owner, allowed)
-    }
-    LaunchedEffect(token, owner, enabled, lifecycle) {
-        if (!enabled || token.isBlank() || owner.isBlank() || lifecycle == null) return@LaunchedEffect
-        lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
-            while (isActive) {
-                CatalogAutoUpdater.refresh(context.applicationContext, token, owner)
-                delay(CatalogAutoUpdater.FOREGROUND_REFRESH_MS)
-            }
-        }
-    }
+    // Shared catalog refresh is performed by Cloudflare; retire the legacy
+    // owner-phone scheduled sync so it cannot fight Cloudflare's new IDs.
+    LaunchedEffect(owner) { CatalogRefreshJob.schedule(context.applicationContext, owner, false) }
 }
