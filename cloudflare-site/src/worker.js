@@ -626,6 +626,13 @@ return {
             if (result.ignored === true) publishResult.ignored = true;
             for (const field of ["changed", "matched", "skipped", "revision"])
               if (Number.isSafeInteger(result[field]) && result[field] >= 0) publishResult[field] = result[field];
+            if(result.error==="NO_MATCHING_CHANNELS"&&result.diagnostics){
+              publishResult.diagnostics={};
+              for(const field of ["storedYtv","sourceRows","nameMatches","disabledMatches","manualOverrides","ambiguousMatches"]){
+                const value=result.diagnostics[field];
+                if(Number.isSafeInteger(value)&&value>=0)publishResult.diagnostics[field]=value;
+              }
+            }
           }
           if (!publishResult.ok) {
             const platform = reportText.match(/(?:error\s*code\s*:?|error\s+)\s*(10\d{2}|11\d{2})\b/i);
@@ -748,7 +755,8 @@ function createCatalogRefresh(Base,check){
      }));
     });
     const result=await response.json();
-    report={lastAttempt:started,lastHTTP:response.status,lastSourceHTTP:Number.isInteger(result.sourceHTTP)?result.sourceHTTP:null,lastSaved:result.published===true,error:null};
+    report={lastAttempt:started,lastHTTP:response.status,lastSourceHTTP:Number.isInteger(result.sourceHTTP)?result.sourceHTTP:null,lastSaved:result.published===true,error:null,diagnostics:null};
+    if(result.publishResult?.diagnostics)report.diagnostics=result.publishResult.diagnostics;
     if(report.lastSaved){report.lastSuccess=Date.now();report.changed=result.publishResult?.changed||0;report.matched=result.publishResult?.matched||0;}
     else {
       const knownErrors=new Set(['CONFIG_MISSING','CONFIG_INVALID','TIME_INVALID','UNREADABLE','DECODE_FAILED',
