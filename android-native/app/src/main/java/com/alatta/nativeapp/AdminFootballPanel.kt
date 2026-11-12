@@ -96,16 +96,10 @@ internal fun AdminFootballPanel(token: String, owner: String) {
                     TextButton(enabled = loaded && !busy, onClick = { probeOpen = true }) {
                         Text(AttaLocale.tr("تجربة قائمة ياسين من الهاتف"), color = PremiumGoldLight)
                     }
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Switch(automatic, enabled = !busy, onCheckedChange = { enabled -> scope.launch {
-                            busy = true
-                            try { if (CatalogAutoUpdater.automatic(context, owner, enabled)) automatic = enabled }
-                            finally { busy = false }
-                        } })
-                        Text(AttaLocale.tr("تحديث قائمة beIN تلقائيًا"), color = PremiumGoldLight, fontSize = 13.sp)
-                    }
-                    if (automatic || links.isNotEmpty()) {
-                        Text(AttaLocale.tr("تُجلب قنوات قسم 1080 كاملة. التحقق كل 30 ثانية أثناء ظهور العطا، ودوريًا في الخلفية حسب نظام الهاتف."),
+                    Text(AttaLocale.tr("Cloudflare يحدث أرقام قنوات beIN تلقائيًا. الهاتف يقرأ القائمة المنشورة ولا يغيّرها في الخلفية."),
+                        color = PremiumGoldLight, fontSize = 13.sp)
+                    if (loaded) {
+                        Text(AttaLocale.tr("التحديث من الهاتف أدناه يدوي للإدارة فقط، وقد يغيّر الأرقام المنشورة. استخدمه عند الحاجة."),
                             color = PremiumMuted, fontSize = 12.sp)
                         TextButton(enabled = !busy, onClick = { scope.launch {
                             busy = true
