@@ -58,6 +58,30 @@ test('failed refresh clears historic matched count and exposes safe no-match dia
  assert.equal(result.diagnostics.storedYtv,20);
 });
 
+test('authenticated one-time rebaseline preserves schedule and succeeds without permanently bypassing guards',async()=>{
+ let normal=0,rebaselined=0;
+ const {instance,ctx}=job({async fetch(request){
+  const form=new URLSearchParams(await request.text());
+  if(form.get('rebaseline')==='yes'){
+   rebaselined++;
+   return Response.json({published:true,sourceHTTP:200,publishResult:{matched:20,changed:20}});
+  }
+  normal++;
+  return Response.json({published:false,sourceHTTP:200,publishResult:{errorCode:'NO_MATCHING_CHANNELS'}});
+ }});
+ const blocked=await instance.fetch(request('rebaseline'));
+ assert.equal(blocked.status,409);
+ await instance.fetch(request());
+ assert.equal(normal,1);
+ const result=await(await instance.fetch(request('rebaseline'))).json();
+ assert.equal(rebaselined,1);assert.equal(result.lastSaved,true);
+ assert.equal(result.matched,20);assert.equal(result.changed,20);
+ assert.ok(result.lastRebaseline);
+ assert.equal(result.enabled,true);assert.ok(ctx.alarm);
+ await instance.alarm();
+ assert.equal(normal,2);assert.equal(rebaselined,1);
+});
+
 test('stop removes alarm and subsequent alarms cannot fetch',async()=>{
  let calls=0;const {instance,ctx}=job({async fetch(){calls++;return Response.json({published:true});}});
  await instance.fetch(request());await instance.fetch(request('stop'));await instance.alarm();assert.equal(calls,1);assert.equal(ctx.alarm,null);
