@@ -98,10 +98,24 @@ internal fun FootballScreen(query: String, modifier: Modifier = Modifier,
                 }
                 "ytv" -> {
                     if (callInProgress) { error = "أنهِ المكالمة أولًا لتشغيل القناة."; return@launch }
-                    // Only the verified installed gold engine handles YTV IDs,
-                    // including channels selected from the restored live tab.
-                    YtvPlayer.openWithWatchRoom(context, channel.streamUrl, onBeforePlayback)
-                        ?.let { playerFailure = it; return@launch }
+                    // The displayed list may have an old channel ID after a Cloudflare rotation.
+                    // Read the published catalog again at tap time; never launch a cached ID.
+                    val published = FootballRepository.load()
+                    val fresh = FootballRepository.latestYtvSelection(channel, published)
+                    if (fresh == null) {
+                        error = "القناة لم تعد موجودة في قائمة Cloudflare الحالية. حدّث القنوات ثم حاول مرة أخرى."
+                        return@launch
+                    }
+                    if (published != catalog) catalog = published
+                    val failure = YtvPlayer.openWithWatchRoom(context, fresh.streamUrl, onBeforePlayback)
+                    lastChannelReport = JSONObject()
+                        .put("channel", fresh.name)
+                        .put("publishedRevision", published.revision)
+                        .put("selectedId", channel.streamUrl)
+                        .put("publishedId", fresh.streamUrl)
+                        .put("handoff", if (failure == null) "ACTIVITY_LAUNCHED_NOT_PLAYBACK_CONFIRMED" else failure.name)
+                        .toString(2)
+                    if (failure != null) { playerFailure = failure; return@launch }
                 }
                 "hls", "dash" -> {
                     if (nativePlayback) {
@@ -122,6 +136,12 @@ internal fun FootballScreen(query: String, modifier: Modifier = Modifier,
     }
     FootballContent(catalog, query, favorites, recent, loading || openingChannel, error, isAdmin, callInProgress, modifier,
         onReload = { reload++ }, onManage = onManage, onPlay = { play(it) }, onPlayDirect = { play(it, nativePlayback = true) },
+        reportAvailable = lastChannelReport != null, onCopyReport = {
+            val report = lastChannelReport ?: return@FootballContent
+            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+            clipboard.setPrimaryClip(android.content.ClipData.newPlainText("تقرير ربط القناة", report))
+            android.widget.Toast.makeText(context, "تم نسخ تقرير ربط القناة", android.widget.Toast.LENGTH_SHORT).show()
+        },
         onFavorite = { id ->
             favorites = if (id in favorites) favorites - id else favorites + id
             preferences.edit().putStringSet("favorites", favorites.toSet()).apply()
@@ -134,13 +154,6 @@ internal fun FootballScreen(query: String, modifier: Modifier = Modifier,
             SportsLivePanel(token = token, isAdmin = isAdmin, expanded = broadcastExpanded,
                 onExpandedChange = { broadcastExpanded = it })
         })
-    lastChannelReport?.let { report ->
-        TextButton(onClick = {
-            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-            clipboard.setPrimaryClip(android.content.ClipData.newPlainText("آخر تقرير للقناة", report))
-            android.widget.Toast.makeText(context, "تم نسخ آخر تقرير", android.widget.Toast.LENGTH_SHORT).show()
-        }) { Text(AttaLocale.tr("نسخ آخر تقرير للقناة"), color = PremiumGoldLight) }
-    }
     playerFailure?.let { YtvPlayerErrorDialog(it, onDismiss = { playerFailure = null }) }
     nativeSession?.let { session -> key(session.id) {
         NativeChannelPlaybackDialog(session, onDismiss = { if (nativeSession?.id == session.id) nativeSession = null },
@@ -160,7 +173,8 @@ internal fun FootballContent(catalog: FootballCatalog, query: String, favorites:
     onReload: () -> Unit, onManage: () -> Unit, onPlay: (FootballChannel) -> Unit, onFavorite: (String) -> Unit,
     livePanel: @Composable () -> Unit = {}, onWatch: () -> Unit = {}, watchEnabled: Boolean = true,
     onBroadcast: () -> Unit = {}, broadcastExpanded: Boolean = false,
-    onPlayDirect: ((FootballChannel) -> Unit)? = null) {
+    onPlayDirect: ((FootballChannel) -> Unit)? = null,
+    reportAvailable: Boolean = false, onCopyReport: () -> Unit = {}) {
     var tab by rememberSaveable { mutableStateOf("القنوات") }
     var showSchedule by rememberSaveable { mutableStateOf(false) }
     var category by rememberSaveable { mutableStateOf("") }
@@ -203,6 +217,9 @@ internal fun FootballContent(catalog: FootballCatalog, query: String, favorites:
                 .background(PremiumPanel, RoundedCornerShape(12.dp)).semantics { contentDescription = "إدارة القنوات والمباريات" }) {
                 SiteIcon("menu", tint = PremiumGoldLight, size = 18.dp)
             }
+        }
+        if (reportAvailable) TextButton(onClick = onCopyReport) {
+            Text(AttaLocale.tr("نسخ تقرير ربط القناة"), color = PremiumGoldLight, fontSize = 12.sp)
         }
         livePanel()
         if (loading) LinearProgressIndicator(Modifier.fillMaxWidth(), color = PremiumGold)
