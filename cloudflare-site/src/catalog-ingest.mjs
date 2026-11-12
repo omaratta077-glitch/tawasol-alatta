@@ -1,6 +1,7 @@
 // تحديثات واردة ضمن النطاق فقط. لا يتصل بمصدر القنوات.
 const json=(value,status=200)=>Response.json(value,{status,headers:{"cache-control":"no-store"}});
 const canonical=value=>typeof value==="string"?value.trim().replace(/\s+/g,"").toLowerCase():"";
+const categoryKey=value=>typeof value==="string"?value.normalize("NFKC").replace(/[\s\p{Cf}()[\]{}]/gu,"").toLowerCase():"";
 const id=value=>typeof value==="string"&&/^[1-9][0-9]{0,18}$/.test(value)&&BigInt(value)<=9223372036854775807n;
 async function authorized(request,secret){
  if(typeof secret!=="string"||secret.length<32||secret.length>256)return false;
@@ -51,7 +52,7 @@ export async function catalogIngest(request,storage,env){
   const bytes=new Uint8Array(size);let offset=0;for(const chunk of chunks){bytes.set(chunk,offset);offset+=chunk.length;}
   body=JSON.parse(new TextDecoder("utf-8",{fatal:true}).decode(bytes));
  }catch{return json({ok:false,error:"INVALID_BODY"},400);}finally{reader.releaseLock();}
- if(!body||(!id(body.categoryId)||(body.categoryId!=="4"&&canonical(body.categoryName)!=="beinsports(1080p)"))||typeof body.sourceTime!=="string"||!/^\d{10}$/.test(body.sourceTime))return json({ok:false,error:"INVALID_SOURCE_METADATA"},400);
+ if(!body||(!id(body.categoryId)||(body.categoryId!=="4"&&categoryKey(body.categoryName)!=="beinsports1080p"))||typeof body.sourceTime!=="string"||!/^\d{10}$/.test(body.sourceTime))return json({ok:false,error:"INVALID_SOURCE_METADATA"},400);
  try{
   const result=await storage.transaction(async tx=>{
    const previous=await tx.get("football:source-sync")||{sourceTime:"0",bindings:{}};
