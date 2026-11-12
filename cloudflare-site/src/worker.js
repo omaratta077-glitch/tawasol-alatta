@@ -714,7 +714,7 @@ return {
 function createCatalogRefresh(Base,check){
  const interval=10000,keyName='catalog:auto';
  const json=(body,status=200)=>Response.json(body,{status,headers:{'Cache-Control':'no-store'}});
- const page=`<!doctype html><html lang="ar" dir="rtl"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>تحديث القنوات</title><style>body{background:#080b0d;color:#f3d57d;font:18px system-ui;max-width:540px;margin:40px auto;padding:20px}input,button{box-sizing:border-box;width:100%;padding:14px;margin:10px 0;font:inherit;border-radius:12px}button{background:#e8bd52;border:0}p{line-height:1.8}</style><h1>تحديث القنوات تلقائيًا</h1><p>التفعيل يجلب الأرقام ويحفظها فورًا، ثم يحدثها من الخادم كل نحو 10 ثوانٍ حتى لو التطبيق مقفول. عند فشل الجلب تبقى آخر قائمة سليمة.</p><form method="post"><label>مفتاح الإدارة PROBE_KEY</label><input type="password" name="probe_key" autocomplete="off" required minlength="24" maxlength="256"><button name="action" value="start">تفعيل وتحديث الآن</button><button name="action" value="status">حالة آخر تحديث</button><button name="action" value="stop">إيقاف التحديث</button></form></html>`;
+ const page=`<!doctype html><html lang="ar" dir="rtl"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>تحديث القنوات</title><style>body{background:#080b0d;color:#f3d57d;font:18px system-ui;max-width:540px;margin:40px auto;padding:20px}input,button{box-sizing:border-box;width:100%;padding:14px;margin:10px 0;font:inherit;border-radius:12px}button{background:#e8bd52;border:0}p{line-height:1.8}</style><h1>تحديث القنوات تلقائيًا</h1><p>التفعيل يجلب الأرقام ويحفظها فورًا، ثم يحدثها من الخادم كل نحو 10 ثوانٍ حتى لو التطبيق مقفول. عند فشل الجلب تبقى آخر قائمة سليمة.</p><form method="post"><label>مفتاح الإدارة PROBE_KEY</label><input type="password" name="probe_key" autocomplete="off" required minlength="24" maxlength="256"><button name="action" value="start">تفعيل وتحديث الآن</button><button name="action" value="status">حالة آخر تحديث</button><p>إذا ظهر NO_MATCHING_CHANNELS بسبب تغيير كل الأرقام يدويًا، استخدم هذا الزر مرة واحدة فقط. سيتم استبدال أرقام جميع قنوات YTV المحفوظة من قائمة المصدر بعد التأكد من التطابق الكامل؛ تبقى الأسماء والمفضلة والمباريات كما هي.</p><button name="action" value="rebaseline">إعادة اعتماد أرقام القنوات (مرة واحدة)</button><button name="action" value="stop">إيقاف التحديث</button></form></html>`;
  return class CatalogRefresh extends Base{
   constructor(ctx,env){super(ctx,env);this.ctx=ctx;this.env=env;this.running=null;}
   async fetch(request){
@@ -735,23 +735,29 @@ function createCatalogRefresh(Base,check){
     return json({ok:true,enabled:false,message:'تم إيقاف التحديث التلقائي.'});
    }
    if(action==='status')return json({ok:true,...await this.ctx.storage.get(keyName)||{enabled:false}});
-   if(action!=='start')return json({ok:false,error:'INVALID_ACTION'},400);
+   if(action!=='start'&&action!=='rebaseline')return json({ok:false,error:'INVALID_ACTION'},400);
    const mask=typeof this.env.RESPONSE_MASK==='string'?this.env.RESPONSE_MASK.replace(/\r?\n$/,''):'';
    if(!/^[\x20-\x7e]{16}$/.test(mask))return json({ok:false,error:'RESPONSE_MASK_MISSING_OR_INVALID'},503);
    const sync=this.env.CATALOG_SYNC_KEY;
    if(typeof sync!=='string'||sync.length<32||sync.length>256)return json({ok:false,error:'CATALOG_SYNC_KEY_MISSING'},503);
    const previous=await this.ctx.storage.get(keyName)||{};
+   if(action==='rebaseline'){
+    if(!previous.enabled)return json({ok:false,error:'ENABLE_AUTOMATIC_FIRST'},409);
+    if(this.running)return json({ok:false,error:'REFRESH_IN_PROGRESS',message:'يوجد تحديث جارٍ؛ أعد المحاولة بعد انتهائه.'},409);
+    await this.run(true);
+    return json({ok:true,...await this.ctx.storage.get(keyName)});
+   }
    await this.ctx.storage.put(keyName,{...previous,enabled:true,nextRun:Date.now(),intervalMs:interval});
    await this.ctx.storage.setAlarm(Date.now()+interval);
    await this.run();
    return json({ok:true,...await this.ctx.storage.get(keyName)});
   }
   async alarm(){await this.run();}
-  async run(){
+  async run(rebaseline=false){
    if(this.running)return this.running;
-   this.running=this.perform().finally(()=>{this.running=null;});return this.running;
+   this.running=this.perform(rebaseline).finally(()=>{this.running=null;});return this.running;
   }
-  async perform(){
+  async perform(rebaseline=false){
    const state=await this.ctx.storage.get(keyName);if(!state?.enabled)return;
    const started=Date.now(),nextRun=started+interval;
    // احفظ وقت الإيقاظ التالي قبل الاتصال بالشبكة؛ كيلا توقف إعادة تشغيل العملية الجدول.
@@ -759,7 +765,7 @@ function createCatalogRefresh(Base,check){
    let report;
    try{
     const response=await check.fetch(new Request('https://internal.invalid/api/internal/catalog-check',{
-     method:'POST',body:new URLSearchParams({probe_key:this.env.PROBE_KEY,publish:'yes'})
+     method:'POST',body:new URLSearchParams({probe_key:this.env.PROBE_KEY,publish:'yes',...(rebaseline?{rebaseline:'yes'}:{})})
     }),this.env,async payload=>{
      if(!(await this.ctx.storage.get(keyName))?.enabled)return json({ok:true,ignored:true});
      const id=this.env.SIGNALING.idFromName('global-room');
@@ -770,12 +776,12 @@ function createCatalogRefresh(Base,check){
     const result=await response.json();
     report={lastAttempt:started,lastHTTP:response.status,lastSourceHTTP:Number.isInteger(result.sourceHTTP)?result.sourceHTTP:null,lastSaved:result.published===true,error:null,diagnostics:null,matched:null,changed:null};
     if(result.publishResult?.diagnostics)report.diagnostics=result.publishResult.diagnostics;
-    if(report.lastSaved){report.lastSuccess=Date.now();report.changed=result.publishResult?.changed||0;report.matched=result.publishResult?.matched||0;}
+    if(report.lastSaved){report.lastSuccess=Date.now();report.changed=result.publishResult?.changed||0;report.matched=result.publishResult?.matched||0;if(rebaseline)report.lastRebaseline=Date.now();}
     else {
       const knownErrors=new Set(['CONFIG_MISSING','CONFIG_INVALID','TIME_INVALID','UNREADABLE','DECODE_FAILED',
        'INVALID','EMPTY','CATEGORY_HTTP_ERROR','CATEGORY_TOO_LARGE','CATEGORY_UNREADABLE',
        'CATEGORY_AMBIGUOUS','CATEGORY_NOT_FOUND','NO_MATCHING_CHANNELS','DUPLICATE_CHANNEL_ID',
-       'INVALID_SOURCE_METADATA','SAVE_FAILED','NETWORK_ERROR','TIMEOUT']);
+       'INVALID_SOURCE_METADATA','REBASELINE_INCOMPLETE','SAVE_FAILED','NETWORK_ERROR','TIMEOUT']);
       const reason=result.publishResult?.errorCode||result.failureCode;
       report.error=knownErrors.has(reason)?reason:'UPDATE_NOT_SAVED';
     }
