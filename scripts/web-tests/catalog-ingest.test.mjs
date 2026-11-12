@@ -11,6 +11,28 @@ test("rotate only playback ID, retain stable identity, metadata and match refere
  assert.deepEqual(result.catalog.channels[0],{...before.channels[0],streamUrl:"1424"});
  assert.deepEqual(result.catalog.matches,before.matches);assert.equal(before.channels[0].streamUrl,"123");
 });
+test("safe punctuation normalization matches renamed labels without dropping long IDs",()=>{
+ const current=fixture();current.channels[0].name="beIN-SPORTS1";
+ const fresh="2619657828018322944";
+ const out=mergeCatalogIds(current,[{name:"beIN SPORTS 1",id:fresh}]);
+ assert.equal(out.catalog.channels[0].streamUrl,fresh);
+ assert.equal(out.changed,1);
+});
+test("no-match diagnostics classify source rename and manual override without exposing IDs",()=>{
+ const current=fixture();
+ let mismatch;
+ try{mergeCatalogIds(current,[{name:"Another channel",id:"2619657828018322944"}]);}
+ catch(error){mismatch=error;}
+ assert.equal(mismatch?.message,"NO_MATCHING_CHANNELS");
+ assert.deepEqual(mismatch.diagnostics,{storedYtv:1,sourceRows:1,nameMatches:0,
+  disabledMatches:0,manualOverrides:0,ambiguousMatches:0});
+ let override;
+ try{mergeCatalogIds(current,rows,{"stable-1":"999"});}
+ catch(error){override=error;}
+ assert.equal(override.diagnostics.nameMatches,1);
+ assert.equal(override.diagnostics.manualOverrides,1);
+ assert.ok(!JSON.stringify(override.diagnostics).includes("1424"));
+});
 test("unchanged refresh does not churn catalog revision",()=>{
  const current=fixture();current.channels[0].streamUrl="1424";
  const out=mergeCatalogIds(current,rows);assert.equal(out.changed,0);assert.equal(out.catalog.revision,7);
