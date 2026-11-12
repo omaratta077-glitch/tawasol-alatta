@@ -33,6 +33,40 @@ test("no-match diagnostics classify source rename and manual override without ex
  assert.equal(override.diagnostics.manualOverrides,1);
  assert.ok(!JSON.stringify(override.diagnostics).includes("1424"));
 });
+test("one-time owner rebaseline restores 20 individually overridden IDs with exact source names",()=>{
+ const channels=Array.from({length:20},(_,index)=>({
+  id:"stable-"+index,name:"beIN SPORTS "+(index+1),category:"1080p",
+  provider:"YTV",sourceUrl:"https://example.org",format:"ytv",enabled:true,
+  streamUrl:String(1000+index)
+ }));
+ const current={revision:8,updatedAt:1,channels,matches:[{id:"match",channelId:"stable-0"}]};
+ const previous=Object.fromEntries(channels.map(c=>[c.id,"old-"+c.streamUrl]));
+ const entries=channels.map((c,i)=>({name:c.name,id:String(2619657828018322944n+BigInt(i))}));
+ assert.throws(()=>mergeCatalogIds(current,entries,previous),/NO_MATCHING_CHANNELS/);
+ const out=mergeCatalogIds(current,entries,previous,{rebaseline:true});
+ assert.equal(out.changed,20);assert.equal(out.matched,20);assert.equal(out.skipped,0);
+ assert.equal(out.catalog.revision,9);
+ assert.deepEqual(out.catalog.matches,current.matches);
+ for(let i=0;i<20;i++){
+  assert.equal(out.catalog.channels[i].streamUrl,entries[i].id);
+  assert.equal(out.bindings["stable-"+i],entries[i].id);
+  assert.equal(out.catalog.channels[i].name,current.channels[i].name);
+  assert.equal(current.channels[i].streamUrl,String(1000+i));
+ }
+ // Automatic updates work again after the one-time rebaseline.
+ const auto=mergeCatalogIds(out.catalog,entries,out.bindings);
+ assert.equal(auto.changed,0);assert.equal(auto.matched,20);
+});
+test("rebaseline refuses incomplete, ambiguous, or disabled channel snapshot",()=>{
+ const current=fixture();
+ for(const entries of [[],[{name:"another",id:"1424"}]]){
+  assert.throws(()=>mergeCatalogIds(current,entries,{"stable-1":"999"},{rebaseline:true}));
+ }
+ const disabled=fixture();disabled.channels[0].enabled=false;
+ assert.throws(()=>mergeCatalogIds(disabled,rows,{"stable-1":"999"},{rebaseline:true}),/REBASELINE_INCOMPLETE/);
+ const extra=fixture();extra.channels.push({...extra.channels[0],id:"stable-2",name:"beIN SPORTS2",streamUrl:"998"});
+ assert.throws(()=>mergeCatalogIds(extra,rows,{"stable-1":"999"},{rebaseline:true}),/REBASELINE_INCOMPLETE/);
+});
 test("unchanged refresh does not churn catalog revision",()=>{
  const current=fixture();current.channels[0].streamUrl="1424";
  const out=mergeCatalogIds(current,rows);assert.equal(out.changed,0);assert.equal(out.catalog.revision,7);
