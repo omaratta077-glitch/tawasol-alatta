@@ -488,6 +488,13 @@ export default {
             if (result.ignored === true) publishResult.ignored = true;
             for (const field of ["changed", "matched", "skipped", "revision"])
               if (Number.isSafeInteger(result[field]) && result[field] >= 0) publishResult[field] = result[field];
+            if(result.error==="NO_MATCHING_CHANNELS"&&result.diagnostics){
+              publishResult.diagnostics={};
+              for(const field of ["storedYtv","sourceRows","nameMatches","disabledMatches","manualOverrides","ambiguousMatches"]){
+                const value=result.diagnostics[field];
+                if(Number.isSafeInteger(value)&&value>=0)publishResult.diagnostics[field]=value;
+              }
+            }
           }
           if (!publishResult.ok) {
             const platform = reportText.match(/(?:error\s*code\s*:?|error\s+)\s*(10\d{2}|11\d{2})\b/i);
