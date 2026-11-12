@@ -307,7 +307,7 @@ export default {
         const decoded = sections.ok && !sectionBody.truncated
           ? readCatalog(new TextDecoder().decode(sectionBody.bytes), sections.headers.get("t"), env.RESPONSE_MASK) : null;
         const matches = decoded?.state === "LIST" ? decoded.entries.filter(entry =>
-          entry.name.replace(/\s+/g, "").toLowerCase() === "beinsports(1080p)") : [];
+          entry.name.normalize("NFKC").replace(/[\s\p{Cf}()[\]{}]/gu, "").toLowerCase() === "beinsports1080p") : [];
         if (matches.length !== 1) return respond({
           state: "CATEGORY_UNRESOLVED", sourceHTTP: sections.status,
           message: "لم يُحدد قسم beIN SPORTS (1080P) بشكل فريد؛ لم يُحفظ أي تحديث.",
