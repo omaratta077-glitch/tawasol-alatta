@@ -44,6 +44,20 @@ test('safe source failures are exposed in refresh status instead of generic erro
  assert.ok(ctx.alarm);
 });
 
+test('failed refresh clears historic matched count and exposes safe no-match diagnostics',async()=>{
+ let ok=true;
+ const {instance}=job({async fetch(){return ok
+  ?Response.json({published:true,sourceHTTP:200,publishResult:{matched:20,changed:1}})
+  :Response.json({published:false,sourceHTTP:200,publishResult:{errorCode:'NO_MATCHING_CHANNELS',
+    diagnostics:{storedYtv:20,sourceRows:20,nameMatches:0,manualOverrides:0}}});}});
+ await instance.fetch(request());ok=false;
+ const result=await(await instance.fetch(request())).json();
+ assert.equal(result.lastSaved,false);assert.equal(result.error,'NO_MATCHING_CHANNELS');
+ assert.equal(result.matched,null);assert.equal(result.changed,null);
+ assert.equal(result.diagnostics.nameMatches,0);
+ assert.equal(result.diagnostics.storedYtv,20);
+});
+
 test('stop removes alarm and subsequent alarms cannot fetch',async()=>{
  let calls=0;const {instance,ctx}=job({async fetch(){calls++;return Response.json({published:true});}});
  await instance.fetch(request());await instance.fetch(request('stop'));await instance.alarm();assert.equal(calls,1);assert.equal(ctx.alarm,null);
