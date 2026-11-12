@@ -50,6 +50,17 @@ test('main application saves directly into existing room without Worker HTTP',as
  assert.deepEqual(ctx.data.get('football:catalog').matches,fixture().matches);
  assert.equal(result.diagnosticVersion,'main-catalog-check-1');assert.ok(!JSON.stringify(result).includes(sync));
 }));
+test('owner-initiated rebaseline flag reaches receiver but ordinary publish stays guarded',async()=>mockSource(async()=>{
+ const ctx=context();ctx.data.set('football:source-sync',{sourceTime:'1793252900',bindings:{'stable-1':'999'}});
+ const ordinary=await(await worker.fetch(form(),ctx.env)).json();
+ assert.equal(ordinary.published,false);
+ assert.equal(ordinary.publishResult.errorCode,'NO_MATCHING_CHANNELS');
+ const rebaseline=await(await worker.fetch(form({rebaseline:'yes'}),ctx.env)).json();
+ assert.equal(rebaseline.published,true,JSON.stringify(rebaseline));
+ assert.equal(rebaseline.publishResult.matched,1);
+ assert.equal(ctx.data.get('football:catalog').channels[0].streamUrl,channel);
+ assert.equal(ctx.data.get('football:source-sync').bindings['stable-1'],channel);
+}));
 test('read-only sections preview cannot write',async()=>mockSource(async calls=>{
  const ctx=context();const result=await(await worker.fetch(form({publish:''}),ctx.env)).json();
  assert.equal(calls(),1);assert.equal(ctx.saves,0);assert.equal(result.published,false);
