@@ -291,6 +291,8 @@ export default {
       return respond({ ok: false, error: 'اختبار تشغيل غير صالح.' }, 400);
     if (videoTest && !channel) return respond({ message: "اكتب رقم القناة لتجربة تشغيلها." }, 400);
     const publish = form.get("publish") === "yes";
+    const rebaseline = form.get("rebaseline") === "yes";
+    if(rebaseline&&!publish)return respond({ok:false,error:"REBASELINE_REQUIRES_PUBLISH"},400);
     if (channel && (publish || category)) return respond({ message: "فحص التشغيل منفصل: اترك القسم فارغًا وأزل علامة الحفظ." }, 400);
     if (publish && (typeof env.CATALOG_SYNC_KEY !== "string" || env.CATALOG_SYNC_KEY.length < 32 || env.CATALOG_SYNC_KEY.length > 256))
       return respond({ message: "أضف Secret باسم CATALOG_SYNC_KEY بطول من 32 إلى 256 حرفًا في مشروع العطا الأساسي." }, 503);
@@ -464,6 +466,7 @@ export default {
           const saved = await saveCatalog({
             categoryId: discoveredCategory.id, categoryName: discoveredCategory.name, sourceTime: time,
             entries: catalog.entries.map(({ id, name }) => ({ id, name })),
+            ...(rebaseline?{rebaseline:true}:{}),
           });
           // سجّل بيانات HTTP الوصفية قبل التحليل كي يظل الرد غير الصالح بصيغة JSON قابلًا للتشخيص.
           publishResult.status = saved.status;
@@ -481,7 +484,7 @@ export default {
           const validReport = result !== null && typeof result === "object" && !Array.isArray(result);
           const allowed = new Set(["SYNC_NOT_CONFIGURED", "UNAUTHORIZED", "METHOD_NOT_ALLOWED", "JSON_REQUIRED",
             "INVALID_BODY", "BODY_TOO_LARGE", "INVALID_SOURCE_METADATA", "INVALID_LIST", "INVALID_ENTRY",
-            "DUPLICATE_ENTRY", "CATALOG_UNAVAILABLE", "NO_MATCHING_CHANNELS", "DUPLICATE_CHANNEL_ID", "SAVE_FAILED"]);
+            "DUPLICATE_ENTRY", "CATALOG_UNAVAILABLE", "NO_MATCHING_CHANNELS", "DUPLICATE_CHANNEL_ID", "REBASELINE_INCOMPLETE", "SAVE_FAILED"]);
           publishResult.stage = "RESPONSE_RECEIVED";
           publishResult.ok = saved.ok && validReport && result.ok === true;
           if (validReport) {
