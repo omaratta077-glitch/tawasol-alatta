@@ -69,6 +69,25 @@ test('missing sync secret blocks publication before source request',async()=>{
  const ctx=context();globalThis.fetch=async()=>{throw Error('No source');};
  assert.equal((await worker.fetch(form(),{...ctx.env,CATALOG_SYNC_KEY:undefined})).status,503);assert.equal(ctx.saves,0);
 });
+test('rotated 19-digit numeric IDs and section display variation stay exact',async()=>{
+ const ctx=context();
+ const next='2619657828018322944';
+ globalThis.fetch=async(url)=>{
+  if(url==='https://def001.ycnapi.com/api/categories')
+   return new Response('{"data":[{"id":652497361000000001,"name":"beIN SPORTS 1080P"}]}',
+    {headers:{t:'1793252988','Content-Type':'application/json'}});
+  assert.equal(url,'https://def001.ycnapi.com/api/categories/'+section+'/channels');
+  return new Response('{"data":[{"id":2619657828018322944,"name":"beIN SPORTS 1"}]}',
+   {headers:{t:'1793252988','Content-Type':'application/json'}});
+ };
+ try{
+  const result=await(await worker.fetch(form(),ctx.env)).json();
+  assert.equal(result.published,true,JSON.stringify(result));
+  assert.equal(ctx.data.get('football:catalog').channels[0].streamUrl,next);
+  assert.equal(result.categoryId,section);
+ }finally{globalThis.fetch=async()=>{throw Error('No real network');};}
+});
+
 test('production bundle matches standalone module',()=>{
  const expected='// BEGIN فحص الكتالوج الرئيسي\nconst mainCatalogCheck = (() => {\n'+moduleText.replace('export default {','return {')+'\n})();\n// END فحص الكتالوج الرئيسي';
  assert.ok(stripComments(source).includes(stripComments(expected)));
