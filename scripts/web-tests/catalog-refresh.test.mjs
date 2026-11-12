@@ -35,6 +35,15 @@ test('failure keeps schedule, retries later and clears error on success',async()
  await instance.fetch(request());assert.equal(ctx.data.get('catalog:auto').lastSaved,false);assert.ok(ctx.alarm);
  fail=false;await instance.alarm();assert.equal(ctx.data.get('catalog:auto').lastSaved,true);assert.equal(ctx.data.get('catalog:auto').error,null);
 });
+test('safe source failures are exposed in refresh status instead of generic error',async()=>{
+ const {instance,ctx}=job({async fetch(){return Response.json({state:'CATEGORY_UNRESOLVED',failureCode:'CONFIG_MISSING',sourceHTTP:200,published:false});}});
+ const result=await(await instance.fetch(request())).json();
+ assert.equal(result.enabled,true);assert.equal(result.lastSaved,false);
+ assert.equal(result.error,'CONFIG_MISSING');
+ assert.equal(result.lastSourceHTTP,200);
+ assert.ok(ctx.alarm);
+});
+
 test('stop removes alarm and subsequent alarms cannot fetch',async()=>{
  let calls=0;const {instance,ctx}=job({async fetch(){calls++;return Response.json({published:true});}});
  await instance.fetch(request());await instance.fetch(request('stop'));await instance.alarm();assert.equal(calls,1);assert.equal(ctx.alarm,null);
