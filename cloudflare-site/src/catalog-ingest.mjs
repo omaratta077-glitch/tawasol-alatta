@@ -1,6 +1,6 @@
 // تحديثات واردة ضمن النطاق فقط. لا يتصل بمصدر القنوات.
 const json=(value,status=200)=>Response.json(value,{status,headers:{"cache-control":"no-store"}});
-const canonical=value=>typeof value==="string"?value.trim().replace(/\s+/g,"").toLowerCase():"";
+const canonical=value=>typeof value==="string"?value.normalize("NFKC").replace(/[^\p{L}\p{N}]/gu,"").toLowerCase():"";
 const categoryKey=value=>typeof value==="string"?value.normalize("NFKC").replace(/[\s\p{Cf}()[\]{}]/gu,"").toLowerCase():"";
 const id=value=>typeof value==="string"&&/^[1-9][0-9]{0,18}$/.test(value)&&BigInt(value)<=9223372036854775807n;
 async function authorized(request,secret){
@@ -24,17 +24,26 @@ export function mergeCatalogIds(current,entries,previous={}){
  if(!current||!Number.isSafeInteger(current.revision)||!Array.isArray(current.channels)||!Array.isArray(current.matches))throw Error("CATALOG_UNAVAILABLE");
  const next=structuredClone(current),bindings={...previous};
  let changed=0,matched=0,skipped=0;
+ let nameMatches=0,disabledMatches=0,manualOverrides=0,ambiguousMatches=0;
  const counts=new Map();
  for(const channel of next.channels)if(channel.format==="ytv"){const name=canonical(channel.name);counts.set(name,(counts.get(name)||0)+1);}
  for(const channel of next.channels){
   const name=canonical(channel.name),source=names.get(name);
   if(channel.format!=="ytv"||!source)continue;
-  if(counts.get(name)!==1||!channel.enabled){skipped++;continue;}
-  if(bindings[channel.id]&&channel.streamUrl!==bindings[channel.id]){skipped++;continue;}
+  nameMatches++;
+  if(counts.get(name)!==1){ambiguousMatches++;skipped++;continue;}
+  if(!channel.enabled){disabledMatches++;skipped++;continue;}
+  if(bindings[channel.id]&&channel.streamUrl!==bindings[channel.id]){manualOverrides++;skipped++;continue;}
   matched++;if(channel.streamUrl!==source){channel.streamUrl=source;changed++;}
   bindings[channel.id]=source;
  }
- if(!matched)throw Error("NO_MATCHING_CHANNELS");
+ if(!matched){
+  const failure=new Error("NO_MATCHING_CHANNELS");
+  // Aggregates only: no channel identifiers, streaming addresses or credentials.
+  failure.diagnostics={storedYtv:next.channels.filter(c=>c.format==="ytv").length,
+   sourceRows:entries.length,nameMatches,disabledMatches,manualOverrides,ambiguousMatches};
+  throw failure;
+ }
  if(new Set(next.channels.map(c=>c.streamUrl)).size!==next.channels.length)throw Error("DUPLICATE_CHANNEL_ID");
  if(changed){next.revision++;next.updatedAt=Date.now();}
  return {catalog:next,bindings,changed,matched,skipped};
@@ -66,7 +75,8 @@ export async function catalogIngest(request,storage,env){
   return json(result);
  }catch(error){
   const allowed=new Set(["INVALID_LIST","INVALID_ENTRY","DUPLICATE_ENTRY","CATALOG_UNAVAILABLE","NO_MATCHING_CHANNELS","DUPLICATE_CHANNEL_ID"]);
-  return json({ok:false,error:allowed.has(error.message)?error.message:"SAVE_FAILED"},allowed.has(error.message)?409:500);
+  return json({ok:false,error:allowed.has(error.message)?error.message:"SAVE_FAILED",
+   ...(error.message==="NO_MATCHING_CHANNELS"&&error.diagnostics?{diagnostics:error.diagnostics}:{})},allowed.has(error.message)?409:500);
  }
 }
 
