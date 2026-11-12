@@ -110,6 +110,28 @@ test("section name variations allow bound, rotated category identifiers",async()
  assert.equal(storage.data.get("football:catalog").channels[0].streamUrl,"1424");
 });
 
+test("authenticated rebaseline replaces a changed ID and resets the stored binding atomically",async()=>{
+ const storage=store(),env={CATALOG_SYNC_KEY:secret};
+ storage.data.set("football:source-sync",{sourceTime:"1793212200",bindings:{"stable-1":"999"}});
+ const ordinary=await(await catalogIngest(request(),storage,env)).json();
+ assert.equal(ordinary.error,"NO_MATCHING_CHANNELS");
+ assert.equal(storage.data.get("football:catalog").channels[0].streamUrl,"123");
+ const recovery=await(await catalogIngest(request(secret,{rebaseline:true}),storage,env)).json();
+ assert.equal(recovery.ok,true);assert.equal(recovery.rebaseline,true);
+ assert.equal(recovery.changed,1);
+ assert.equal(storage.data.get("football:catalog").channels[0].streamUrl,"1424");
+ assert.equal(storage.data.get("football:source-sync").bindings["stable-1"],"1424");
+ const next=await(await catalogIngest(request(secret,{sourceTime:"1793212235"}),storage,env)).json();
+ assert.equal(next.ok,true);assert.equal(next.changed,0);
+});
+test("failed rebaseline cannot partially write or expose IDs",async()=>{
+ const storage=store(),env={CATALOG_SYNC_KEY:secret};
+ const before=structuredClone(storage.data.get("football:catalog"));
+ const response=await catalogIngest(request(secret,{rebaseline:true,entries:[...rows,{id:"1425",name:"beIN SPORTS 2"}]}),storage,env);
+ const body=await response.json();
+ assert.equal(response.status,409);assert.equal(body.error,"REBASELINE_INCOMPLETE");
+ assert.deepEqual(storage.data.get("football:catalog"),before);
+});
 test("malformed and over-size requests preserve catalog",async()=>{
  const storage=store(),before=structuredClone(storage.data.get("football:catalog"));
  const bad=await catalogIngest(request(secret,{entries:[]}),storage,{CATALOG_SYNC_KEY:secret});assert.equal(bad.status,409);
