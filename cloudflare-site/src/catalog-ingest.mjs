@@ -12,7 +12,7 @@ async function authorized(request,secret){
  const aa=new Uint8Array(a),bb=new Uint8Array(b);let diff=0;
  for(let i=0;i<aa.length;i++)diff|=aa[i]^bb[i];return diff===0;
 }
-export function mergeCatalogIds(current,entries,previous={}){
+export function mergeCatalogIds(current,entries,previous={},options={}){
  if(!Array.isArray(entries)||entries.length<1||entries.length>40)throw Error("INVALID_LIST");
  const names=new Map(),ids=new Set();
  for(const entry of entries){
@@ -23,17 +23,26 @@ export function mergeCatalogIds(current,entries,previous={}){
  }
  if(!current||!Number.isSafeInteger(current.revision)||!Array.isArray(current.channels)||!Array.isArray(current.matches))throw Error("CATALOG_UNAVAILABLE");
  const next=structuredClone(current),bindings={...previous};
+ const rebaseline=options.rebaseline===true;
  let changed=0,matched=0,skipped=0;
  let nameMatches=0,disabledMatches=0,manualOverrides=0,ambiguousMatches=0;
  const counts=new Map();
  for(const channel of next.channels)if(channel.format==="ytv"){const name=canonical(channel.name);counts.set(name,(counts.get(name)||0)+1);}
+ // Owner-initiated one-time reconciliation: require a complete, unambiguous 1:1
+ // YTV snapshot before replacing any previously overridden channel IDs.
+ if(rebaseline){
+  const ytv=next.channels.filter(c=>c.format==="ytv");
+  if(ytv.length===0||ytv.length!==entries.length||ytv.some(c=>
+   !c.enabled||counts.get(canonical(c.name))!==1||!names.has(canonical(c.name))))
+   throw Error("REBASELINE_INCOMPLETE");
+ }
  for(const channel of next.channels){
   const name=canonical(channel.name),source=names.get(name);
   if(channel.format!=="ytv"||!source)continue;
   nameMatches++;
   if(counts.get(name)!==1){ambiguousMatches++;skipped++;continue;}
   if(!channel.enabled){disabledMatches++;skipped++;continue;}
-  if(bindings[channel.id]&&channel.streamUrl!==bindings[channel.id]){manualOverrides++;skipped++;continue;}
+  if(bindings[channel.id]&&channel.streamUrl!==bindings[channel.id]&&!rebaseline){manualOverrides++;skipped++;continue;}
   matched++;if(channel.streamUrl!==source){channel.streamUrl=source;changed++;}
   bindings[channel.id]=source;
  }
@@ -61,20 +70,21 @@ export async function catalogIngest(request,storage,env){
   const bytes=new Uint8Array(size);let offset=0;for(const chunk of chunks){bytes.set(chunk,offset);offset+=chunk.length;}
   body=JSON.parse(new TextDecoder("utf-8",{fatal:true}).decode(bytes));
  }catch{return json({ok:false,error:"INVALID_BODY"},400);}finally{reader.releaseLock();}
- if(!body||(!id(body.categoryId)||(body.categoryId!=="4"&&categoryKey(body.categoryName)!=="beinsports1080p"))||typeof body.sourceTime!=="string"||!/^\d{10}$/.test(body.sourceTime))return json({ok:false,error:"INVALID_SOURCE_METADATA"},400);
+ if(!body||(!id(body.categoryId)||(body.categoryId!=="4"&&categoryKey(body.categoryName)!=="beinsports1080p"))||typeof body.sourceTime!=="string"||!/^\d{10}$/.test(body.sourceTime)||
+   (body.rebaseline!==undefined&&body.rebaseline!==true))return json({ok:false,error:"INVALID_SOURCE_METADATA"},400);
  try{
   const result=await storage.transaction(async tx=>{
    const previous=await tx.get("football:source-sync")||{sourceTime:"0",bindings:{}};
    if(BigInt(body.sourceTime)<BigInt(previous.sourceTime))return {ok:true,ignored:true,reason:"OLDER_SOURCE_TIME"};
    const current=await tx.get("football:catalog");
-   const merged=mergeCatalogIds(current,body.entries,previous.bindings);
+   const merged=mergeCatalogIds(current,body.entries,previous.bindings,{rebaseline:body.rebaseline===true});
    if(merged.changed)await tx.put("football:catalog",merged.catalog);
    await tx.put("football:source-sync",{sourceTime:body.sourceTime,categoryId:body.categoryId,categoryName:body.categoryName||"beIN SPORTS (1080P)",bindings:merged.bindings,receivedAt:Date.now(),changed:merged.changed,matched:merged.matched,skipped:merged.skipped});
-   return {ok:true,changed:merged.changed,matched:merged.matched,skipped:merged.skipped,revision:merged.catalog.revision};
+   return {ok:true,changed:merged.changed,matched:merged.matched,skipped:merged.skipped,revision:merged.catalog.revision,rebaseline:body.rebaseline===true};
   });
   return json(result);
  }catch(error){
-  const allowed=new Set(["INVALID_LIST","INVALID_ENTRY","DUPLICATE_ENTRY","CATALOG_UNAVAILABLE","NO_MATCHING_CHANNELS","DUPLICATE_CHANNEL_ID"]);
+  const allowed=new Set(["INVALID_LIST","INVALID_ENTRY","DUPLICATE_ENTRY","CATALOG_UNAVAILABLE","NO_MATCHING_CHANNELS","DUPLICATE_CHANNEL_ID","REBASELINE_INCOMPLETE"]);
   return json({ok:false,error:allowed.has(error.message)?error.message:"SAVE_FAILED",
    ...(error.message==="NO_MATCHING_CHANNELS"&&error.diagnostics?{diagnostics:error.diagnostics}:{})},allowed.has(error.message)?409:500);
  }
