@@ -88,6 +88,25 @@ class YtvPlayerTest {
         assertEquals(YtvPlayer.Failure.NOT_ALLOWED, YtvPlayer.open(LaunchContext(base, SecurityException()), "41"))
     }
 
+    @Test fun launchSelectionUsesOnlyCurrentCloudflareIdAndNeverTheCachedOne() {
+        fun channel(stream: String, enabled: Boolean = true, format: String = "ytv") =
+            FootballChannel("stable-one", "beIN SPORTS 1", "1080p", "YTV",
+                YtvPlayer.APP_PAGE, stream, format, enabled)
+        val selected = channel("1424")
+        val current = channel("2619657828018322944")
+        val resolved = FootballRepository.latestYtvSelection(selected,
+            FootballCatalog(33, listOf(current)))
+        assertEquals("2619657828018322944", resolved?.streamUrl)
+        val intent = requireNotNull(YtvPlayer.channelIntent(resolved!!.streamUrl))
+        assertEquals(2619657828018322944L, intent.getLongExtra("id", -1L))
+        assertNull(FootballRepository.latestYtvSelection(selected,
+            FootballCatalog(34, listOf(current.copy(enabled = false)))))
+        assertNull(FootballRepository.latestYtvSelection(selected,
+            FootballCatalog(35, listOf(current.copy(format = "hls")))))
+        assertNull(FootballRepository.latestYtvSelection(selected,
+            FootballCatalog(36, listOf(current.copy(streamUrl = "invalid")))))
+    }
+
     @Test fun sharedCatalogKeepsYtvIdsExactWithoutTreatingThemAsVideoUrls() {
         fun record(id: String, stream: String, format: String = "ytv", source: String = YtvPlayer.APP_PAGE) = JSONObject()
             .put("id", id).put("name", "قناة الاختبار").put("category", "كرة القدم").put("provider", "YTV PRO")
