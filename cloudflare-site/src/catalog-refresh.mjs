@@ -58,7 +58,14 @@ export function createCatalogRefresh(Base,check){
     const result=await response.json();
     report={lastAttempt:started,lastHTTP:response.status,lastSourceHTTP:Number.isInteger(result.sourceHTTP)?result.sourceHTTP:null,lastSaved:result.published===true,error:null};
     if(report.lastSaved){report.lastSuccess=Date.now();report.changed=result.publishResult?.changed||0;report.matched=result.publishResult?.matched||0;}
-    else report.error=result.publishResult?.errorCode||'UPDATE_NOT_SAVED';
+    else {
+      const knownErrors=new Set(['CONFIG_MISSING','CONFIG_INVALID','TIME_INVALID','UNREADABLE','DECODE_FAILED',
+       'INVALID','EMPTY','CATEGORY_HTTP_ERROR','CATEGORY_TOO_LARGE','CATEGORY_UNREADABLE',
+       'CATEGORY_AMBIGUOUS','CATEGORY_NOT_FOUND','NO_MATCHING_CHANNELS','DUPLICATE_CHANNEL_ID',
+       'INVALID_SOURCE_METADATA','SAVE_FAILED','NETWORK_ERROR','TIMEOUT']);
+      const reason=result.publishResult?.errorCode||result.failureCode;
+      report.error=knownErrors.has(reason)?reason:'UPDATE_NOT_SAVED';
+    }
    }catch{report={lastAttempt:started,lastSaved:false,error:'UPDATE_FAILED'};}
    const current=await this.ctx.storage.get(keyName)||{};
    const due=Math.max(nextRun,Date.now()+1000);
