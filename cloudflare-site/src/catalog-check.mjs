@@ -56,10 +56,16 @@ function validId(value) {
   return /^[1-9][0-9]{0,18}$/.test(text) && BigInt(text) <= 9223372036854775807n ? text : null;
 }
 
+// Preserve 16-19 digit JSON id integers as text before JavaScript can round them.
+// Only decimal id fields are modified; other response data remains unchanged.
+function preserveNumericIds(text) {
+  return text.replace(/("id"\s*:\s*)([1-9][0-9]{15,18})(?=\s*[,}])/g, '$1"$2"');
+}
+
 function parseCatalog(text, decoded) {
   const invalid = message => ({ state: "INVALID", message, entries: [], responseDecoded: false });
   let root;
-  try { root = JSON.parse(text); }
+  try { root = JSON.parse(preserveNumericIds(text)); }
   catch { return invalid("لم ينتج JSON كامل وصالح من قراءة الرد."); }
   if (root && typeof root === "object" && !Array.isArray(root) &&
     (root.success === false || (root.error !== undefined && root.error !== null && root.error !== false && root.error !== ""))) {
@@ -308,11 +314,17 @@ export default {
           ? readCatalog(new TextDecoder().decode(sectionBody.bytes), sections.headers.get("t"), env.RESPONSE_MASK) : null;
         const matches = decoded?.state === "LIST" ? decoded.entries.filter(entry =>
           entry.name.normalize("NFKC").replace(/[\s\p{Cf}()[\]{}]/gu, "").toLowerCase() === "beinsports1080p") : [];
-        if (matches.length !== 1) return respond({
-          state: "CATEGORY_UNRESOLVED", sourceHTTP: sections.status,
-          message: "لم يُحدد قسم beIN SPORTS (1080P) بشكل فريد؛ لم يُحفظ أي تحديث.",
-          published: false, publishResult: null,
-        });
+        if (matches.length !== 1) {
+          const failureCode = !sections.ok ? "CATEGORY_HTTP_ERROR" :
+            sectionBody.truncated ? "CATEGORY_TOO_LARGE" :
+            decoded?.state !== "LIST" ? decoded?.state || "CATEGORY_UNREADABLE" :
+            matches.length > 1 ? "CATEGORY_AMBIGUOUS" : "CATEGORY_NOT_FOUND";
+          return respond({
+            state: "CATEGORY_UNRESOLVED", failureCode, sourceHTTP: sections.status,
+            message: "لم يُحدد قسم beIN SPORTS (1080P) بشكل فريد؛ لم يُحفظ أي تحديث.",
+            published: false, publishResult: null,
+          });
+        }
         discoveredCategory = matches[0];
         sourceURL = SOURCE_URL + "/" + discoveredCategory.id + "/channels";
       }
