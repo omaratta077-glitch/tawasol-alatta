@@ -47,6 +47,13 @@ test("authenticated bounded snapshot persists once and rejects older data",async
  const old=await(await catalogIngest(request(secret,{sourceTime:"1793212233"}),storage,env)).json();assert.equal(old.ignored,true);
  assert.equal(storage.data.get("football:catalog").revision,8);
 });
+test("section name variations allow bound, rotated category identifiers",async()=>{
+ const storage=store(),env={CATALOG_SYNC_KEY:secret};
+ const result=await catalogIngest(request(secret,{categoryId:"652497361000000001",categoryName:"beIN SPORTS 1080P"}),storage,env);
+ assert.equal(result.status,200);
+ assert.equal(storage.data.get("football:catalog").channels[0].streamUrl,"1424");
+});
+
 test("malformed and over-size requests preserve catalog",async()=>{
  const storage=store(),before=structuredClone(storage.data.get("football:catalog"));
  const bad=await catalogIngest(request(secret,{entries:[]}),storage,{CATALOG_SYNC_KEY:secret});assert.equal(bad.status,409);
