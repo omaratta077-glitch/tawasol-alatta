@@ -30,6 +30,11 @@ internal object FootballRepository {
             if (m.isNull("homeScore")) null else m.getInt("homeScore"), if (m.isNull("awayScore")) null else m.getInt("awayScore")) }
         return FootballCatalog(json.optLong("revision"), channels, matches, json.optLong("updatedAt"))
     }
+    /** Always resolve a selected YTV channel against the latest shared Cloudflare catalog. */
+    internal fun latestYtvSelection(selected: FootballChannel, latest: FootballCatalog): FootballChannel? =
+        latest.channels.singleOrNull { it.id == selected.id && it.enabled && it.format == "ytv" &&
+            YtvPlayer.channelId(it.streamUrl) != null }
+
     suspend fun load(token: String? = null): FootballCatalog = withContext(Dispatchers.IO) {
         parse(attaApi(if (token == null) "/api/football" else "/api/admin/football?token=${URLEncoder.encode(token, "UTF-8")}"))
     }
