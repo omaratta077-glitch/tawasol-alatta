@@ -158,8 +158,29 @@ internal fun FootballScreen(query: String, modifier: Modifier = Modifier,
             finally { openingChannel = false }
         }
     }
+    fun refreshVisibleChannels() {
+        if (!isAdmin || token.isBlank()) { reload++; return }
+        if (openingChannel) return
+        openingChannel = true
+        playbackScope.launch {
+            try {
+                val outcome = FootballRepository.refreshCloudflareNow(token)
+                catalog = FootballRepository.load()
+                if (outcome.optBoolean("lastSaved", false)) {
+                    error = ""
+                    android.widget.Toast.makeText(context,
+                        "تم التحديث اليدوي: ${outcome.optInt("matched", 0)} قناة، تغيّر ${outcome.optInt("changed", 0)} رقم.",
+                        android.widget.Toast.LENGTH_LONG).show()
+                } else {
+                    error = "لم يُحفظ تحديث جديد. السبب: ${outcome.optString("error").takeIf { it.isNotBlank() && it != "null" } ?: "تعذر قراءة المصدر"}."
+                }
+            } catch (cancelled: CancellationException) { throw cancelled }
+            catch (failure: Exception) { error = failure.message ?: "تعذر التحديث اليدوي من Cloudflare." }
+            finally { openingChannel = false }
+        }
+    }
     FootballContent(catalog, query, favorites, recent, loading || openingChannel, error, isAdmin, callInProgress, modifier,
-        onReload = { reload++ }, onManage = onManage, onPlay = { play(it) }, onPlayDirect = { play(it, nativePlayback = true) },
+        onReload = { refreshVisibleChannels() }, onManage = onManage, onPlay = { play(it) }, onPlayDirect = { play(it, nativePlayback = true) },
         onPlayManualId = { playManualId(it) },
         reportAvailable = lastChannelReport != null, onCopyReport = {
             val report = lastChannelReport ?: return@FootballContent
