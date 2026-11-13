@@ -3,7 +3,6 @@ import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import {createCatalogRefresh} from '../../cloudflare-site/src/catalog-refresh.mjs';
 
-const stripComments=value=>value.replace(/\\/\\*[\\s\\S]*?\\*\\//g,m=>m.replace(/[^\\n]/g,"")).replace(/(^|\\n)[ \\t]*\\/\\/[^\\n]*/g,"$1").replace(/[ \\t]+\\/\\/[^\\n]*/g,"").replace(/\\n[ \\t]*\\n+/g,"\\n").trim();
 const env={PROBE_KEY:'test-probe-00000000000000000000',RESPONSE_MASK:'test-format-mask',CATALOG_SYNC_KEY:'test-sync-000000000000000000000000'};
 const request=(action='refresh',key=env.PROBE_KEY)=>new Request('https://offline.invalid/api/internal/catalog-update',{method:'POST',body:new URLSearchParams({probe_key:key,action})});
 function context(){const data=new Map();let alarm=null;return {data,get alarm(){return alarm;},storage:{async get(k){return structuredClone(data.get(k));},async put(k,v){data.set(k,structuredClone(v));},async setAlarm(t){alarm=t;},async deleteAlarm(){alarm=null;}}};}
@@ -120,9 +119,10 @@ test('production worker contains identical manual-only implementation and regist
  const module=await readFile(new URL('../../cloudflare-site/src/catalog-refresh.mjs',import.meta.url),'utf8');
  const worker=await readFile(new URL('../../cloudflare-site/src/worker.js',import.meta.url),'utf8');
  const config=await readFile(new URL('../../cloudflare-site/wrangler.toml',import.meta.url),'utf8');
- const expected='// BEGIN مجدول تحديث الكتالوج\\n'+module.replace('export function ','function ')+'\\nexport const CatalogRefresh = createCatalogRefresh(DurableObject,mainCatalogCheck);';
- assert.ok(stripComments(worker).includes(stripComments(expected)));
- assert.match(config,/name = "CATALOG_REFRESH"\\nclass_name = "CatalogRefresh"/);
- assert.match(config,/new_sqlite_classes = \\[\\"CatalogRefresh\\"\\]/);
+ const newline=String.fromCharCode(10);
+ const expected='// BEGIN مجدول تحديث الكتالوج'+newline+module.replace('export function ','function ')+newline+'export const CatalogRefresh = createCatalogRefresh(DurableObject,mainCatalogCheck);';
+ assert.ok(worker.includes(expected));
+ assert.ok(config.includes('name = "CATALOG_REFRESH"'+newline+'class_name = "CatalogRefresh"'));
+ assert.ok(config.includes('new_sqlite_classes = ["CatalogRefresh"]'));
  assert.ok(!module.includes('setAlarm('));
 });
