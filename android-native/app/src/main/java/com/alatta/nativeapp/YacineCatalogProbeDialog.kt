@@ -113,6 +113,17 @@ internal fun YacineCatalogProbeDialog(channels: List<FootballChannel>, owner: St
                                     YacineCatalogProbe.State.EMPTY)) PremiumGoldLight else Color(0xFFFFB4A9), fontSize = 14.sp)
                                 Text("GET " + current.sourceBase.ifBlank { YacineCatalogProbe.BASE } + current.path,
                                     color = PremiumMuted, fontSize = 12.sp)
+                                if (current.attempts.isNotEmpty()) {
+                                    Text(AttaLocale.tr("تفاصيل محاولة كل خادم (لا تُغيّر القنوات):"),
+                                        color = PremiumGoldLight, fontSize = 13.sp)
+                                    current.attempts.forEachIndexed { index, attempt ->
+                                        Text("${index + 1}. ${attempt.summary()}",
+                                            color = if (attempt.state in setOf(YacineCatalogProbe.State.LIST,
+                                                YacineCatalogProbe.State.EMPTY)) PremiumGoldLight
+                                                else Color(0xFFFFB4A9),
+                                            fontSize = 12.sp)
+                                    }
+                                }
                                 current.code?.let { Text("HTTP " + it, color = Color.White, fontSize = 13.sp) }
                                 if (current.responseDecoded) Text(AttaLocale.tr("تم فك ترميز الرد إلى JSON."),
                                     color = PremiumGoldLight, fontSize = 12.sp)
