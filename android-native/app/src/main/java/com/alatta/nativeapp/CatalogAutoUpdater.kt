@@ -54,11 +54,13 @@ internal object CatalogAutoUpdater {
     private var messages by mutableStateOf(emptyMap<String, String>())
     fun configurationChanged() { generation++ }
     fun message(owner: String) = messages[owner].orEmpty()
-    private fun service(context: Context, token: String, owner: String) = CatalogChannelSync(
+    private fun service(context: Context, token: String, owner: String,
+        selectedSource: () -> String? = { null }) = CatalogChannelSync(
         load = { FootballRepository.load(token) },
         fetch = { category ->
             val mask = CatalogFormatSettings.read(context)?.toByteArray(Charsets.US_ASCII)
-            YacineCatalogProbe.fetch(YacineCatalogProbe.Kind.CHANNELS, category, mask)
+            YacineCatalogProbe.fetch(YacineCatalogProbe.Kind.CHANNELS, category, mask,
+                sourceBase = selectedSource())
         },
         save = { catalog, channel -> FootballRepository.change(token, catalog.revision, "saveChannel",
             JSONObject().put("channel", FootballRepository.channelJson(channel))) },
@@ -79,13 +81,16 @@ internal object CatalogAutoUpdater {
             val now = SystemClock.elapsedRealtime()
             if (!force && attempts[owner]?.let { now - it < FOREGROUND_REFRESH_MS } == true) return@withLock null
             attempts[owner] = now
-            val sync = service(context, token, owner)
+            var selectedSource: String? = null
+            val sync = service(context, token, owner) { selectedSource }
             var discovery: CatalogSectionDiscovery? = null
             val attempt = sync.refreshSection(links, ownerReconcile = force) {
                 val mask = CatalogFormatSettings.read(context)?.toByteArray(Charsets.US_ASCII)
                 val root = YacineCatalogProbe.fetch(YacineCatalogProbe.Kind.CATEGORIES, responseMask = mask)
+                selectedSource = root.sourceBase.takeIf { root.state == YacineCatalogProbe.State.LIST }
                 CatalogSectionResolver.discover(root) { categoryId ->
-                    YacineCatalogProbe.fetch(YacineCatalogProbe.Kind.CATEGORIES, categoryId, mask)
+                    YacineCatalogProbe.fetch(YacineCatalogProbe.Kind.CATEGORIES, categoryId, mask,
+                        sourceBase = selectedSource)
                 }.also { discovery = it }.section
             }
             // Only fall back to already linked channels: never import an unverified
@@ -102,8 +107,10 @@ internal object CatalogAutoUpdater {
                     linked.copy(message = "${diagnostic} ${status} ${linked.message}".trim())
                 }
             } else attempt
-            messages = messages + (owner to outcome.message)
-            outcome
+            val sourceMessage = selectedSource?.let { " • مصدر القنوات: $it" }.orEmpty()
+            val reported = outcome.copy(message = outcome.message + sourceMessage)
+            messages = messages + (owner to reported.message)
+            reported
         } }
     suspend fun bind(context: Context, token: String, owner: String, channelId: String,
         categoryId: String, entry: YacineCatalogProbe.Entry): CatalogSyncResult = withContext(Dispatchers.IO) { mutex.withLock {
