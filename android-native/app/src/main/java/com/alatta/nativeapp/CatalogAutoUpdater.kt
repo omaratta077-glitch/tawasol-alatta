@@ -113,8 +113,10 @@ internal object CatalogAutoUpdater {
             reported
         } }
     suspend fun bind(context: Context, token: String, owner: String, channelId: String,
-        categoryId: String, entry: YacineCatalogProbe.Entry): CatalogSyncResult = withContext(Dispatchers.IO) { mutex.withLock {
-            service(context, token, owner).bind(CatalogLinkStore.read(context, owner), channelId, categoryId, entry)
+        categoryId: String, entry: YacineCatalogProbe.Entry,
+        sourceBase: String? = null): CatalogSyncResult = withContext(Dispatchers.IO) { mutex.withLock {
+            service(context, token, owner) { sourceBase }
+                .bind(CatalogLinkStore.read(context, owner), channelId, categoryId, entry)
                 .also { messages = messages + (owner to it.message); attempts.remove(owner) }
         } }
     suspend fun unlink(context: Context, owner: String, channelId: String): Boolean = withContext(Dispatchers.IO) { mutex.withLock {
