@@ -111,7 +111,7 @@ internal fun AdminFootballPanel(token: String, owner: String) {
                                     val changed = status.optInt("changed", 0)
                                     "اكتمل التحديث اليدوي: تمت مطابقة $matched قناة وتغيير $changed رقم. التلقائي متوقف."
                                 } else {
-                                    "لم تُحفظ أرقام جديدة. السبب: ${status.optString("error").ifBlank { "تعذر جلب القائمة أو حفظها" }}. القائمة السابقة كما هي."
+                                    "لم تُحفظ أرقام جديدة. السبب: ${status.optString("error").takeIf { it.isNotBlank() && it != "null" } ?: "تعذر جلب القائمة أو حفظها"}. القائمة السابقة كما هي."
                                 }
                                 if (status.optBoolean("lastSaved", false)) catalog = FootballRepository.load(token)
                             } catch (cancelled: CancellationException) { throw cancelled }
