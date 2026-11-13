@@ -147,6 +147,57 @@ class YacineCatalogProbeTest {
         assertFalse(report.contains("token="))
     }
 
+    @Test fun allFailedHostsAreReportedAnd200UnreadableIsNotHiddenByLegacyDnsError() {
+        val first = YacineCatalogProbe.Result(
+            YacineCatalogProbe.State.NETWORK_ERROR, "categories",
+            "تعذر العثور على عنوان الخادم.", sourceBase = YacineCatalogProbe.BASE)
+        val second = YacineCatalogProbe.Result(
+            YacineCatalogProbe.State.UNREADABLE, "categories",
+            "وصل رد مرمّز؛ اضبط إعداد قراءة القائمة.", code = 200, bytes = 1102,
+            sourceBase = YacineCatalogProbe.OBSERVED_HTTP_BASE)
+        val last = YacineCatalogProbe.Result(
+            YacineCatalogProbe.State.NETWORK_ERROR, "categories",
+            "تعذر العثور على عنوان الخادم.", sourceBase = YacineCatalogProbe.LEGACY_BASE)
+        val result = YacineCatalogProbe.summarizeAttempts(listOf(first, second, last))
+        assertEquals(YacineCatalogProbe.OBSERVED_HTTP_BASE, result.sourceBase)
+        assertEquals(YacineCatalogProbe.State.UNREADABLE, result.state)
+        assertEquals(200, result.code)
+        assertTrue(result.entries.isEmpty())
+        assertEquals(3, result.attempts.size)
+        val report = result.report()
+        for (host in listOf(YacineCatalogProbe.BASE, YacineCatalogProbe.OBSERVED_HTTP_BASE,
+            YacineCatalogProbe.LEGACY_BASE)) assertTrue(report, report.contains(host))
+        assertTrue(report.contains("HTTP 200"))
+        assertTrue(report.contains("تعذر العثور على عنوان الخادم"))
+        assertFalse(report.contains("Authorization"))
+    }
+
+    @Test fun aGoodCatalogStopsFallbackAndReportIncludesItsActualHost() {
+        val failing = YacineCatalogProbe.Result(YacineCatalogProbe.State.HTTP_ERROR,
+            "categories", "Not found", code = 404, sourceBase = YacineCatalogProbe.BASE)
+        val valid = YacineCatalogProbe.Result(YacineCatalogProbe.State.LIST,
+            "categories", "قائمة صحيحة", code = 200,
+            entries = listOf(YacineCatalogProbe.Entry("5076209225344037664", "Channel Test")),
+            sourceBase = YacineCatalogProbe.OBSERVED_HTTP_BASE)
+        val result = YacineCatalogProbe.summarizeAttempts(listOf(failing, valid))
+        assertEquals(YacineCatalogProbe.State.LIST, result.state)
+        assertEquals(listOf("5076209225344037664"), result.entries.map { it.id })
+        assertEquals(2, result.attempts.size)
+        assertFalse(result.report().contains(YacineCatalogProbe.LEGACY_BASE))
+    }
+
+    @Test fun allDnsFailuresAreListedInsteadOfReportingOnlyTheLastHost() {
+        val history = YacineCatalogProbe.candidates().map { base ->
+            YacineCatalogProbe.Result(YacineCatalogProbe.State.NETWORK_ERROR,
+                "categories", "تعذر العثور على عنوان الخادم.", sourceBase = base)
+        }
+        val result = YacineCatalogProbe.summarizeAttempts(history)
+        assertEquals(3, result.attempts.size)
+        assertEquals(YacineCatalogProbe.BASE, result.sourceBase)
+        assertTrue(result.entries.isEmpty())
+        assertTrue(result.attempts.all { it.state == YacineCatalogProbe.State.NETWORK_ERROR })
+    }
+
     @Test fun successfulListsKeepLongIdsExactAndRecognizeAnExplicitEmptyList() {
         val result = YacineCatalogProbe.parse("""{"data":[{"id":6946592526586825078,"name":"beIN SPORTS 1"},{"id":"9223372036854775807","name":"قناة أخرى"}]}""", 200, path)
         assertEquals(YacineCatalogProbe.State.LIST, result.state)
