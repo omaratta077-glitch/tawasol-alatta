@@ -106,21 +106,47 @@ class YacineCatalogProbeTest {
         }
     }
 
-    @Test fun onlyFixedHttpsCatalogPathsAreBuiltWithoutAccountCredentials() {
+    @Test fun onlyThreeApprovedCatalogSourcesAreAllowedWithoutAccountCredentials() {
+        assertEquals(listOf(
+            "https://def111.ycnapi.com/api/",
+            "http://def111.ycnapi.com/api/",
+            "https://def001.ycnapi.com/api/"), YacineCatalogProbe.candidates())
         val root = YacineCatalogProbe.request(YacineCatalogProbe.Kind.CATEGORIES)
-        assertEquals("https://def001.ycnapi.com/api/categories", root.url.toString())
+        assertEquals("https://def111.ycnapi.com/api/categories", root.url.toString())
         assertEquals("GET", root.method)
         assertEquals(listOf("Accept"), root.headers.names().toList())
         assertNull(root.body)
-        assertEquals("https://def001.ycnapi.com/api/categories/41/channels",
+        assertEquals("https://def111.ycnapi.com/api/categories/41/channels",
             YacineCatalogProbe.request(YacineCatalogProbe.Kind.CHANNELS, "٠٠٤١").url.toString())
-        assertEquals("https://def001.ycnapi.com/api/categories/41",
+        assertEquals("https://def111.ycnapi.com/api/categories/41",
             YacineCatalogProbe.request(YacineCatalogProbe.Kind.CATEGORIES, "41").url.toString())
+        val observed = YacineCatalogProbe.request(YacineCatalogProbe.Kind.CHANNELS, "5076209225344037664",
+            YacineCatalogProbe.OBSERVED_HTTP_BASE)
+        assertEquals("http://def111.ycnapi.com/api/categories/5076209225344037664/channels", observed.url.toString())
+        assertEquals(listOf("Accept"), observed.headers.names().toList())
+        assertNull(observed.header("Cookie"))
+        assertNull(observed.header("Authorization"))
+        assertEquals("https://def001.ycnapi.com/api/categories",
+            YacineCatalogProbe.request(YacineCatalogProbe.Kind.CATEGORIES,
+                sourceBase = YacineCatalogProbe.LEGACY_BASE).url.toString())
         for (bad in listOf("https://example.org", "../config", "0", "-1", "1?token=x", "9223372036854775808"))
             assertThrows(IllegalArgumentException::class.java) {
                 YacineCatalogProbe.request(YacineCatalogProbe.Kind.CHANNELS, bad)
             }
+        for (host in listOf("https://evil.test/api/", "http://def001.ycnapi.com/api/",
+            "https://def111.ycnapi.com.evil.test/api/", "https://def111.ycnapi.com/user/"))
+            assertThrows(IllegalArgumentException::class.java) {
+                YacineCatalogProbe.request(YacineCatalogProbe.Kind.CATEGORIES, sourceBase = host)
+            }
     }
+    @Test fun reportsTheSelectedCatalogSourceWithoutCredentials() {
+        val report = YacineCatalogProbe.Result(YacineCatalogProbe.State.NETWORK_ERROR, "categories",
+            "فشل الاتصال", sourceBase = YacineCatalogProbe.OBSERVED_HTTP_BASE).report()
+        assertTrue(report.contains("http://def111.ycnapi.com/api/categories"))
+        assertFalse(report.contains("def001.ycnapi.com"))
+        assertFalse(report.contains("token="))
+    }
+
     @Test fun successfulListsKeepLongIdsExactAndRecognizeAnExplicitEmptyList() {
         val result = YacineCatalogProbe.parse("""{"data":[{"id":6946592526586825078,"name":"beIN SPORTS 1"},{"id":"9223372036854775807","name":"قناة أخرى"}]}""", 200, path)
         assertEquals(YacineCatalogProbe.State.LIST, result.state)
