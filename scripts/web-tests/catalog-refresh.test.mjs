@@ -94,12 +94,18 @@ test('manual rebaseline remains guarded but never starts periodic updates',async
  assert.ok(result.lastRebaseline);assert.equal(ctx.alarm,null);
 });
 test('concurrent manual refresh attempts run at most once',async()=>{
- let calls=0,release;const wait=new Promise(r=>release=r);
- const {instance,ctx}=job({async fetch(){calls++;await wait;return Response.json({published:true});}});
- const one=instance.fetch(request()),two=instance.fetch(request());
- await new Promise(r=>setTimeout(r,1));
- release();const results=await Promise.all([one,two]);
- assert.deepEqual(results.map(r=>r.status).sort(),[200,409]);
+ let calls=0,release,entered;
+ const wait=new Promise(r=>release=r),started=new Promise(r=>entered=r);
+ const {instance,ctx}=job({async fetch(){
+  calls++;entered();await wait;return Response.json({published:true});
+ }});
+ const one=instance.fetch(request());
+ await started; // first request holds the lock; do not rely on a scheduling timer
+ const second=await instance.fetch(request());
+ assert.equal(second.status,409);
+ release();
+ const first=await one;
+ assert.equal(first.status,200);
  assert.equal(calls,1);assert.equal(ctx.alarm,null);
 });
 test('stop invalidates an in-flight manual refresh before the save callback',async()=>{
