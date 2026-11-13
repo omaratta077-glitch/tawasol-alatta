@@ -49,7 +49,7 @@ internal fun FootballPanel(modifier: Modifier = Modifier, content: @Composable C
 
 @Composable
 internal fun FootballScreen(query: String, modifier: Modifier = Modifier,
-    isAdmin: Boolean = false, token: String = "", onManage: () -> Unit = {}, callInProgress: Boolean = false,
+    isAdmin: Boolean = false, token: String = "", owner: String = "", onManage: () -> Unit = {}, callInProgress: Boolean = false,
     onBeforePlayback: () -> Unit, onYoutube: (String) -> Unit) {
     val context = LocalContext.current
     val playbackScope = rememberCoroutineScope()
@@ -83,7 +83,8 @@ internal fun FootballScreen(query: String, modifier: Modifier = Modifier,
     }
     LaunchedEffect(Unit) {
         val lifecycle = context.mediaActivity()?.lifecycle
-        while (true) { delay(CatalogAutoUpdater.SHARED_CATALOG_REFRESH_MS); if (lifecycle?.currentState?.isAtLeast(Lifecycle.State.STARTED) == true) reload++ }
+        // Refresh published list for other users, never pull source IDs in the background.
+        while (true) { delay(CatalogAutoUpdater.FOREGROUND_REFRESH_MS); if (lifecycle?.currentState?.isAtLeast(Lifecycle.State.STARTED) == true) reload++ }
     }
     // القنوات المعتادة تفتح بالمشغّل السابق؛ تجربة Media3 داخل تبويب البث المباشر فقط.
     fun play(channel: FootballChannel, nativePlayback: Boolean = false) {
@@ -100,21 +101,20 @@ internal fun FootballScreen(query: String, modifier: Modifier = Modifier,
                 }
                 "ytv" -> {
                     if (callInProgress) { error = "أنهِ المكالمة أولًا لتشغيل القناة."; return@launch }
-                    // The displayed list may have an old channel ID after a Cloudflare rotation.
-                    // Read the published catalog again at tap time; never launch a cached ID.
-                    val published = FootballRepository.load()
-                    val fresh = FootballRepository.latestYtvSelection(channel, published)
-                    if (fresh == null) {
-                        error = "القناة لم تعد موجودة في قائمة Cloudflare الحالية. حدّث القنوات ثم حاول مرة أخرى."
+                    // Restore pre-Cloudflare catalog handoff: use the exact saved channel ID.
+                    // IDs are updated from the owner's handset only by an explicit button press.
+                    val id = YtvPlayer.channelId(channel.streamUrl)
+                    if (id == null) {
+                        error = "رقم القناة المحفوظ غير صالح. اضغط تحديث القنوات يدويًا."
                         return@launch
                     }
-                    if (published != catalog) catalog = published
-                    val failure = YtvPlayer.openWithWatchRoom(context, fresh.streamUrl, onBeforePlayback)
+                    error = ""
+                    val failure = YtvPlayer.openWithWatchRoom(context, id, onBeforePlayback)
                     lastChannelReport = JSONObject()
-                        .put("channel", fresh.name)
-                        .put("publishedRevision", published.revision)
-                        .put("selectedId", channel.streamUrl)
-                        .put("publishedId", fresh.streamUrl)
+                        .put("mode", "LEGACY_PHONE_CATALOG")
+                        .put("channel", channel.name)
+                        .put("catalogRevision", catalog.revision)
+                        .put("channelId", id)
                         .put("handoff", if (failure == null) "ACTIVITY_LAUNCHED_NOT_PLAYBACK_CONFIRMED" else failure.name)
                         .toString(2)
                     if (failure != null) { playerFailure = failure; return@launch }
@@ -159,24 +159,28 @@ internal fun FootballScreen(query: String, modifier: Modifier = Modifier,
         }
     }
     fun refreshVisibleChannels() {
-        if (!isAdmin || token.isBlank()) { reload++; return }
+        if (!isAdmin || token.isBlank() || owner.isBlank()) { reload++; return }
         if (openingChannel) return
         openingChannel = true
         playbackScope.launch {
             try {
-                val outcome = FootballRepository.refreshCloudflareNow(token)
-                catalog = FootballRepository.load()
-                if (outcome.optBoolean("lastSaved", false)) {
+                error = ""
+                // Original v203/v206 path: fetch categories and channel rows on the owner's phone;
+                // persist them through the existing protected admin saveChannels endpoint.
+                val result = CatalogAutoUpdater.refresh(context.applicationContext, token, owner, force = true)
+                val updated = result?.catalog
+                if (updated != null) catalog = updated
+                else catalog = FootballRepository.load()
+                error = result?.message ?: "تعذر طلب التحديث من الهاتف؛ القائمة المحفوظة كما هي."
+                if (result != null && result.checked > 0 && result.changed >= 0 &&
+                    !result.message.startsWith("تعذر")) {
+                    android.widget.Toast.makeText(context, result.message, android.widget.Toast.LENGTH_LONG).show()
                     error = ""
-                    android.widget.Toast.makeText(context,
-                        "تم التحديث اليدوي: ${outcome.optInt("matched", 0)} قناة، تغيّر ${outcome.optInt("changed", 0)} رقم.",
-                        android.widget.Toast.LENGTH_LONG).show()
-                } else {
-                    error = "لم يُحفظ تحديث جديد. السبب: ${outcome.optString("error").takeIf { it.isNotBlank() && it != "null" } ?: "تعذر قراءة المصدر"}."
                 }
             } catch (cancelled: CancellationException) { throw cancelled }
-            catch (failure: Exception) { error = failure.message ?: "تعذر التحديث اليدوي من Cloudflare." }
-            finally { openingChannel = false }
+            catch (failure: Exception) {
+                error = "تعذر تحديث القنوات من الهاتف: ${failure.message ?: "فشل الاتصال بالمصدر"}"
+            } finally { openingChannel = false }
         }
     }
     FootballContent(catalog, query, favorites, recent, loading || openingChannel, error, isAdmin, callInProgress, modifier,
