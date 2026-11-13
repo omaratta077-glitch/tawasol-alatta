@@ -1458,6 +1458,31 @@ export class SignalingRoom extends DurableObject {
     return result.catalog?j({ok:true,...result.catalog,playbackTypes:FOOTBALL_FORMATS}):j({ok:false,error:result.error},result.status);
   }
 
+  async adminManualCatalogRefresh(request,body){
+    if(request.method!=="POST")return j({ok:false,error:"METHOD_NOT_ALLOWED"},405);
+    const auth=await this.requireAdmin(body.token);
+    if(auth.error)return auth.error;
+    const action=body.action==="status"?"status":body.action==="refresh"?"refresh":null;
+    if(!action)return j({ok:false,error:"INVALID_ACTION"},400);
+    try{
+      const id=this.env.CATALOG_REFRESH.idFromName("catalog-refresh");
+      // No PROBE_KEY is sent to the user's Android device. The owner session
+      // is verified by the main room, and the private DO receives the key internally.
+      const response=await this.env.CATALOG_REFRESH.get(id).fetch(new Request("https://internal.invalid/api/internal/catalog-update",{
+        method:"POST",body:new URLSearchParams({probe_key:String(this.env.PROBE_KEY||""),action})
+      }));
+      const data=await response.json();
+      const integerOrNull=value=>Number.isSafeInteger(value)?value:null;
+      return j({
+        ok:data.ok===true,manualOnly:true,enabled:false,
+        lastSaved:data.lastSaved===true,changed:integerOrNull(data.changed),
+        matched:integerOrNull(data.matched),lastAttempt:integerOrNull(data.lastAttempt),
+        sourceHTTP:integerOrNull(data.lastSourceHTTP),
+        error:typeof data.error==="string"?data.error.slice(0,80):null
+      },response.status);
+    }catch(_){return j({ok:false,error:"MANUAL_CATALOG_REFRESH_UNAVAILABLE"},503);}
+  }
+
   async footballPlaybackTest(request,body,viewer=false){
     if(request.method!=="POST")return j({ok:false,error:"استخدم تشغيل القناة من التطبيق"},405);
     // المشاهدة متاحة للجلسات الصالحة؛ يبقى المسار الإداري محميًا بصلاحية المالك.
@@ -2078,6 +2103,7 @@ export class SignalingRoom extends DurableObject {
       body=parsed.body;
     }
 
+    if(url.pathname==="/api/admin/football/catalog-refresh")return this.adminManualCatalogRefresh(request,body);
     if(url.pathname==="/api/admin/football/playback-test")return this.footballPlaybackTest(request,body);
     if(url.pathname==="/api/football/playback")return this.footballPlaybackTest(request,body,true);
     if(url.pathname==="/api/sports-broadcast")return this.sportsBroadcastApi(request,url,body);
