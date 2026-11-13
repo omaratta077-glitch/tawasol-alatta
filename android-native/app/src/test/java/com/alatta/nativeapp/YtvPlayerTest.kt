@@ -56,6 +56,16 @@ class YtvPlayerTest {
         assertNull(intent.data)
     }
 
+    @Test fun manualTestPassesTheExactNineteenDigitChannelNumberToGoldEngine() {
+        val manuallyEntered = "4973946197359164878"
+        val request = requireNotNull(YtvPlayer.channelIntent(manuallyEntered))
+        assertEquals("com.ytv.pronew", request.component?.packageName)
+        assertEquals("dev.google.ytvplayer.ui.splash.SplashActivity", request.component?.className)
+        assertEquals(4973946197359164878L, request.getLongExtra("id", -1L))
+        assertEquals(1, request.getIntExtra("type", -1))
+        assertEquals(setOf("id", "type"), request.extras!!.keySet())
+    }
+
     @Test fun channelIdsNormalizeArabicDigitsAndRejectUrlsMalformedValuesAndOverflow() {
         assertEquals("41", YtvPlayer.channelId(" ٠٠٤١ "))
         assertEquals("4294967296", YtvPlayer.channelId("۴۲۹۴۹۶۷۲۹۶"))
