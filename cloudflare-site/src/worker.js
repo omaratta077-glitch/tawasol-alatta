@@ -748,6 +748,7 @@ function createCatalogRefresh(Base,check){
     return json({ok:true,manualOnly:true,...state,enabled:false,nextRun:null});
    }
    if(!['refresh','start','rebaseline'].includes(action))return json({ok:false,error:'INVALID_ACTION'},400);
+   if(this.env.CLOUD_CATALOG_MANUAL_ENABLED!=='yes')return json({ok:false,enabled:false,manualOnly:true,error:'SOURCE_SYNC_PAUSED_USE_PHONE'},410);
    // "start" from an older client is a ONE-TIME refresh, never an automatic activation.
    if(this.running||this.starting)return json({ok:false,error:'REFRESH_IN_PROGRESS'},409);
    this.starting=true;
@@ -2092,6 +2093,11 @@ export class SignalingRoom extends DurableObject {
       }
     }
 
+    // Old Cloudflare source-publisher is isolated. Owner phone uses the existing
+    // authenticated /api/admin/football saveChannels API instead.
+    if(url.pathname==="/api/internal/football-catalog-sync" &&
+       this.env.CLOUD_CATALOG_MANUAL_ENABLED!=='yes')
+      return j({ok:false,error:"SOURCE_SYNC_PAUSED_USE_PHONE"},410);
     if(url.pathname==="/api/internal/football-catalog-sync")return this.trackOperation(()=>catalogIngest(request,this.ctx.storage,this.env));
 
     if(["/api/football","/api/admin/football"].includes(url.pathname))return this.footballApi(request,url);
