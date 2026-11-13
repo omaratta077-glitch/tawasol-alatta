@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import {createCatalogRefresh} from '../../cloudflare-site/src/catalog-refresh.mjs';
 
-const env={PROBE_KEY:'test-probe-00000000000000000000',RESPONSE_MASK:'test-format-mask',CATALOG_SYNC_KEY:'test-sync-000000000000000000000000'};
+const env={PROBE_KEY:'test-probe-00000000000000000000',RESPONSE_MASK:'test-format-mask',CATALOG_SYNC_KEY:'test-sync-000000000000000000000000',CLOUD_CATALOG_MANUAL_ENABLED:'yes'};
 const request=(action='refresh',key=env.PROBE_KEY)=>new Request('https://offline.invalid/api/internal/catalog-update',{method:'POST',body:new URLSearchParams({probe_key:key,action})});
 function context(){const data=new Map();let alarm=null;return {data,get alarm(){return alarm;},storage:{async get(k){return structuredClone(data.get(k));},async put(k,v){data.set(k,structuredClone(v));},async setAlarm(t){alarm=t;},async deleteAlarm(){alarm=null;}}};}
 function job(check,ctx=context(),settings=env){const Class=createCatalogRefresh(class{},check);return {instance:new Class(ctx,settings),ctx,Class};}
@@ -20,6 +20,17 @@ test('missing configuration rejects one-shot refresh without touching the last s
   const {instance,ctx}=job({fetch(){throw Error('unexpected upstream');}},context(),{...env,[field]:undefined});
   assert.equal((await instance.fetch(request())).status,503);assert.equal(ctx.alarm,null);
  }
+});
+test('legacy Cloudflare channel writer is disabled in production by default',async()=>{
+ let calls=0;const settings={...env};delete settings.CLOUD_CATALOG_MANUAL_ENABLED;
+ const {instance,ctx}=job({fetch(){calls++;throw Error('never called');}},context(),settings);
+ const response=await instance.fetch(request('refresh'));
+ const status=await response.json();
+ assert.equal(response.status,410);
+ assert.equal(status.error,'SOURCE_SYNC_PAUSED_USE_PHONE');
+ assert.equal(status.enabled,false);
+ assert.equal(calls,0);
+ assert.equal(ctx.alarm,null);
 });
 test('an old automatic alarm is cancelled and never fetches or saves',async()=>{
  let calls=0;const ctx=context();
