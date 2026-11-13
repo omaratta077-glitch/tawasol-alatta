@@ -6,6 +6,7 @@ import android.net.Uri
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -27,6 +28,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -134,8 +136,31 @@ internal fun FootballScreen(query: String, modifier: Modifier = Modifier,
         finally { openingChannel = false }
         }
     }
+    fun playManualId(value: String) {
+        if (!isAdmin || openingChannel) return
+        val id = YtvPlayer.channelId(value)
+        if (id == null) { error = "رقم القناة اليدوي غير صحيح."; return }
+        if (callInProgress) { error = "أنهِ المكالمة أولًا لتجربة القناة."; return }
+        openingChannel = true
+        playbackScope.launch {
+            try {
+                error = ""
+                // Manual test bypasses catalog storage and server refresh completely.
+                val failure = YtvPlayer.openWithWatchRoom(context, id, onBeforePlayback)
+                lastChannelReport = JSONObject()
+                    .put("mode", "MANUAL_CHANNEL_TEST")
+                    .put("channelId", id)
+                    .put("handoff", if (failure == null) "ACTIVITY_LAUNCHED_NOT_PLAYBACK_CONFIRMED" else failure.name)
+                    .toString(2)
+                if (failure != null) playerFailure = failure
+            } catch (cancelled: CancellationException) { throw cancelled }
+            catch (_: Exception) { error = "تعذر فتح المشغّل بالرقم اليدوي." }
+            finally { openingChannel = false }
+        }
+    }
     FootballContent(catalog, query, favorites, recent, loading || openingChannel, error, isAdmin, callInProgress, modifier,
         onReload = { reload++ }, onManage = onManage, onPlay = { play(it) }, onPlayDirect = { play(it, nativePlayback = true) },
+        onPlayManualId = { playManualId(it) },
         reportAvailable = lastChannelReport != null, onCopyReport = {
             val report = lastChannelReport ?: return@FootballContent
             val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
@@ -174,8 +199,11 @@ internal fun FootballContent(catalog: FootballCatalog, query: String, favorites:
     livePanel: @Composable () -> Unit = {}, onWatch: () -> Unit = {}, watchEnabled: Boolean = true,
     onBroadcast: () -> Unit = {}, broadcastExpanded: Boolean = false,
     onPlayDirect: ((FootballChannel) -> Unit)? = null,
+    onPlayManualId: (String) -> Unit = {},
     reportAvailable: Boolean = false, onCopyReport: () -> Unit = {}) {
     var tab by rememberSaveable { mutableStateOf("القنوات") }
+    var manualExpanded by rememberSaveable { mutableStateOf(false) }
+    var manualChannelId by rememberSaveable { mutableStateOf("") }
     var showSchedule by rememberSaveable { mutableStateOf(false) }
     var category by rememberSaveable { mutableStateOf("") }
     var day by rememberSaveable { mutableIntStateOf(0) }
@@ -216,6 +244,37 @@ internal fun FootballContent(catalog: FootballCatalog, query: String, favorites:
             if (isAdmin) IconButton(onClick = onManage, modifier = Modifier.size(40.dp)
                 .background(PremiumPanel, RoundedCornerShape(12.dp)).semantics { contentDescription = "إدارة القنوات والمباريات" }) {
                 SiteIcon("menu", tint = PremiumGoldLight, size = 18.dp)
+            }
+        }
+        if (isAdmin) {
+            TextButton(onClick = { manualExpanded = !manualExpanded }, enabled = !loading) {
+                Text(AttaLocale.tr(if (manualExpanded) "إخفاء تجربة الرقم اليدوي" else "تجربة رقم قناة يدويًا"), color = PremiumGoldLight, fontSize = 12.sp)
+            }
+            if (manualExpanded) FootballPanel {
+                Text(AttaLocale.tr("تجربة مؤقتة: الرقم يذهب للمشغّل الذهبي مباشرة دون حفظ أو تغيير أرقام Cloudflare."),
+                    color = PremiumMuted, fontSize = 12.sp)
+                OutlinedTextField(
+                    value = manualChannelId,
+                    onValueChange = { next ->
+                        manualChannelId = next.mapNotNull { char ->
+                            Character.digit(char, 10).takeIf { it in 0..9 }?.digitToChar()
+                        }.take(19).joinToString("")
+                    },
+                    label = { Text(AttaLocale.tr("رقم القناة")) },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !loading
+                )
+                val validManualId = YtvPlayer.channelId(manualChannelId)
+                if (manualChannelId.isNotBlank() && validManualId == null) {
+                    Text(AttaLocale.tr("أدخل رقمًا صحيحًا في نطاق أرقام القنوات."), color = Color(0xFFFFB4A9), fontSize = 12.sp)
+                }
+                Button(onClick = { validManualId?.let(onPlayManualId) },
+                    enabled = validManualId != null && !loading && !callInProgress,
+                    modifier = Modifier.fillMaxWidth()) {
+                    Text(AttaLocale.tr("تشغيل الرقم في AL-ATTA TV"))
+                }
             }
         }
         if (reportAvailable) TextButton(onClick = onCopyReport) {
