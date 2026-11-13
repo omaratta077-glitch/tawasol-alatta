@@ -98,7 +98,10 @@ internal object CatalogAutoUpdater {
             val outcome = if (discovery?.section == null &&
                 attempt.message.startsWith("تعذر تحديد قسم القنوات")) {
                 val diagnostic = discovery?.explanation.orEmpty()
-                if (links.isEmpty()) attempt.copy(message = diagnostic.ifBlank { attempt.message })
+                // If even the root categories failed on every candidate host, an
+                // old category ID must NOT be tried against another unknown host.
+                if (links.isEmpty() || selectedSource == null)
+                    attempt.copy(message = diagnostic.ifBlank { attempt.message })
                 else {
                     val linked = sync.refresh(links)
                     val status = if (linked.checked > 0)
