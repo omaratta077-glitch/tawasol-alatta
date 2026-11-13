@@ -13,6 +13,9 @@ class ProviderNetworkPolicyDeviceTest {
         val policy = NetworkSecurityPolicy.getInstance()
         assertFalse("HTTP is denied by default", policy.isCleartextTrafficPermitted)
         assertTrue("Observed HLS redirect must be allowed", policy.isCleartextTrafficPermitted("h33.cacheverto.buzz"))
+        assertTrue("Only observed YTV HTTP metadata host is allowed", policy.isCleartextTrafficPermitted("def111.ycnapi.com"))
+        assertFalse("YTV child host remains blocked", policy.isCleartextTrafficPermitted("sub.def111.ycnapi.com"))
+        assertFalse("A lookalike YTV domain is blocked", policy.isCleartextTrafficPermitted("def111.ycnapi.com.example.org"))
         assertFalse("Other cacheverto hosts stay blocked", policy.isCleartextTrafficPermitted("h34.cacheverto.buzz"))
         for (host in listOf("def001.ycnapi.com", "ycnapi.com", "sub.def001.ycnapi.com", "def001.ycnapi.com.example.org",
             "deft.yacinelive.com", "def.yacinelive.com", "youtube.com", "example.org", "127.0.0.1")) {
