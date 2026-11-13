@@ -21,8 +21,14 @@ import kotlin.coroutines.resume
 
 /** فحص تشخيصي صريح للمالك وللقراءة فقط؛ لا يتلقى رموز الحسابات ولا يحرر الكتالوج. */
 internal object YacineCatalogProbe {
-    // زوّد المالك التطبيق باستجابة ناجحة مشفّرة من هذا المضيف لمسار categories.
-    const val BASE = "https://def001.ycnapi.com/api/"
+    // New server observed from the owner's YTV traffic (Nov 13, 2026).
+    // Try TLS first; the observed cleartext endpoint is confined to public catalog
+    // GET requests only and gets its own narrowly scoped Android network exception.
+    const val BASE = "https://def111.ycnapi.com/api/"
+    const val OBSERVED_HTTP_BASE = "http://def111.ycnapi.com/api/"
+    const val LEGACY_BASE = "https://def001.ycnapi.com/api/"
+    private val catalogBases = listOf(BASE, OBSERVED_HTTP_BASE, LEGACY_BASE)
+    internal fun candidates() = catalogBases.toList()
     const val MAX_BYTES = 512 * 1024
     const val MAX_ITEMS = 500
     const val MAX_REPORT_CHARS = 16 * 1024
@@ -44,10 +50,11 @@ internal object YacineCatalogProbe {
         val responseText: String = "",
         val responseTextTruncated: Boolean = false,
         val responseDecoded: Boolean = false,
-        val deviceTimeUsed: String = ""
+        val deviceTimeUsed: String = "",
+        val sourceBase: String = ""
     ) {
         fun report(): String = buildString {
-            append("تجربة قائمة ياسين من الهاتف\nGET ").append(BASE).append(path)
+            append("تجربة قائمة ياسين من الهاتف\nGET ").append(sourceBase.ifBlank { BASE }).append(path)
             append("\nالحالة: ").append(state.name).append("\n").append(message)
             code?.let { append("\nHTTP ").append(it) }
             if (serverMessage.isNotBlank()) append("\nرسالة الجهة المجيبة: ").append(serverMessage)
@@ -77,14 +84,15 @@ internal object YacineCatalogProbe {
         .connectTimeout(10, TimeUnit.SECONDS).readTimeout(12, TimeUnit.SECONDS)
         .callTimeout(20, TimeUnit.SECONDS).build()
 
-    internal fun request(kind: Kind, categoryId: String? = null): Request {
+    internal fun request(kind: Kind, categoryId: String? = null, sourceBase: String = BASE): Request {
+        require(sourceBase in catalogBases) { "عنوان قائمة القنوات غير معتمد" }
         val id = categoryId?.let { requireNotNull(YtvPlayer.channelId(it)) { "رقم قسم غير صالح" } }
         val path = when (kind) {
             Kind.CATEGORIES -> if (id == null) "categories" else "categories/" + id
             Kind.CHANNELS -> "categories/" + requireNotNull(id) { "اختر قسمًا أولًا" } + "/channels"
         }
         // عميل مستقل: بلا ملفات تعريف ارتباط أو رموز أو ترويسات AL-ATTA أو بيانات دخول تطبيق خارجي.
-        return Request.Builder().url(BASE + path).header("Accept", "application/json").get().build()
+        return Request.Builder().url(sourceBase + path).header("Accept", "application/json").get().build()
     }
 
     internal fun parse(text: String, code: Int, path: String): Result {
@@ -220,15 +228,35 @@ internal object YacineCatalogProbe {
             .replace(Regex("\\s+"), " ").filterNot { Character.isISOControl(it) }.trim().take(360)
     }
 
-    suspend fun fetch(kind: Kind, categoryId: String? = null, responseMask: ByteArray? = null): Result {
-        val request = request(kind, categoryId)
+    /** Never mix categories from one host with channel IDs from another host. */
+    suspend fun fetch(kind: Kind, categoryId: String? = null, responseMask: ByteArray? = null,
+        sourceBase: String? = null): Result {
+        val bases = if (sourceBase == null) catalogBases else listOf(sourceBase.also {
+            require(it in catalogBases) { "عنوان قائمة القنوات غير معتمد" }
+        })
+        var last: Result? = null
+        for (base in bases) {
+            val current = fetchSingle(kind, categoryId, responseMask, base)
+            if (current.state == State.LIST || current.state == State.EMPTY) return current
+            last = current
+            // A successful response with invalid format is not a license to publish
+            // guessed IDs; try the next known catalog host and keep old saved data.
+        }
+        return requireNotNull(last)
+    }
+
+    private suspend fun fetchSingle(kind: Kind, categoryId: String?, responseMask: ByteArray?,
+        sourceBase: String): Result {
+        val request = request(kind, categoryId, sourceBase)
         val localMask = responseMask?.copyOf()
         val path = request.url.encodedPath.removePrefix("/api/")
         return suspendCancellableCoroutine { continuation ->
             val call = client.newCall(request)
             val started = System.nanoTime()
             fun elapsed() = (System.nanoTime() - started) / 1_000_000
-            fun finish(result: Result) { if (continuation.isActive) continuation.resume(result) }
+            fun finish(result: Result) {
+                if (continuation.isActive) continuation.resume(result.copy(sourceBase = sourceBase))
+            }
             continuation.invokeOnCancellation { call.cancel() }
             call.enqueue(object : Callback {
                 override fun onFailure(call: Call, error: IOException) {
@@ -252,4 +280,5 @@ internal object YacineCatalogProbe {
             })
         }
     }
+
 }
