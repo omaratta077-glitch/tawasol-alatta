@@ -29,7 +29,7 @@ internal class CatalogChannelSync(
     private fun key(value: String) = value.lowercase(Locale.ROOT).filter { it.isLetterOrDigit() }
 
     /** استورد القسم المحدد كاملًا ضمن مراجعة واحدة، ثم تتبّع أسماءه الثابتة. */
-    suspend fun refreshSection(links: List<CatalogChannelLink>,
+    suspend fun refreshSection(links: List<CatalogChannelLink>, ownerReconcile: Boolean = false,
         chooseSection: suspend () -> YacineCatalogProbe.Entry?): CatalogSyncResult {
         var catalog: FootballCatalog? = null
         try {
@@ -51,6 +51,22 @@ internal class CatalogChannelSync(
                 return category == sectionKey || category in setOf("ytvpro", "ytv", "القنوات") ||
                     (quality != null && category.contains("bein") && category.contains(quality))
             }
+            // One-time owner-click recovery from former Cloudflare bindings. Never use this
+            // for automatic sync: require a complete 1:1 section, exact normalized names,
+            // no disabled YTV records, and no competing quality category.
+            val existingYtv = current.channels.filter { it.format == "ytv" }
+            val phoneRebaseline = ownerReconcile && existingYtv.isNotEmpty() &&
+                existingYtv.size == rows.size &&
+                existingYtv.all { channel ->
+                    channel.enabled && sameSection(channel) &&
+                        rows.count { row -> key(row.name) == key(channel.name) } == 1
+                }
+            if (ownerReconcile && existingYtv.isNotEmpty() &&
+                links.any { link -> existingYtv.any { it.id == link.channelId && it.streamUrl != link.lastPublishedId } } &&
+                !phoneRebaseline) {
+                return CatalogSyncResult(current, message =
+                    "الأرقام السابقة من Cloudflare مختلفة، وقائمة الهاتف ليست مطابقة للقنوات المحفوظة بالكامل؛ لم تُستبدل أي أرقام.")
+            }
             val used = HashSet<String>()
             val paused = HashSet<String>()
             val planned = rows.map { row ->
@@ -63,7 +79,8 @@ internal class CatalogChannelSync(
                     row.id, "ytv", true)
                 else {
                     require(used.add(existing.id))
-                    if (!existing.enabled || linked.any { it.channelId == existing.id && it.lastPublishedId != existing.streamUrl }) {
+                    if (!existing.enabled || (!phoneRebaseline &&
+                        linked.any { it.channelId == existing.id && it.lastPublishedId != existing.streamUrl })) {
                         paused.add(existing.id); existing
                     } else existing.copy(streamUrl = row.id)
                 }
@@ -84,7 +101,8 @@ internal class CatalogChannelSync(
             if (mergedLinks != links && !rememberLinks(mergedLinks)) return CatalogSyncResult(saved,
                 changes.size, rows.size, "حُفظت القنوات، لكن تعذر حفظ متابعة التحديث على الهاتف.")
             return CatalogSyncResult(saved, changes.size, rows.size,
-                "القائمة محدّثة: ${rows.size} قناة • تم إضافة أو تحديث ${changes.size}.", linked = true)
+                "القائمة محدّثة من الهاتف: ${rows.size} قناة • تم إضافة أو تحديث ${changes.size}." +
+                    if (phoneRebaseline) " أُعيد ربط الأرقام السابقة بعد التحقق من التطابق الكامل." else "", linked = true)
         } catch (cancelled: CancellationException) { throw cancelled }
         catch (_: Exception) { return CatalogSyncResult(catalog, message = "تعذر مزامنة القنوات كاملة؛ احتُفظ بالقائمة الحالية دون إضافة جزء منها.") }
     }
