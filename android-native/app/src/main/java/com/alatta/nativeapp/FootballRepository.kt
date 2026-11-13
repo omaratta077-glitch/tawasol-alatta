@@ -38,6 +38,11 @@ internal object FootballRepository {
     suspend fun load(token: String? = null): FootballCatalog = withContext(Dispatchers.IO) {
         parse(attaApi(if (token == null) "/api/football" else "/api/admin/football?token=${URLEncoder.encode(token, "UTF-8")}"))
     }
+    /** An explicit owner click is the only trigger; Cloudflare does not run its old alarm loop. */
+    suspend fun refreshCloudflareNow(token: String): JSONObject = withContext(Dispatchers.IO) {
+        attaApi("/api/admin/football/catalog-refresh", JSONObject()
+            .put("token", token).put("action", "refresh"))
+    }
     suspend fun change(token: String, revision: Long, action: String, data: JSONObject): FootballCatalog = withContext(Dispatchers.IO) {
         parse(attaApi("/api/admin/football", data.put("token", token).put("revision", revision).put("action", action)))
     }
