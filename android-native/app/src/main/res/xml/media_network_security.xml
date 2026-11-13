@@ -2,6 +2,11 @@
 <network-security-config>
     <base-config cleartextTrafficPermitted="false" />
     <!-- استثناءات البث المرصودة؛ لا يشمل الاستثناء تسجيل الدخول أو خدمات الحساب. -->
+    <!-- Captured YTV channel metadata on Nov 13, 2026 used HTTP on precisely
+         this host. No login, cookies, tokens, or write calls are sent there. -->
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">def111.ycnapi.com</domain>
+    </domain-config>
     <domain-config cleartextTrafficPermitted="true">
         <domain includeSubdomains="true">new-redirect.online</domain>
         <domain includeSubdomains="true">cdnarvo.buzz</domain>
