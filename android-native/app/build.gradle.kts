@@ -24,9 +24,9 @@ android {
         applicationId = "com.alatta.nativeapp"
         minSdk = 26
         targetSdk = 36
-        // الإصدار 1.0.283: مصدر قائمة YTV الجديد def111 مع تحديث يدوي واحتياطي آمن.
-        versionCode = 383
-        versionName = "1.0.283"
+        // الإصدار 1.0.284: تقرير تشخيصي منفصل لكل مصدر YTV ومنع الكتابة إن فشلت الأقسام.
+        versionCode = 384
+        versionName = "1.0.284"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("boolean", "IS_APPGALLERY", appGalleryBuild.toString())
         val hmsId = (System.getenv("ALATTA_HMS_APP_ID") ?: "").trim().takeIf { it.matches(Regex("[0-9]{1,20}")) } ?: ""
