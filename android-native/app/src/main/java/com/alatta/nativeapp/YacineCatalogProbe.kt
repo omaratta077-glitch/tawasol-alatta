@@ -35,6 +35,19 @@ internal object YacineCatalogProbe {
     enum class Kind { CATEGORIES, CHANNELS }
     enum class State { LIST, EMPTY, HTTP_ERROR, UNREADABLE, INVALID, TOO_LARGE, NETWORK_ERROR }
     data class Entry(val id: String, val name: String, val childCount: Long? = null)
+    /** Diagnostics only: public catalog host, response code and timing. No credentials or body. */
+    data class Attempt(
+        val sourceBase: String, val state: State, val code: Int?, val message: String,
+        val elapsedMs: Long, val bytes: Long
+    ) {
+        fun summary(): String = buildString {
+            append(sourceBase).append(" • ")
+            append(code?.let { "HTTP $it" } ?: state.name)
+            if (state !in setOf(State.LIST, State.EMPTY)) append(" • ").append(message)
+            append(" • ").append(elapsedMs).append(" ms")
+            append(" • ").append(bytes).append(" bytes")
+        }
+    }
     data class Result(
         val state: State,
         val path: String,
@@ -51,11 +64,18 @@ internal object YacineCatalogProbe {
         val responseTextTruncated: Boolean = false,
         val responseDecoded: Boolean = false,
         val deviceTimeUsed: String = "",
-        val sourceBase: String = ""
+        val sourceBase: String = "",
+        val attempts: List<Attempt> = emptyList()
     ) {
         fun report(): String = buildString {
             append("تجربة قائمة ياسين من الهاتف\nGET ").append(sourceBase.ifBlank { BASE }).append(path)
             append("\nالحالة: ").append(state.name).append("\n").append(message)
+            if (attempts.isNotEmpty()) {
+                append("\n\nنتائج جميع خوادم جلب القائمة:")
+                attempts.forEachIndexed { index, attempt ->
+                    append("\n").append(index + 1).append(". ").append(attempt.summary())
+                }
+            }
             code?.let { append("\nHTTP ").append(it) }
             if (serverMessage.isNotBlank()) append("\nرسالة الجهة المجيبة: ").append(serverMessage)
             append("\nنوع الرد: ").append(contentType.ifBlank { "غير محدد" })
@@ -234,15 +254,27 @@ internal object YacineCatalogProbe {
         val bases = if (sourceBase == null) catalogBases else listOf(sourceBase.also {
             require(it in catalogBases) { "عنوان قائمة القنوات غير معتمد" }
         })
-        var last: Result? = null
+        val history = ArrayList<Result>(bases.size)
         for (base in bases) {
             val current = fetchSingle(kind, categoryId, responseMask, base)
-            if (current.state == State.LIST || current.state == State.EMPTY) return current
-            last = current
-            // A successful response with invalid format is not a license to publish
-            // guessed IDs; try the next known catalog host and keep old saved data.
+            history.add(current)
+            if (current.state == State.LIST || current.state == State.EMPTY)
+                return summarizeAttempts(history)
         }
-        return requireNotNull(last)
+        // A response on the first host may contain a useful HTTP code or an
+        // undecodable body. Never hide that information behind a later DNS error.
+        return summarizeAttempts(history)
+    }
+
+    internal fun summarizeAttempts(history: List<Result>): Result {
+        require(history.isNotEmpty())
+        val successful = history.firstOrNull { it.state == State.LIST || it.state == State.EMPTY }
+        val usefulFailure = history.firstOrNull { it.code != null && it.code in 200..299 }
+            ?: history.firstOrNull { it.code != null }
+            ?: history.first()
+        return (successful ?: usefulFailure).copy(attempts = history.take(3).map {
+            Attempt(it.sourceBase, it.state, it.code, it.message, it.elapsedMs, it.bytes)
+        })
     }
 
     private suspend fun fetchSingle(kind: Kind, categoryId: String?, responseMask: ByteArray?,
