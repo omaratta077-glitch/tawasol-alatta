@@ -96,29 +96,23 @@ internal fun AdminFootballPanel(token: String, owner: String) {
                     TextButton(enabled = loaded && !busy, onClick = { probeOpen = true }) {
                         Text(AttaLocale.tr("تجربة قائمة ياسين من الهاتف"), color = PremiumGoldLight)
                     }
-                    Text(AttaLocale.tr("التحديث التلقائي لأرقام القنوات من Cloudflare متوقف مؤقتًا. التحديث اليدوي فقط عند ضغط المدير."),
+                    Text(AttaLocale.tr("تمت استعادة تحديث القنوات من الهاتف كما في نظام 1.0.206. التحديث التلقائي من Cloudflare متوقف."),
                         color = PremiumGoldLight, fontSize = 13.sp)
                     if (loaded) {
-                        Text(AttaLocale.tr("تحديث واحد من Cloudflare دون تغيير آلي في الخلفية أو إضافة قنوات جديدة."),
+                        Text(AttaLocale.tr("اسحب الأرقام من قائمة ياسين على هذا الهاتف فقط عند الضغط. لن يحدث تحديث للخلفية."),
                             color = PremiumMuted, fontSize = 12.sp)
                         TextButton(enabled = !busy, onClick = { scope.launch {
                             busy = true
-                            message = "جارٍ طلب التحديث اليدوي من Cloudflare…"
+                            message = "جارٍ قراءة الأقسام والقنوات من الهاتف…"
                             try {
-                                val status = FootballRepository.refreshCloudflareNow(token)
-                                message = if (status.optBoolean("lastSaved", false)) {
-                                    val matched = status.optInt("matched", 0)
-                                    val changed = status.optInt("changed", 0)
-                                    "اكتمل التحديث اليدوي: تمت مطابقة $matched قناة وتغيير $changed رقم. التلقائي متوقف."
-                                } else {
-                                    "لم تُحفظ أرقام جديدة. السبب: ${status.optString("error").takeIf { it.isNotBlank() && it != "null" } ?: "تعذر جلب القائمة أو حفظها"}. القائمة السابقة كما هي."
-                                }
-                                if (status.optBoolean("lastSaved", false)) catalog = FootballRepository.load(token)
+                                val result = CatalogAutoUpdater.refresh(context.applicationContext, token, owner, force = true)
+                                result?.catalog?.let { catalog = it }
+                                message = result?.message ?: "التحديث من الهاتف غير متاح؛ لم تتغير القنوات المحفوظة."
                             } catch (cancelled: CancellationException) { throw cancelled }
                             catch (failure: Exception) {
-                                message = "تعذر التحديث اليدوي: ${failure.message ?: "تحقق من اتصال Cloudflare"}"
+                                message = "تعذر تحديث القنوات من الهاتف: ${failure.message ?: "تحقق من إعدادات قراءة المصدر"}"
                             } finally { busy = false }
-                        } }) { Text(AttaLocale.tr("تحديث القنوات الآن"), color = PremiumGoldLight) }
+                        } }) { Text(AttaLocale.tr("تحديث القنوات الآن من الهاتف"), color = PremiumGoldLight) }
                     }
                     CatalogAutoUpdater.message(owner).takeIf { it.isNotBlank() }?.let {
                         Text(it, color = PremiumMuted, fontSize = 12.sp)
