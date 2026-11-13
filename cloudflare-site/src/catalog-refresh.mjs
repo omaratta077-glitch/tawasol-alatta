@@ -36,6 +36,7 @@ export function createCatalogRefresh(Base,check){
     return json({ok:true,manualOnly:true,...state,enabled:false,nextRun:null});
    }
    if(!['refresh','start','rebaseline'].includes(action))return json({ok:false,error:'INVALID_ACTION'},400);
+   if(this.env.CLOUD_CATALOG_MANUAL_ENABLED!=='yes')return json({ok:false,enabled:false,manualOnly:true,error:'SOURCE_SYNC_PAUSED_USE_PHONE'},410);
    // "start" from an older client is a ONE-TIME refresh, never an automatic activation.
    if(this.running||this.starting)return json({ok:false,error:'REFRESH_IN_PROGRESS'},409);
    this.starting=true;
