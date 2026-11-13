@@ -70,9 +70,8 @@ internal object CatalogAutoUpdater {
     )
     suspend fun refresh(context: Context, token: String, owner: String, force: Boolean = false): CatalogSyncResult? =
         withContext(Dispatchers.IO) { mutex.withLock {
-            // Cloudflare is the sole automatic channel-ID writer. The old per-phone
-            // 30-second loop must not overwrite the shared catalog after rebaseline.
-            // An explicit admin-triggered refresh (force=true) remains available.
+            // Restore the original device-owned catalog fetch, as in v203/v206.
+            // Only the owner explicitly presses refresh; no background phone writer.
             if (!force) return@withLock null
             if (owner.isBlank() || token.isBlank()) return@withLock null
             val links = CatalogLinkStore.read(context, owner)
@@ -82,7 +81,7 @@ internal object CatalogAutoUpdater {
             attempts[owner] = now
             val sync = service(context, token, owner)
             var discovery: CatalogSectionDiscovery? = null
-            val attempt = sync.refreshSection(links) {
+            val attempt = sync.refreshSection(links, ownerReconcile = force) {
                 val mask = CatalogFormatSettings.read(context)?.toByteArray(Charsets.US_ASCII)
                 val root = YacineCatalogProbe.fetch(YacineCatalogProbe.Kind.CATEGORIES, responseMask = mask)
                 CatalogSectionResolver.discover(root) { categoryId ->
@@ -126,7 +125,7 @@ internal object CatalogAutoUpdater {
 @Composable
 internal fun CatalogAutoRefreshEffect(token: String, owner: String, enabled: Boolean) {
     val context = LocalContext.current
-    // Shared catalog refresh is performed by Cloudflare; retire the legacy
-    // owner-phone scheduled sync so it cannot fight Cloudflare's new IDs.
+    // Source IDs are refreshed solely by an explicit owner click on this phone.
+    // Never restart the old periodic Android job.
     LaunchedEffect(owner) { CatalogRefreshJob.schedule(context.applicationContext, owner, false) }
 }
