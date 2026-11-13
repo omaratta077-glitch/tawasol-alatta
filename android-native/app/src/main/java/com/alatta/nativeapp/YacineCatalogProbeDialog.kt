@@ -35,6 +35,7 @@ internal fun YacineCatalogProbeDialog(channels: List<FootballChannel>, owner: St
     var kind by remember { mutableStateOf(YacineCatalogProbe.Kind.CATEGORIES) }
     var section by remember { mutableStateOf("") }
     var sectionId by remember { mutableStateOf("") }
+    var selectedSource by remember { mutableStateOf<String?>(null) }
     var bindEntry by remember { mutableStateOf<YacineCatalogProbe.Entry?>(null) }
     var bindBusy by remember { mutableStateOf(false) }
     var bindMessage by remember { mutableStateOf("") }
@@ -48,13 +49,17 @@ internal fun YacineCatalogProbeDialog(channels: List<FootballChannel>, owner: St
         kind = nextKind
         section = entry?.name.orEmpty()
         sectionId = entry?.id.orEmpty()
+        if (entry == null) selectedSource = null
         bindMessage = ""
         result = null
         busy = true
         scope.launch {
             try {
                 val mask = withContext(Dispatchers.IO) { CatalogFormatSettings.read(context) }
-                result = YacineCatalogProbe.fetch(nextKind, entry?.id, mask?.toByteArray(Charsets.US_ASCII))
+                val fetched = YacineCatalogProbe.fetch(nextKind, entry?.id,
+                    mask?.toByteArray(Charsets.US_ASCII), sourceBase = selectedSource)
+                result = fetched
+                if (fetched.state == YacineCatalogProbe.State.LIST) selectedSource = fetched.sourceBase
             }
             catch (cancelled: CancellationException) { throw cancelled }
             catch (_: Exception) {
@@ -76,7 +81,7 @@ internal fun YacineCatalogProbeDialog(channels: List<FootballChannel>, owner: St
                         }
                     }) { Text(AttaLocale.tr("نسخ النتيجة")) }
                 }
-                Text(AttaLocale.tr("معاينة القائمة لا تغيّر قنواتك. اختر ربط القناة المحفوظة لتفعيل تحديث رقمها تلقائيًا."),
+                Text(AttaLocale.tr("معاينة القائمة لا تغيّر قنواتك. اختر ربط قناة محفوظة لتحديث رقمها يدويًا عند الحاجة."),
                     color = PremiumMuted, fontSize = 13.sp)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(enabled = !busy && !settingsBusy, onClick = { load(YacineCatalogProbe.Kind.CATEGORIES) }) {
@@ -96,7 +101,7 @@ internal fun YacineCatalogProbeDialog(channels: List<FootballChannel>, owner: St
                     item {
                         Text(AttaLocale.tr("الردود المرمّزة تستخدم إعداد القراءة المحلي. نسخ النتيجة يضم الرد وتوقيته حتى 16 ألف حرف، دون الإعداد."),
                             color = PremiumMuted, fontSize = 12.sp)
-                        Text(AttaLocale.tr("المصدر: ") + YacineCatalogProbe.BASE.removePrefix("https://").substringBefore('/') + " • HTTPS",
+                        Text(AttaLocale.tr("المصادر: def111 (HTTPS ثم HTTP) • def001 (HTTPS احتياطي)"),
                             color = PremiumMuted, fontSize = 12.sp)
                     }
                     result?.let { current ->
@@ -106,7 +111,8 @@ internal fun YacineCatalogProbeDialog(channels: List<FootballChannel>, owner: St
                                     "وصلت قائمة قابلة للقراءة. يمكنك نسخ الرقم أو ربط قناة محفوظة." else current.message,
                                     color = if (current.state in setOf(YacineCatalogProbe.State.LIST,
                                     YacineCatalogProbe.State.EMPTY)) PremiumGoldLight else Color(0xFFFFB4A9), fontSize = 14.sp)
-                                Text("GET /api/" + current.path, color = PremiumMuted, fontSize = 12.sp)
+                                Text("GET " + current.sourceBase.ifBlank { YacineCatalogProbe.BASE } + current.path,
+                                    color = PremiumMuted, fontSize = 12.sp)
                                 current.code?.let { Text("HTTP " + it, color = Color.White, fontSize = 13.sp) }
                                 if (current.responseDecoded) Text(AttaLocale.tr("تم فك ترميز الرد إلى JSON."),
                                     color = PremiumGoldLight, fontSize = 12.sp)
@@ -166,7 +172,7 @@ internal fun YacineCatalogProbeDialog(channels: List<FootballChannel>, owner: St
                         bindBusy = true
                         scope.launch {
                             try {
-                                val outcome = CatalogAutoUpdater.bind(context, token, owner, channel.id, sectionId, entry)
+                                val outcome = CatalogAutoUpdater.bind(context, token, owner, channel.id, sectionId, entry, selectedSource)
                                 outcome.catalog?.let(onCatalog)
                                 bindMessage = outcome.message
                                 if (outcome.linked) bindEntry = null
