@@ -2870,7 +2870,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
                                     featureMessage = e.message ?: "تعذر تجهيز صورة الذكر للنشر"
                                 }
                             })
-                        "الرياضة" -> FootballScreen("", Modifier.weight(1f), isAdmin = adminRole == "super_admin", token = token, callInProgress = activeCall != null || incomingCall != null || pendingPermissionCall != null,
+                        "الرياضة" -> FootballScreen("", Modifier.weight(1f), isAdmin = adminRole == "super_admin", token = token, owner = myUsername, callInProgress = activeCall != null || incomingCall != null || pendingPermissionCall != null,
                             onManage = { navigate("الإدارة") }, onBeforePlayback = { youtubePlayRequested = false; activeYoutubePostId = "" },
                             onYoutube = { id ->
                                 activeYoutubePostId = ""; youtubeId = id; youtubePlayRequested = true
