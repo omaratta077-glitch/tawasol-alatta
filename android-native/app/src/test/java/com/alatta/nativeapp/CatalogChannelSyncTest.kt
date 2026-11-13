@@ -219,6 +219,65 @@ class CatalogChannelSyncTest {
         assertTrue(f.batches.isEmpty())
     }
 
+    @Test fun ownerPhoneCanRestoreFormerCloudflareIdsOnlyFromACompleteNameMatchedSnapshot() = runBlocking {
+        val section = YacineCatalogProbe.Entry("101", "beIN SPORTS (1080P)")
+        val first = channel(stream = "4973946197359164878").copy(
+            name = "beIN SPORTS 1", category = section.name)
+        val second = channel("second", "4973946197359164879").copy(
+            name = "beIN SPORTS 2", category = section.name)
+        val game = FootballMatch("match", "Team A", "Team B", "League",
+            1700000000000L, "scheduled", first.id, null, null)
+        val f = Fake(FootballCatalog(42, listOf(first, second), listOf(game)),
+            listOf(link(last = "1425").copy(sourceName = first.name),
+                link(id = second.id, source = second.name, last = "1426")))
+        f.reply = { list("beIN SPORTS 1" to "531", "beIN SPORTS 2" to "532") }
+        val preview = f.sync.refreshSection(f.links) { section }
+        assertEquals(0, preview.changed)
+        assertEquals(listOf(first, second), f.catalog.channels)
+        val restored = f.sync.refreshSection(f.links, ownerReconcile = true) { section }
+        assertEquals(2, restored.changed)
+        assertEquals(2, restored.checked)
+        assertTrue(restored.message.contains("أُعيد ربط"))
+        assertEquals(listOf("531", "532"), f.catalog.channels.map { it.streamUrl })
+        assertEquals(listOf("531", "532"), f.links.map { it.lastPublishedId })
+        assertEquals(listOf(game), f.catalog.matches)
+        assertEquals(43L, f.catalog.revision)
+        assertEquals(1, f.batches.size)
+    }
+
+    @Test fun ownerPhoneCannotRebaselineAnIncompleteOrAmbiguousSnapshot() = runBlocking {
+        val section = YacineCatalogProbe.Entry("101", "beIN SPORTS (1080P)")
+        val saved = listOf(
+            channel(stream = "4973946197359164878").copy(name = "beIN SPORTS 1", category = section.name),
+            channel("two", "4973946197359164879").copy(name = "beIN SPORTS 2", category = section.name))
+        for (answer in listOf(
+            list("beIN SPORTS 1" to "531"),
+            list("beIN SPORTS 1" to "531", "beIN SPORTS 3" to "533"),
+            list("beIN SPORTS 1" to "531", "beIN SPORTS 1 " to "533"))) {
+            val f = Fake(FootballCatalog(40, saved), listOf(
+                link(last = "1425").copy(sourceName = saved[0].name)))
+            f.reply = { answer }
+            val result = f.sync.refreshSection(f.links, ownerReconcile = true) { section }
+            assertEquals(0, result.changed)
+            assertEquals(saved, f.catalog.channels)
+            assertTrue(f.batches.isEmpty())
+        }
+    }
+
+    @Test fun ownerPhoneDoesNotOverwriteDisabledChannelOnRebaseline() = runBlocking {
+        val section = YacineCatalogProbe.Entry("101", "beIN SPORTS (1080P)")
+        val saved = listOf(
+            channel(stream = "4973946197359164878").copy(name = "beIN SPORTS 1", category = section.name),
+            channel("two", "4973946197359164879", enabled = false).copy(name = "beIN SPORTS 2", category = section.name))
+        val f = Fake(FootballCatalog(12, saved),
+            listOf(link(last = "1425").copy(sourceName = saved[0].name)))
+        f.reply = { list("beIN SPORTS 1" to "531", "beIN SPORTS 2" to "532") }
+        val result = f.sync.refreshSection(f.links, ownerReconcile = true) { section }
+        assertEquals(0, result.changed)
+        assertEquals(saved, f.catalog.channels)
+        assertTrue(f.batches.isEmpty())
+    }
+
     @Test fun automaticSectionDiscoveryUsesNamesAndCurrentIdsRatherThanAnEmbeddedCategoryNumber() {
         val root = list("beIN SPORTS (720P)" to "107", "beIN SPORTS (1080P)" to "109")
         assertEquals("109", catalogDefaultSection(root)?.id)
