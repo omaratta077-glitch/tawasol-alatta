@@ -24,9 +24,9 @@ android {
         applicationId = "com.alatta.nativeapp"
         minSdk = 26
         targetSdk = 36
-        // الإصدار 1.0.280: تجربة رقم قناة يدويًا من شاشة الرياضة للمدير دون تعديل الكتالوج المنشور.
-        versionCode = 380
-        versionName = "1.0.280"
+        // الإصدار 1.0.281: تحديث القنوات يدويًا فقط من لوحة المدير وإيقاف مجدول Cloudflare.
+        versionCode = 381
+        versionName = "1.0.281"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("boolean", "IS_APPGALLERY", appGalleryBuild.toString())
         val hmsId = (System.getenv("ALATTA_HMS_APP_ID") ?: "").trim().takeIf { it.matches(Regex("[0-9]{1,20}")) } ?: ""
