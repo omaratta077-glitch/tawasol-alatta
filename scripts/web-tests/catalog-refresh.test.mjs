@@ -77,6 +77,25 @@ test('legacy start action performs only one refresh, never enables automation',a
  assert.equal(calls,1);assert.equal(result.enabled,false);assert.equal(result.nextRun,null);
  await instance.alarm();assert.equal(calls,1);assert.equal(ctx.alarm,null);
 });
+test('scheduled 403 exposes limited source attempts but never overwrites saved channels',async()=>{
+ const envBlocked={...env,CLOUD_CATALOG_AUTO_ENABLED:'yes'};
+ const {instance,ctx}=job({async fetch(){return Response.json({published:false,sourceHTTP:403,
+  failureCode:'CATEGORY_HTTP_ERROR',sourceAttempts:[
+   {sourceURL:'https://def111.ycnapi.com/api/categories',state:'HTTP_ERROR',sourceHTTP:403},
+   {sourceURL:'http://def111.ycnapi.com/api/categories',state:'HTTP_ERROR',sourceHTTP:403},
+   {sourceURL:'https://def001.ycnapi.com/api/categories',state:'NETWORK_ERROR',sourceHTTP:null},
+   {sourceURL:'https://unrelated.invalid',state:'LIST',sourceHTTP:200}
+  ]});}},context(),envBlocked);
+ const result=await(await instance.fetch(request('scheduled'))).json();
+ assert.equal(result.lastSaved,false);
+ assert.equal(result.error,'CATEGORY_HTTP_ERROR');
+ assert.equal(result.sourceAttempts.length,3);
+ assert.equal(result.sourceAttempts[0].sourceHTTP,403);
+ assert.equal(result.sourceAttempts[2].sourceHTTP,null);
+ assert.equal(ctx.alarm,null);
+ assert.ok(!JSON.stringify(result).includes(env.PROBE_KEY));
+});
+
 test('failed manual refresh preserves the previous catalog and does not retry in background',async()=>{
  let calls=0;const {instance,ctx}=job({async fetch(){calls++;return Response.json({published:false,sourceHTTP:404,publishResult:{errorCode:'NO_MATCHING_CHANNELS'}});}});
  const result=await(await instance.fetch(request())).json();

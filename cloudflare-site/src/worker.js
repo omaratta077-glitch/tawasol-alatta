@@ -902,7 +902,15 @@ function createCatalogRefresh(Base,check){
      }));
     });
     const result=await response.json();
-    report={lastAttempt:started,lastHTTP:response.status,lastSourceHTTP:Number.isInteger(result.sourceHTTP)?result.sourceHTTP:null,lastSaved:result.published===true,error:null,diagnostics:null,matched:null,changed:null};
+    // Record only the three known catalog host statuses; never store response bodies or keys.
+    const allowedBases=new Set(['https://def111.ycnapi.com/api/categories','http://def111.ycnapi.com/api/categories',
+      'https://def001.ycnapi.com/api/categories']);
+    const sourceAttempts=Array.isArray(result.sourceAttempts)?result.sourceAttempts.slice(0,3)
+      .filter(row=>row&&allowedBases.has(row.sourceURL))
+      .map(row=>({sourceURL:row.sourceURL,state:String(row.state||'').slice(0,40),
+        sourceHTTP:Number.isInteger(row.sourceHTTP)?row.sourceHTTP:null})):null;
+    report={lastAttempt:started,lastHTTP:response.status,lastSourceHTTP:Number.isInteger(result.sourceHTTP)?result.sourceHTTP:null,
+      sourceAttempts,lastSaved:result.published===true,error:null,diagnostics:null,matched:null,changed:null};
     if(result.publishResult?.diagnostics)report.diagnostics=result.publishResult.diagnostics;
     if(report.lastSaved){report.lastSuccess=Date.now();report.changed=result.publishResult?.changed||0;report.matched=result.publishResult?.matched||0;if(rebaseline)report.lastRebaseline=Date.now();}
     else {
