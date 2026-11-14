@@ -1,6 +1,103 @@
 // فحص يدوي للفهرس يبدأه المالك من التطبيق الرئيسي. بلا جدولة.
 // الأسرار: PROBE_KEY (من 24 إلى 256 محرفًا)، وRESPONSE_MASK (إعداد تنسيق خاص من 16 محرفًا).
 const SOURCE_URL = "https://def111.ycnapi.com/api/categories";
+
+/** Match Android's fixed, read-only catalog hosts and root-to-children pinning. */
+const CATALOG_SOURCES = Object.freeze([
+  "https://def111.ycnapi.com/api/categories",
+  "http://def111.ycnapi.com/api/categories",
+  "https://def001.ycnapi.com/api/categories",
+]);
+const catalogHeaders = () => ({ Accept: "application/json", "User-Agent": "okhttp/4.12.0" });
+const categoryKey = name => String(name).normalize("NFKC")
+  .replace(/[^\\p{L}\\p{N}]/gu, "").toLowerCase();
+const relevantCategory = name => {
+  const key = categoryKey(name);
+  return key.includes("bein") || key.includes("sport") ||
+    key.includes("رياض") || key.includes("1080");
+};
+/** Return decoded catalog metadata only, with no authentication or playback payload. */
+async function fetchPhoneCatalog(url, signal, mask) {
+  const response = await fetch(url, {
+    method: "GET", headers: catalogHeaders(), redirect: "manual", signal,
+  });
+  if (!response.ok) {
+    // Avoid interpreting an error body as a valid channel list.
+    await response.body?.cancel().catch(() => {});
+    return { state:"HTTP_ERROR", sourceHTTP:response.status, entries:[], sourceURL:url };
+  }
+  const body = await readLimited(response.body, MAX_RESPONSE_BYTES);
+  if (body.truncated) return {
+    state:"TOO_LARGE", sourceHTTP:response.status, entries:[], sourceURL:url,
+  };
+  const parsed = readCatalog(new TextDecoder().decode(body.bytes),
+    response.headers.get("t"), mask);
+  return { ...parsed, sourceHTTP:response.status, sourceURL:url };
+}
+/** A 403 or DNS failure on the last source may not hide an earlier HTTP result. */
+async function fetchPhoneCatalogRoot(signal, mask) {
+  const attempts = [];
+  let mostUseful = null;
+  for (const sourceURL of CATALOG_SOURCES) {
+    let result;
+    try { result = await fetchPhoneCatalog(sourceURL, signal, mask); }
+    catch { result = {state:"NETWORK_ERROR",sourceHTTP:null,sourceURL,entries:[]}; }
+    attempts.push({ sourceURL, state:result.state, sourceHTTP:result.sourceHTTP });
+    if (result.state === "LIST" || result.state === "EMPTY")
+      return {...result, attempts};
+    if (!mostUseful || (mostUseful.sourceHTTP == null && result.sourceHTTP != null) ||
+        (result.sourceHTTP >= 200 && result.sourceHTTP < 300 &&
+         !(mostUseful.sourceHTTP >= 200 && mostUseful.sourceHTTP < 300)))
+      mostUseful = result;
+  }
+  return { ...(mostUseful || {state:"NETWORK_ERROR",entries:[],sourceHTTP:null}),
+    attempts };
+}
+/** Follow the bounded 1080P sports category discovery used on Android. */
+async function findPhoneSportsCategory(root, signal, mask) {
+  if (root.state !== "LIST") return { section:null, reason:root.state };
+  const matches = root.entries.filter(entry => {
+    const label = categoryKey(entry.name);
+    return label.includes("beinsports") && label.includes("1080");
+  });
+  if (matches.length === 1) return { section:matches[0], reason:null };
+  if (matches.length > 1) return { section:null, reason:"CATEGORY_AMBIGUOUS" };
+  const queue = root.entries.filter(e => relevantCategory(e.name)).slice(0, 10)
+    .map(e=>({id:e.id,path:e.name,depth:1}));
+  const visited = new Set(), found = [];
+  let budget = 12, error = null;
+  while (queue.length && budget > 0) {
+    const current = queue.shift();
+    if (visited.has(current.id)) continue;
+    visited.add(current.id); budget--;
+    let child;
+    try {
+      // Only the host from the successful root; never mix source IDs.
+      child = await fetchPhoneCatalog(root.sourceURL+"/"+current.id, signal, mask);
+    } catch { child = {state:"NETWORK_ERROR",entries:[],sourceHTTP:null}; }
+    if (child.state !== "LIST") {
+      error ||= child.state === "HTTP_ERROR" ? "CATEGORY_HTTP_ERROR" : "CATEGORY_UNREADABLE";
+      continue;
+    }
+    for (const entry of child.entries) {
+      const leaf = categoryKey(entry.name);
+      const path = categoryKey(current.path+" "+entry.name);
+      if (path.includes("beinsports") && leaf.includes("1080") &&
+          !categoryKey(current.path).includes("720") &&
+          !categoryKey(current.path).includes("360")) {
+        found.push(entry);
+      } else if (current.depth < 3 && relevantCategory(entry.name) &&
+                 !leaf.includes("720") && !leaf.includes("360")) {
+        queue.push({id:entry.id,path:current.path+" / "+entry.name,depth:current.depth+1});
+      }
+    }
+  }
+  const ids = [...new Set(found.map(x=>x.id))];
+  if (ids.length === 1) return {section:found[0],reason:null};
+  return {section:null,reason:ids.length > 1?"CATEGORY_AMBIGUOUS":
+    error || "CATEGORY_NOT_FOUND"};
+}
+
 const MAX_RESPONSE_BYTES = 512 * 1024;
 const MAX_FORM_BYTES = 4096;
 
@@ -306,29 +403,23 @@ export default {
     try {
       let discoveredCategory = null;
       if (publish) {
-        // ابحث بالاسم في كل مرة؛ ولا تثق برقم قسم محفوظ سابقًا.
-        const sections = await fetch(SOURCE_URL, {
-          method: "GET", headers: { Accept: "application/json", "User-Agent": "okhttp/4.12.0" },
-          redirect: "manual", signal: controller.signal,
-        });
-        const sectionBody = await readLimited(sections.body, MAX_RESPONSE_BYTES);
-        const decoded = sections.ok && !sectionBody.truncated
-          ? readCatalog(new TextDecoder().decode(sectionBody.bytes), sections.headers.get("t"), env.RESPONSE_MASK) : null;
-        const matches = decoded?.state === "LIST" ? decoded.entries.filter(entry =>
-          entry.name.normalize("NFKC").replace(/[\s\p{Cf}()[\]{}]/gu, "").toLowerCase() === "beinsports1080p") : [];
-        if (matches.length !== 1) {
-          const failureCode = !sections.ok ? "CATEGORY_HTTP_ERROR" :
-            sectionBody.truncated ? "CATEGORY_TOO_LARGE" :
-            decoded?.state !== "LIST" ? decoded?.state || "CATEGORY_UNREADABLE" :
-            matches.length > 1 ? "CATEGORY_AMBIGUOUS" : "CATEGORY_NOT_FOUND";
+        // Keep phone order HTTPS -> observed HTTP -> legacy HTTPS. No credentials.
+        const root = await fetchPhoneCatalogRoot(controller.signal, env.RESPONSE_MASK);
+        const discovery = await findPhoneSportsCategory(root, controller.signal, env.RESPONSE_MASK);
+        if (!discovery.section) {
+          const failureCode = root.state === "HTTP_ERROR" ? "CATEGORY_HTTP_ERROR" :
+            root.state === "TOO_LARGE" ? "CATEGORY_TOO_LARGE" :
+            root.state === "NETWORK_ERROR" ? "NETWORK_ERROR" :
+            root.state !== "LIST" ? "CATEGORY_UNREADABLE" : discovery.reason;
           return respond({
-            state: "CATEGORY_UNRESOLVED", failureCode, sourceHTTP: sections.status,
+            state: "CATEGORY_UNRESOLVED", failureCode, sourceHTTP: root.sourceHTTP ?? null,
+            sourceAttempts: root.attempts || [],
             message: "لم يُحدد قسم beIN SPORTS (1080P) بشكل فريد؛ لم يُحفظ أي تحديث.",
             published: false, publishResult: null,
           });
         }
-        discoveredCategory = matches[0];
-        sourceURL = SOURCE_URL + "/" + discoveredCategory.id + "/channels";
+        discoveredCategory = discovery.section;
+        sourceURL = root.sourceURL + "/" + discoveredCategory.id + "/channels";
       }
       let response = await fetch(sourceURL, {
         method: "GET",

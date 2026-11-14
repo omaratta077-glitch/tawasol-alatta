@@ -116,3 +116,68 @@ test('encoded response uses only configured private format setting',async()=>moc
  assert.equal(ctx.data.get('football:catalog').channels[0].streamUrl,channel);
  assert.ok(!JSON.stringify(result).includes(ctx.env.RESPONSE_MASK));
 },{encoded:true}));
+
+
+test('phone-style catalog fails over to observed HTTP host without losing exact channel ID',async()=>{
+ const ctx=context(),seen=[];
+ ctx.env.RESPONSE_MASK='test-format-mask';
+ globalThis.fetch=async(url,opts)=>{
+  seen.push(url);
+  assert.equal(opts.method,'GET');
+  assert.equal(opts.headers.Accept,'application/json');
+  assert.equal(opts.headers['User-Agent'],'okhttp/4.12.0');
+  assert.equal(opts.redirect,'manual');
+  assert.equal(new Headers(opts.headers).has('Authorization'),false);
+  if(url==='https://def111.ycnapi.com/api/categories')return new Response('',{status:403});
+  if(url==='http://def111.ycnapi.com/api/categories')return Response.json({data:[
+    {id:section,name:'beIN SPORTS (1080P)'}]},{headers:{t:'1793252988'}});
+  assert.equal(url,'http://def111.ycnapi.com/api/categories/'+section+'/channels');
+  return Response.json({data:[{id:channel,name:'beIN SPORTS 1'}]},{headers:{t:'1793252988'}});
+ };
+ try{
+  const out=await(await worker.fetch(form(),ctx.env)).json();
+  assert.equal(out.published,true,JSON.stringify(out));
+  assert.equal(out.sourceURL,'http://def111.ycnapi.com/api/categories/'+section+'/channels');
+  assert.deepEqual(seen,[
+    'https://def111.ycnapi.com/api/categories',
+    'http://def111.ycnapi.com/api/categories',
+    'http://def111.ycnapi.com/api/categories/'+section+'/channels']);
+ }finally{globalThis.fetch=async()=>{throw Error('No real network');}}
+});
+test('a 403 from all Cloudflare sources cannot trigger catalog publication',async()=>{
+ const ctx=context(),seen=[];
+ globalThis.fetch=async url=>{
+  seen.push(url);
+  if(url==='https://def001.ycnapi.com/api/categories')throw Error('DNS blocked');
+  return new Response('',{status:403});
+ };
+ try{
+  const out=await(await worker.fetch(form(),ctx.env)).json();
+  assert.equal(out.published,false);
+  assert.equal(out.failureCode,'CATEGORY_HTTP_ERROR');
+  assert.equal(out.sourceHTTP,403);
+  assert.equal(out.sourceAttempts.length,3);
+  assert.equal(ctx.saves,0);
+  assert.deepEqual(ctx.data.get('football:catalog'),fixture());
+ }finally{globalThis.fetch=async()=>{throw Error('No real network');}}
+});
+test('discovers a nested sports quality section on the same selected provider host',async()=>{
+ const ctx=context(),parent='651000000000000001';
+ const seen=[];
+ globalThis.fetch=async url=>{
+  seen.push(url);
+  if(url==='https://def111.ycnapi.com/api/categories')
+   return Response.json({data:[{id:parent,name:'beIN SPORTS'}]},{headers:{t:'1793252988'}});
+  if(url==='https://def111.ycnapi.com/api/categories/'+parent)
+   return Response.json({data:[{id:section,name:'1080P'}]},{headers:{t:'1793252988'}});
+  assert.equal(url,'https://def111.ycnapi.com/api/categories/'+section+'/channels');
+  return Response.json({data:[{id:channel,name:'beIN SPORTS 1'}]},{headers:{t:'1793252988'}});
+ };
+ try{
+  const out=await(await worker.fetch(form(),ctx.env)).json();
+  assert.equal(out.published,true,JSON.stringify(out));
+  assert.equal(out.categoryId,section);
+  assert.equal(ctx.data.get('football:catalog').channels[0].streamUrl,channel);
+  assert.equal(seen.length,3);
+ }finally{globalThis.fetch=async()=>{throw Error('No real network');}}
+});

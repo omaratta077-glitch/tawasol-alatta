@@ -146,9 +146,106 @@ return catalogIngest;
 
 // BEGIN فحص الكتالوج الرئيسي
 const mainCatalogCheck = (() => {
-// فحص يدوي للكتالوج في التطبيق الرئيسي بطلب من المالك. بلا جدولة.
-// الأسرار: PROBE_KEY (من 24 إلى 256 حرفًا)، وRESPONSE_MASK (إعداد تنسيق خاص بطول 16 حرفًا).
+// فحص يدوي للفهرس يبدأه المالك من التطبيق الرئيسي. بلا جدولة.
+// الأسرار: PROBE_KEY (من 24 إلى 256 محرفًا)، وRESPONSE_MASK (إعداد تنسيق خاص من 16 محرفًا).
 const SOURCE_URL = "https://def111.ycnapi.com/api/categories";
+
+/** Match Android's fixed, read-only catalog hosts and root-to-children pinning. */
+const CATALOG_SOURCES = Object.freeze([
+  "https://def111.ycnapi.com/api/categories",
+  "http://def111.ycnapi.com/api/categories",
+  "https://def001.ycnapi.com/api/categories",
+]);
+const catalogHeaders = () => ({ Accept: "application/json", "User-Agent": "okhttp/4.12.0" });
+const categoryKey = name => String(name).normalize("NFKC")
+  .replace(/[^\\p{L}\\p{N}]/gu, "").toLowerCase();
+const relevantCategory = name => {
+  const key = categoryKey(name);
+  return key.includes("bein") || key.includes("sport") ||
+    key.includes("رياض") || key.includes("1080");
+};
+/** Return decoded catalog metadata only, with no authentication or playback payload. */
+async function fetchPhoneCatalog(url, signal, mask) {
+  const response = await fetch(url, {
+    method: "GET", headers: catalogHeaders(), redirect: "manual", signal,
+  });
+  if (!response.ok) {
+    // Avoid interpreting an error body as a valid channel list.
+    await response.body?.cancel().catch(() => {});
+    return { state:"HTTP_ERROR", sourceHTTP:response.status, entries:[], sourceURL:url };
+  }
+  const body = await readLimited(response.body, MAX_RESPONSE_BYTES);
+  if (body.truncated) return {
+    state:"TOO_LARGE", sourceHTTP:response.status, entries:[], sourceURL:url,
+  };
+  const parsed = readCatalog(new TextDecoder().decode(body.bytes),
+    response.headers.get("t"), mask);
+  return { ...parsed, sourceHTTP:response.status, sourceURL:url };
+}
+/** A 403 or DNS failure on the last source may not hide an earlier HTTP result. */
+async function fetchPhoneCatalogRoot(signal, mask) {
+  const attempts = [];
+  let mostUseful = null;
+  for (const sourceURL of CATALOG_SOURCES) {
+    let result;
+    try { result = await fetchPhoneCatalog(sourceURL, signal, mask); }
+    catch { result = {state:"NETWORK_ERROR",sourceHTTP:null,sourceURL,entries:[]}; }
+    attempts.push({ sourceURL, state:result.state, sourceHTTP:result.sourceHTTP });
+    if (result.state === "LIST" || result.state === "EMPTY")
+      return {...result, attempts};
+    if (!mostUseful || (mostUseful.sourceHTTP == null && result.sourceHTTP != null) ||
+        (result.sourceHTTP >= 200 && result.sourceHTTP < 300 &&
+         !(mostUseful.sourceHTTP >= 200 && mostUseful.sourceHTTP < 300)))
+      mostUseful = result;
+  }
+  return { ...(mostUseful || {state:"NETWORK_ERROR",entries:[],sourceHTTP:null}),
+    attempts };
+}
+/** Follow the bounded 1080P sports category discovery used on Android. */
+async function findPhoneSportsCategory(root, signal, mask) {
+  if (root.state !== "LIST") return { section:null, reason:root.state };
+  const matches = root.entries.filter(entry => {
+    const label = categoryKey(entry.name);
+    return label.includes("beinsports") && label.includes("1080");
+  });
+  if (matches.length === 1) return { section:matches[0], reason:null };
+  if (matches.length > 1) return { section:null, reason:"CATEGORY_AMBIGUOUS" };
+  const queue = root.entries.filter(e => relevantCategory(e.name)).slice(0, 10)
+    .map(e=>({id:e.id,path:e.name,depth:1}));
+  const visited = new Set(), found = [];
+  let budget = 12, error = null;
+  while (queue.length && budget > 0) {
+    const current = queue.shift();
+    if (visited.has(current.id)) continue;
+    visited.add(current.id); budget--;
+    let child;
+    try {
+      // Only the host from the successful root; never mix source IDs.
+      child = await fetchPhoneCatalog(root.sourceURL+"/"+current.id, signal, mask);
+    } catch { child = {state:"NETWORK_ERROR",entries:[],sourceHTTP:null}; }
+    if (child.state !== "LIST") {
+      error ||= child.state === "HTTP_ERROR" ? "CATEGORY_HTTP_ERROR" : "CATEGORY_UNREADABLE";
+      continue;
+    }
+    for (const entry of child.entries) {
+      const leaf = categoryKey(entry.name);
+      const path = categoryKey(current.path+" "+entry.name);
+      if (path.includes("beinsports") && leaf.includes("1080") &&
+          !categoryKey(current.path).includes("720") &&
+          !categoryKey(current.path).includes("360")) {
+        found.push(entry);
+      } else if (current.depth < 3 && relevantCategory(entry.name) &&
+                 !leaf.includes("720") && !leaf.includes("360")) {
+        queue.push({id:entry.id,path:current.path+" / "+entry.name,depth:current.depth+1});
+      }
+    }
+  }
+  const ids = [...new Set(found.map(x=>x.id))];
+  if (ids.length === 1) return {section:found[0],reason:null};
+  return {section:null,reason:ids.length > 1?"CATEGORY_AMBIGUOUS":
+    error || "CATEGORY_NOT_FOUND"};
+}
+
 const MAX_RESPONSE_BYTES = 512 * 1024;
 const MAX_FORM_BYTES = 4096;
 
@@ -241,7 +338,7 @@ function parseCatalog(text, decoded) {
   };
 }
 
-// بيانات وصفية فقط: لا تُعد روابط البث أو قيم الترويسات أو بيانات الترخيص أو JSON الخام.
+// بيانات وصفية فقط: لا تُعد روابط البث أو قيم الترويسات أو التراخيص أو JSON الخام.
 function inspectPlayback(text, decoded) {
   const invalid = message => ({ state: "INVALID", message, entries: [], responseDecoded: decoded });
   let root;
@@ -255,7 +352,7 @@ function inspectPlayback(text, decoded) {
     if (!row || typeof row !== "object" || Array.isArray(row)) return invalid("سجل تشغيل غير صالح.");
     const knownFields = ["name", "url", "urlType", "userAgent", "headers", "drm"].filter(k => Object.hasOwn(row, k));
     let scheme = "unknown", hasQuery = false;
-    if (typeof row.url === "string") { try { const u = new URL(row.url); scheme = ["http:", "https:"].includes(u.protocol) ? u.protocol : "other"; hasQuery = !!u.search; } catch { /* Opaque or transformed URL. */ } }
+    if (typeof row.url === "string") { try { const u = new URL(row.url); scheme = ["http:", "https:"].includes(u.protocol) ? u.protocol : "other"; hasQuery = !!u.search; } catch { /* رابط مبهم أو محوّل. */ } }
     const headers = row.headers && typeof row.headers === "object" && !Array.isArray(row.headers) ? row.headers : {};
     const drm = row.drm && typeof row.drm === "object" && !Array.isArray(row.drm) ? row.drm : null;
     streams.push({ knownFields, urlPresent: typeof row.url === "string" && row.url.length > 0,
@@ -270,7 +367,7 @@ function inspectPlayback(text, decoded) {
     responseDecoded: decoded, entries: [], streams, streamCount: streams.length };
 }
 
-// يُستخدم فقط في اختبار المالك الأصلي المصادق عليه، وليس في نموذج الفحص العام.
+// يُستخدم فقط في اختبار المالك الأصلي بعد المصادقة، ولا يستخدمه نموذج الفحص العام.
 function nativeSources(rows) {
   const sources = [];
   for (const [index, row] of rows.entries()) {
@@ -283,7 +380,7 @@ function nativeSources(rows) {
     if (!['https:', 'http:'].includes(u.protocol) || u.username || u.password || u.port ||
         !host.includes('.') || /^[\d.]+$/.test(host) || host.includes(':') ||
         /(^|\.)(localhost|local|internal|invalid|test)$/.test(host)) continue;
-    // تقبل النسخة 1.0.202 نطاقات البث المرصودة فقط عبر HTTP، مع منع بقية النطاقات.
+    // يرفض Android في الإصدار 1.0.201 كل اتصالات HTTP غير المشفّرة.
     if (u.protocol === 'http:' && !['new-redirect.online', 'cdnarvo.buzz', 'cdnravon.buzz', 'streamalvo.buzz', 'vidorise.buzz', 'vidunex.buzz', 'castavion.buzz'].some(d => host === d || host.endsWith('.' + d))) continue;
     if (row.headers != null && (typeof row.headers !== 'object' || Array.isArray(row.headers))) continue;
     const headers = {};
@@ -315,7 +412,7 @@ function chooseDirectHttps(rows) {
       if (u.protocol !== 'https:' || u.username || u.password || u.port || !host.includes('.') ||
           /^[\d.]+$/.test(host) || host.includes(':') || /(^|\.)(localhost|local|internal|invalid|test)$/.test(host)) continue;
       return u.href;
-    } catch { /* Opaque or malformed links need their own processing, never guess. */ }
+    } catch { /* الروابط المبهمة أو غير الصالحة تحتاج معالجة مستقلة؛ لا تخمّن. */ }
   }
   return null;
 }
@@ -350,7 +447,7 @@ function readCatalog(text, headerTime, responseMask, parse = parseCatalog) {
   const trimmed = text.replace(/^\uFEFF/, "").trim();
   if (trimmed.startsWith("{") || trimmed.startsWith("[")) return parse(trimmed, false);
   const unreadable = (state, message) => ({ state, message, entries: [], responseDecoded: false });
-  // أزل السطر الأخير فقط من الملف؛ واحتفظ بالمسافات داخل إعداد التنسيق.
+  // أزل فقط محرف السطر الجديد الختامي؛ واحتفظ بالمسافات داخل إعداد التنسيق.
   const prefix = typeof responseMask === "string" ? responseMask.replace(/\r?\n$/, "") : "";
   if (!prefix) return unreadable("CONFIG_MISSING", "وصل رد مرمّز. أضف Secret باسم RESPONSE_MASK بقيمة إعداد القراءة المحفوظ عندك.");
   if (!/^[\x20-\x7e]{16}$/.test(prefix)) return unreadable("CONFIG_INVALID", "إعداد RESPONSE_MASK يجب أن يكون 16 حرف ASCII قابلًا للطباعة، من ملف إعداد القراءة نفسه.");
@@ -454,29 +551,23 @@ return {
     try {
       let discoveredCategory = null;
       if (publish) {
-        // ابحث بالاسم كل مرة؛ ولا تثق برقم قسم محفوظ.
-        const sections = await fetch(SOURCE_URL, {
-          method: "GET", headers: { Accept: "application/json", "User-Agent": "okhttp/4.12.0" },
-          redirect: "manual", signal: controller.signal,
-        });
-        const sectionBody = await readLimited(sections.body, MAX_RESPONSE_BYTES);
-        const decoded = sections.ok && !sectionBody.truncated
-          ? readCatalog(new TextDecoder().decode(sectionBody.bytes), sections.headers.get("t"), env.RESPONSE_MASK) : null;
-        const matches = decoded?.state === "LIST" ? decoded.entries.filter(entry =>
-          entry.name.normalize("NFKC").replace(/[\s\p{Cf}()[\]{}]/gu, "").toLowerCase() === "beinsports1080p") : [];
-        if (matches.length !== 1) {
-          const failureCode = !sections.ok ? "CATEGORY_HTTP_ERROR" :
-            sectionBody.truncated ? "CATEGORY_TOO_LARGE" :
-            decoded?.state !== "LIST" ? decoded?.state || "CATEGORY_UNREADABLE" :
-            matches.length > 1 ? "CATEGORY_AMBIGUOUS" : "CATEGORY_NOT_FOUND";
+        // Keep phone order HTTPS -> observed HTTP -> legacy HTTPS. No credentials.
+        const root = await fetchPhoneCatalogRoot(controller.signal, env.RESPONSE_MASK);
+        const discovery = await findPhoneSportsCategory(root, controller.signal, env.RESPONSE_MASK);
+        if (!discovery.section) {
+          const failureCode = root.state === "HTTP_ERROR" ? "CATEGORY_HTTP_ERROR" :
+            root.state === "TOO_LARGE" ? "CATEGORY_TOO_LARGE" :
+            root.state === "NETWORK_ERROR" ? "NETWORK_ERROR" :
+            root.state !== "LIST" ? "CATEGORY_UNREADABLE" : discovery.reason;
           return respond({
-            state: "CATEGORY_UNRESOLVED", failureCode, sourceHTTP: sections.status,
+            state: "CATEGORY_UNRESOLVED", failureCode, sourceHTTP: root.sourceHTTP ?? null,
+            sourceAttempts: root.attempts || [],
             message: "لم يُحدد قسم beIN SPORTS (1080P) بشكل فريد؛ لم يُحفظ أي تحديث.",
             published: false, publishResult: null,
           });
         }
-        discoveredCategory = matches[0];
-        sourceURL = SOURCE_URL + "/" + discoveredCategory.id + "/channels";
+        discoveredCategory = discovery.section;
+        sourceURL = root.sourceURL + "/" + discoveredCategory.id + "/channels";
       }
       let response = await fetch(sourceURL, {
         method: "GET",
@@ -490,15 +581,15 @@ return {
       let text = new TextDecoder().decode(body.bytes).replace(/^\uFEFF/, "").trim();
       let effectiveChannel = channel;
       let idRefreshed = false;
-      // قد يعني 404 انتهاء صلاحية معرّف المصدر. حدّث مرة واحدة باستخدام أسماء الكتالوج المطابقة تمامًا؛
-      // ولا تخمّن المعرّفات أو تغيّر المسارات أو تعاود الطلب بمعرّف لم يتغير.
+      // قد يعني خطأ 404 أن معرّف المصدر انتهت صلاحيته. حدّث مرة واحدة باستخدام تسميات الفهرس المطابقة تمامًا؛
+      // لا تخمّن المعرّفات أو تغيّر نقاط النهاية أو تعاود طلب المعرّف نفسه.
       if (nativePlayback && response.status === 404 &&
           !/(?:error\s*code\s*:?|error\s+)\s*(10\d{2}|11\d{2})\b/i.test(text) &&
           typeof channelSelector?.name === 'string' && channelSelector.name.length <= 120 &&
           typeof channelSelector?.category === 'string' && channelSelector.category.length <= 120) {
         const canonical = value => value.replace(/\s+/g, '').toLowerCase();
-        // قد تتضمن أسماء الفئات المعروضة أقواسًا متقابلة أو علامات اتجاه ثنائية.
-        // احتفظ بالحروف والأرقام والجودة؛ وتجاهل رموز العرض فقط.
+        // قد تحتوي تسميات عرض الأقسام على أقواس معكوسة أو علامات اتجاه النص.
+        // احتفظ بالحروف والأرقام والجودة؛ وتجاهل محارف العرض فقط.
         const categoryKey = value => value.normalize('NFKC').replace(/[\s\p{Cf}()[\]{}]/gu, '').toLowerCase();
         const categoryName = categoryKey(channelSelector.category), channelName = canonical(channelSelector.name);
         if (categoryName && channelName) {
@@ -552,7 +643,7 @@ return {
           if (rows) listRows = rows.length;
           declaresFailure = Boolean(parsed && !Array.isArray(parsed) &&
             (parsed.success === false || (parsed.error !== undefined && parsed.error !== null && parsed.error !== false && parsed.error !== "")));
-        } catch { /* Encoded or other content: no decoding key is embedded here. */ }
+        } catch { /* محتوى مشفّر أو من نوع آخر: لا يوجد هنا مفتاح لفك الترميز. */ }
       }
       let message;
       if (response.status >= 300 && response.status < 400) {
@@ -590,8 +681,8 @@ return {
           const platform = !response.ok && text.match(/(?:error\s*code\s*:?|error\s+)\s*(10\d{2}|11\d{2})\b/i);
           const platformCode = platform ? 'CLOUDFLARE_' + platform[1] : null;
           const code = !response.ok ? 'SOURCE_HTTP_ERROR' : catalog.state;
-          // يعرض v192 الخطأ بالفعل؛ أضف إليه الحالة والمرحلة الآمنتين.
-          // هذا عطل في محلل الرابط قبل تحميل أي فيديو إلى الهاتف.
+          // يعرض الإصدار 192 الخطأ بالفعل؛ أضف إليه الحالة والمرحلة الآمنتين أيضًا.
+          // هذا إخفاق في حل المصدر قبل تحميل الهاتف أي فيديو.
           return respond({ ok: false,
             error: `تعذر جلب بيانات تشغيل القناة (HTTP ${response.status}؛ ${stage}${platformCode ? '؛ ' + platformCode : ''}${idRefreshed ? '؛ ID_REFRESHED' : ''}؛ ${code}).`,
             code, stage, platformCode, sourceHTTP: response.status, idRefreshed }, 502);
@@ -616,7 +707,7 @@ return {
             entries: catalog.entries.map(({ id, name }) => ({ id, name })),
             ...(rebaseline?{rebaseline:true}:{}),
           });
-          // سجّل بيانات HTTP قبل التحليل كي يظل الرد غير JSON قابلًا للتشخيص.
+          // سجّل بيانات HTTP الوصفية قبل التحليل كي يظل الرد غير الصالح بصيغة JSON قابلًا للتشخيص.
           publishResult.status = saved.status;
           publishResult.stage = "READ_RESPONSE";
           const rawType = (saved.headers.get("Content-Type") || "").split(";")[0].trim().toLowerCase();
@@ -627,7 +718,7 @@ return {
           const reportText = new TextDecoder().decode(report.bytes);
           let result = null;
           if (!report.truncated) {
-            try { result = JSON.parse(reportText); } catch { /* Keep status, never echo arbitrary response text. */ }
+            try { result = JSON.parse(reportText); } catch { /* احتفظ بالحالة، ولا تُظهر نصًا عشوائيًا من الرد. */ }
           }
           const validReport = result !== null && typeof result === "object" && !Array.isArray(result);
           const allowed = new Set(["SYNC_NOT_CONFIGURED", "UNAUTHORIZED", "METHOD_NOT_ALLOWED", "JSON_REQUIRED",
