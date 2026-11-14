@@ -16,6 +16,8 @@ import java.util.Locale
  */
 internal object YtvPhoneCatalog {
     internal const val UPDATE_INTERVAL_MS = 30 * 60_000L
+    // Check sooner when the user chooses a channel; failures are still throttled.
+    private const val ON_SELECT_CHECK_MS = 5 * 60_000L
     private const val PREFS = "alatta_ytv_phone_cache_v1"
     private val guard = Mutex()
 
@@ -31,9 +33,21 @@ internal object YtvPhoneCatalog {
         return runCatching {
             val obj = JSONObject(entry)
             if (obj.optString("name") != names(channel.name) ||
-                obj.optString("category") != names(channel.category)) null
+                obj.optString("category") != names(channel.category) ||
+                // A newer admin-published channel ID always wins over local cache.
+                obj.optString("publishedId") != channel.streamUrl) null
             else YtvPlayer.channelId(obj.optString("streamId"))
         }.getOrNull()
+    }
+
+    /** A stale mapping is checked again on selection, without clearing the safe fallback. */
+    internal fun needsSelectionRefresh(context: Context, owner: String,
+        channel: FootballChannel): Boolean {
+        if (owner.isBlank() || !channel.enabled || channel.format != "ytv") return false
+        if (cachedId(context, owner, channel) == null) return true
+        val lastSuccess = store(context).getLong("success:" + owner, 0)
+        val now = System.currentTimeMillis()
+        return lastSuccess <= 0L || now < lastSuccess || now - lastSuccess >= ON_SELECT_CHECK_MS
     }
 
     /** Decoded data is read-only and carries no playback URL, response mask or credentials. */
@@ -90,14 +104,21 @@ internal object YtvPhoneCatalog {
     }
 
     /** Update only when all corresponding active channels match unique source names. */
-    internal suspend fun refresh(context: Context, token: String, owner: String): Boolean =
+    internal suspend fun refresh(context: Context, token: String, owner: String,
+        onSelection: Boolean = false): Boolean =
         withContext(Dispatchers.IO) {
             guard.withLock {
                 if (token.isBlank() || owner.isBlank()) return@withLock false
                 val prefs = store(context)
                 val now = System.currentTimeMillis()
                 val last = prefs.getLong("attempt:" + owner, 0)
-                if (now >= last && now - last < UPDATE_INTERVAL_MS) return@withLock false
+                val minInterval = if (onSelection) ON_SELECT_CHECK_MS else UPDATE_INTERVAL_MS
+                if (now >= last && now - last < minInterval) return@withLock false
+                if (onSelection) {
+                    val lastSuccess = prefs.getLong("success:" + owner, 0)
+                    if (lastSuccess > 0 && now >= lastSuccess &&
+                        now - lastSuccess < ON_SELECT_CHECK_MS) return@withLock false
+                }
                 prefs.edit().putLong("attempt:" + owner, now).apply()
                 val catalog = try { FootballRepository.load() }
                     catch (cancelled: CancellationException) { throw cancelled }
@@ -135,6 +156,7 @@ internal object YtvPhoneCatalog {
                     edit.putString("entry:" + owner + ":" + channel.id,
                         JSONObject().put("name", names(channel.name))
                             .put("category", names(channel.category))
+                            .put("publishedId", channel.streamUrl)
                             .put("streamId", id).toString())
                 }
                 edit.putLong("success:" + owner, now)

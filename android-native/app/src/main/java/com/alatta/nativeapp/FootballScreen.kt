@@ -104,13 +104,14 @@ internal fun FootballScreen(query: String, modifier: Modifier = Modifier,
                     // Prefer a validated per-user ID fetched by this phone. The
                     // published, previously working ID is the safe offline fallback.
                     if (owner.isNotBlank() && token.isNotBlank() &&
-                        YtvPhoneCatalog.cachedId(context, owner, channel) == null) {
+                        YtvPhoneCatalog.needsSelectionRefresh(context, owner, channel)) {
                         try {
-                            kotlinx.coroutines.withTimeoutOrNull(9_000L) {
-                                YtvPhoneCatalog.refresh(context.applicationContext, token, owner)
+                            kotlinx.coroutines.withTimeoutOrNull(12_000L) {
+                                YtvPhoneCatalog.refresh(context.applicationContext, token, owner,
+                                    onSelection = true)
                             }
                         } catch (cancelled: CancellationException) { throw cancelled }
-                        catch (_: Exception) { /* Retain published channel ID. */ }
+                        catch (_: Exception) { /* Retain last known-good channel ID. */ }
                     }
                     val local = YtvPhoneCatalog.cachedId(context, owner, channel)
                     val id = YtvPlayer.channelId(local ?: channel.streamUrl)
