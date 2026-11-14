@@ -1,6 +1,7 @@
 package com.alatta.nativeapp
 
 import kotlinx.coroutines.suspendCancellableCoroutine
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.Call
 import okhttp3.Callback
 import okhttp3.OkHttpClient
@@ -60,7 +61,7 @@ internal object YacineCatalogProbe {
                     if (list.length() !in 1..8) return@use
                     val updated = (0 until list.length()).map { i ->
                         val source = list.optString(i)
-                        val url = okhttp3.HttpUrl.parse(source) ?: return@use
+                        val url = source.toHttpUrlOrNull() ?: return@use
                         if (url.scheme != "https" || url.port != 443 ||
                             !allowedRemoteHost.matches(url.host) ||
                             url.encodedPath != "/api/" ||
