@@ -84,6 +84,7 @@ internal object YtvPhoneCatalog {
     private suspend fun fetch(context: Context, token: String,
         kind: YacineCatalogProbe.Kind, categoryId: String? = null,
         selectedSource: String? = null): YacineCatalogProbe.Result? {
+        if (selectedSource == null) YacineCatalogProbe.refreshSourceConfiguration()
         val bases = selectedSource?.let(::listOf) ?: YacineCatalogProbe.candidates()
         val privateFormat = CatalogFormatSettings.read(context)?.toByteArray(Charsets.US_ASCII)
         for (base in bases) {
