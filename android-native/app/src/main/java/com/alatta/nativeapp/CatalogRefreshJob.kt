@@ -20,12 +20,15 @@ class CatalogRefreshJob : JobService() {
         val owner = session.getString("username", "").orEmpty()
         val token = session.getString("token", "").orEmpty()
         if (owner.isBlank() || token.isBlank() || owner != params.extras.getString("owner") ||
-            !CatalogLinkStore.automatic(this, owner)) { schedule(this, owner, false); return false }
+            token.length > 4096) { schedule(this, owner, false); return false }
         active = params
         task = scope.launch {
             try {
-                // يُعاد التحقق من واجهة المالك الحالية قبل طلب المصدر.
-                withTimeoutOrNull(60_000) { CatalogAutoUpdater.refresh(applicationContext, token, owner) }
+                // Every signed-in client refreshes only local phone IDs, never
+                // administrator-owned catalog records or stored account secrets.
+                withTimeoutOrNull(75_000L) {
+                    YtvPhoneCatalog.refresh(applicationContext, token, owner)
+                }
             } catch (cancelled: CancellationException) { throw cancelled
             } catch (_: Exception) { /* Keep the cached catalog for the next periodic window. */
             } finally {
@@ -47,7 +50,7 @@ class CatalogRefreshJob : JobService() {
             val extras = PersistableBundle().apply { putString("owner", owner) }
             return JobInfo.Builder(JOB_ID, ComponentName(context, CatalogRefreshJob::class.java))
                 .setExtras(extras).setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY)
-                .setPeriodic(15 * 60_000L).setPersisted(true).build()
+                .setPeriodic(30 * 60_000L).setPersisted(true).build()
         }
         internal fun schedule(context: Context, owner: String, enabled: Boolean): Boolean = runCatching {
             val scheduler = context.getSystemService(JobScheduler::class.java) ?: return false

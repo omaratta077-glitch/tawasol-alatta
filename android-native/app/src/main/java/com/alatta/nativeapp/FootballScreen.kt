@@ -101,17 +101,27 @@ internal fun FootballScreen(query: String, modifier: Modifier = Modifier,
                 }
                 "ytv" -> {
                     if (callInProgress) { error = "أنهِ المكالمة أولًا لتشغيل القناة."; return@launch }
-                    // Restore pre-Cloudflare catalog handoff: use the exact saved channel ID.
-                    // IDs are updated from the owner's handset only by an explicit button press.
-                    val id = YtvPlayer.channelId(channel.streamUrl)
+                    // Prefer a validated per-user ID fetched by this phone. The
+                    // published, previously working ID is the safe offline fallback.
+                    if (owner.isNotBlank() && token.isNotBlank() &&
+                        YtvPhoneCatalog.cachedId(context, owner, channel) == null) {
+                        try {
+                            kotlinx.coroutines.withTimeoutOrNull(9_000L) {
+                                YtvPhoneCatalog.refresh(context.applicationContext, token, owner)
+                            }
+                        } catch (cancelled: CancellationException) { throw cancelled }
+                        catch (_: Exception) { /* Retain published channel ID. */ }
+                    }
+                    val local = YtvPhoneCatalog.cachedId(context, owner, channel)
+                    val id = YtvPlayer.channelId(local ?: channel.streamUrl)
                     if (id == null) {
-                        error = "رقم القناة المحفوظ غير صالح. اضغط تحديث القنوات يدويًا."
+                        error = "رقم القناة غير صالح؛ سيتم إعادة فحص القائمة تلقائيًا."
                         return@launch
                     }
                     error = ""
                     val failure = YtvPlayer.openWithWatchRoom(context, id, onBeforePlayback)
                     lastChannelReport = JSONObject()
-                        .put("mode", "LEGACY_PHONE_CATALOG")
+                        .put("mode", if (local != null) "AUTO_PHONE_CATALOG" else "PUBLISHED_FALLBACK")
                         .put("channel", channel.name)
                         .put("catalogRevision", catalog.revision)
                         .put("channelId", id)

@@ -133,11 +133,29 @@ internal object CatalogAutoUpdater {
     } }
 }
 
-/** ينشر هاتف المالك المعرّفات المحفوظة لبقية المستخدمين؛ ولا تغادر إعدادات الخدمة الهاتف. */
+/**
+ * Every signed-in app instance refreshes its own read-only channel-ID cache.
+ * Android JobScheduler also retries in the background, subject to OS limits.
+ * The owner-only shared catalog update remains a separate explicit operation.
+ */
 @Composable
 internal fun CatalogAutoRefreshEffect(token: String, owner: String, enabled: Boolean) {
-    val context = LocalContext.current
-    // Source IDs are refreshed solely by an explicit owner click on this phone.
-    // Never restart the old periodic Android job.
-    LaunchedEffect(owner) { CatalogRefreshJob.schedule(context.applicationContext, owner, false) }
+    val application = LocalContext.current.applicationContext
+    LaunchedEffect(token, owner, enabled) {
+        val active = enabled && token.isNotBlank() && owner.isNotBlank()
+        withContext(Dispatchers.IO) {
+            CatalogRefreshJob.schedule(application, owner, active)
+        }
+        if (!active) return@LaunchedEffect
+        while (isActive) {
+            try {
+                kotlinx.coroutines.withTimeoutOrNull(70_000L) {
+                    YtvPhoneCatalog.refresh(application, token, owner)
+                }
+            } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                throw cancelled
+            } catch (_: Exception) { /* Last known-good local IDs remain available. */ }
+            delay(YtvPhoneCatalog.UPDATE_INTERVAL_MS)
+        }
+    }
 }
