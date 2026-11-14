@@ -7,7 +7,7 @@ keep_vars = true
 [vars]
 # Cron runs only the public YTV catalog path. No user data or secrets in variables.
 CLOUD_CATALOG_MANUAL_ENABLED = "yes"
-CLOUD_CATALOG_AUTO_ENABLED = "yes"
+CLOUD_CATALOG_AUTO_ENABLED = "no"
 # Keep the existing Cloudflare owner settings.
 # Set SUPER_ADMIN_USERNAME to your chosen existing account and SUPER_ADMIN_EMAIL to its verified email.
 # Google OAuth Client ID is public (not a secret).

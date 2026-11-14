@@ -1,6 +1,7 @@
-// Cron Trigger in the main Cloudflare Worker checks YTV channels every 5 minutes.
-// An owner can pause/resume, and a failed or incomplete source never replaces saved channels.
-// Legacy Durable Object alarms are cancelled. No Android work or extra scheduled alarms.
+// Cloudflare cannot read the external YTV catalog (provider denies its egress).
+// Android clients now fetch metadata on their own networks; this worker only
+// decodes read-only catalog payloads for authenticated users. Keep the historic
+// Cron disabled via CLOUD_CATALOG_AUTO_ENABLED=no while phone refresh is active.
 export function createCatalogRefresh(Base,check){
  const keyName='catalog:auto';
  const json=(body,status=200)=>Response.json(body,{status,headers:{'Cache-Control':'no-store'}});

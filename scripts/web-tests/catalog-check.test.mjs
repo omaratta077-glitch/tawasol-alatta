@@ -6,7 +6,7 @@ import {catalogIngest} from '../../cloudflare-site/src/catalog-ingest.mjs';
 const stripComments=value=>value.replace(/\/\*[\s\S]*?\*\//g,m=>m.replace(/[^\n]/g,"")).replace(/(^|\n)[ \t]*\/\/[^\n]*/g,"$1").replace(/[ \t]+\/\/[^\n]*/g,"").replace(/\n[ \t]*\n+/g,"\n").trim();
 const source=await readFile(new URL('../../cloudflare-site/src/worker.js',import.meta.url),'utf8');
 const moduleText=await readFile(new URL('../../cloudflare-site/src/catalog-check.mjs',import.meta.url),'utf8');
-const {default:worker}=await import('data:text/javascript;charset=utf-8,'+encodeURIComponent(source.replace('import { DurableObject } from "cloudflare:workers";','class DurableObject {}')));
+const {default:worker,SignalingRoom}=await import('data:text/javascript;charset=utf-8,'+encodeURIComponent(source.replace('import { DurableObject } from "cloudflare:workers";','class DurableObject {}')));
 const key='test-probe-00000000000000000000',sync='test-sync-000000000000000000000000';
 const section='652497361000000001',channel='4973946197000000001';
 const form=(extra={})=>new Request('https://owned-app.invalid/api/internal/catalog-check',{method:'POST',body:new URLSearchParams({probe_key:key,publish:'yes',...extra})});
@@ -180,4 +180,35 @@ test('discovers a nested sports quality section on the same selected provider ho
   assert.equal(ctx.data.get('football:catalog').channels[0].streamUrl,channel);
   assert.equal(seen.length,3);
  }finally{globalThis.fetch=async()=>{throw Error('No real network');}}
+});
+
+test('signed-in regular user can decode phone-fetched categories without receiving RESPONSE_MASK',async()=>{
+ const data=new Map();
+ const storage={async get(k){return structuredClone(data.get(k));},async put(k,v){data.set(k,structuredClone(v));},
+   async delete(k){data.delete(k);}};
+ const room=new SignalingRoom({storage,getWebSockets:()=>[]},{RESPONSE_MASK:'test-format-mask'});
+ await storage.put('user:alice',{username:'alice',fullName:'Alice'});
+ const token=await room.createSession('alice');
+ const plain=JSON.stringify({data:[{id:section,name:'beIN SPORTS (1080P)'}]});
+ const time='1793252988',mask=new TextEncoder().encode('test-format-mask'+time);
+ const encoded=btoa(Array.from(new TextEncoder().encode(plain),(v,i)=>
+   String.fromCharCode(v^mask[i%mask.length])).join(''));
+ const post= (tok,payload)=>new Request('https://owned-app.invalid/api/football/catalog-decode',{
+   method:'POST',body:JSON.stringify({token:tok,payload,t:time})});
+ const denied=await room.api(post('not-a-valid-session',encoded));
+ assert.equal(denied.status,401);
+ const ok=await room.api(post(token,encoded));
+ const answer=await ok.json();
+ assert.equal(ok.status,200,JSON.stringify(answer));
+ assert.equal(answer.ok,true);
+ assert.equal(answer.state,'LIST');
+ assert.deepEqual(answer.entries,[{id:section,name:'beIN SPORTS (1080P)'}]);
+ assert.ok(!JSON.stringify(answer).includes('test-format-mask'));
+ assert.equal(await storage.get('football:catalog'),undefined);
+ const invalid=await room.api(post(token,'not-base64'));
+ assert.equal(invalid.status,422);
+ for(let i=0;i<38;i++)await room.api(post(token,encoded));
+ const limited=await room.api(post(token,encoded));
+ assert.equal(limited.status,429);
+ assert.equal(await storage.get('football:catalog'),undefined);
 });
