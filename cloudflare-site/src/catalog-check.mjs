@@ -1,6 +1,6 @@
 // فحص يدوي للفهرس يبدأه المالك من التطبيق الرئيسي. بلا جدولة.
 // الأسرار: PROBE_KEY (من 24 إلى 256 محرفًا)، وRESPONSE_MASK (إعداد تنسيق خاص من 16 محرفًا).
-const SOURCE_URL = "https://def001.ycnapi.com/api/categories";
+const SOURCE_URL = "https://def111.ycnapi.com/api/categories";
 const MAX_RESPONSE_BYTES = 512 * 1024;
 const MAX_FORM_BYTES = 4096;
 

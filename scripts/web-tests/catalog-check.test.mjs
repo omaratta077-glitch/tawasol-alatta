@@ -20,9 +20,9 @@ function context(){
 async function mockSource(fn,{missing=false,bad=false,encoded=false}={}){
  let calls=0;globalThis.fetch=async(url,options)=>{
   calls++;assert.equal(new Headers(options.headers).has('Authorization'),false);
-  if(calls===1){assert.equal(url,'https://def001.ycnapi.com/api/categories');return Response.json({data:missing?[]:[{id:section,name:'beIN SPORTS (1080P)'}]},{headers:{t:'1793252988'}});}
+  if(calls===1){assert.equal(url,'https://def111.ycnapi.com/api/categories');return Response.json({data:missing?[]:[{id:section,name:'beIN SPORTS (1080P)'}]},{headers:{t:'1793252988'}});}
   assert.equal(calls,2,'No global HTTP request may save back into the app');
-  assert.equal(url,'https://def001.ycnapi.com/api/categories/'+section+'/channels');
+  assert.equal(url,'https://def111.ycnapi.com/api/categories/'+section+'/channels');
   const payload={data:[{id:bad?'0':channel,name:'beIN SPORTS 1'}]};
   if(encoded){
    const bytes=new TextEncoder().encode(JSON.stringify(payload)),mask=new TextEncoder().encode('test-format-mask1793252988');
@@ -88,10 +88,10 @@ test('rotated 19-digit numeric IDs and section display variation stay exact',asy
  const ctx=context();
  const next='2619657828018322944';
  globalThis.fetch=async(url)=>{
-  if(url==='https://def001.ycnapi.com/api/categories')
+  if(url==='https://def111.ycnapi.com/api/categories')
    return new Response('{"data":[{"id":652497361000000001,"name":"beIN SPORTS 1080P"}]}',
     {headers:{t:'1793252988','Content-Type':'application/json'}});
-  assert.equal(url,'https://def001.ycnapi.com/api/categories/'+section+'/channels');
+  assert.equal(url,'https://def111.ycnapi.com/api/categories/'+section+'/channels');
   return new Response('{"data":[{"id":2619657828018322944,"name":"beIN SPORTS 1"}]}',
    {headers:{t:'1793252988','Content-Type':'application/json'}});
  };

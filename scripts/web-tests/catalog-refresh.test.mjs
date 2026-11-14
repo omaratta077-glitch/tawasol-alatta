@@ -12,7 +12,7 @@ test('GET shows manual-only controls and wrong key cannot refresh',async()=>{
  let calls=0;const {instance,ctx}=job({fetch(){calls++;}});
  const response=await instance.fetch(new Request('https://offline.invalid/api/internal/catalog-update'));
  const html=await response.text();
- assert.equal(response.status,200);assert.match(html,/تحديث القنوات يدويًا/);assert.doesNotMatch(html,/value="start"/);
+ assert.equal(response.status,200);assert.match(html,/تحديث القنوات يدويًا/);assert.match(html,/value="start"/);
  assert.equal((await instance.fetch(request('refresh','wrong'))).status,401);assert.equal(calls,0);assert.equal(ctx.alarm,null);
 });
 test('missing configuration rejects one-shot refresh without touching the last saved channels',async()=>{
@@ -132,7 +132,7 @@ test('owner manual refresh writes through existing private global room binding, 
  const result=await(await instance.fetch(request())).json();
  assert.equal(saved,true);assert.equal(result.lastSaved,true);
 });
-test('production worker contains identical manual-only implementation and registered object',async()=>{
+test('production worker contains identical Cloudflare Cron implementation and registered object',async()=>{
  const module=await readFile(new URL('../../cloudflare-site/src/catalog-refresh.mjs',import.meta.url),'utf8');
  const worker=await readFile(new URL('../../cloudflare-site/src/worker.js',import.meta.url),'utf8');
  const config=await readFile(new URL('../../cloudflare-site/wrangler.toml',import.meta.url),'utf8');
@@ -142,4 +142,54 @@ test('production worker contains identical manual-only implementation and regist
  assert.ok(config.includes('name = "CATALOG_REFRESH"'+newline+'class_name = "CatalogRefresh"'));
  assert.ok(config.includes('new_sqlite_classes = ["CatalogRefresh"]'));
  assert.ok(!module.includes('setAlarm('));
+ assert.ok(worker.includes('async scheduled(controller,env,ctx)'));
+ assert.ok(worker.includes("action:'scheduled'"));
+ assert.ok(config.includes('crons = ["*/5 * * * *"]'));
+ assert.ok(config.includes('CLOUD_CATALOG_AUTO_ENABLED = "yes"'));
+});
+
+test('Cloudflare cron refresh does not touch saved channels without configuration',async()=>{
+ let calls=0;
+ const auto={...env,CLOUD_CATALOG_AUTO_ENABLED:'yes',RESPONSE_MASK:undefined};
+ const {instance,ctx}=job({async fetch(){calls++;throw Error('unexpected network');}},context(),auto);
+ const out=await instance.fetch(request('scheduled'));
+ assert.equal(out.status,503);
+ assert.equal(calls,0);
+ assert.equal(ctx.alarm,null);
+});
+test('Cloudflare scheduled refresh runs on valid settings and reports auto enabled',async()=>{
+ let calls=0;
+ const auto={...env,CLOUD_CATALOG_AUTO_ENABLED:'yes'};
+ const {instance,ctx}=job({async fetch(){calls++;return Response.json({published:true,sourceHTTP:200,publishResult:{changed:2,matched:20}});}},context(),auto);
+ const result=await(await instance.fetch(request('scheduled'))).json();
+ assert.equal(result.enabled,true);
+ assert.equal(result.lastSaved,true);
+ assert.equal(result.matched,20);
+ assert.equal(calls,1);
+ assert.equal(result.configuration.responseMaskConfigured,true);
+ assert.equal(ctx.alarm,null);
+});
+test('owner stop pauses Cron ticks until explicit owner start',async()=>{
+ let calls=0;
+ const auto={...env,CLOUD_CATALOG_AUTO_ENABLED:'yes'};
+ const {instance,ctx}=job({async fetch(){calls++;return Response.json({published:true});}},context(),auto);
+ const before=await(await instance.fetch(request('status'))).json();
+ assert.equal(before.enabled,true);
+ const paused=await(await instance.fetch(request('stop'))).json();
+ assert.equal(paused.enabled,false);
+ const missed=await(await instance.fetch(request('scheduled'))).json();
+ assert.equal(missed.skipped,true);
+ assert.equal(calls,0);
+ const resumed=await(await instance.fetch(request('start'))).json();
+ assert.equal(resumed.enabled,true);
+ assert.equal(calls,1);
+ await instance.fetch(request('scheduled'));
+ assert.equal(calls,2);
+ assert.equal(ctx.alarm,null);
+});
+test('scheduled action still requires owner secret and auto flag',async()=>{
+ const {instance}=job({async fetch(){throw Error('must not run');}},context(),{...env,CLOUD_CATALOG_AUTO_ENABLED:'yes'});
+ assert.equal((await instance.fetch(request('scheduled','wrong'))).status,401);
+ const legacy=job({async fetch(){throw Error('must not run');}});
+ assert.equal((await legacy.instance.fetch(request('scheduled'))).status,410);
 });

@@ -148,7 +148,7 @@ return catalogIngest;
 const mainCatalogCheck = (() => {
 // فحص يدوي للكتالوج في التطبيق الرئيسي بطلب من المالك. بلا جدولة.
 // الأسرار: PROBE_KEY (من 24 إلى 256 حرفًا)، وRESPONSE_MASK (إعداد تنسيق خاص بطول 16 حرفًا).
-const SOURCE_URL = "https://def001.ycnapi.com/api/categories";
+const SOURCE_URL = "https://def111.ycnapi.com/api/categories";
 const MAX_RESPONSE_BYTES = 512 * 1024;
 const MAX_FORM_BYTES = 4096;
 
@@ -710,14 +710,27 @@ return {
 // END فحص الكتالوج الرئيسي
 
 // BEGIN مجدول تحديث الكتالوج
-// تحديث يدوي مؤقت للقنوات. أي Alarm قديم يُلغى دون جلب أو حفظ.
-// باقي إشعارات التطبيق ومواعيدها لا تتأثر.
+// Cron Trigger in the main Cloudflare Worker checks YTV channels every 5 minutes.
+// An owner can pause/resume, and a failed or incomplete source never replaces saved channels.
+// Legacy Durable Object alarms are cancelled. No Android work or extra scheduled alarms.
 function createCatalogRefresh(Base,check){
  const keyName='catalog:auto';
  const json=(body,status=200)=>Response.json(body,{status,headers:{'Cache-Control':'no-store'}});
- const page=`<!doctype html><html lang="ar" dir="rtl"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>تحديث القنوات يدويًا</title><style>body{background:#080b0d;color:#f3d57d;font:18px system-ui;max-width:540px;margin:40px auto;padding:20px}input,button{box-sizing:border-box;width:100%;padding:14px;margin:10px 0;font:inherit;border-radius:12px}button{background:#e8bd52;border:0}p{line-height:1.8}</style><h1>تحديث القنوات يدويًا</h1><p>تم إيقاف تحديث الأرقام من Cloudflare بالكامل أثناء استعادة نظام جلب القنوات من هاتف المدير. استخدم العطا ميديا ثم الرياضة ثم تحديث القنوات من الهاتف. تبقى القنوات المحفوظة كما هي.</p><form method="post"><label>مفتاح الإدارة PROBE_KEY</label><input type="password" name="probe_key" autocomplete="off" required minlength="24" maxlength="256"><button name="action" value="status">حالة التحديث المتوقف</button><button name="action" value="stop">إيقاف أي تحديث جارٍ</button></form></html>`;
+ const page=`<!doctype html><html lang="ar" dir="rtl"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>التحديث التلقائي لقنوات العطا</title><style>body{background:#080b0d;color:#f3d57d;font:18px system-ui;max-width:540px;margin:40px auto;padding:20px}input,button{box-sizing:border-box;width:100%;padding:14px;margin:10px 0;font:inherit;border-radius:12px}button{background:#e8bd52;border:0}p{line-height:1.8}</style><h1>التحديث التلقائي للقنوات</h1><p>Cloudflare يفحص القنوات كل 5 دقائق باستخدام def111. عند فشل القراءة أو عدم تطابق أسماء القنوات يحتفظ بالأرقام المحفوظة. لا يوجد تحديث تلقائي على الهاتف.</p><form method="post"><label>مفتاح الإدارة PROBE_KEY</label><input type="password" name="probe_key" autocomplete="off" required minlength="24" maxlength="256"><button name="action" value="status">حالة التحديث والأسرار المطلوبة</button><button name="action" value="start">استئناف التحديث التلقائي والتجربة الآن</button><button name="action" value="stop">إيقاف التحديث التلقائي</button><button name="action" value="refresh">فحص يدوي مرة واحدة</button></form><p>لا تدخل RESPONSE_MASK أو CATALOG_SYNC_KEY هنا. يُضبطان كأسرار في Cloudflare فقط.</p></html>`;
  return class CatalogRefresh extends Base{
   constructor(ctx,env){super(ctx,env);this.ctx=ctx;this.env=env;this.running=null;this.starting=false;}
+  autoAllowed(){return this.env.CLOUD_CATALOG_AUTO_ENABLED==='yes';}
+  configuration(){return {
+   probeKeyConfigured:typeof this.env.PROBE_KEY==='string'&&this.env.PROBE_KEY.length>=24,
+   responseMaskConfigured:typeof this.env.RESPONSE_MASK==='string'&&/^[\x20-\x7e]{16}$/.test(this.env.RESPONSE_MASK.replace(/\r?\n$/,'')),
+   catalogSyncKeyConfigured:typeof this.env.CATALOG_SYNC_KEY==='string'&&this.env.CATALOG_SYNC_KEY.length>=32,
+  };}
+  status(state){
+   const enabled=this.autoAllowed()&&state.cronPaused!==true;
+   return {ok:true,manualOnly:!this.autoAllowed(),...state,
+    enabled,autoEnabled:enabled,intervalMs:enabled?300000:null,nextRun:null,
+    cron:'*/5 * * * *',configuration:this.configuration()};
+  }
   async disableAuto(){
    const state=await this.ctx.storage.get(keyName)||{};
    if(state.enabled||state.nextRun!=null||state.intervalMs!=null)
@@ -740,16 +753,21 @@ function createCatalogRefresh(Base,check){
    const action=form.get('action');
    if(action==='stop'){
     const state=await this.disableAuto();
-    await this.ctx.storage.put(keyName,{...state,manualRunId:null,enabled:false,nextRun:null,intervalMs:null});
-    return json({ok:true,manualOnly:true,enabled:false,nextRun:null,message:'التحديث التلقائي متوقف؛ أُلغيت أي تجربة جارية.'});
+    await this.ctx.storage.put(keyName,{...state,manualRunId:null,cronPaused:true,enabled:false,nextRun:null,intervalMs:null});
+    return json({...this.status({...state,cronPaused:true}),message:'تم إيقاف جدولة القنوات في Cloudflare.'});
    }
    if(action==='status'){
     const state=await this.disableAuto();
-    return json({ok:true,manualOnly:true,...state,enabled:false,nextRun:null});
+    return json(this.status(state));
    }
-   if(!['refresh','start','rebaseline'].includes(action))return json({ok:false,error:'INVALID_ACTION'},400);
-   if(this.env.CLOUD_CATALOG_MANUAL_ENABLED!=='yes')return json({ok:false,enabled:false,manualOnly:true,error:'SOURCE_SYNC_PAUSED_USE_PHONE'},410);
-   // "start" from an older client is a ONE-TIME refresh, never an automatic activation.
+   if(!['refresh','start','rebaseline','scheduled'].includes(action))return json({ok:false,error:'INVALID_ACTION'},400);
+   if(action==='scheduled'&&!this.autoAllowed())return json({ok:false,error:'AUTO_NOT_ENABLED'},410);
+   if(action!=='scheduled'&&this.env.CLOUD_CATALOG_MANUAL_ENABLED!=='yes')
+    return json({ok:false,enabled:false,manualOnly:true,error:'SOURCE_SYNC_PAUSED_USE_PHONE'},410);
+   const state=await this.ctx.storage.get(keyName)||{};
+   if(action==='scheduled'&&state.cronPaused===true)
+    return json({...this.status(state),skipped:true,reason:'OWNER_PAUSED'});
+   // "start" resumes scheduled runs. "refresh" and "rebaseline" never unpause.
    if(this.running||this.starting)return json({ok:false,error:'REFRESH_IN_PROGRESS'},409);
    this.starting=true;
    try{
@@ -760,10 +778,11 @@ function createCatalogRefresh(Base,check){
     if(typeof sync!=='string'||sync.length<32||sync.length>256)return json({ok:false,error:'CATALOG_SYNC_KEY_MISSING'},503);
     const manualRunId=crypto.randomUUID();
     await this.ctx.storage.put(keyName,{...previous,enabled:false,nextRun:null,intervalMs:null,
-     manualRunId,lastSaved:null,error:null});
+     manualRunId,cronPaused:action==='start'?false:previous.cronPaused===true,
+     lastSaved:null,error:null});
     await this.run(action==='rebaseline',manualRunId);
     const state=await this.ctx.storage.get(keyName)||{};
-    return json({ok:true,manualOnly:true,...state,enabled:false,nextRun:null});
+    return json(this.status(state));
    }finally{this.starting=false;}
   }
   async alarm(){await this.disableAuto();}
@@ -4841,6 +4860,17 @@ export class SignalingRoom extends DurableObject {
 
 
 export default {
+  async scheduled(controller,env,ctx){
+    // Cloudflare Cron only; never runs from a browser request.
+    if(controller.cron!=='*/5 * * * *'||env.CLOUD_CATALOG_AUTO_ENABLED!=='yes')return;
+    if(typeof env.PROBE_KEY!=='string'||env.PROBE_KEY.length<24)return;
+    const id=env.CATALOG_REFRESH.idFromName('catalog-refresh');
+    const request=new Request('https://internal.invalid/api/internal/catalog-update',{
+      method:'POST',body:new URLSearchParams({probe_key:env.PROBE_KEY,action:'scheduled'})
+    });
+    const result=env.CATALOG_REFRESH.get(id).fetch(request);
+    ctx.waitUntil(result);
+  },
   async fetch(request,env){
     const url=new URL(request.url);
 
