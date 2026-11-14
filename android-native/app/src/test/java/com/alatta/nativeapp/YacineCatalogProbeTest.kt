@@ -12,6 +12,21 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28])
 class YacineCatalogProbeTest {
+    @Test fun remoteHostConfigurationAcceptsOnlyBoundedHttpsApiSources() {
+        val allowed = """{"version":2,"sources":["https://def111.ycnapi.com/api/","https://def001.ycnapi.com/api/"]}"""
+        assertEquals(listOf("https://def111.ycnapi.com/api/", "https://def001.ycnapi.com/api/"),
+            YacineCatalogProbe.parseSourceConfiguration(allowed))
+        for (bad in listOf(
+            """{"version":0,"sources":["https://def111.ycnapi.com/api/"]}""",
+            """{"version":1,"sources":[]}""",
+            """{"version":1,"sources":["http://def111.ycnapi.com/api/"]}""",
+            """{"version":1,"sources":["https://evil.example/api/"]}""",
+            """{"version":1,"sources":["https://def111.ycnapi.com/other/"]}""",
+            """{"version":1,"sources":["https://def111.ycnapi.com/api/?x=1"]}""",
+            """{"version":1,"sources":["https://def111.ycnapi.com/api/","https://def111.ycnapi.com/api/"]}"""
+        )) assertNull(YacineCatalogProbe.parseSourceConfiguration(bad))
+    }
+
     private val path = "categories/1/channels"
     private val fixtureMask = "test-format-mask".toByteArray(Charsets.US_ASCII)
     private fun fixture(name: String): String = requireNotNull(javaClass.classLoader?.getResourceAsStream(name))
