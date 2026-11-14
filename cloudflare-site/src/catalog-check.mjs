@@ -10,7 +10,7 @@ const CATALOG_SOURCES = Object.freeze([
 ]);
 const catalogHeaders = () => ({ Accept: "application/json", "User-Agent": "okhttp/4.12.0" });
 const categoryKey = name => String(name).normalize("NFKC")
-  .replace(/[^\\p{L}\\p{N}]/gu, "").toLowerCase();
+  .replace(/[^\p{L}\p{N}]/gu, "").toLowerCase();
 const relevantCategory = name => {
   const key = categoryKey(name);
   return key.includes("bein") || key.includes("sport") ||
