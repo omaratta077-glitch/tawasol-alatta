@@ -8,11 +8,11 @@ const request=(action='refresh',key=env.PROBE_KEY)=>new Request('https://offline
 function context(){const data=new Map();let alarm=null;return {data,get alarm(){return alarm;},storage:{async get(k){return structuredClone(data.get(k));},async put(k,v){data.set(k,structuredClone(v));},async setAlarm(t){alarm=t;},async deleteAlarm(){alarm=null;}}};}
 function job(check,ctx=context(),settings=env){const Class=createCatalogRefresh(class{},check);return {instance:new Class(ctx,settings),ctx,Class};}
 
-test('GET shows manual-only controls and wrong key cannot refresh',async()=>{
+test('GET shows schedule controls and wrong key cannot refresh',async()=>{
  let calls=0;const {instance,ctx}=job({fetch(){calls++;}});
  const response=await instance.fetch(new Request('https://offline.invalid/api/internal/catalog-update'));
  const html=await response.text();
- assert.equal(response.status,200);assert.match(html,/تحديث القنوات يدويًا/);assert.match(html,/value="start"/);
+ assert.equal(response.status,200);assert.match(html,/التحديث التلقائي للقنوات/);assert.match(html,/value="start"/);
  assert.equal((await instance.fetch(request('refresh','wrong'))).status,401);assert.equal(calls,0);assert.equal(ctx.alarm,null);
 });
 test('missing configuration rejects one-shot refresh without touching the last saved channels',async()=>{

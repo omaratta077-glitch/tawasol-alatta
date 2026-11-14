@@ -5,7 +5,7 @@ import probe from '../../cloudflare-site/src/catalog-check.mjs';
 const env={PROBE_KEY:'test-probe-00000000000000000000'},channel='4973946197000000001';
 const form=(fields={})=>new Request('https://owned.invalid/api/internal/catalog-check',{method:'POST',body:new URLSearchParams({probe_key:env.PROBE_KEY,channel_id:channel,playback_video:'yes',...fields})});
 async function run(rows,{fields={},status=200}={}){
- let calls=0,saves=0;globalThis.fetch=async(url)=>{calls++;assert.equal(url,'https://def001.ycnapi.com/api/channel/'+channel);return Response.json({data:rows},{status,headers:{t:'1793260792'}});};
+ let calls=0,saves=0;globalThis.fetch=async(url)=>{calls++;assert.equal(url,'https://def111.ycnapi.com/api/channel/'+channel);return Response.json({data:rows},{status,headers:{t:'1793260792'}});};
  try{const response=await probe.fetch(form(fields),env,()=>{saves++;throw Error('no save');});return {response,text:await response.text(),calls,saves};}
  finally{globalThis.fetch=async()=>{throw Error('No network');};}
 }

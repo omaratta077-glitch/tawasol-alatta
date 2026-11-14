@@ -9,7 +9,7 @@ const fixtures=[{url:'https://cdn.example/live.m3u8',headers:{},drm:null},
   {url:'http://test.new-redirect.online/live/index.m3u8?t=synthetic-signature',headers:{'User-Agent':'Synthetic Player'},drm:null}];
 async function resolve(rows=fixtures,{native=true,status=200,encoded=false}={}){
  let calls=0;globalThis.fetch=async(url,options)=>{
-  calls++;assert.equal(url,'https://def001.ycnapi.com/api/channel/'+channel);
+  calls++;assert.equal(url,'https://def111.ycnapi.com/api/channel/'+channel);
   assert.equal(new Headers(options.headers).has('authorization'),false);
   let body=JSON.stringify({data:rows});
   if(encoded){const mask=new TextEncoder().encode(env.RESPONSE_MASK+'1793253408');body=btoa(Array.from(new TextEncoder().encode(body),(v,i)=>String.fromCharCode(v^mask[i%mask.length])).join(''));}
@@ -142,7 +142,7 @@ test('app endpoint authenticates first, resolves current stable catalog ID and n
  const room=new SignalingRoom({storage,getWebSockets:()=>[]},env);
  room.requireAdmin=async token=>token==='owner'?{}:{error:Response.json({ok:false},{status:403})};
  const req=new Request('https://owned.example/api/admin/football/playback-test',{method:'POST'});
- let calls=0;globalThis.fetch=async url=>{calls++;assert.equal(url,'https://def001.ycnapi.com/api/channel/'+channel);return Response.json({data:fixtures});};
+ let calls=0;globalThis.fetch=async url=>{calls++;assert.equal(url,'https://def111.ycnapi.com/api/channel/'+channel);return Response.json({data:fixtures});};
  try {
   assert.equal((await room.footballPlaybackTest(req,{token:'outsider',channelId:'stable-channel'})).status,403);
   assert.equal((await room.footballPlaybackTest(req,{token:'owner',channelId:'made-up-source-id'})).status,404);assert.equal(calls,0);

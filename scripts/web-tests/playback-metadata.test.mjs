@@ -7,7 +7,7 @@ const req=(fields={})=>new Request('https://owned.invalid/api/internal/catalog-c
 const payload={data:[{name:'private-name',url:'https://stream.invalid/private-path?token=private-token',urlType:1,userAgent:'private-agent',headers:{Authorization:'private-credential',Referer:'https://private.invalid/'},drm:{type:'private-type',license:'private-license',requestProperties:{key:'private-key'}}}],servers:{private:'private-server'}};
 async function run(body=JSON.stringify(payload),{fields={},status=200,encoded=false}={}){
  let calls=0,saves=0;globalThis.fetch=async(url,opt)=>{
-  calls++;assert.equal(url,'https://def001.ycnapi.com/api/channel/'+id);assert.equal(opt.redirect,'manual');assert.equal(opt.headers.Authorization,undefined);
+  calls++;assert.equal(url,'https://def111.ycnapi.com/api/channel/'+id);assert.equal(opt.redirect,'manual');assert.equal(opt.headers.Authorization,undefined);
   if(encoded){const mask=new TextEncoder().encode(env.RESPONSE_MASK+'1793253408');body=btoa(Array.from(new TextEncoder().encode(body),(v,i)=>String.fromCharCode(v^mask[i%mask.length])).join(''));}
   return new Response(body,{status,headers:{t:'1793253408','Content-Type':'application/json'}});
  };
