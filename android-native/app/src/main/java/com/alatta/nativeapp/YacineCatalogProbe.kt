@@ -12,6 +12,8 @@ import org.json.JSONTokener
 import java.io.IOException
 import java.net.SocketTimeoutException
 import java.net.UnknownHostException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.nio.ByteBuffer
 import java.nio.charset.CodingErrorAction
 import java.util.Base64
@@ -28,7 +30,52 @@ internal object YacineCatalogProbe {
     const val OBSERVED_HTTP_BASE = "http://def111.ycnapi.com/api/"
     const val LEGACY_BASE = "https://def001.ycnapi.com/api/"
     private val catalogBases = listOf(BASE, OBSERVED_HTTP_BASE, LEGACY_BASE)
-    internal fun candidates() = catalogBases.toList()
+    private const val REMOTE_CONFIG_PATH = "/catalog-source-config.json"
+    private const val CONFIG_REFRESH_MS = 30 * 60_000L
+    private val allowedRemoteHost = Regex("^[a-z0-9-]+\\.ycnapi\\.com$")
+    @Volatile private var remoteBases: List<String> = emptyList()
+    @Volatile private var lastConfigCheckMs: Long = 0
+
+    // The app's own HTTPS origin controls priority, not Firebase or a third-party private endpoint.
+    // Restrict remotely supplied hosts to the approved HTTPS catalog domain.
+    internal fun candidates(): List<String> =
+        (remoteBases + catalogBases).distinct()
+
+    internal suspend fun refreshSourceConfiguration() {
+        val now = System.currentTimeMillis()
+        if (now >= lastConfigCheckMs && now - lastConfigCheckMs < CONFIG_REFRESH_MS) return
+        lastConfigCheckMs = now
+        withContext(Dispatchers.IO) {
+            try {
+                val request = Request.Builder()
+                    .url(ATTA_API_BASE + REMOTE_CONFIG_PATH)
+                    .header("Accept", "application/json").get().build()
+                client.newCall(request).execute().use { response ->
+                    if (!response.isSuccessful || response.body == null) return@use
+                    val bytes = response.body!!.bytes()
+                    if (bytes.size > 8192) return@use
+                    val json = JSONObject(String(bytes, Charsets.UTF_8))
+                    if (json.optInt("version") < 1) return@use
+                    val list = json.optJSONArray("sources") ?: return@use
+                    if (list.length() !in 1..8) return@use
+                    val updated = (0 until list.length()).map { i ->
+                        val source = list.optString(i)
+                        val url = okhttp3.HttpUrl.parse(source) ?: return@use
+                        if (url.scheme != "https" || url.port != 443 ||
+                            !allowedRemoteHost.matches(url.host) ||
+                            url.encodedPath != "/api/" ||
+                            url.query != null || url.fragment != null ||
+                            url.username.isNotEmpty() || url.password.isNotEmpty()) return@use
+                        source
+                    }
+                    if (updated.distinct().size != updated.size) return@use
+                    remoteBases = updated
+                }
+            } catch (_: Exception) {
+                // Keep the last known-good remote selection and built-in fallback.
+            }
+        }
+    }
     const val MAX_BYTES = 512 * 1024
     const val MAX_ITEMS = 500
     const val MAX_REPORT_CHARS = 16 * 1024
@@ -105,7 +152,7 @@ internal object YacineCatalogProbe {
         .callTimeout(20, TimeUnit.SECONDS).build()
 
     internal fun request(kind: Kind, categoryId: String? = null, sourceBase: String = BASE): Request {
-        require(sourceBase in catalogBases) { "عنوان قائمة القنوات غير معتمد" }
+        require(sourceBase in candidates()) { "عنوان قائمة القنوات غير معتمد" }
         val id = categoryId?.let { requireNotNull(YtvPlayer.channelId(it)) { "رقم قسم غير صالح" } }
         val path = when (kind) {
             Kind.CATEGORIES -> if (id == null) "categories" else "categories/" + id
@@ -251,8 +298,9 @@ internal object YacineCatalogProbe {
     /** Never mix categories from one host with channel IDs from another host. */
     suspend fun fetch(kind: Kind, categoryId: String? = null, responseMask: ByteArray? = null,
         sourceBase: String? = null): Result {
-        val bases = if (sourceBase == null) catalogBases else listOf(sourceBase.also {
-            require(it in catalogBases) { "عنوان قائمة القنوات غير معتمد" }
+        if (sourceBase == null) refreshSourceConfiguration()
+        val bases = if (sourceBase == null) candidates() else listOf(sourceBase.also {
+            require(it in candidates()) { "عنوان قائمة القنوات غير معتمد" }
         })
         val history = ArrayList<Result>(bases.size)
         for (base in bases) {
