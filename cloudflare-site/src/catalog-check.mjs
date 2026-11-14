@@ -85,7 +85,10 @@ async function findPhoneSportsCategory(root, signal, mask) {
       if (path.includes("beinsports") && leaf.includes("1080") &&
           !categoryKey(current.path).includes("720") &&
           !categoryKey(current.path).includes("360")) {
-        found.push(entry);
+        // Android names a quality-only child as beIN SPORTS (1080P)
+        // so the trusted receiver can validate it without guessing.
+        found.push({...entry, name:leaf.includes("beinsports")
+          ? entry.name : "beIN SPORTS (1080P)"});
       } else if (current.depth < 3 && relevantCategory(entry.name) &&
                  !leaf.includes("720") && !leaf.includes("360")) {
         queue.push({id:entry.id,path:current.path+" / "+entry.name,depth:current.depth+1});
