@@ -504,6 +504,17 @@ async function readLimited(stream, limit) {
 }
 
 return {
+  // Authenticated phone clients may submit catalog metadata fetched from their
+  // own network. The server decodes ONLY category/channel names and IDs, never
+  // streams, authorization headers or proprietary config keys.
+  decodePhonePayload(payload, timeHeader, responseMask) {
+    if (typeof payload !== "string" || payload.length < 2 || payload.length > 32768 ||
+        typeof timeHeader !== "string" || !/^\\d{10,13}$/.test(timeHeader))
+      return {state:"INVALID",entries:[]};
+    const result = readCatalog(payload, timeHeader, responseMask);
+    return {state:result.state,entries:
+      (result.state==="LIST" || result.state==="EMPTY")?result.entries:[]};
+  },
   async fetch(request, env, saveCatalog, nativePlayback = false, channelSelector = null) {
     if (new URL(request.url).pathname !== "/api/internal/catalog-check") return respond({ message: "المسار غير موجود." }, 404);
     if (request.method === "GET") {
@@ -2208,6 +2219,26 @@ export class SignalingRoom extends DurableObject {
     if(url.pathname==="/api/admin/football/catalog-refresh")
       return j({ok:false,error:"SOURCE_SYNC_PAUSED_USE_PHONE"},410);
     if(url.pathname==="/api/admin/football/playback-test")return this.footballPlaybackTest(request,body);
+    if(url.pathname==="/api/football/catalog-decode") {
+      if(request.method!=="POST")return j({ok:false,error:"METHOD_NOT_ALLOWED"},405);
+      const session=await this.session(String(body.token||""));
+      if(!session)return j({ok:false,error:"UNAUTHORIZED"},401);
+      // A shared decoding key stays server-side. Do not let logged-in clients
+      // mutate the global football catalog or submit playback metadata.
+      if(typeof body.payload!=="string"||body.payload.length>32768||
+         typeof body.t!=="string"||!/^\\d{10,13}$/.test(body.t))
+        return j({ok:false,error:"INVALID_CATALOG_PAYLOAD"},400);
+      const rateKey="ytv:decode:"+session.username;
+      const now=Date.now(),rate=await this.ctx.storage.get(rateKey)||{at:0,count:0};
+      const windowStart=now-rate.at<5*60*1000?rate.at:now;
+      const count=now-rate.at<5*60*1000?rate.count:0;
+      if(count>=40)return j({ok:false,error:"DECODE_RATE_LIMIT"},429);
+      await this.ctx.storage.put(rateKey,{at:windowStart,count:count+1});
+      const result=mainCatalogCheck.decodePhonePayload(body.payload,body.t,this.env.RESPONSE_MASK);
+      if(result.state!=="LIST"&&result.state!=="EMPTY")
+        return j({ok:false,error:"UNREADABLE_PHONE_CATALOG"},422);
+      return j({ok:true,state:result.state,entries:result.entries});
+    }
     if(url.pathname==="/api/football/playback")return this.footballPlaybackTest(request,body,true);
     if(url.pathname==="/api/sports-broadcast")return this.sportsBroadcastApi(request,url,body);
     if(url.pathname==="/api/watch-room")return this.watchRoomApi(request,body);

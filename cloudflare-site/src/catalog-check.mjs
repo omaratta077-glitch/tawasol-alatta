@@ -356,6 +356,17 @@ async function readLimited(stream, limit) {
 }
 
 export default {
+  // Authenticated phone clients may submit catalog metadata fetched from their
+  // own network. The server decodes ONLY category/channel names and IDs, never
+  // streams, authorization headers or proprietary config keys.
+  decodePhonePayload(payload, timeHeader, responseMask) {
+    if (typeof payload !== "string" || payload.length < 2 || payload.length > 32768 ||
+        typeof timeHeader !== "string" || !/^\\d{10,13}$/.test(timeHeader))
+      return {state:"INVALID",entries:[]};
+    const result = readCatalog(payload, timeHeader, responseMask);
+    return {state:result.state,entries:
+      (result.state==="LIST" || result.state==="EMPTY")?result.entries:[]};
+  },
   async fetch(request, env, saveCatalog, nativePlayback = false, channelSelector = null) {
     if (new URL(request.url).pathname !== "/api/internal/catalog-check") return respond({ message: "المسار غير موجود." }, 404);
     if (request.method === "GET") {
