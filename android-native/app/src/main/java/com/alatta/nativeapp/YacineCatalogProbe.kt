@@ -42,6 +42,26 @@ internal object YacineCatalogProbe {
     internal fun candidates(): List<String> =
         (remoteBases + catalogBases).distinct()
 
+    /** Remotely published configuration is validated before being used for new requests. */
+    internal fun parseSourceConfiguration(payload: String): List<String>? {
+        val json = runCatching { JSONObject(payload) }.getOrNull() ?: return null
+        if (json.optInt("version") < 1) return null
+        val list = json.optJSONArray("sources") ?: return null
+        if (list.length() !in 1..8) return null
+        val updated = ArrayList<String>(list.length())
+        for (i in 0 until list.length()) {
+            val source = list.optString(i)
+            val url = source.toHttpUrlOrNull() ?: return null
+            if (url.scheme != "https" || url.port != 443 ||
+                !allowedRemoteHost.matches(url.host) ||
+                url.encodedPath != "/api/" ||
+                url.query != null || url.fragment != null ||
+                url.username.isNotEmpty() || url.password.isNotEmpty()) return null
+            updated.add(source)
+        }
+        return updated.takeIf { it.distinct().size == it.size }
+    }
+
     internal suspend fun refreshSourceConfiguration() {
         val now = System.currentTimeMillis()
         if (now >= lastConfigCheckMs && now - lastConfigCheckMs < CONFIG_REFRESH_MS) return
@@ -53,23 +73,14 @@ internal object YacineCatalogProbe {
                     .header("Accept", "application/json").get().build()
                 client.newCall(request).execute().use { response ->
                     if (!response.isSuccessful || response.body == null) return@use
-                    val bytes = response.body!!.bytes()
-                    if (bytes.size > 8192) return@use
-                    val json = JSONObject(String(bytes, Charsets.UTF_8))
-                    if (json.optInt("version") < 1) return@use
-                    val list = json.optJSONArray("sources") ?: return@use
-                    if (list.length() !in 1..8) return@use
-                    val updated = (0 until list.length()).map { i ->
-                        val source = list.optString(i)
-                        val url = source.toHttpUrlOrNull() ?: return@use
-                        if (url.scheme != "https" || url.port != 443 ||
-                            !allowedRemoteHost.matches(url.host) ||
-                            url.encodedPath != "/api/" ||
-                            url.query != null || url.fragment != null ||
-                            url.username.isNotEmpty() || url.password.isNotEmpty()) return@use
-                        source
+                    // Read at most 8 KiB + one byte, including invalid responses.
+                    val bytes = response.body!!.source().let { source ->
+                        source.request(8193L)
+                        if (source.buffer.size > 8192L) return@use
+                        source.buffer.readByteArray()
                     }
-                    if (updated.distinct().size != updated.size) return@use
+                    val updated = parseSourceConfiguration(String(bytes, Charsets.UTF_8))
+                        ?: return@use
                     remoteBases = updated
                 }
             } catch (_: Exception) {
