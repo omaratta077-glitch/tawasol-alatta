@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "sources": [
+    "https://def111.ycnapi.com/api/",
+    "https://def001.ycnapi.com/api/"
+  ]
+}
