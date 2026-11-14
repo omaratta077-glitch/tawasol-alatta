@@ -509,7 +509,7 @@ return {
   // streams, authorization headers or proprietary config keys.
   decodePhonePayload(payload, timeHeader, responseMask) {
     if (typeof payload !== "string" || payload.length < 2 || payload.length > 32768 ||
-        typeof timeHeader !== "string" || !/^\\d{10,13}$/.test(timeHeader))
+        typeof timeHeader !== "string" || !/^\d{10,13}$/.test(timeHeader))
       return {state:"INVALID",entries:[]};
     const result = readCatalog(payload, timeHeader, responseMask);
     return {state:result.state,entries:
@@ -2227,7 +2227,7 @@ export class SignalingRoom extends DurableObject {
       // A shared decoding key stays server-side. Do not let logged-in clients
       // mutate the global football catalog or submit playback metadata.
       if(typeof body.payload!=="string"||body.payload.length>32768||
-         typeof body.t!=="string"||!/^\\d{10,13}$/.test(body.t))
+         typeof body.t!=="string"||!/^\d{10,13}$/.test(body.t))
         return j({ok:false,error:"INVALID_CATALOG_PAYLOAD"},400);
       const rateKey="ytv:decode:"+session.username;
       const now=Date.now(),rate=await this.ctx.storage.get(rateKey)||{at:0,count:0};

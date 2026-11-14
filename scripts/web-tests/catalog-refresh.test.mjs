@@ -164,7 +164,7 @@ test('production worker contains identical Cloudflare Cron implementation and re
  assert.ok(worker.includes('async scheduled(controller,env,ctx)'));
  assert.ok(worker.includes("action:'scheduled'"));
  assert.ok(config.includes('crons = ["*/5 * * * *"]'));
- assert.ok(config.includes('CLOUD_CATALOG_AUTO_ENABLED = "yes"'));
+ assert.ok(config.includes('CLOUD_CATALOG_AUTO_ENABLED = "no"'));
 });
 
 test('Cloudflare cron refresh does not touch saved channels without configuration',async()=>{

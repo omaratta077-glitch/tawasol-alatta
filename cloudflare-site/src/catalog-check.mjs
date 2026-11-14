@@ -361,7 +361,7 @@ export default {
   // streams, authorization headers or proprietary config keys.
   decodePhonePayload(payload, timeHeader, responseMask) {
     if (typeof payload !== "string" || payload.length < 2 || payload.length > 32768 ||
-        typeof timeHeader !== "string" || !/^\\d{10,13}$/.test(timeHeader))
+        typeof timeHeader !== "string" || !/^\d{10,13}$/.test(timeHeader))
       return {state:"INVALID",entries:[]};
     const result = readCatalog(payload, timeHeader, responseMask);
     return {state:result.state,entries:
