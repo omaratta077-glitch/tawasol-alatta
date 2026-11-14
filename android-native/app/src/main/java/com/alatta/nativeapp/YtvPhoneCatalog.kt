@@ -93,12 +93,12 @@ internal object YtvPhoneCatalog {
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (_: Exception) { continue }
-            if (first.state in setOf(YacineCatalogProbe.State.LIST, YacineCatalogProbe.State.EMPTY))
-                return first
+            // An empty response from an outdated host is not a usable catalog.
+            // Keep trying other configured hosts before accepting failure.
+            if (first.state == YacineCatalogProbe.State.LIST) return first
             if (first.state == YacineCatalogProbe.State.UNREADABLE) {
                 val decoded = decodeOnServer(token, first)
-                if (decoded?.state in setOf(YacineCatalogProbe.State.LIST, YacineCatalogProbe.State.EMPTY))
-                    return decoded
+                if (decoded?.state == YacineCatalogProbe.State.LIST) return decoded
             }
         }
         return null
