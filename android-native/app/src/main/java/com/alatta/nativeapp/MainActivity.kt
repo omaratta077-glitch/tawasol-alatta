@@ -1040,7 +1040,7 @@ internal fun MushafPostActions(text: String, onRead: ((IntRange) -> Unit)? = nul
     var adminSearch by remember { mutableStateOf("") }
     var adminNextOffset by remember { mutableStateOf(-1) }
     var adminRole by remember { mutableStateOf("") }
-    CatalogAutoRefreshEffect(token, myUsername, enabled = token.isNotBlank())
+    CatalogAutoRefreshEffect(token, myUsername, enabled = token.isNotBlank(), isSuperAdmin = adminRole == "super_admin")
     var adminUsers by remember { mutableStateOf(emptyList<JSONObject>()) }
     var adminPosts by remember { mutableStateOf(emptyList<JSONObject>()) }
     var archivedPosts by remember { mutableStateOf(emptyList<JSONObject>()) }
