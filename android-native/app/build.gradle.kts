@@ -24,9 +24,9 @@ android {
         applicationId = "com.alatta.nativeapp"
         minSdk = 26
         targetSdk = 36
-        // الإصدار 1.0.286: التحقق من تجدد أرقام القنوات عند الاختيار مع حفظ آخر رقم صحيح.
-        versionCode = 386
-        versionName = "1.0.286"
+        // الإصدار 1.0.287: تحديث دوري لأرقام القنوات ومصادرها كل 30 ثانية أثناء تشغيل التطبيق.
+        versionCode = 387
+        versionName = "1.0.287"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("boolean", "IS_APPGALLERY", appGalleryBuild.toString())
         val hmsId = (System.getenv("ALATTA_HMS_APP_ID") ?: "").trim().takeIf { it.matches(Regex("[0-9]{1,20}")) } ?: ""
