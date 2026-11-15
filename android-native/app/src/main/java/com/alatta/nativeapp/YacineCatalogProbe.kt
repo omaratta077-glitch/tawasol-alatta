@@ -318,7 +318,8 @@ internal object YacineCatalogProbe {
         for (base in bases) {
             val current = fetchSingle(kind, categoryId, responseMask, base)
             history.add(current)
-            if (current.state == State.LIST || current.state == State.EMPTY)
+            // Empty data is not a healthy catalog; test the next approved host.
+            if (current.state == State.LIST)
                 return summarizeAttempts(history)
         }
         // A response on the first host may contain a useful HTTP code or an
