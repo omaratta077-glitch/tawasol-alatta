@@ -37,7 +37,7 @@ class YtvPlayerTest {
             val received = Intent.CREATOR.createFromParcel(parcel)
             assertEquals(Intent.ACTION_VIEW, received.action)
             assertEquals("com.ytv.pronew", received.component?.packageName)
-            assertEquals("dev.google.ytvclib.ui.main.PlayerActivity", received.component?.className)
+            assertEquals("dev.google.ytvplayer.ui.splash.SplashActivity", received.component?.className)
             assertEquals(Long.MAX_VALUE, received.getLongExtra("id", -1L))
             assertEquals(1, received.getIntExtra("type", -1))
             assertEquals(setOf("id", "type"), received.extras!!.keySet())
@@ -48,7 +48,7 @@ class YtvPlayerTest {
     @Test fun restoredChannelSelectionUsesWorkingGoldPlayer() {
         val intent = requireNotNull(YtvPlayer.channelIntent("1425"))
         assertEquals("com.ytv.pronew", intent.component?.packageName)
-        assertEquals("dev.google.ytvclib.ui.main.PlayerActivity", intent.component?.className)
+        assertEquals("dev.google.ytvplayer.ui.splash.SplashActivity", intent.component?.className)
         assertEquals(Intent.ACTION_VIEW, intent.action)
         assertEquals(1425L, intent.getLongExtra("id", -1L))
         assertEquals(1, intent.getIntExtra("type", -1))
@@ -60,19 +60,10 @@ class YtvPlayerTest {
         val manuallyEntered = "4973946197359164878"
         val request = requireNotNull(YtvPlayer.channelIntent(manuallyEntered))
         assertEquals("com.ytv.pronew", request.component?.packageName)
-        assertEquals("dev.google.ytvclib.ui.main.PlayerActivity", request.component?.className)
+        assertEquals("dev.google.ytvplayer.ui.splash.SplashActivity", request.component?.className)
         assertEquals(4973946197359164878L, request.getLongExtra("id", -1L))
         assertEquals(1, request.getIntExtra("type", -1))
         assertEquals(setOf("id", "type"), request.extras!!.keySet())
-    }
-
-    @Test fun directPlayerHandoffSkipsSplashButPreservesStableChannelExtras() {
-        val intent = requireNotNull(YtvPlayer.channelIntent("١٤٢٥"))
-        assertEquals("dev.google.ytvclib.ui.main.PlayerActivity", intent.component?.className)
-        assertEquals(1425L, intent.getLongExtra("id", -1))
-        assertEquals(1, intent.getIntExtra("type", -1))
-        assertEquals(setOf("id", "type"), intent.extras!!.keySet())
-        assertNull(intent.data)
     }
 
     @Test fun channelIdsNormalizeArabicDigitsAndRejectUrlsMalformedValuesAndOverflow() {
@@ -105,28 +96,6 @@ class YtvPlayerTest {
         assertEquals(setOf("id", "type"), context.received!!.extras!!.keySet())
         assertEquals(YtvPlayer.Failure.UNAVAILABLE, YtvPlayer.open(LaunchContext(base, ActivityNotFoundException()), "41"))
         assertEquals(YtvPlayer.Failure.NOT_ALLOWED, YtvPlayer.open(LaunchContext(base, SecurityException()), "41"))
-    }
-
-    @Test fun unavailableDirectPlayerFallsBackToExistingGoldSplash() {
-        val base = RuntimeEnvironment.getApplication()
-        val attempts = mutableListOf<Intent>()
-        val context = object : ContextWrapper(base) {
-            override fun startActivity(intent: Intent) {
-                attempts += Intent(intent)
-                if (intent.component?.className == "dev.google.ytvclib.ui.main.PlayerActivity") {
-                    throw ActivityNotFoundException("simulate older YTV build")
-                }
-            }
-        }
-        var beforeLaunchCount = 0
-        assertNull(YtvPlayer.open(context, "1425") { beforeLaunchCount++ })
-        assertEquals(1, beforeLaunchCount)
-        assertEquals(2, attempts.size)
-        assertEquals("dev.google.ytvclib.ui.main.PlayerActivity", attempts[0].component?.className)
-        assertEquals("dev.google.ytvplayer.ui.splash.SplashActivity", attempts[1].component?.className)
-        assertEquals(1425L, attempts[1].getLongExtra("id", -1))
-        assertEquals(1, attempts[1].getIntExtra("type", -1))
-        assertEquals(setOf("id", "type"), attempts[1].extras!!.keySet())
     }
 
     @Test fun launchSelectionUsesOnlyCurrentCloudflareIdAndNeverTheCachedOne() {
