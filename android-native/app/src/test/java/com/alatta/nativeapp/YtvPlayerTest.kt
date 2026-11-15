@@ -107,6 +107,28 @@ class YtvPlayerTest {
         assertEquals(YtvPlayer.Failure.NOT_ALLOWED, YtvPlayer.open(LaunchContext(base, SecurityException()), "41"))
     }
 
+    @Test fun unavailableDirectPlayerFallsBackToExistingGoldSplash() {
+        val base = RuntimeEnvironment.getApplication()
+        val attempts = mutableListOf<Intent>()
+        val context = object : ContextWrapper(base) {
+            override fun startActivity(intent: Intent) {
+                attempts += Intent(intent)
+                if (intent.component?.className == "dev.google.ytvclib.ui.main.PlayerActivity") {
+                    throw ActivityNotFoundException("simulate older YTV build")
+                }
+            }
+        }
+        var beforeLaunchCount = 0
+        assertNull(YtvPlayer.open(context, "1425") { beforeLaunchCount++ })
+        assertEquals(1, beforeLaunchCount)
+        assertEquals(2, attempts.size)
+        assertEquals("dev.google.ytvclib.ui.main.PlayerActivity", attempts[0].component?.className)
+        assertEquals("dev.google.ytvplayer.ui.splash.SplashActivity", attempts[1].component?.className)
+        assertEquals(1425L, attempts[1].getLongExtra("id", -1))
+        assertEquals(1, attempts[1].getIntExtra("type", -1))
+        assertEquals(setOf("id", "type"), attempts[1].extras!!.keySet())
+    }
+
     @Test fun launchSelectionUsesOnlyCurrentCloudflareIdAndNeverTheCachedOne() {
         fun channel(stream: String, enabled: Boolean = true, format: String = "ytv") =
             FootballChannel("stable-one", "beIN SPORTS 1", "1080p", "YTV",
