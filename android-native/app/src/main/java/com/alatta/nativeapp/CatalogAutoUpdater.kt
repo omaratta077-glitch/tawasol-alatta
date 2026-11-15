@@ -148,8 +148,11 @@ internal fun CatalogAutoRefreshEffect(token: String, owner: String, enabled: Boo
         }
         if (!active) return@LaunchedEffect
         while (isActive) {
+            val started = SystemClock.elapsedRealtime()
             try {
-                kotlinx.coroutines.withTimeoutOrNull(70_000L) {
+                // Bound a whole poll to 25 s so the next attempt can start
+                // on the 30 s cadence while the screen remains active.
+                kotlinx.coroutines.withTimeoutOrNull(25_000L) {
                     YtvPhoneCatalog.refresh(application, token, owner)
                     if (isSuperAdmin && CatalogLinkStore.automatic(application, owner) &&
                         CatalogFormatSettings.configured(application)) {
@@ -161,7 +164,8 @@ internal fun CatalogAutoRefreshEffect(token: String, owner: String, enabled: Boo
             } catch (cancelled: kotlinx.coroutines.CancellationException) {
                 throw cancelled
             } catch (_: Exception) { /* Last known-good local IDs remain available. */ }
-            delay(YtvPhoneCatalog.UPDATE_INTERVAL_MS)
+            val elapsed = SystemClock.elapsedRealtime() - started
+            delay((YtvPhoneCatalog.UPDATE_INTERVAL_MS - elapsed).coerceAtLeast(1_000L))
         }
     }
 }
