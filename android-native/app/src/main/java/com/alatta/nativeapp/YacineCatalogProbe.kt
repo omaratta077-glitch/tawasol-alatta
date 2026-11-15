@@ -32,7 +32,7 @@ internal object YacineCatalogProbe {
     const val LEGACY_BASE = "https://def001.ycnapi.com/api/"
     private val catalogBases = listOf(BASE, OBSERVED_HTTP_BASE, LEGACY_BASE)
     private const val REMOTE_CONFIG_PATH = "/catalog-source-config.json"
-    private const val CONFIG_REFRESH_MS = 30 * 60_000L
+    private const val CONFIG_REFRESH_MS = 30_000L
     private val allowedRemoteHost = Regex("^[a-z0-9-]+\\.ycnapi\\.com$")
     @Volatile private var remoteBases: List<String> = emptyList()
     @Volatile private var lastConfigCheckMs: Long = 0
