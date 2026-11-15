@@ -46,7 +46,7 @@ internal object CatalogLinkStore {
 internal object CatalogAutoUpdater {
     const val FOREGROUND_REFRESH_MS = 30_000L
     // كل المستخدمين يسحبون الكتالوج المنشور من Cloudflare؛ لا يطلبون بيانات المصدر ولا ينشرونها.
-    const val SHARED_CATALOG_REFRESH_MS = 10_000L
+    const val SHARED_CATALOG_REFRESH_MS = 30_000L
     private val mutex = Mutex()
     private val attempts = mutableMapOf<String, Long>()
     var generation by mutableIntStateOf(0)
@@ -72,15 +72,15 @@ internal object CatalogAutoUpdater {
     )
     suspend fun refresh(context: Context, token: String, owner: String, force: Boolean = false): CatalogSyncResult? =
         withContext(Dispatchers.IO) { mutex.withLock {
-            // Restore the original device-owned catalog fetch, as in v203/v206.
-            // Only the owner explicitly presses refresh; no background phone writer.
-            if (!force) return@withLock null
+            // Automatic shared publishing is performed only by the signed-in
+            // super-admin caller. Server-side authorization still guards writes.
             if (owner.isBlank() || token.isBlank()) return@withLock null
             val links = CatalogLinkStore.read(context, owner)
             if (!force && (!CatalogLinkStore.automatic(context, owner) || !CatalogFormatSettings.configured(context))) return@withLock null
             val now = SystemClock.elapsedRealtime()
             if (!force && attempts[owner]?.let { now - it < FOREGROUND_REFRESH_MS } == true) return@withLock null
             attempts[owner] = now
+            if (!force) YacineCatalogProbe.refreshSourceConfiguration()
             var selectedSource: String? = null
             val sync = service(context, token, owner) { selectedSource }
             var discovery: CatalogSectionDiscovery? = null
@@ -136,12 +136,12 @@ internal object CatalogAutoUpdater {
 /**
  * Every signed-in app instance refreshes its own read-only channel-ID cache.
  * Android JobScheduler also retries in the background, subject to OS limits.
- * The owner-only shared catalog update remains a separate explicit operation.
+ * Only the super-admin can automatically publish validated shared catalog changes.
  */
 @Composable
-internal fun CatalogAutoRefreshEffect(token: String, owner: String, enabled: Boolean) {
+internal fun CatalogAutoRefreshEffect(token: String, owner: String, enabled: Boolean, isSuperAdmin: Boolean = false) {
     val application = LocalContext.current.applicationContext
-    LaunchedEffect(token, owner, enabled) {
+    LaunchedEffect(token, owner, enabled, isSuperAdmin) {
         val active = enabled && token.isNotBlank() && owner.isNotBlank()
         withContext(Dispatchers.IO) {
             CatalogRefreshJob.schedule(application, owner, active)
@@ -151,6 +151,12 @@ internal fun CatalogAutoRefreshEffect(token: String, owner: String, enabled: Boo
             try {
                 kotlinx.coroutines.withTimeoutOrNull(70_000L) {
                     YtvPhoneCatalog.refresh(application, token, owner)
+                    if (isSuperAdmin && CatalogLinkStore.automatic(application, owner) &&
+                        CatalogFormatSettings.configured(application)) {
+                        // Remote updates are published only after section/name validation.
+                        // Failed or incomplete updates leave the current catalog untouched.
+                        CatalogAutoUpdater.refresh(application, token, owner)
+                    }
                 }
             } catch (cancelled: kotlinx.coroutines.CancellationException) {
                 throw cancelled
