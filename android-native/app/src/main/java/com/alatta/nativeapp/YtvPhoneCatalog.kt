@@ -15,9 +15,9 @@ import java.util.Locale
  * private format setting. No non-admin account can write the shared catalog.
  */
 internal object YtvPhoneCatalog {
-    internal const val UPDATE_INTERVAL_MS = 30 * 60_000L
+    internal const val UPDATE_INTERVAL_MS = 30_000L
     // Check sooner when the user chooses a channel; failures are still throttled.
-    private const val ON_SELECT_CHECK_MS = 5 * 60_000L
+    private const val ON_SELECT_CHECK_MS = 30_000L
     private const val PREFS = "alatta_ytv_phone_cache_v1"
     private val guard = Mutex()
 
