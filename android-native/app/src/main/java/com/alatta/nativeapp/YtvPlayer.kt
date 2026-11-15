@@ -18,10 +18,6 @@ internal object YtvPlayer {
     const val APP_PAGE = "https://play.google.com/store/apps/details?id=com.ytv.pronew"
     private const val PACKAGE = "com.ytv.pronew"
     private const val SPLASH = "dev.google.ytvplayer.ui.splash.SplashActivity"
-    // The user-supplied gold APK exposes PlayerActivity and it reads the same
-    // "id" (Long) / "type" (Int) extras. Go directly to playback rather than
-    // opening its splash/advertising flow.
-    private const val PLAYER = "dev.google.ytvclib.ui.main.PlayerActivity"
     // Only the user-tested installed gold player handles channel IDs.
     enum class Failure(val explanation: String) {
         INVALID_ID("رقم القناة غير صحيح. حدّث قائمة القنوات من الإدارة."),
@@ -48,12 +44,9 @@ internal object YtvPlayer {
 
     fun channelIntent(value: String): Intent? {
         val id = channelId(value)?.toLong() ?: return null
-        return Intent(Intent.ACTION_VIEW).setComponent(ComponentName(PACKAGE, PLAYER))
+        return Intent(Intent.ACTION_VIEW).setComponent(ComponentName(PACKAGE, SPLASH))
             .putExtra("id", id).putExtra("type", 1)
     }
-
-    private fun splashFallback(request: Intent) =
-        Intent(request).setComponent(ComponentName(PACKAGE, SPLASH))
 
     fun open(context: Context, value: String, beforeLaunch: () -> Unit = {}): Failure? {
         val request = channelIntent(value) ?: return Failure.INVALID_ID
@@ -66,33 +59,19 @@ internal object YtvPlayer {
         return try {
             context.startActivity(request)
             null
-        } catch (_: ActivityNotFoundException) {
-            launchFallback(context, request)
-        } catch (_: SecurityException) {
-            launchFallback(context, request)
-        }
-    }
-
-    /** On versions without an exported player, preserve the previously working path. */
-    private fun launchFallback(context: Context, direct: Intent): Failure? {
-        val fallback = splashFallback(direct)
-        return try {
-            context.startActivity(fallback)
-            null
         } catch (_: ActivityNotFoundException) { Failure.UNAVAILABLE }
         catch (_: SecurityException) { Failure.NOT_ALLOWED }
     }
 
     /**
-     * Open the exported player Activity in the installed gold engine directly, not its ad/splash
+     * Use the proven installed YTV-family engine, not the tiny AL-ATTA TV channel
      * chooser. This remains an external Activity; it is not an embedded player.
      * Never repackage, resign, or copy its private APK/native libraries.
      */
     suspend fun openWorkingEngine(context: Context, value: String, beforeLaunch: () -> Unit = {}): Failure? {
         val playerIntent = channelIntent(value) ?: return Failure.INVALID_ID
         if (WatchRoomController.active) {
-            if (playerIntent.resolveActivity(context.packageManager) == null &&
-                splashFallback(playerIntent).resolveActivity(context.packageManager) == null) return Failure.UNAVAILABLE
+            if (playerIntent.resolveActivity(context.packageManager) == null) return Failure.UNAVAILABLE
             WatchRoomPip.enterAndWait(context)?.let { return it.playerFailure() }
         }
         val launchIntent = if (WatchRoomController.active) WatchRoomPip.playerIntent(playerIntent) else playerIntent
@@ -105,8 +84,7 @@ internal object YtvPlayer {
         val request = original
         if (WatchRoomController.active) {
             // تجنب الدخول إلى وضع PiP لمجرد اكتشاف عدم وجود مشغّل مثبت يعالج القناة.
-            if (request.resolveActivity(context.packageManager) == null &&
-                splashFallback(request).resolveActivity(context.packageManager) == null) return Failure.UNAVAILABLE
+            if (request.resolveActivity(context.packageManager) == null) return Failure.UNAVAILABLE
             WatchRoomPip.enterAndWait(context)?.let { return it.playerFailure() }
         }
         return launch(context, if (WatchRoomController.active) WatchRoomPip.playerIntent(request) else request, beforeLaunch)
