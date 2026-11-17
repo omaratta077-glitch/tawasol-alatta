@@ -111,6 +111,7 @@ let voiceAudio=null;
 $('loadAdhanVoices').onclick=async()=>{loading('webAdhanVoices');try{const data=await json('/api/adhan-voices');$('webAdhanVoices').innerHTML=(data.voices||[]).map(v=>`<button class="native-button" data-adhan-id="${esc(v.id)}">${esc(v.name)} • ${esc(v.mosque||'')}</button>`).join('')||'<p>لا توجد تسجيلات مضافة من الإدارة بعد.</p>';$('webAdhanVoices').querySelectorAll('button').forEach(b=>b.onclick=()=>{const voice=data.voices.find(v=>v.id===b.dataset.adhanId);if(!/^\/media\/adhan\/[a-zA-Z0-9.-]+$/.test(voice.url))return;voiceAudio?.pause();voiceAudio=new Audio(voice.url);voiceAudio.play().catch(e=>error('webAdhanVoices',e,()=>$('loadAdhanVoices').click()));});}catch(e){error('webAdhanVoices',e,()=>$('loadAdhanVoices').click());}};
 
 let football=null,footballTab='القنوات',footballActive=false;
+let satelliteChannels=null,satelliteRegion='الكل';
 const sportsStored=key=>{try{const value=JSON.parse(localStorage.getItem(key)||'[]');return Array.isArray(value)?value.filter(v=>typeof v==='string').slice(0,40):[];}catch{return [];}};
 let footballFavorites=sportsStored('alatta_sports_favorites'),footballRecent=sportsStored('alatta_sports_recent');
 const beinName=name=>/^bein/i.test(String(name).trim());
@@ -124,14 +125,65 @@ const sportsPlayControl=(c,label='تشغيل')=>{
  }
  return `<button class="native-button" data-football-channel="${esc(c.id)}" aria-label="تشغيل ${esc(c.name)}">${content}</button>`;
 };
+async function fetchSatelliteCandidates(){
+ try{
+  const response=await fetch('/satellite-candidates.json',{cache:'no-store'});
+  if(!response.ok)throw Error('تعذر تحميل دليل القنوات');
+  const data=await response.json();
+  if(!Array.isArray(data.channels))throw Error('بيانات القنوات غير صالحة');
+  satelliteChannels=data.channels;
+  if(footballTab==='فضائية')renderFootball();
+ }catch(e){
+  if(footballTab==='فضائية'){
+   const target=$('footballResults');target.innerHTML='<div class="native-card" role="alert">تعذر تحميل دليل القنوات. <button class="native-button" id="satelliteRetry">إعادة المحاولة</button></div>';
+   $('satelliteRetry').onclick=fetchSatelliteCandidates;
+  }
+ }
+}
+function renderSatelliteChannels(){
+ if(!satelliteChannels){$('footballResults').innerHTML='<div class="native-load-state">جارٍ تحميل دليل القنوات الفضائية...</div>';void fetchSatelliteCandidates();return;}
+ const oldPlayer=$('satellitePlayer');if(oldPlayer)oldPlayer.remove();
+ const q=normalize($('footballSearch').value);
+ const channels=satelliteChannels.filter(c=>(satelliteRegion==='الكل'||c.region===satelliteRegion)&&normalize(c.name+' '+c.category).includes(q));
+ $('footballResults').innerHTML=`<div class="native-card"><h3>القنوات الفضائية داخل العطا ميديا</h3><p>مشغّل القناة الرسمي عند توفر التضمين، أو رابط المشاهدة الرسمي. قد تختلف الإتاحة حسب المنطقة.</p><div class="sports-tabs" id="satelliteRegions">${['الكل','العربية','الأوروبية'].map(r=>`<button class="native-button sports-tab ${r===satelliteRegion?'selected':''}" data-satellite-region="${r}">${r}</button>`).join('')}</div></div>
+ <div id="satellitePlayer"></div><div class="sports-channel-grid">${channels.map(c=>`<article class="native-card sports-channel-card"><div class="sports-channel-brand"><strong>${esc(c.name)}</strong></div><small>${esc(c.region)} • ${esc(c.category)}</small><div class="sports-card-bottom"><button class="native-button" data-satellite-play="${esc(c.id)}">${icon('play')} مشاهدة</button></div></article>`).join('')||'<div class="native-card">لا توجد قنوات مطابقة.</div>'}</div>`;
+ if(oldPlayer)$('satellitePlayer').replaceWith(oldPlayer);
+ $('satelliteRegions').querySelectorAll('[data-satellite-region]').forEach(btn=>btn.onclick=()=>{satelliteRegion=btn.dataset.satelliteRegion;renderSatelliteChannels();});
+ $('footballResults').querySelectorAll('[data-satellite-play]').forEach(btn=>btn.onclick=()=>{
+  const c=satelliteChannels.find(row=>row.id===btn.dataset.satellitePlay);if(!c)return;
+  const host=$('satellitePlayer');host.replaceChildren();
+  window.AttaSportsPlayer?.stop();
+  const panel=document.createElement('section');panel.className='native-card';
+  const heading=document.createElement('h3');heading.textContent=c.name;panel.append(heading);
+  const yt=typeof c.youtubeVideoId==='string'&&/^[A-Za-z0-9_-]{11}$/.test(c.youtubeVideoId);
+  if(yt){
+   const iframe=document.createElement('iframe');iframe.src='https://www.youtube.com/embed/'+c.youtubeVideoId+'?playsinline=1&rel=0';
+   iframe.title='البث الرسمي • '+c.name;iframe.allow='autoplay; encrypted-media; fullscreen; picture-in-picture';iframe.allowFullscreen=true;
+   iframe.referrerPolicy='strict-origin-when-cross-origin';iframe.style.cssText='display:block;width:100%;height:auto;aspect-ratio:16/9;min-height:240px;border:0;border-radius:12px';
+   panel.append(iframe);
+   const info=document.createElement('p');info.textContent='المشغّل الرسمي • قد يوقف الناشر التضمين أو يقيّد البث جغرافيًا';panel.append(info);
+  }else{
+   const note=document.createElement('p');note.textContent='لم يتوفر رابط فيديو مصرح به للتضمين هنا. افتح البث عبر المصدر الرسمي.';panel.append(note);
+  }
+  const url=safeUrl(c.officialPage);
+  if(url){const link=document.createElement('a');link.href=url;link.target='_blank';link.rel='noopener noreferrer';link.className='native-button';link.textContent='المصدر الرسمي';panel.append(link);}
+  host.append(panel);host.scrollIntoView({block:'start',behavior:'smooth'});
+ });
+}
+
 function renderFootball(){
  if(!football)return;
  // لا تفصل الفيديو الجاري عند تحديث القنوات أو المفضلة.
  const playingHost=window.AttaSportsPlayer?.active()?$('footballPlayer'):null;
  playingHost?.remove();const q=normalize($('footballSearch').value),day=$('footballDate').value;
  $('footballDate').hidden=footballTab!=='المباريات';
- $('footballTabs').innerHTML=['القنوات','المباريات','المفضلة','آخر مشاهدة'].map(t=>`<button class="native-button sports-tab ${t===footballTab?'selected':''}" role="tab" aria-selected="${t===footballTab}" data-sports-tab="${t}">${t}</button>`).join('');
+ $('footballTabs').innerHTML=['القنوات','فضائية','المباريات','المفضلة','آخر مشاهدة'].map(t=>`<button class="native-button sports-tab ${t===footballTab?'selected':''}" role="tab" aria-selected="${t===footballTab}" data-sports-tab="${t}">${t}</button>`).join('');
  $('footballTabs').querySelectorAll('[data-sports-tab]').forEach(b=>b.onclick=()=>{footballTab=b.dataset.sportsTab;renderFootball();});
+ if(footballTab==='فضائية'){
+  $('footballDate').hidden=true;
+  renderSatelliteChannels();
+  return;
+ }
  const all=(football.channels||[]).filter(c=>c.enabled);
  const channels=all.filter(c=>normalize(c.name+' '+channelCategory(c)).includes(q)&&
   (footballTab!=='المفضلة'||footballFavorites.includes(c.id))&&(footballTab!=='آخر مشاهدة'||footballRecent.includes(c.id)))
@@ -185,7 +237,7 @@ setInterval(()=>{if(footballActive&&!document.hidden)openFootball(true);},30000)
 document.addEventListener('atta:page',e=>{
  const id=e.detail.pageId;
  footballActive=id==='sportsPage';
- if(!footballActive)window.AttaSportsPlayer?.stop();
+ if(!footballActive){window.AttaSportsPlayer?.stop();$('satellitePlayer')?.replaceChildren();}
  if(id!=='azkarPage')voiceAudio?.pause();
  if(id==='quranPage')openQuran();
  if(id==='hadithPage')openHadith();
