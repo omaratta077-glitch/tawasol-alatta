@@ -1,0 +1,241 @@
+{
+  "version": 1,
+  "updatedAt": "2026-11-17",
+  "notice": "Official broadcaster embeds or viewing pages. Not licensed HLS/DASH redistribution streams. Playback/geo/embedding not confirmed by real-device test.",
+  "channels": [
+    {
+      "id": "ar-france24-ar",
+      "name": "فرانس 24 العربية",
+      "category": "أخبار",
+      "region": "العربية",
+      "officialPage": "https://www.youtube.com/watch?v=3ursYA8HMeo",
+      "youtubeVideoId": "3ursYA8HMeo",
+      "status": "official_embed_unverified_at_runtime"
+    },
+    {
+      "id": "ar-skynews-ar",
+      "name": "سكاي نيوز عربية",
+      "category": "أخبار",
+      "region": "العربية",
+      "officialPage": "https://www.youtube.com/watch?v=ppgTP8xQQsM",
+      "youtubeVideoId": "ppgTP8xQQsM",
+      "status": "official_embed_unverified_at_runtime"
+    },
+    {
+      "id": "ar-sba-quran",
+      "name": "القرآن الكريم السعودية",
+      "category": "دينية",
+      "region": "العربية",
+      "officialPage": "https://aloula.sba.sa/",
+      "status": "official_page_only"
+    },
+    {
+      "id": "ar-sba-sunnah",
+      "name": "السنة النبوية",
+      "category": "دينية",
+      "region": "العربية",
+      "officialPage": "https://aloula.sba.sa/",
+      "status": "official_page_only"
+    },
+    {
+      "id": "ar-sba-saudi",
+      "name": "السعودية الأولى",
+      "category": "عامة",
+      "region": "العربية",
+      "officialPage": "https://aloula.sba.sa/",
+      "status": "official_page_only"
+    },
+    {
+      "id": "ar-sba-sbc",
+      "name": "SBC",
+      "category": "منوعات",
+      "region": "العربية",
+      "officialPage": "https://aloula.sba.sa/",
+      "status": "official_page_only"
+    },
+    {
+      "id": "ar-sba-alekhbariya",
+      "name": "الإخبارية السعودية",
+      "category": "أخبار",
+      "region": "العربية",
+      "officialPage": "https://aloula.sba.sa/",
+      "status": "official_page_only"
+    },
+    {
+      "id": "ar-sba-zekrayat",
+      "name": "ذكريات",
+      "category": "تراث",
+      "region": "العربية",
+      "officialPage": "https://aloula.sba.sa/",
+      "status": "official_page_only"
+    },
+    {
+      "id": "ar-dmi-dubai",
+      "name": "دبي TV",
+      "category": "منوعات",
+      "region": "العربية",
+      "officialPage": "https://www.dubaiplus.net/web",
+      "status": "official_page_only"
+    },
+    {
+      "id": "ar-dmi-sama",
+      "name": "سما دبي",
+      "category": "منوعات",
+      "region": "العربية",
+      "officialPage": "https://www.dubaiplus.net/web",
+      "status": "official_page_only"
+    },
+    {
+      "id": "ar-dmi-dubai-one",
+      "name": "Dubai One",
+      "category": "أفلام وبرامج",
+      "region": "العربية",
+      "officialPage": "https://www.dubaiplus.net/web",
+      "status": "official_page_only"
+    },
+    {
+      "id": "ar-dmi-dubai-sport1",
+      "name": "دبي الرياضية 1",
+      "category": "رياضة",
+      "region": "العربية",
+      "officialPage": "https://www.dubaiplus.net/web",
+      "status": "official_page_only"
+    },
+    {
+      "id": "ar-dmi-dubai-sport2",
+      "name": "دبي الرياضية 2",
+      "category": "رياضة",
+      "region": "العربية",
+      "officialPage": "https://www.dubaiplus.net/web",
+      "status": "official_page_only"
+    },
+    {
+      "id": "ar-dmi-dubai-racing1",
+      "name": "دبي ريسنج 1",
+      "category": "سباقات",
+      "region": "العربية",
+      "officialPage": "https://www.dubaiplus.net/web",
+      "status": "official_page_only"
+    },
+    {
+      "id": "ar-dmi-dubai-racing2",
+      "name": "دبي ريسنج 2",
+      "category": "سباقات",
+      "region": "العربية",
+      "officialPage": "https://www.dubaiplus.net/web",
+      "status": "official_page_only"
+    },
+    {
+      "id": "ar-dmi-dubai-zaman",
+      "name": "دبي زمان",
+      "category": "تراث",
+      "region": "العربية",
+      "officialPage": "https://www.dubaiplus.net/web",
+      "status": "official_page_only"
+    },
+    {
+      "id": "ar-dmi-noor-dubai",
+      "name": "نور دبي",
+      "category": "دينية واجتماعية",
+      "region": "العربية",
+      "officialPage": "https://www.dubaiplus.net/web",
+      "status": "official_page_only"
+    },
+    {
+      "id": "ar-aj-aljazeera",
+      "name": "الجزيرة الإخبارية",
+      "category": "أخبار",
+      "region": "العربية",
+      "officialPage": "https://www.aljazeera360.com/",
+      "status": "official_page_only"
+    },
+    {
+      "id": "ar-aj-aljazeera-mubasher",
+      "name": "الجزيرة مباشر",
+      "category": "أخبار",
+      "region": "العربية",
+      "officialPage": "https://www.aljazeera360.com/",
+      "status": "official_page_only"
+    },
+    {
+      "id": "ar-aj-aljazeera-now",
+      "name": "الجزيرة الآن",
+      "category": "أخبار",
+      "region": "العربية",
+      "officialPage": "https://www.aljazeera360.com/",
+      "status": "official_page_only"
+    },
+    {
+      "id": "eu-arte-de",
+      "name": "ARTE Deutsch",
+      "category": "ثقافة",
+      "region": "الأوروبية",
+      "officialPage": "https://www.arte.tv/de/live/",
+      "status": "official_page_only"
+    },
+    {
+      "id": "eu-arte-fr",
+      "name": "ARTE Français",
+      "category": "ثقافة",
+      "region": "الأوروبية",
+      "officialPage": "https://www.arte.tv/fr/live/",
+      "status": "official_page_only"
+    },
+    {
+      "id": "eu-zdf",
+      "name": "ZDF",
+      "category": "عام",
+      "region": "الأوروبية",
+      "officialPage": "https://www.zdf.de/live-tv",
+      "status": "official_page_only"
+    },
+    {
+      "id": "eu-daserste",
+      "name": "Das Erste (ARD)",
+      "category": "عام",
+      "region": "الأوروبية",
+      "officialPage": "https://www.ardmediathek.de/live",
+      "status": "official_page_only"
+    },
+    {
+      "id": "eu-3sat",
+      "name": "3sat",
+      "category": "ثقافة",
+      "region": "الأوروبية",
+      "officialPage": "https://www.zdf.de/live-tv",
+      "status": "official_page_only"
+    },
+    {
+      "id": "eu-zdfinfo",
+      "name": "ZDFinfo",
+      "category": "وثائقي",
+      "region": "الأوروبية",
+      "officialPage": "https://www.zdf.de/live-tv",
+      "status": "official_page_only"
+    },
+    {
+      "id": "eu-kika",
+      "name": "KiKA",
+      "category": "أطفال",
+      "region": "الأوروبية",
+      "officialPage": "https://www.kika.de/",
+      "status": "official_page_only"
+    },
+    {
+      "id": "eu-france24-fr",
+      "name": "France 24 Français",
+      "category": "أخبار",
+      "region": "الأوروبية",
+      "officialPage": "https://www.france24.com/fr/direct",
+      "status": "official_page_only"
+    },
+    {
+      "id": "eu-tv5monde",
+      "name": "TV5MONDE Europe",
+      "category": "عام",
+      "region": "الأوروبية",
+      "officialPage": "https://www.tv5monde.com/",
+      "status": "official_page_only"
+    }
+  ]
+}
