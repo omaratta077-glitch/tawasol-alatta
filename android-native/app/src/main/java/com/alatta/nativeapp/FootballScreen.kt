@@ -238,6 +238,7 @@ internal fun FootballContent(catalog: FootballCatalog, query: String, favorites:
     onPlayManualId: (String) -> Unit = {},
     reportAvailable: Boolean = false, onCopyReport: () -> Unit = {}) {
     var tab by rememberSaveable { mutableStateOf("القنوات") }
+    val satelliteTab = tab == "فضائية"
     var manualExpanded by rememberSaveable { mutableStateOf(false) }
     var manualChannelId by rememberSaveable { mutableStateOf("") }
     var showSchedule by rememberSaveable { mutableStateOf(false) }
@@ -254,7 +255,7 @@ internal fun FootballContent(catalog: FootballCatalog, query: String, favorites:
         .sortedWith(if (tab == "آخر مشاهدة") compareBy { recent.indexOf(it.id) } else footballChannelOrder())
     Column(modifier.fillMaxSize().background(PremiumBackground).padding(horizontal = 10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            listOf("القنوات", "البث المباشر", "المفضلة", "آخر مشاهدة").forEach { name ->
+            listOf("القنوات", "فضائية", "البث المباشر", "المفضلة", "آخر مشاهدة").forEach { name ->
                 FilterChip(selected = tab == name, onClick = { tab = name }, label = { Text(name, fontSize = 12.sp) },
                     colors = FilterChipDefaults.filterChipColors(selectedContainerColor = PremiumGold,
                         selectedLabelColor = Color.Black, labelColor = PremiumGoldLight))
@@ -316,9 +317,13 @@ internal fun FootballContent(catalog: FootballCatalog, query: String, favorites:
         if (reportAvailable) TextButton(onClick = onCopyReport) {
             Text(AttaLocale.tr("نسخ تقرير ربط القناة"), color = PremiumGoldLight, fontSize = 12.sp)
         }
-        livePanel()
-        if (loading) LinearProgressIndicator(Modifier.fillMaxWidth(), color = PremiumGold)
+        if (!satelliteTab) livePanel()
+        if (satelliteTab) {
+            SatelliteCandidatePanel(query = query, modifier = Modifier.weight(1f))
+        }
+        if (!satelliteTab && loading) LinearProgressIndicator(Modifier.fillMaxWidth(), color = PremiumGold)
         if (error.isNotBlank()) Text(error, color = Color(0xFFFFB4A9), fontSize = 12.sp)
+        if (satelliteTab) return@Column
         if (directTab) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             FilterChip(selected = !showSchedule, onClick = { showSchedule = false }, label = { Text(AttaLocale.tr("بث القنوات"), fontSize = 12.sp) })
             FilterChip(selected = showSchedule, onClick = { showSchedule = true }, label = { Text(AttaLocale.tr("جدول اليوم"), fontSize = 12.sp) })
@@ -400,6 +405,49 @@ internal fun FootballChannelCard(channel: FootballChannel, favorite: Boolean, en
                 }
                 footballQuality(channel.category).takeIf { it.isNotBlank() }?.let { Text(it, color = PremiumMuted, fontSize = 11.sp) }
             }
+        }
+    }
+}
+
+/** Browsable official pages in Media. Playback is intentionally disabled until approved source URLs exist. */
+@Composable
+internal fun SatelliteCandidatePanel(query: String, modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    var region by rememberSaveable { mutableStateOf("الكل") }
+    val terms = remember(query) { normalizeHadithSearch(query).split(' ').filter(String::isNotBlank) }
+    val entries = SatelliteCandidates.all.filter { candidate ->
+        (region == "الكل" || candidate.region == region) &&
+            terms.all { normalizeHadithSearch(candidate.name + " " + candidate.category).contains(it) }
+    }
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text("القنوات الفضائية العربية والأوروبية", color = PremiumGoldLight, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+        Text("المصادر الرسمية متاحة للاستعراض. تشغيل القنوات مباشرة داخل العطا ميديا يتطلب رابط بث معتمدًا؛ لم يُفعّل بعد.",
+            color = PremiumMuted, fontSize = 12.sp)
+        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            listOf("الكل", "العربية", "الأوروبية").forEach { item ->
+                FilterChip(selected = region == item, onClick = { region = item },
+                    label = { Text(item, fontSize = 12.sp) })
+            }
+        }
+        LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(bottom = 12.dp)) {
+            items(entries, key = { it.id }) { candidate ->
+                FootballPanel {
+                    Text(candidate.name, color = PremiumGoldLight, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                    Text("${candidate.region} • ${candidate.category} • لم يتم اعتماد بث داخلي", color = PremiumMuted, fontSize = 12.sp)
+                    OutlinedButton(onClick = {
+                        val uri = Uri.parse(candidate.officialPage)
+                        if (uri.scheme == "https" && uri.host != null) {
+                            runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, uri)) }
+                                .onFailure {
+                                    android.widget.Toast.makeText(context, "تعذر فتح المصدر الرسمي", android.widget.Toast.LENGTH_SHORT).show()
+                                }
+                        }
+                    }, modifier = Modifier.fillMaxWidth()) {
+                        Text("زيارة المصدر الرسمي", color = PremiumGoldLight, fontSize = 12.sp)
+                    }
+                }
+            }
+            if (entries.isEmpty()) item { FootballPanel { Text("لا توجد قنوات مطابقة", color = PremiumMuted) } }
         }
     }
 }
