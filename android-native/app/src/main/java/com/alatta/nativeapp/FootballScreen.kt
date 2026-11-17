@@ -409,11 +409,11 @@ internal fun FootballChannelCard(channel: FootballChannel, favorite: Boolean, en
     }
 }
 
-/** Browsable official pages in Media. Playback is intentionally disabled until approved source URLs exist. */
+/** Official broadcast pages in the existing AL-ATTA Media sports tab. */
 @Composable
 internal fun SatelliteCandidatePanel(query: String, modifier: Modifier = Modifier) {
-    val context = LocalContext.current
     var region by rememberSaveable { mutableStateOf("الكل") }
+    var viewer by remember { mutableStateOf<SatelliteCandidate?>(null) }
     val terms = remember(query) { normalizeHadithSearch(query).split(' ').filter(String::isNotBlank) }
     val entries = SatelliteCandidates.all.filter { candidate ->
         (region == "الكل" || candidate.region == region) &&
@@ -421,7 +421,7 @@ internal fun SatelliteCandidatePanel(query: String, modifier: Modifier = Modifie
     }
     Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text("القنوات الفضائية العربية والأوروبية", color = PremiumGoldLight, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-        Text("المصادر الرسمية متاحة للاستعراض. تشغيل القنوات مباشرة داخل العطا ميديا يتطلب رابط بث معتمدًا؛ لم يُفعّل بعد.",
+        Text("المشاهدة من مشغّل الناشر الرسمي داخل العطا ميديا؛ توافر البث خاضع للبلد والسماح بالتضمين.",
             color = PremiumMuted, fontSize = 12.sp)
         Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             listOf("الكل", "العربية", "الأوروبية").forEach { item ->
@@ -433,21 +433,19 @@ internal fun SatelliteCandidatePanel(query: String, modifier: Modifier = Modifie
             items(entries, key = { it.id }) { candidate ->
                 FootballPanel {
                     Text(candidate.name, color = PremiumGoldLight, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-                    Text("${candidate.region} • ${candidate.category} • لم يتم اعتماد بث داخلي", color = PremiumMuted, fontSize = 12.sp)
-                    OutlinedButton(onClick = {
-                        val uri = Uri.parse(candidate.officialPage)
-                        if (uri.scheme == "https" && uri.host != null) {
-                            runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, uri)) }
-                                .onFailure {
-                                    android.widget.Toast.makeText(context, "تعذر فتح المصدر الرسمي", android.widget.Toast.LENGTH_SHORT).show()
-                                }
-                        }
-                    }, modifier = Modifier.fillMaxWidth()) {
-                        Text("زيارة المصدر الرسمي", color = PremiumGoldLight, fontSize = 12.sp)
+                    Text("${candidate.region} • ${candidate.category}", color = PremiumMuted, fontSize = 12.sp)
+                    Text(if (candidate.youtubeVideoId != null) "مشغّل YouTube الرسمي • يتطلب توافر البث"
+                        else "صفحة البث الرسمية داخل التطبيق • قد يحتاج اختيار القناة",
+                        color = PremiumMuted, fontSize = 11.sp)
+                    OutlinedButton(onClick = { viewer = candidate }, modifier = Modifier.fillMaxWidth()) {
+                        Text("مشاهدة داخل العطا ميديا", color = PremiumGoldLight, fontSize = 12.sp)
                     }
                 }
             }
             if (entries.isEmpty()) item { FootballPanel { Text("لا توجد قنوات مطابقة", color = PremiumMuted) } }
         }
     }
+    viewer?.let { channel -> key(channel.id) {
+        SatelliteChannelViewer(channel, onDismiss = { viewer = null })
+    } }
 }
