@@ -1,0 +1,123 @@
+{
+  "schemaVersion": 1,
+  "region": "EUROPE",
+  "description": "European satellite free-to-air channel candidates. Official viewing pages only; NOT verified playable streams. Never feed web pages into Media3 as HLS.",
+  "updatedAt": "2026-11-17",
+  "integratedIntoApp": false,
+  "channels": [
+    {
+      "id": "eu-arte-de",
+      "name": "ARTE Deutsch",
+      "satellites": [
+        "ASTRA 19.2E"
+      ],
+      "category": "ثقافة",
+      "officialPage": "https://www.arte.tv/de/live/",
+      "streamUrl": null,
+      "playbackStatus": "geo_blocked_for_user",
+      "appEnabled": false
+    },
+    {
+      "id": "eu-arte-fr",
+      "name": "ARTE Français",
+      "satellites": [
+        "HOTBIRD 13E"
+      ],
+      "category": "ثقافة",
+      "officialPage": "https://www.arte.tv/fr/live/",
+      "streamUrl": null,
+      "playbackStatus": "unverified",
+      "appEnabled": false
+    },
+    {
+      "id": "eu-zdf",
+      "name": "ZDF",
+      "satellites": [
+        "ASTRA 19.2E"
+      ],
+      "category": "عام",
+      "officialPage": "https://www.zdf.de/live-tv",
+      "streamUrl": null,
+      "playbackStatus": "unverified",
+      "appEnabled": false
+    },
+    {
+      "id": "eu-daserste",
+      "name": "Das Erste (ARD)",
+      "satellites": [
+        "ASTRA 19.2E"
+      ],
+      "category": "عام",
+      "officialPage": "https://www.ardmediathek.de/live",
+      "streamUrl": null,
+      "playbackStatus": "unverified",
+      "appEnabled": false
+    },
+    {
+      "id": "eu-3sat",
+      "name": "3sat",
+      "satellites": [
+        "ASTRA 19.2E"
+      ],
+      "category": "ثقافة",
+      "officialPage": "https://www.zdf.de/live-tv",
+      "streamUrl": null,
+      "playbackStatus": "unverified",
+      "appEnabled": false
+    },
+    {
+      "id": "eu-zdfinfo",
+      "name": "ZDFinfo",
+      "satellites": [
+        "ASTRA 19.2E"
+      ],
+      "category": "وثائقي",
+      "officialPage": "https://www.zdf.de/live-tv",
+      "streamUrl": null,
+      "playbackStatus": "unverified",
+      "appEnabled": false
+    },
+    {
+      "id": "eu-kika",
+      "name": "KiKA",
+      "satellites": [
+        "ASTRA 19.2E"
+      ],
+      "category": "أطفال",
+      "officialPage": "https://www.kika.de/",
+      "streamUrl": null,
+      "playbackStatus": "unverified",
+      "appEnabled": false
+    },
+    {
+      "id": "eu-france24-fr",
+      "name": "France 24 Français",
+      "satellites": [
+        "HOTBIRD 13E"
+      ],
+      "category": "أخبار",
+      "officialPage": "https://www.france24.com/fr/direct",
+      "streamUrl": null,
+      "playbackStatus": "unverified",
+      "appEnabled": false
+    },
+    {
+      "id": "eu-tv5monde",
+      "name": "TV5MONDE Europe",
+      "satellites": [
+        "HOTBIRD 13E"
+      ],
+      "category": "عام",
+      "officialPage": "https://www.tv5monde.com/",
+      "streamUrl": null,
+      "playbackStatus": "unverified",
+      "appEnabled": false
+    }
+  ],
+  "rules": [
+    "Do not publish a channel as playable unless a permitted direct HLS/DASH stream is confirmed.",
+    "Do not treat officialPage as streamUrl.",
+    "Honor geo restrictions and provider embedding and redistribution terms.",
+    "Existing YTV catalog and gold player must remain untouched."
+  ]
+}
