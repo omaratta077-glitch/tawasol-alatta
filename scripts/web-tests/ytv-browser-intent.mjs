@@ -39,5 +39,5 @@ test('Sports cards use direct anchor gestures for YTV without trying browser HLS
   assert.match(modules,/AttaYtvWebLaunch\?\.url\(c\.streamUrl\)/);
   assert.doesNotMatch(modules,/bridge\.sportsPlayback\(channel\.id\)/);
   assert.match(modules,/AttaSportsPlayer\.play\(host,url,channel\.format\)/);
-  assert.ok(html.indexOf('ytv-web-launch.js?v=14.21') < html.indexOf('web-modules.js?v=14.21'));
+  assert.ok(html.indexOf('ytv-web-launch.js?v=14.21') < html.indexOf('web-modules.js?v=14.22'));
 });
