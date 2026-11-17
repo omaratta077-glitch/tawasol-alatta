@@ -1,0 +1,258 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-11-17",
+  "description": "Arabic satellite channel candidates with official viewing pages. Not an operational streaming playlist.",
+  "integratedIntoApp": false,
+  "channels": [
+    {
+      "id": "ar-sba-quran",
+      "name": "القرآن الكريم السعودية",
+      "category": "دينية",
+      "region": "ARAB",
+      "satellites": [],
+      "officialPlatform": "Aloula",
+      "officialPage": "https://aloula.sba.sa/",
+      "streamUrl": null,
+      "playbackStatus": "not_tested",
+      "appEnabled": false,
+      "notes": "Official viewing page identified; no licensed playable HLS/DASH URL verified"
+    },
+    {
+      "id": "ar-sba-sunnah",
+      "name": "السنة النبوية",
+      "category": "دينية",
+      "region": "ARAB",
+      "satellites": [],
+      "officialPlatform": "Aloula",
+      "officialPage": "https://aloula.sba.sa/",
+      "streamUrl": null,
+      "playbackStatus": "not_tested",
+      "appEnabled": false,
+      "notes": "Official viewing page identified; no licensed playable HLS/DASH URL verified"
+    },
+    {
+      "id": "ar-sba-saudi",
+      "name": "السعودية الأولى",
+      "category": "عامة",
+      "region": "ARAB",
+      "satellites": [],
+      "officialPlatform": "Aloula",
+      "officialPage": "https://aloula.sba.sa/",
+      "streamUrl": null,
+      "playbackStatus": "not_tested",
+      "appEnabled": false,
+      "notes": "Official viewing page identified; no licensed playable HLS/DASH URL verified"
+    },
+    {
+      "id": "ar-sba-sbc",
+      "name": "SBC",
+      "category": "منوعات",
+      "region": "ARAB",
+      "satellites": [],
+      "officialPlatform": "Aloula",
+      "officialPage": "https://aloula.sba.sa/",
+      "streamUrl": null,
+      "playbackStatus": "not_tested",
+      "appEnabled": false,
+      "notes": "Official viewing page identified; no licensed playable HLS/DASH URL verified"
+    },
+    {
+      "id": "ar-sba-alekhbariya",
+      "name": "الإخبارية السعودية",
+      "category": "أخبار",
+      "region": "ARAB",
+      "satellites": [],
+      "officialPlatform": "Aloula",
+      "officialPage": "https://aloula.sba.sa/",
+      "streamUrl": null,
+      "playbackStatus": "not_tested",
+      "appEnabled": false,
+      "notes": "Official viewing page identified; no licensed playable HLS/DASH URL verified"
+    },
+    {
+      "id": "ar-sba-zekrayat",
+      "name": "ذكريات",
+      "category": "تراث",
+      "region": "ARAB",
+      "satellites": [],
+      "officialPlatform": "Aloula",
+      "officialPage": "https://aloula.sba.sa/",
+      "streamUrl": null,
+      "playbackStatus": "not_tested",
+      "appEnabled": false,
+      "notes": "Official viewing page identified; no licensed playable HLS/DASH URL verified"
+    },
+    {
+      "id": "ar-dmi-dubai",
+      "name": "دبي TV",
+      "category": "منوعات",
+      "region": "ARAB",
+      "satellites": [],
+      "officialPlatform": "Dubai+",
+      "officialPage": "https://www.dubaiplus.net/web",
+      "streamUrl": null,
+      "playbackStatus": "not_tested",
+      "appEnabled": false,
+      "notes": "Official viewing page identified; no licensed playable HLS/DASH URL verified"
+    },
+    {
+      "id": "ar-dmi-sama",
+      "name": "سما دبي",
+      "category": "منوعات",
+      "region": "ARAB",
+      "satellites": [],
+      "officialPlatform": "Dubai+",
+      "officialPage": "https://www.dubaiplus.net/web",
+      "streamUrl": null,
+      "playbackStatus": "not_tested",
+      "appEnabled": false,
+      "notes": "Official viewing page identified; no licensed playable HLS/DASH URL verified"
+    },
+    {
+      "id": "ar-dmi-dubai-one",
+      "name": "Dubai One",
+      "category": "أفلام وبرامج",
+      "region": "ARAB",
+      "satellites": [],
+      "officialPlatform": "Dubai+",
+      "officialPage": "https://www.dubaiplus.net/web",
+      "streamUrl": null,
+      "playbackStatus": "not_tested",
+      "appEnabled": false,
+      "notes": "Official viewing page identified; no licensed playable HLS/DASH URL verified"
+    },
+    {
+      "id": "ar-dmi-dubai-sport1",
+      "name": "دبي الرياضية 1",
+      "category": "رياضة",
+      "region": "ARAB",
+      "satellites": [],
+      "officialPlatform": "Dubai+",
+      "officialPage": "https://www.dubaiplus.net/web",
+      "streamUrl": null,
+      "playbackStatus": "not_tested",
+      "appEnabled": false,
+      "notes": "Official viewing page identified; no licensed playable HLS/DASH URL verified"
+    },
+    {
+      "id": "ar-dmi-dubai-sport2",
+      "name": "دبي الرياضية 2",
+      "category": "رياضة",
+      "region": "ARAB",
+      "satellites": [],
+      "officialPlatform": "Dubai+",
+      "officialPage": "https://www.dubaiplus.net/web",
+      "streamUrl": null,
+      "playbackStatus": "not_tested",
+      "appEnabled": false,
+      "notes": "Official viewing page identified; no licensed playable HLS/DASH URL verified"
+    },
+    {
+      "id": "ar-dmi-dubai-racing1",
+      "name": "دبي ريسنج 1",
+      "category": "سباقات",
+      "region": "ARAB",
+      "satellites": [],
+      "officialPlatform": "Dubai+",
+      "officialPage": "https://www.dubaiplus.net/web",
+      "streamUrl": null,
+      "playbackStatus": "not_tested",
+      "appEnabled": false,
+      "notes": "Official viewing page identified; no licensed playable HLS/DASH URL verified"
+    },
+    {
+      "id": "ar-dmi-dubai-racing2",
+      "name": "دبي ريسنج 2",
+      "category": "سباقات",
+      "region": "ARAB",
+      "satellites": [],
+      "officialPlatform": "Dubai+",
+      "officialPage": "https://www.dubaiplus.net/web",
+      "streamUrl": null,
+      "playbackStatus": "not_tested",
+      "appEnabled": false,
+      "notes": "Official viewing page identified; no licensed playable HLS/DASH URL verified"
+    },
+    {
+      "id": "ar-dmi-dubai-zaman",
+      "name": "دبي زمان",
+      "category": "تراث",
+      "region": "ARAB",
+      "satellites": [],
+      "officialPlatform": "Dubai+",
+      "officialPage": "https://www.dubaiplus.net/web",
+      "streamUrl": null,
+      "playbackStatus": "not_tested",
+      "appEnabled": false,
+      "notes": "Official viewing page identified; no licensed playable HLS/DASH URL verified"
+    },
+    {
+      "id": "ar-dmi-noor-dubai",
+      "name": "نور دبي",
+      "category": "دينية واجتماعية",
+      "region": "ARAB",
+      "satellites": [],
+      "officialPlatform": "Dubai+",
+      "officialPage": "https://www.dubaiplus.net/web",
+      "streamUrl": null,
+      "playbackStatus": "not_tested",
+      "appEnabled": false,
+      "notes": "Official viewing page identified; no licensed playable HLS/DASH URL verified"
+    },
+    {
+      "id": "ar-aj-aljazeera",
+      "name": "الجزيرة الإخبارية",
+      "category": "أخبار",
+      "region": "ARAB",
+      "satellites": [
+        "Hotbird 13E"
+      ],
+      "officialPlatform": "Al Jazeera 360",
+      "officialPage": "https://www.aljazeera360.com/",
+      "streamUrl": null,
+      "playbackStatus": "not_tested",
+      "appEnabled": false,
+      "notes": "Official viewing page identified; no licensed playable HLS/DASH URL verified"
+    },
+    {
+      "id": "ar-aj-aljazeera-mubasher",
+      "name": "الجزيرة مباشر",
+      "category": "أخبار",
+      "region": "ARAB",
+      "satellites": [
+        "Hotbird 13E"
+      ],
+      "officialPlatform": "Al Jazeera 360",
+      "officialPage": "https://www.aljazeera360.com/",
+      "streamUrl": null,
+      "playbackStatus": "not_tested",
+      "appEnabled": false,
+      "notes": "Official viewing page identified; no licensed playable HLS/DASH URL verified"
+    },
+    {
+      "id": "ar-aj-aljazeera-now",
+      "name": "الجزيرة الآن",
+      "category": "أخبار",
+      "region": "ARAB",
+      "satellites": [
+        "Hotbird 13E"
+      ],
+      "officialPlatform": "Al Jazeera 360",
+      "officialPage": "https://www.aljazeera360.com/",
+      "streamUrl": null,
+      "playbackStatus": "not_tested",
+      "appEnabled": false,
+      "notes": "Official viewing page identified; no licensed playable HLS/DASH URL verified"
+    }
+  ],
+  "validation": {
+    "satelliteCoverage": "Exact Nilesat/Arabsat carriage not verified for every entry",
+    "availability": "Official web listings only; geo/access and embedded playback require checking",
+    "rule": "Do not present these as playable or inject webpage URLs into Media3. Only enable confirmed authorized HLS/DASH streams or supported official embeds."
+  },
+  "sources": [
+    "https://www.dubaiplus.net/web",
+    "https://network.aljazeera.net/en/press-releases/marking-its-30th-anniversary-al-jazeera-launches-new-ecosystem-news-channels-arabic?page=3",
+    "https://aloula.sba.sa/"
+  ]
+}
