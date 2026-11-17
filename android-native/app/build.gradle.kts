@@ -24,9 +24,9 @@ android {
         applicationId = "com.alatta.nativeapp"
         minSdk = 26
         targetSdk = 36
-        // الإصدار 1.0.289: استعادة مسار التشغيل المجرب لتجنب الخروج عند فتح قنوات YTV.
-        versionCode = 389
-        versionName = "1.0.289"
+        // الإصدار 1.0.290: إضافة دليل القنوات الفضائية الرسمية داخل العطا ميديا دون تغيير مشغّل YTV.
+        versionCode = 390
+        versionName = "1.0.290"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("boolean", "IS_APPGALLERY", appGalleryBuild.toString())
         val hmsId = (System.getenv("ALATTA_HMS_APP_ID") ?: "").trim().takeIf { it.matches(Regex("[0-9]{1,20}")) } ?: ""
