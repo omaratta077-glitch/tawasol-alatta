@@ -11,11 +11,15 @@ internal data class SatelliteCandidate(
     val name: String,
     val category: String,
     val region: String,
-    val officialPage: String
+    val officialPage: String,
+    val youtubeVideoId: String? = null
 )
 
 internal object SatelliteCandidates {
     val all: List<SatelliteCandidate> = listOf(
+        // Official broadcaster YouTube live-page video IDs. Embedding may be restricted by the publisher.
+        SatelliteCandidate("ar-france24-ar", "فرانس 24 العربية", "أخبار", "العربية", "https://www.youtube.com/watch?v=3ursYA8HMeo", "3ursYA8HMeo"),
+        SatelliteCandidate("ar-skynews-ar", "سكاي نيوز عربية", "أخبار", "العربية", "https://www.youtube.com/watch?v=ppgTP8xQQsM", "ppgTP8xQQsM"),
         SatelliteCandidate("ar-sba-quran", "القرآن الكريم السعودية", "دينية", "العربية", "https://aloula.sba.sa/"),
         SatelliteCandidate("ar-sba-sunnah", "السنة النبوية", "دينية", "العربية", "https://aloula.sba.sa/"),
         SatelliteCandidate("ar-sba-saudi", "السعودية الأولى", "عامة", "العربية", "https://aloula.sba.sa/"),
