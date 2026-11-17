@@ -1,0 +1,55 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-11-17",
+  "description": "Candidate rightsholders to approach. NOT active channel streams; no grant is implied.",
+  "candidates": [
+    {
+      "id": "voa",
+      "name": "Voice of America (VOA)",
+      "languages": [
+        "English",
+        "Arabic programs (subject to rights availability)"
+      ],
+      "status": "permission_required",
+      "rightsMode": "digital television and mobile app carriage via affiliate agreement",
+      "requestUrl": "https://www.usagm.gov/work-with-us/become-an-affiliate/",
+      "additionalInfo": "https://www.usagm.gov/work-with-us/content-requests/voa/",
+      "note": "USAGM Direct affiliate application; third-party copyrighted program segments need clearance."
+    },
+    {
+      "id": "alhurra",
+      "name": "Alhurra / MBN",
+      "languages": [
+        "Arabic"
+      ],
+      "status": "permission_required",
+      "rightsMode": "Arabic television and mobile application retransmission agreement",
+      "requestEmail": "communications@alhurra.com",
+      "requestUrl": "https://www.usagm.gov/work-with-us/content-requests/",
+      "note": "MBN content requests via official USAGM guidance."
+    },
+    {
+      "id": "france24-ar",
+      "name": "France 24 Arabic",
+      "languages": [
+        "Arabic"
+      ],
+      "status": "permission_required",
+      "rightsMode": "live channel distribution to mobile apps and OTT",
+      "requestEmail": "distribution@france24.com",
+      "requestUrl": "https://howtowatch.france24.com/en/country/france/",
+      "note": "Satellite free-to-air and other IPTV carriage do not automatically authorize AL-ATTA TV."
+    },
+    {
+      "id": "dw-ar",
+      "name": "DW Arabic",
+      "languages": [
+        "Arabic"
+      ],
+      "status": "permission_required",
+      "rightsMode": "approved partner/TV carriage and digital streaming agreement",
+      "requestUrl": "https://b2b.dw.com/page/dw-terms-conditions",
+      "note": "DW requires professional B2B registration and approval, then order and grant of rights; may be paid."
+    }
+  ]
+}
